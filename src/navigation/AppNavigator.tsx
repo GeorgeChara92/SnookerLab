@@ -15,6 +15,7 @@ import { AuthNavigator } from "./AuthNavigator";
 import { ProfileNavigator } from "./ProfileNavigator";
 import { RootStackParamList } from "../types";
 import { useAppTheme } from "../hooks/useAppTheme";
+import { initBilling, isBillingConfigured } from "../services/billing";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -49,6 +50,11 @@ export const AppNavigator = () => {
     // Check for existing session on app start
     if (session?.user) {
       setUser(session.user);
+      if (isBillingConfigured()) {
+        void initBilling(session.user.id).catch((error) => {
+          console.warn("RevenueCat init failed:", error);
+        });
+      }
       setSessionsOwner(session.user.id);
       void hydrateSessionsForUser(session.user.id);
       setMatchesOwner(session.user.id);
@@ -85,6 +91,11 @@ export const AppNavigator = () => {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (nextSession?.user) {
         setUser(nextSession.user);
+        if (isBillingConfigured()) {
+          void initBilling(nextSession.user.id).catch((error) => {
+            console.warn("RevenueCat init failed:", error);
+          });
+        }
         setSessionsOwner(nextSession.user.id);
         void hydrateSessionsForUser(nextSession.user.id);
         setMatchesOwner(nextSession.user.id);

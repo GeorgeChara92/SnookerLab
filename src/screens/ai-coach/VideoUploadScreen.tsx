@@ -25,7 +25,9 @@ const CONTEXT_TAGS = ["practice", "match", "break-building", "safety", "long-pot
 const ENABLE_AI_STORAGE_UPLOAD = process.env.EXPO_PUBLIC_ENABLE_AI_STORAGE_UPLOAD !== "0";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
-const STORAGE_UPLOAD_TIMEOUT_MS = 25000;
+const STORAGE_UPLOAD_TIMEOUT_BASE_MS = 60000;
+const STORAGE_UPLOAD_TIMEOUT_PER_MB_MS = 2000;
+const STORAGE_UPLOAD_TIMEOUT_MAX_MS = 180000;
 
 const inferContentType = (ext: string, mimeType?: string) => {
   if (mimeType) return mimeType;
@@ -57,6 +59,12 @@ const formatDurationSeconds = (rawDuration?: number) => {
   if (!rawDuration || Number.isNaN(rawDuration) || rawDuration <= 0) return "Unknown";
   const seconds = rawDuration > 1000 ? rawDuration / 1000 : rawDuration;
   return `${seconds.toFixed(1)}s`;
+};
+
+const getUploadTimeoutMs = (fileSizeBytes?: number) => {
+  const mb = Math.max(0, Math.ceil((fileSizeBytes ?? 0) / 1024 / 1024));
+  const computed = STORAGE_UPLOAD_TIMEOUT_BASE_MS + mb * STORAGE_UPLOAD_TIMEOUT_PER_MB_MS;
+  return Math.min(STORAGE_UPLOAD_TIMEOUT_MAX_MS, computed);
 };
 
 export const VideoUploadScreen = () => {
@@ -163,7 +171,7 @@ export const VideoUploadScreen = () => {
                 "x-upsert": "false",
               },
             }),
-            STORAGE_UPLOAD_TIMEOUT_MS,
+            getUploadTimeoutMs(video.fileSize),
             "Storage upload timed out"
           );
 

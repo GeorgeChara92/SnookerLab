@@ -10,6 +10,14 @@ import { supabase } from "../../api/supabase";
 
 type AnalysisDetailRoute = RouteProp<AICoachStackParamList, "AnalysisDetail">;
 
+const ClipPlayer = ({ url }: { url: string }) => {
+  const player = useVideoPlayer({ uri: url }, (instance) => {
+    instance.loop = false;
+  });
+
+  return <VideoView player={player} style={styles.videoPlayer} nativeControls contentFit="contain" />;
+};
+
 export const AnalysisDetailScreen = () => {
   const route = useRoute<AnalysisDetailRoute>();
   const { colors } = useAppTheme();
@@ -19,9 +27,6 @@ export const AnalysisDetailScreen = () => {
 
   const analysis = analyses.find((item) => item.id === route.params.analysisId);
   const report = analysis?.report_json;
-  const player = useVideoPlayer(playbackUrl ? { uri: playbackUrl } : null, (instance) => {
-    instance.loop = false;
-  });
 
   useEffect(() => {
     let mounted = true;
@@ -95,7 +100,7 @@ export const AnalysisDetailScreen = () => {
       <AppCard style={styles.card}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Clip</Text>
         {playbackUrl ? (
-          <VideoView player={player} style={styles.videoPlayer} nativeControls contentFit="contain" />
+          <ClipPlayer url={playbackUrl} />
         ) : analysis.video_url.startsWith("demo://") ? (
           <Text style={[styles.body, { color: colors.textMuted }]}>Demo analysis has no uploaded clip attached.</Text>
         ) : videoError ? (

@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { safeStorage } from "../utils/storage";
 import { supabase } from "../api/supabase";
 import { User } from "../types";
+import { logoutBilling } from "../services/billing";
 
 const mapAuthUser = (authUser: any): User => ({
   id: authUser.id,
@@ -89,6 +90,7 @@ export const useAuthStore = create<AuthState>()(
       },
       signOut: async () => {
         await supabase.auth.signOut();
+        await logoutBilling();
         await Promise.all(LEGACY_STORE_KEYS.map((key) => safeStorage.removeItem(key)));
         set({ user: null, session: null, isAuthenticated: false });
       },

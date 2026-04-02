@@ -306,4 +306,5 @@ export type AICoachStackParamList = {
 export type ProfileStackParamList = {
   ProfileHome: undefined;
   Settings: undefined;
+  SubscriptionPlans: undefined;
 };

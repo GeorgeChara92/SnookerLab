@@ -1,5 +1,6 @@
 import React from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { AppButton } from "../ui/AppButton";
 import { AppCard } from "../ui/AppCard";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -11,10 +12,22 @@ type TierPaywallModalProps = {
   onClose: () => void;
   currentTier: SubscriptionTier;
   featureLabel: string;
+  onUnlock?: () => void;
 };
 
-export const TierPaywallModal = ({ visible, onClose, currentTier, featureLabel }: TierPaywallModalProps) => {
+export const TierPaywallModal = ({ visible, onClose, currentTier, featureLabel, onUnlock }: TierPaywallModalProps) => {
   const { colors } = useAppTheme();
+  const navigation = useNavigation<any>();
+
+  const handleUnlock = () => {
+    if (onUnlock) {
+      onUnlock();
+      return;
+    }
+
+    onClose();
+    navigation.navigate("ProfileModal", { screen: "SubscriptionPlans" });
+  };
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -54,7 +67,7 @@ export const TierPaywallModal = ({ visible, onClose, currentTier, featureLabel }
             );
           })}
 
-          <AppButton label="Unlock" onPress={onClose} />
+          <AppButton label="Unlock" onPress={handleUnlock} />
           <Pressable style={styles.closeLink} onPress={onClose}>
             <Text style={[styles.closeText, { color: colors.textMuted }]}>Maybe later</Text>
           </Pressable>
