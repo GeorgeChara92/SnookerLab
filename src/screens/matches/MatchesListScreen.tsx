@@ -1,9 +1,11 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useMatchesStore, useTournamentsStore } from "../../store";
 import type { Match, MatchesStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { TierPaywallModal } from "../../components/subscription";
 
 type OpponentGroup = {
   opponentName: string;
@@ -20,6 +22,8 @@ export const MatchesListScreen = () => {
   const { matches } = useMatchesStore();
   const { tournaments } = useTournamentsStore();
   const { colors } = useAppTheme();
+  const subscription = useSubscriptionAccess();
+  const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
   const activeTournaments = tournaments.filter((item) => item.status !== "completed");
   const completedTournaments = tournaments.filter((item) => item.status === "completed");
 
@@ -60,16 +64,37 @@ export const MatchesListScreen = () => {
     return Array.from(map.values()).sort((a, b) => b.matchesPlayed - a.matchesPlayed);
   }, [matches]);
 
+  const openPaywall = (feature: string) => setPaywallFeature(feature);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}> 
       <View style={styles.actionsRow}>
-        <Pressable style={[styles.newMatchButton, { backgroundColor: colors.primary }]} onPress={() => navigation.navigate("NewMatch")}>
+        <Pressable
+          style={[styles.newMatchButton, { backgroundColor: colors.primary }]}
+          onPress={() => (subscription.canCreateMatch ? navigation.navigate("NewMatch") : openPaywall("Monthly Match Limit"))}
+        >
           <Text style={[styles.newMatchButtonText, { color: colors.onPrimary }]}>+ New Match</Text>
+          {subscription.canCreateMatch ? null : (
+            <View style={styles.lockOverlay}>
+              <Text style={[styles.lockText, { color: colors.onPrimary }]}>Unlock</Text>
+            </View>
+          )}
         </Pressable>
-        <Pressable style={[styles.newTournamentButton, { backgroundColor: colors.primaryStrong }]} onPress={() => navigation.navigate("NewTournament")}>
+        <Pressable
+          style={[styles.newTournamentButton, { backgroundColor: colors.primaryStrong }]}
+          onPress={() =>
+            subscription.canCreateTournament ? navigation.navigate("NewTournament") : openPaywall("Monthly Tournament Limit")
+          }
+        >
           <Text style={[styles.newMatchButtonText, { color: colors.onPrimary }]}>+ Tournament</Text>
+          {subscription.canCreateTournament ? null : (
+            <View style={styles.lockOverlay}>
+              <Text style={[styles.lockText, { color: colors.onPrimary }]}>Unlock</Text>
+            </View>
+          )}
         </Pressable>
       </View>
+      <Text style={[styles.limitHint, { color: colors.textMuted }]}>Plan: {subscription.tierLabel} · Match left: {subscription.remaining.matches ?? "∞"} · Tournaments left: {subscription.remaining.tournaments ?? "∞"}</Text>
 
       <View style={[styles.tournamentBlock, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
         <View style={styles.tournamentHead}>
@@ -136,6 +161,13 @@ export const MatchesListScreen = () => {
           </Pressable>
         )}
       />
+
+      <TierPaywallModal
+        visible={!!paywallFeature}
+        onClose={() => setPaywallFeature(null)}
+        currentTier={subscription.tier}
+        featureLabel={paywallFeature ?? "Premium Features"}
+      />
     </View>
   );
 };
@@ -164,6 +196,25 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: "row",
     gap: 8,
+  },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.24)",
+    borderColor: "rgba(255,255,255,0.42)",
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  lockText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  limitHint: {
+    marginTop: 8,
+    fontSize: 12,
+    fontWeight: "600",
   },
   tournamentBlock: {
     marginTop: 10,

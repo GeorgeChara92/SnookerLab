@@ -11,6 +11,7 @@ export type TournamentPairingMode = "random" | "manual";
 export type TournamentFixtureStatus = "pending" | "completed";
 export type AnalysisType = "shot" | "stance" | "technique" | "tactical" | "full_session";
 export type AnalysisStatus = "pending" | "processing" | "completed" | "failed";
+export type SubscriptionTier = "free" | "half_century" | "century";
 
 export interface User {
   id: string;
@@ -22,6 +23,8 @@ export interface User {
   bio?: string;
   cue_preference?: string;
   skill_level?: SkillLevel;
+  subscription_tier?: SubscriptionTier;
+  subscription_anchor_date?: string;
   created_at: string;
   updated_at: string;
 }

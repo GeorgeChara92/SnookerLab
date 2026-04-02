@@ -14,6 +14,8 @@ const mapAuthUser = (authUser: any): User => ({
   bio: authUser.user_metadata?.bio,
   cue_preference: authUser.user_metadata?.cue_preference,
   skill_level: authUser.user_metadata?.skill_level,
+  subscription_tier: authUser.user_metadata?.subscription_tier,
+  subscription_anchor_date: authUser.user_metadata?.subscription_anchor_date,
   created_at: authUser.created_at ?? new Date().toISOString(),
   updated_at: authUser.updated_at ?? new Date().toISOString(),
 });
@@ -68,10 +70,17 @@ export const useAuthStore = create<AuthState>()(
       signUp: async (email, password, username) => {
         set({ isLoading: true });
         try {
+          const nowIso = new Date().toISOString();
           const { error } = await supabase.auth.signUp({
             email,
             password,
-            options: { data: { username } },
+            options: {
+              data: {
+                username,
+                subscription_tier: "free",
+                subscription_anchor_date: nowIso,
+              },
+            },
           });
           if (error) throw error;
         } finally {

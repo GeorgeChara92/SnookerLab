@@ -16,8 +16,10 @@ import {
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { AppButton } from "../../components/ui/AppButton";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, TournamentEntryMode, TournamentPairingMode, TournamentType } from "../../types";
+import { TierPaywallModal } from "../../components/subscription";
 
 const framesOptions = [1, 3, 5, 7, 9, 11, 19];
 
@@ -55,7 +57,9 @@ export const NewTournamentScreen = () => {
   const prefill = route.params?.prefill;
   const { colors } = useAppTheme();
   const { createTournament } = useTournamentsStore();
+  const subscription = useSubscriptionAccess();
   const [isSaving, setIsSaving] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const [name, setName] = useState(prefill ? buildFreshStartName(prefill.name) : "");
   const [notes, setNotes] = useState(prefill?.previousChampion ? `Previous champion: ${prefill.previousChampion}` : "");
@@ -268,6 +272,11 @@ export const NewTournamentScreen = () => {
   };
 
   const createWith = async (entriesOverride?: string[]) => {
+    if (!subscription.canCreateTournament) {
+      setShowPaywall(true);
+      return;
+    }
+
     const sourceParticipants = entriesOverride ?? participants;
 
     if (!name.trim()) {
@@ -693,6 +702,13 @@ export const NewTournamentScreen = () => {
 
         <AppButton label="Create Tournament" onPress={create} loading={isSaving} disabled={!hasEnoughParticipants || !name.trim() || isSaving} />
       </ScrollView>
+
+      <TierPaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        currentTier={subscription.tier}
+        featureLabel="Monthly Tournament Limit"
+      />
     </KeyboardAvoidingView>
   );
 };

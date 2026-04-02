@@ -4,14 +4,18 @@ import { useNavigation } from "@react-navigation/native";
 import { AppCard } from "../../components/ui/AppCard";
 import { AppButton } from "../../components/ui/AppButton";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useAIAnalysesStore } from "../../store";
 import type { AICoachStackParamList } from "../../types";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { TierPaywallModal } from "../../components/subscription";
 
 export const AIDashboardScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AICoachStackParamList>>();
   const { colors } = useAppTheme();
   const { analyses } = useAIAnalysesStore();
+  const subscription = useSubscriptionAccess();
+  const [showPaywall, setShowPaywall] = React.useState(false);
   const completedCount = analyses.filter((item) => item.status === "completed").length;
   const processingCount = analyses.filter((item) => item.status === "processing" || item.status === "pending").length;
   const failedCount = analyses.filter((item) => item.status === "failed").length;
@@ -67,7 +71,16 @@ export const AIDashboardScreen = () => {
           Upload videos of your shots or practice sessions. Our AI will analyse your cue action,
           alignment, and technique to provide detailed feedback.
         </Text>
-        <AppButton label="Upload Video" onPress={() => navigation.navigate("VideoUpload")} />
+        <View>
+          <AppButton label="Upload Video" onPress={() => (subscription.canUseAI ? navigation.navigate("VideoUpload") : setShowPaywall(true))} />
+          {subscription.canUseAI ? null : (
+            <View style={styles.lockedLayer}>
+              <Pressable style={[styles.unlockPill, { backgroundColor: colors.primary }]} onPress={() => setShowPaywall(true)}>
+                <Text style={[styles.unlockText, { color: colors.onPrimary }]}>Unlock</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
       </AppCard>
 
       <AppCard style={styles.featureCard}>
@@ -145,6 +158,13 @@ export const AIDashboardScreen = () => {
           ))
         )}
       </AppCard>
+
+      <TierPaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        currentTier={subscription.tier}
+        featureLabel="AI Coach Monthly Limit"
+      />
     </ScrollView>
   );
 };
@@ -177,6 +197,22 @@ const styles = StyleSheet.create({
   stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   stepIndex: { fontSize: 15, fontWeight: "800", width: 16 },
   stepText: { flex: 1, fontSize: 13, lineHeight: 19 },
+  lockedLayer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.24)",
+    borderColor: "rgba(255,255,255,0.42)",
+    borderWidth: 1,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  unlockPill: {
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  unlockText: { fontSize: 12, fontWeight: "800" },
   analysisRow: {
     borderWidth: 1,
     borderRadius: 10,

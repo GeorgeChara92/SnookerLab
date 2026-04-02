@@ -18,12 +18,16 @@ import type { MatchesStackParamList } from "../../types";
 import type { NavigationProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { TierPaywallModal } from "../../components/subscription";
 
 export const NewMatchScreen = () => {
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
   const route = useRoute<RouteProp<MatchesStackParamList, "NewMatch">>();
   const { addMatch } = useMatchesStore();
   const { colors } = useAppTheme();
+  const subscription = useSubscriptionAccess();
+  const [showPaywall, setShowPaywall] = useState(false);
   const [opponentName, setOpponentName] = useState(route.params?.opponentName ?? "");
   const [location, setLocation] = useState("");
   const [userScore, setUserScore] = useState("");
@@ -39,6 +43,11 @@ export const NewMatchScreen = () => {
   };
 
   const handleSave = async () => {
+    if (!subscription.canCreateMatch) {
+      setShowPaywall(true);
+      return;
+    }
+
     const uScore = parseInt(userScore) || 0;
     const oScore = parseInt(opponentScore) || 0;
 
@@ -120,6 +129,13 @@ export const NewMatchScreen = () => {
 
       <AppButton label="Save Match" onPress={handleSave} loading={isSaving} disabled={!opponentName.trim() || isSaving} />
       </ScrollView>
+
+      <TierPaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        currentTier={subscription.tier}
+        featureLabel="Monthly Match Limit"
+      />
     </KeyboardAvoidingView>
   );
 };

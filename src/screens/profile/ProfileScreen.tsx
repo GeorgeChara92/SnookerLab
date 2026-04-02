@@ -8,11 +8,13 @@ import { AppButton } from "../../components/ui/AppButton";
 import { AppCard } from "../../components/ui/AppCard";
 import { SNOOKER_PRESET_AVATARS } from "../../constants/profileAvatars";
 import { SnookerPresetAvatar } from "../../components/profile/SnookerPresetAvatar";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 
 export const ProfileScreen = () => {
   const navigation = useNavigation<any>();
   const { user, signOut, isLoading, updateAvatarPreset, uploadProfilePhoto } = useAuthStore();
   const { colors } = useAppTheme();
+  const subscription = useSubscriptionAccess();
   const { width } = useWindowDimensions();
   const [activeGalleryPage, setActiveGalleryPage] = useState(0);
   const playerPresets = SNOOKER_PRESET_AVATARS.filter((preset) => preset.group === "player");
@@ -78,6 +80,9 @@ export const ProfileScreen = () => {
         </View>
         <Text style={[styles.username, { color: colors.text }]}>{user?.username || user?.email || "Player"}</Text>
         <Text style={[styles.email, { color: colors.textMuted }]}>{user?.email}</Text>
+        <View style={[styles.tierPill, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}>
+          <Text style={[styles.tierText, { color: colors.primary }]}>{subscription.tierLabel} Plan</Text>
+        </View>
         <View style={styles.avatarActions}>
           <View style={styles.actionButtonWrap}>
             <AppButton label="Upload Photo" variant="secondary" loading={isLoading} onPress={handleUploadPhoto} />
@@ -85,6 +90,22 @@ export const ProfileScreen = () => {
           <View style={styles.actionButtonWrap}>
             <AppButton label="Open Settings" variant="secondary" onPress={() => navigation.navigate("Settings")} />
           </View>
+        </View>
+      </AppCard>
+
+      <AppCard style={styles.sectionCard}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Plan Usage (Current Billing Cycle)</Text>
+        <View style={styles.metaRow}>
+          <Text style={[styles.metaKey, { color: colors.textMuted }]}>Matches Created</Text>
+          <Text style={[styles.metaValue, { color: colors.text }]}>{subscription.usage.matches} / {subscription.limits.matchesPerPeriod ?? "∞"}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={[styles.metaKey, { color: colors.textMuted }]}>Tournaments Created</Text>
+          <Text style={[styles.metaValue, { color: colors.text }]}>{subscription.usage.tournaments} / {subscription.limits.tournamentsPerPeriod ?? "∞"}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Text style={[styles.metaKey, { color: colors.textMuted }]}>AI Analyses</Text>
+          <Text style={[styles.metaValue, { color: colors.text }]}>{subscription.usage.aiAnalyses} / {subscription.limits.aiAnalysesPerPeriod ?? "∞"}</Text>
         </View>
       </AppCard>
 
@@ -218,6 +239,14 @@ const styles = StyleSheet.create({
   avatarImage: { width: "100%", height: "100%" },
   username: { fontSize: 24, fontWeight: "700", marginBottom: 4 },
   email: { fontSize: 15 },
+  tierPill: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  tierText: { fontSize: 12, fontWeight: "800" },
   avatarActions: { marginTop: 14, flexDirection: "row", gap: 8 },
   actionButtonWrap: { flex: 1 },
   sectionCard: { marginTop: 12 },

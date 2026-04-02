@@ -5,9 +5,11 @@ import * as FileSystemLegacy from "expo-file-system/legacy";
 import { AppCard } from "../../components/ui/AppCard";
 import { AppButton } from "../../components/ui/AppButton";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useAIAnalysesStore } from "../../store";
 import { supabase } from "../../api/supabase";
 import type { AnalysisType } from "../../types";
+import { TierPaywallModal } from "../../components/subscription";
 
 const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = [
   { label: "Shot", value: "shot" },
@@ -65,7 +67,9 @@ export const VideoUploadScreen = () => {
   const [analysisType, setAnalysisType] = useState<AnalysisType>("technique");
   const [notes, setNotes] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showPaywall, setShowPaywall] = useState(false);
   const { colors } = useAppTheme();
+  const subscription = useSubscriptionAccess();
   const { analyses, createAnalysis, runAnalysis, runDemoAnalysis } = useAIAnalysesStore();
 
   const todayCount = useMemo(() => {
@@ -74,6 +78,11 @@ export const VideoUploadScreen = () => {
   }, [analyses]);
 
   const checkLimit = () => {
+    if (!subscription.canUseAI) {
+      setShowPaywall(true);
+      return false;
+    }
+
     if (todayCount >= DAILY_ANALYSIS_LIMIT) {
       Alert.alert(
         "Daily analysis limit reached",
@@ -321,6 +330,7 @@ export const VideoUploadScreen = () => {
         <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 4</Text>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Clip Upload</Text>
         <Text style={[styles.metaText, { color: colors.textMuted }]}>Daily usage: {todayCount}/{DAILY_ANALYSIS_LIMIT}</Text>
+        <Text style={[styles.metaText, { color: colors.textMuted }]}>Plan: {subscription.tierLabel} · AI left this cycle: {subscription.remaining.aiAnalyses ?? "∞"}</Text>
         <Text style={[styles.metaText, { color: colors.textMuted }]}>LLM: Edge Function (`OPENAI_MODEL`, default `gpt-4o-mini`)</Text>
 
         {!video ? (
@@ -356,6 +366,13 @@ export const VideoUploadScreen = () => {
           </View>
         )}
       </AppCard>
+
+      <TierPaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        currentTier={subscription.tier}
+        featureLabel="AI Coach Monthly Limit"
+      />
     </ScrollView>
   );
 };

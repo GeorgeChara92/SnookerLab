@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { RouteProp, useRoute } from "@react-navigation/native";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { AppCard } from "../../components/ui/AppCard";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAIAnalysesStore } from "../../store";
@@ -19,6 +19,9 @@ export const AnalysisDetailScreen = () => {
 
   const analysis = analyses.find((item) => item.id === route.params.analysisId);
   const report = analysis?.report_json;
+  const player = useVideoPlayer(playbackUrl ? { uri: playbackUrl } : null, (instance) => {
+    instance.loop = false;
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -92,12 +95,7 @@ export const AnalysisDetailScreen = () => {
       <AppCard style={styles.card}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Clip</Text>
         {playbackUrl ? (
-          <Video
-            source={{ uri: playbackUrl }}
-            style={styles.videoPlayer}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-          />
+          <VideoView player={player} style={styles.videoPlayer} nativeControls contentFit="contain" />
         ) : analysis.video_url.startsWith("demo://") ? (
           <Text style={[styles.body, { color: colors.textMuted }]}>Demo analysis has no uploaded clip attached.</Text>
         ) : videoError ? (
