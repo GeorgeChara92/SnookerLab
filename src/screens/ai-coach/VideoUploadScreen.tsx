@@ -1,0 +1,385 @@
+import React, { useMemo, useState } from "react";
+import { View, StyleSheet, Text, Alert, ActivityIndicator, TextInput, Pressable, ScrollView } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystemLegacy from "expo-file-system/legacy";
+import { AppCard } from "../../components/ui/AppCard";
+import { AppButton } from "../../components/ui/AppButton";
+import { useAppTheme } from "../../hooks/useAppTheme";
+import { useAIAnalysesStore } from "../../store";
+import { supabase } from "../../api/supabase";
+import type { AnalysisType } from "../../types";
+
+const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = [
+  { label: "Shot", value: "shot" },
+  { label: "Stance", value: "stance" },
+  { label: "Technique", value: "technique" },
+  { label: "Tactical", value: "tactical" },
+  { label: "Full Session", value: "full_session" },
+];
+
+const CONTEXT_TAGS = ["practice", "match", "break-building", "safety", "long-pot", "cue-action"];
+
+const DAILY_ANALYSIS_LIMIT = 8;
+const ENABLE_AI_STORAGE_UPLOAD = process.env.EXPO_PUBLIC_ENABLE_AI_STORAGE_UPLOAD !== "0";
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const STORAGE_UPLOAD_TIMEOUT_MS = 25000;
+
+const inferContentType = (ext: string, mimeType?: string) => {
+  if (mimeType) return mimeType;
+  if (ext === "mov") return "video/quicktime";
+  if (ext === "mp4") return "video/mp4";
+  return "application/octet-stream";
+};
+
+const safeErrorMessage = (error: any) => {
+  const message = typeof error?.message === "string" ? error.message : "Unknown error";
+  return message.length > 180 ? `${message.slice(0, 180)}...` : message;
+};
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> => {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+};
+
+const formatDurationSeconds = (rawDuration?: number) => {
+  if (!rawDuration || Number.isNaN(rawDuration) || rawDuration <= 0) return "Unknown";
+  const seconds = rawDuration > 1000 ? rawDuration / 1000 : rawDuration;
+  return `${seconds.toFixed(1)}s`;
+};
+
+export const VideoUploadScreen = () => {
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("");
+  const [video, setVideo] = useState<any>(null);
+  const [analysisType, setAnalysisType] = useState<AnalysisType>("technique");
+  const [notes, setNotes] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const { colors } = useAppTheme();
+  const { analyses, createAnalysis, runAnalysis, runDemoAnalysis } = useAIAnalysesStore();
+
+  const todayCount = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    return analyses.filter((item) => item.created_at.split("T")[0] === today).length;
+  }, [analyses]);
+
+  const checkLimit = () => {
+    if (todayCount >= DAILY_ANALYSIS_LIMIT) {
+      Alert.alert(
+        "Daily analysis limit reached",
+        `You've used ${DAILY_ANALYSIS_LIMIT} analyses today. This helps control LLM costs.`
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const pickVideo = async () => {
+    if (!checkLimit()) return;
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please grant permission to access your media library.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["videos"],
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setVideo(result.assets[0]);
+    }
+  };
+
+  const recordVideo = async () => {
+    if (!checkLimit()) return;
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please grant permission to access your camera.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["videos"],
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setVideo(result.assets[0]);
+    }
+  };
+
+  const uploadVideo = async () => {
+    if (!video) return;
+    if (!checkLimit()) return;
+
+    const authUser = (await supabase.auth.getUser()).data.user;
+    if (!authUser) {
+      Alert.alert("Sign in required", "Please sign in before uploading AI analysis videos.");
+      return;
+    }
+
+    setUploading(true);
+    setProgress(0.05);
+    setProgressLabel("Preparing upload...");
+
+    try {
+      const ext = (video.fileName?.split(".").pop() || video.uri.split(".").pop() || "mp4").toLowerCase();
+      const path = `${authUser.id}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
+
+      let persistedVideoPath = `demo://clip-${Date.now()}`;
+
+      if (ENABLE_AI_STORAGE_UPLOAD) {
+        try {
+          setProgress(0.2);
+          setProgressLabel("Uploading clip...");
+          const session = (await supabase.auth.getSession()).data.session;
+          if (!session?.access_token) {
+            throw new Error("Auth session missing for upload.");
+          }
+          if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+            throw new Error("Supabase env vars are missing.");
+          }
+
+          const uploadUrl = `${SUPABASE_URL}/storage/v1/object/ai-videos/${encodeURIComponent(path)}`;
+          const uploadResult = await withTimeout(
+            FileSystemLegacy.uploadAsync(uploadUrl, video.uri, {
+              httpMethod: "POST",
+              uploadType: FileSystemLegacy.FileSystemUploadType.BINARY_CONTENT,
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+                apikey: SUPABASE_ANON_KEY,
+                "Content-Type": inferContentType(ext, video.mimeType),
+                "x-upsert": "false",
+              },
+            }),
+            STORAGE_UPLOAD_TIMEOUT_MS,
+            "Storage upload timed out"
+          );
+
+          if (uploadResult.status < 200 || uploadResult.status >= 300) {
+            throw new Error(`Storage upload failed with status ${uploadResult.status}`);
+          }
+
+          persistedVideoPath = path;
+          setProgress(0.55);
+          setProgressLabel("Upload complete");
+        } catch (storageError: any) {
+          const storageMessage = safeErrorMessage(storageError);
+          console.warn("AI video storage unavailable, falling back to demo path:", storageMessage);
+          setProgress(0.55);
+          setProgressLabel("Storage fallback active");
+        }
+      }
+
+      setProgress(0.68);
+      setProgressLabel("Creating analysis record...");
+      const analysisId = await createAnalysis({
+        videoPath: persistedVideoPath,
+        analysisType,
+        contextTags: selectedTags,
+        userNotes: notes.trim() || undefined,
+      });
+
+      setProgress(0.82);
+      setProgressLabel("AI is analyzing your clip...");
+      await runAnalysis(analysisId);
+      setProgress(1);
+      setProgressLabel("Analysis complete");
+
+      Alert.alert(
+        "Analysis started",
+        persistedVideoPath.startsWith("demo://")
+          ? "Storage upload is in demo mode, but analysis feedback is generated so you can test the coach flow."
+          : ext === "mov"
+            ? "Clip uploaded and AI analysis started. If downloaded MOV does not play on your desktop player, it is usually codec compatibility (not upload corruption)."
+            : "Clip uploaded and AI analysis started. Check dashboard for results."
+      );
+      setVideo(null);
+      setNotes("");
+      setSelectedTags([]);
+    } catch (error: any) {
+      const message = safeErrorMessage(error);
+      Alert.alert("Upload failed", `Could not start analysis. ${message}`);
+      console.warn("AI upload failed:", message);
+    } finally {
+      setUploading(false);
+      setProgress(0);
+      setProgressLabel("");
+    }
+  };
+
+  const startDemoWithoutVideo = async () => {
+    if (!checkLimit()) return;
+
+    setUploading(true);
+    setProgress(0.25);
+    setProgressLabel("Creating demo analysis...");
+    try {
+      const analysisId = await createAnalysis({
+        videoPath: `demo://manual-${Date.now()}`,
+        analysisType,
+        contextTags: selectedTags,
+        userNotes: notes.trim() || undefined,
+      });
+      await runDemoAnalysis(analysisId);
+      setProgress(1);
+      setProgressLabel("Demo complete");
+      Alert.alert("Demo complete", "Demo coaching feedback is ready in AI Dashboard.");
+      setNotes("");
+      setSelectedTags([]);
+    } catch (error: any) {
+      Alert.alert("Demo failed", safeErrorMessage(error));
+    } finally {
+      setUploading(false);
+      setProgress(0);
+      setProgressLabel("");
+    }
+  };
+
+  return (
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
+      <Text style={[styles.title, { color: colors.text }]}>Upload Clip for AI Coach</Text>
+      <Text style={[styles.subtitle, { color: colors.textMuted }]}>30-60s clips work best. Add context so feedback is more useful.</Text>
+
+      <AppCard style={styles.card}>
+        <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 1</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Analysis Type</Text>
+        <View style={styles.chipsWrap}>
+          {ANALYSIS_TYPES.map((item) => {
+            const selected = analysisType === item.value;
+            return (
+              <Pressable
+                key={item.value}
+                onPress={() => setAnalysisType(item.value)}
+                style={[
+                  styles.chip,
+                  {
+                    borderColor: selected ? colors.primary : colors.border,
+                    backgroundColor: selected ? colors.surfaceMuted : colors.surface,
+                  },
+                ]}
+              >
+                <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{item.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 2</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Optional Context Tags</Text>
+        <View style={styles.chipsWrap}>
+          {CONTEXT_TAGS.map((tag) => {
+            const selected = selectedTags.includes(tag);
+            return (
+              <Pressable
+                key={tag}
+                onPress={() =>
+                  setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]))
+                }
+                style={[
+                  styles.chip,
+                  {
+                    borderColor: selected ? colors.primary : colors.border,
+                    backgroundColor: selected ? colors.surfaceMuted : colors.surface,
+                  },
+                ]}
+              >
+                <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{tag}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 3</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Coach Notes (optional)</Text>
+        <TextInput
+          style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
+          placeholder="e.g. please check head movement and cue delivery"
+          placeholderTextColor={colors.textMuted}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          textAlignVertical="top"
+        />
+      </AppCard>
+
+      <AppCard style={styles.card}>
+        <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 4</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Clip Upload</Text>
+        <Text style={[styles.metaText, { color: colors.textMuted }]}>Daily usage: {todayCount}/{DAILY_ANALYSIS_LIMIT}</Text>
+        <Text style={[styles.metaText, { color: colors.textMuted }]}>LLM: Edge Function (`OPENAI_MODEL`, default `gpt-4o-mini`)</Text>
+
+        {!video ? (
+          <View style={styles.buttonContainer}>
+            <AppButton label="Pick from Library" onPress={pickVideo} />
+            <View style={styles.spacer} />
+            <AppButton label="Record Video" onPress={recordVideo} variant="secondary" />
+            <View style={styles.spacer} />
+            <AppButton label="Run Demo Feedback (No Upload)" onPress={startDemoWithoutVideo} variant="secondary" />
+          </View>
+        ) : (
+          <View>
+            <Text style={[styles.videoName, { color: colors.text }]}>Video selected</Text>
+            <Text style={[styles.videoInfo, { color: colors.textMuted }]}>Duration: {formatDurationSeconds(video.duration)}</Text>
+            <Text style={[styles.videoInfo, { color: colors.textMuted }]}>Size: {((video.fileSize ?? 0) / 1024 / 1024).toFixed(2)} MB</Text>
+
+            {uploading ? (
+              <View>
+                <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
+                <Text style={[styles.progressLabel, { color: colors.textMuted }]}>{progressLabel || "Working..."}</Text>
+                <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+                  <View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.round(progress * 100)}%` }]} />
+                </View>
+                <Text style={[styles.progressPercent, { color: colors.textMuted }]}>{Math.max(5, Math.round(progress * 100))}%</Text>
+              </View>
+            ) : (
+              <>
+                <AppButton label="Upload for Analysis" onPress={uploadVideo} />
+                <View style={styles.spacer} />
+                <AppButton label="Choose Different Video" onPress={() => setVideo(null)} variant="secondary" />
+              </>
+            )}
+          </View>
+        )}
+      </AppCard>
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  content: { padding: 16, paddingBottom: 26 },
+  title: { fontSize: 24, fontWeight: "800" },
+  subtitle: { fontSize: 14, marginTop: 6, marginBottom: 14 },
+  card: { marginBottom: 12 },
+  stepLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: "800", marginBottom: 4, marginTop: 2 },
+  sectionTitle: { fontSize: 15, fontWeight: "800", marginBottom: 8 },
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
+  chipText: { fontSize: 12, fontWeight: "700" },
+  input: { borderWidth: 1, borderRadius: 10, minHeight: 80, paddingHorizontal: 10, paddingVertical: 10 },
+  metaText: { fontSize: 12, marginBottom: 10 },
+  buttonContainer: {},
+  spacer: { height: 12 },
+  videoName: { fontSize: 16, fontWeight: "700", marginBottom: 6 },
+  videoInfo: { fontSize: 13, marginBottom: 3 },
+  loader: { marginVertical: 10 },
+  progressLabel: { fontSize: 12, marginBottom: 8, textAlign: "center" },
+  progressTrack: { height: 8, borderRadius: 999, overflow: "hidden" },
+  progressFill: { height: "100%" },
+  progressPercent: { marginTop: 6, fontSize: 11, textAlign: "center", fontWeight: "700" },
+});
