@@ -6,6 +6,19 @@ export type TierLimits = {
   aiAnalysesPerPeriod: number | null;
 };
 
+export const SUBSCRIPTION_LIMIT_ERROR_PREFIX = "subscription_limit_exceeded";
+
+export const isSubscriptionLimitError = (error: unknown) => {
+  const message =
+    typeof error === "string"
+      ? error
+      : error && typeof error === "object" && "message" in error && typeof (error as any).message === "string"
+      ? (error as any).message
+      : "";
+
+  return message.includes(SUBSCRIPTION_LIMIT_ERROR_PREFIX);
+};
+
 export const TIER_LABELS: Record<SubscriptionTier, string> = {
   free: "Free",
   half_century: "Half-Century",

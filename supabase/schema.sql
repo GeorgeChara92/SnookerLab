@@ -232,31 +232,196 @@ for all using (
 create policy ai_analyses_own on public.ai_analyses
 for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-create or replace function public.enforce_ai_daily_limit()
+create or replace function public.get_subscription_tier(p_user_id uuid)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_tier text;
+begin
+  select coalesce(nullif(raw_user_meta_data->>'subscription_tier', ''), 'free')
+  into v_tier
+  from auth.users
+  where id = p_user_id;
+
+  if v_tier not in ('free', 'half_century', 'century') then
+    return 'free';
+  end if;
+
+  return v_tier;
+end;
+$$;
+
+create or replace function public.get_subscription_anchor(p_user_id uuid, p_now timestamptz)
+returns timestamptz
+language plpgsql
+stable
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_anchor_raw text;
+  v_anchor timestamptz;
+  v_now_date date := (p_now at time zone 'utc')::date;
+  v_anchor_day int;
+  v_start_current date;
+  v_prev_month_start date;
+  v_prev_month_end date;
+begin
+  select raw_user_meta_data->>'subscription_anchor_date'
+  into v_anchor_raw
+  from auth.users
+  where id = p_user_id;
+
+  if v_anchor_raw is null or btrim(v_anchor_raw) = '' then
+    v_anchor := p_now;
+  else
+    begin
+      v_anchor := v_anchor_raw::timestamptz;
+    exception
+      when others then
+        v_anchor := p_now;
+    end;
+  end if;
+
+  v_anchor_day := extract(day from v_anchor at time zone 'utc');
+
+  v_start_current := date_trunc('month', v_now_date)::date
+    + (least(v_anchor_day, extract(day from ((date_trunc('month', v_now_date)::date + interval '1 month - 1 day')))::int) - 1);
+
+  if v_now_date >= v_start_current then
+    return v_start_current::timestamptz;
+  end if;
+
+  v_prev_month_start := (date_trunc('month', v_now_date)::date - interval '1 month')::date;
+  v_prev_month_end := (date_trunc('month', v_now_date)::date - interval '1 day')::date;
+
+  return (v_prev_month_start + (least(v_anchor_day, extract(day from v_prev_month_end)::int) - 1))::timestamptz;
+end;
+$$;
+
+create or replace function public.enforce_subscription_limit(
+  p_entity text,
+  p_user_id uuid,
+  p_created_at timestamptz
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_tier text;
+  v_limit int;
+  v_period_start timestamptz;
+  v_period_end timestamptz;
+  v_used int;
+begin
+  v_tier := public.get_subscription_tier(p_user_id);
+  v_period_start := public.get_subscription_anchor(p_user_id, coalesce(p_created_at, now()));
+  v_period_end := v_period_start + interval '1 month';
+
+  if p_entity = 'matches' then
+    if v_tier = 'free' then v_limit := 12;
+    elsif v_tier = 'half_century' then v_limit := 40;
+    else v_limit := null;
+    end if;
+
+    if v_limit is null then return; end if;
+
+    select count(*) into v_used
+    from public.matches
+    where user_id = p_user_id
+      and created_at >= v_period_start
+      and created_at < v_period_end;
+
+  elsif p_entity = 'tournaments' then
+    if v_tier = 'free' then v_limit := 1;
+    elsif v_tier = 'half_century' then v_limit := 4;
+    else v_limit := null;
+    end if;
+
+    if v_limit is null then return; end if;
+
+    select count(*) into v_used
+    from public.tournaments
+    where user_id = p_user_id
+      and created_at >= v_period_start
+      and created_at < v_period_end;
+
+  elsif p_entity = 'ai_analyses' then
+    if v_tier = 'free' then v_limit := 1;
+    elsif v_tier = 'half_century' then v_limit := 8;
+    else v_limit := 20;
+    end if;
+
+    select count(*) into v_used
+    from public.ai_analyses
+    where user_id = p_user_id
+      and created_at >= v_period_start
+      and created_at < v_period_end;
+
+  else
+    return;
+  end if;
+
+  if v_used >= v_limit then
+    raise exception
+      using
+        message = format('subscription_limit_exceeded:%s', p_entity),
+        detail = format('tier=%s used=%s limit=%s period_start=%s period_end=%s', v_tier, v_used, v_limit, v_period_start, v_period_end);
+  end if;
+end;
+$$;
+
+create or replace function public.trg_enforce_matches_limit()
 returns trigger
 language plpgsql
 as $$
-declare
-  v_count int;
-  v_limit int := 8;
 begin
-  select count(*) into v_count
-  from public.ai_analyses
-  where user_id = new.user_id
-    and created_at >= now() - interval '1 day';
-
-  if v_count >= v_limit then
-    raise exception 'Daily AI analysis limit reached (% per 24h)', v_limit;
-  end if;
-
+  perform public.enforce_subscription_limit('matches', new.user_id, new.created_at);
   return new;
 end;
 $$;
 
+create or replace function public.trg_enforce_tournaments_limit()
+returns trigger
+language plpgsql
+as $$
+begin
+  perform public.enforce_subscription_limit('tournaments', new.user_id, new.created_at);
+  return new;
+end;
+$$;
+
+create or replace function public.trg_enforce_ai_limit()
+returns trigger
+language plpgsql
+as $$
+begin
+  perform public.enforce_subscription_limit('ai_analyses', new.user_id, new.created_at);
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_matches_subscription_limit on public.matches;
+create trigger trg_matches_subscription_limit
+before insert on public.matches
+for each row execute function public.trg_enforce_matches_limit();
+
+drop trigger if exists trg_tournaments_subscription_limit on public.tournaments;
+create trigger trg_tournaments_subscription_limit
+before insert on public.tournaments
+for each row execute function public.trg_enforce_tournaments_limit();
+
+drop trigger if exists trg_ai_subscription_limit on public.ai_analyses;
 drop trigger if exists trg_ai_daily_limit on public.ai_analyses;
-create trigger trg_ai_daily_limit
+create trigger trg_ai_subscription_limit
 before insert on public.ai_analyses
-for each row execute function public.enforce_ai_daily_limit();
+for each row execute function public.trg_enforce_ai_limit();
 
 -- Storage RLS policies (user can only access their own folder: <user_id>/...)
 drop policy if exists ai_videos_read_own on storage.objects;

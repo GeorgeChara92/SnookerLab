@@ -20,6 +20,7 @@ import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, TournamentEntryMode, TournamentPairingMode, TournamentType } from "../../types";
 import { TierPaywallModal } from "../../components/subscription";
+import { isSubscriptionLimitError } from "../../constants";
 
 const framesOptions = [1, 3, 5, 7, 9, 11, 19];
 
@@ -325,8 +326,12 @@ export const NewTournamentScreen = () => {
       });
 
       navigation.navigate("TournamentDetail", { tournamentId });
-    } catch (error) {
-      Alert.alert("Save failed", "Could not create this tournament right now.");
+    } catch (error: any) {
+      if (isSubscriptionLimitError(error)) {
+        setShowPaywall(true);
+      } else {
+        Alert.alert("Save failed", "Could not create this tournament right now.");
+      }
     } finally {
       setIsSaving(false);
     }

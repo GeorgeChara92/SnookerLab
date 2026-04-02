@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +21,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { TierPaywallModal } from "../../components/subscription";
+import { isSubscriptionLimitError } from "../../constants";
 
 export const NewMatchScreen = () => {
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
@@ -68,7 +70,12 @@ export const NewMatchScreen = () => {
       setIsSaving(true);
       await addMatch(match);
       navigation.goBack();
-    } catch (error) {
+    } catch (error: any) {
+      if (isSubscriptionLimitError(error)) {
+        setShowPaywall(true);
+      } else {
+        Alert.alert("Save failed", "Could not save this match right now.");
+      }
       console.warn("Failed to save match:", error);
     } finally {
       setIsSaving(false);

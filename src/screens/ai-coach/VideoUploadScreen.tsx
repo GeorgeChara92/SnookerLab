@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { View, StyleSheet, Text, Alert, ActivityIndicator, TextInput, Pressable, ScrollView } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystemLegacy from "expo-file-system/legacy";
@@ -10,6 +10,7 @@ import { useAIAnalysesStore } from "../../store";
 import { supabase } from "../../api/supabase";
 import type { AnalysisType } from "../../types";
 import { TierPaywallModal } from "../../components/subscription";
+import { isSubscriptionLimitError } from "../../constants";
 
 const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = [
   { label: "Shot", value: "shot" },
@@ -21,7 +22,6 @@ const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = [
 
 const CONTEXT_TAGS = ["practice", "match", "break-building", "safety", "long-pot", "cue-action"];
 
-const DAILY_ANALYSIS_LIMIT = 8;
 const ENABLE_AI_STORAGE_UPLOAD = process.env.EXPO_PUBLIC_ENABLE_AI_STORAGE_UPLOAD !== "0";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -70,12 +70,7 @@ export const VideoUploadScreen = () => {
   const [showPaywall, setShowPaywall] = useState(false);
   const { colors } = useAppTheme();
   const subscription = useSubscriptionAccess();
-  const { analyses, createAnalysis, runAnalysis, runDemoAnalysis } = useAIAnalysesStore();
-
-  const todayCount = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
-    return analyses.filter((item) => item.created_at.split("T")[0] === today).length;
-  }, [analyses]);
+  const { createAnalysis, runAnalysis, runDemoAnalysis } = useAIAnalysesStore();
 
   const checkLimit = () => {
     if (!subscription.canUseAI) {
@@ -83,13 +78,6 @@ export const VideoUploadScreen = () => {
       return false;
     }
 
-    if (todayCount >= DAILY_ANALYSIS_LIMIT) {
-      Alert.alert(
-        "Daily analysis limit reached",
-        `You've used ${DAILY_ANALYSIS_LIMIT} analyses today. This helps control LLM costs.`
-      );
-      return false;
-    }
     return true;
   };
 
@@ -221,6 +209,14 @@ export const VideoUploadScreen = () => {
       setNotes("");
       setSelectedTags([]);
     } catch (error: any) {
+      if (isSubscriptionLimitError(error)) {
+        setShowPaywall(true);
+        setUploading(false);
+        setProgress(0);
+        setProgressLabel("");
+        return;
+      }
+
       const message = safeErrorMessage(error);
       Alert.alert("Upload failed", `Could not start analysis. ${message}`);
       console.warn("AI upload failed:", message);
@@ -329,8 +325,8 @@ export const VideoUploadScreen = () => {
       <AppCard style={styles.card}>
         <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 4</Text>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Clip Upload</Text>
-        <Text style={[styles.metaText, { color: colors.textMuted }]}>Daily usage: {todayCount}/{DAILY_ANALYSIS_LIMIT}</Text>
-        <Text style={[styles.metaText, { color: colors.textMuted }]}>Plan: {subscription.tierLabel} · AI left this cycle: {subscription.remaining.aiAnalyses ?? "∞"}</Text>
+        <Text style={[styles.metaText, { color: colors.textMuted }]}>Plan: {subscription.tierLabel} · AI used this cycle: {subscription.usage.aiAnalyses} / {subscription.limits.aiAnalysesPerPeriod ?? "∞"}</Text>
+        <Text style={[styles.metaText, { color: colors.textMuted }]}>AI left this cycle: {subscription.remaining.aiAnalyses ?? "∞"}</Text>
         <Text style={[styles.metaText, { color: colors.textMuted }]}>LLM: Edge Function (`OPENAI_MODEL`, default `gpt-4o-mini`)</Text>
 
         {!video ? (
