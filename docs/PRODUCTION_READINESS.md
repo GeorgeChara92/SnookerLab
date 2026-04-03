@@ -17,6 +17,10 @@ Set these env vars per environment:
 
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_AUTH_REDIRECT_URL`
+- `EXPO_PUBLIC_PRIVACY_URL`
+- `EXPO_PUBLIC_TERMS_URL`
+- `EXPO_PUBLIC_SUPPORT_EMAIL`
 
 Do not reuse staging credentials in production builds.
 
@@ -45,7 +49,15 @@ Use Dev Client and Preview builds for production-like testing before app-store s
 4. **Tournament flow regression**
    - Knockout random draw.
    - Knockout manual pairing.
-   - League table updates and completion.
+    - League table updates and completion.
+5. **Auth verification + reset**
+   - Register with a new email and confirm verification screen appears.
+   - Confirm inbox email link opens app via `snookerlab://auth/callback`.
+   - Verify resend confirmation and reset password flows.
+6. **Self-serve account deletion**
+   - Start delete flow in Account Settings.
+   - Confirm random code gate blocks accidental deletion.
+   - Verify user and associated data are removed after confirmation.
 
 ## 5) Store deployment path
 
@@ -57,3 +69,16 @@ Use Dev Client and Preview builds for production-like testing before app-store s
 ## 6) Known architecture next step
 
 Current feature stores are local-first. For full cross-device sync, move sessions/matches/tournaments/routine scores to Supabase-backed repositories with online writes and server hydration on login.
+
+## 7) Supabase function deployment
+
+Deploy required Edge Functions:
+
+- `ai-analyze-clip`
+- `delete-account`
+
+Required function secrets include:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (required for `delete-account`)

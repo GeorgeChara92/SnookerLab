@@ -62,7 +62,6 @@ export interface Routine {
   improves?: string[];
   scoring_type: ScoringType;
   max_score?: number;
-  target_score?: number;
   estimated_duration_minutes?: number;
   is_system_routine: boolean;
   created_by?: string;
@@ -239,9 +238,10 @@ export type RootStackParamList = {
 };
 
 export type AuthStackParamList = {
-  Login: undefined;
+  Login: { notice?: string; prefillEmail?: string } | undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  ConfirmEmail: { email: string };
 };
 
 export type MainTabParamList = {

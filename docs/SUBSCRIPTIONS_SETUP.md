@@ -35,13 +35,10 @@ Current client mapping:
 - If inactive -> app tier synced to `free`
 - `half_century` remains available as a legacy/manual tier for future product expansion
 
-## 3) Native plugin
+## 3) Runtime requirements
 
-`app.json` includes plugin:
-
-- `react-native-purchases`
-
-Use a development build (`expo run` / EAS dev client). Purchases are not expected to fully work in plain Expo Go.
+- Use development or preview builds for billing validation.
+- Purchases are not expected to fully work in plain Expo Go.
 
 ## 3b) Paywall + Customer Center
 
@@ -68,3 +65,13 @@ Purchase/restore currently updates Supabase user metadata:
 - `subscription_anchor_date`
 
 For production hardening, add RevenueCat webhooks -> secure backend updater so entitlement sync does not rely only on client updates.
+
+## 6) Account settings support links
+
+Account settings includes policy/support actions for store compliance.
+
+Set these env vars in local `.env` and EAS:
+
+- `EXPO_PUBLIC_PRIVACY_URL`
+- `EXPO_PUBLIC_TERMS_URL`
+- `EXPO_PUBLIC_SUPPORT_EMAIL`

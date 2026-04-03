@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -19,12 +20,46 @@ import { AppButton } from "../../components/ui/AppButton";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
 
-export const LoginScreen = ({ navigation }: Props) => {
+export const LoginScreen = ({ navigation, route }: Props) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const { signIn, isLoading } = useAuthStore();
+  const [noticeMessage, setNoticeMessage] = useState("");
+  const [showResendModal, setShowResendModal] = useState(false);
+  const [resendEmail, setResendEmail] = useState("");
+  const [resendError, setResendError] = useState("");
+  const { signIn, resendEmailVerification, isLoading } = useAuthStore();
   const { colors, isDark } = useAppTheme();
+
+  useEffect(() => {
+    const params = route.params;
+    if (params?.prefillEmail) setEmail(params.prefillEmail);
+    if (params?.notice) setNoticeMessage(params.notice);
+  }, [route.params]);
+
+  const openResendModal = () => {
+    setResendEmail(email.trim());
+    setResendError("");
+    setShowResendModal(true);
+  };
+
+  const handleResendFromModal = async () => {
+    const cleanEmail = resendEmail.trim();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setResendError("Enter a valid email address.");
+      return;
+    }
+
+    setResendError("");
+    try {
+      await resendEmailVerification(cleanEmail);
+      setShowResendModal(false);
+      setEmail(cleanEmail);
+      setNoticeMessage("Confirmation email sent. Check inbox and spam.");
+    } catch (error: any) {
+      setResendError(error?.message ?? "Could not resend. Please try again.");
+    }
+  };
 
   const handleLogin = async () => {
     const cleanEmail = email.trim();
@@ -43,8 +78,16 @@ export const LoginScreen = ({ navigation }: Props) => {
       await signIn(cleanEmail, password);
     } catch (error: any) {
       const message = error?.message ?? "Unable to sign in. Please try again.";
+      const isEmailConfirmationIssue = /confirm|verified|verification/i.test(message);
+
+      if (isEmailConfirmationIssue) {
+        setNoticeMessage("Please confirm your email address before signing in.");
+        setResendEmail(cleanEmail);
+        setShowResendModal(true);
+      }
+
       setErrorMessage(message);
-      Alert.alert("Sign in failed", message);
+      if (!isEmailConfirmationIssue) Alert.alert("Sign in failed", message);
     }
   };
 
@@ -70,6 +113,7 @@ export const LoginScreen = ({ navigation }: Props) => {
             <Text style={[styles.title, { color: colors.text }]}>Welcome back</Text>
             <Text style={[styles.subtitle, { color: colors.textMuted }]}>Track practice, matches and progress with pro-level clarity.</Text>
 
+            {noticeMessage ? <Text style={[styles.noticeText, { color: colors.primary }]}>{noticeMessage}</Text> : null}
             {errorMessage ? <Text style={[styles.errorText, { color: colors.danger }]}>{errorMessage}</Text> : null}
 
             <TextInput
@@ -96,9 +140,14 @@ export const LoginScreen = ({ navigation }: Props) => {
 
             <AppButton label="Sign In" onPress={handleLogin} loading={isLoading} />
 
-            <Pressable style={styles.forgotLink} onPress={() => navigation.navigate("ForgotPassword")}>
-              <Text style={[styles.forgotLinkText, { color: colors.primary }]}>Forgot password?</Text>
-            </Pressable>
+            <View style={styles.helpRow}>
+              <Pressable style={styles.helpLink} onPress={openResendModal}>
+                <Text style={[styles.forgotLinkText, { color: colors.primary }]}>Resend confirmation email</Text>
+              </Pressable>
+              <Pressable style={styles.helpLink} onPress={() => navigation.navigate("ForgotPassword")}>
+                <Text style={[styles.forgotLinkText, { color: colors.primary }]}>Forgot password?</Text>
+              </Pressable>
+            </View>
 
             <Pressable onPress={() => navigation.navigate("Register")}>
               <Text style={[styles.switchText, { color: colors.textMuted }]}>New here? <Text style={[styles.switchTextStrong, { color: colors.primary }]}>Create an account</Text></Text>
@@ -108,6 +157,34 @@ export const LoginScreen = ({ navigation }: Props) => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={showResendModal} animationType="fade" transparent onRequestClose={() => setShowResendModal(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Resend confirmation email</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>Enter your email and we will send a new verification link.</Text>
+
+            {resendError ? <Text style={[styles.errorText, { color: colors.danger }]}>{resendError}</Text> : null}
+
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+              placeholder="Email"
+              placeholderTextColor={colors.textMuted}
+              value={resendEmail}
+              onChangeText={setResendEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={handleResendFromModal}
+            />
+
+            <AppButton label="Send confirmation email" onPress={handleResendFromModal} loading={isLoading} />
+            <View style={{ height: 8 }} />
+            <AppButton label="Cancel" variant="secondary" onPress={() => setShowResendModal(false)} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -166,6 +243,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  noticeText: {
+    marginBottom: 10,
+    fontSize: 13,
+    fontWeight: "600",
+  },
   input: {
     borderWidth: 1,
     paddingVertical: 13,
@@ -174,14 +256,40 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     fontSize: 16,
   },
-  forgotLink: {
+  helpRow: {
     marginTop: 12,
     marginBottom: 14,
-    alignSelf: "flex-end",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  helpLink: {
+    paddingVertical: 2,
   },
   forgotLinkText: {
     fontSize: 13,
     fontWeight: "700",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  modalCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 18,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  modalSubtitle: {
+    marginTop: 6,
+    marginBottom: 12,
+    fontSize: 14,
+    lineHeight: 20,
   },
   switchText: {
     textAlign: "center",

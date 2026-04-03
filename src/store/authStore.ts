@@ -34,6 +34,8 @@ const LEGACY_STORE_KEYS = [
   "tournaments-storage",
 ];
 
+const AUTH_REDIRECT_URL = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL ?? "snookerlab://auth/callback";
+
 interface AuthState {
   user: User | null;
   session: any | null;
@@ -43,6 +45,8 @@ interface AuthState {
   signUp: (email: string, password: string, username: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  resendEmailVerification: (email: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
   updateAvatarPreset: (presetId: string) => Promise<void>;
   uploadProfilePhoto: (photoUri: string) => Promise<void>;
   setUser: (user: User | any | null) => void;
@@ -76,6 +80,7 @@ export const useAuthStore = create<AuthState>()(
             email,
             password,
             options: {
+              emailRedirectTo: AUTH_REDIRECT_URL,
               data: {
                 username,
                 subscription_tier: "free",
@@ -97,8 +102,40 @@ export const useAuthStore = create<AuthState>()(
       resetPassword: async (email) => {
         set({ isLoading: true });
         try {
-          const { error } = await supabase.auth.resetPasswordForEmail(email);
+          const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: AUTH_REDIRECT_URL,
+          });
           if (error) throw error;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      resendEmailVerification: async (email) => {
+        set({ isLoading: true });
+        try {
+          const { error } = await supabase.auth.resend({
+            type: "signup",
+            email,
+            options: {
+              emailRedirectTo: AUTH_REDIRECT_URL,
+            },
+          });
+          if (error) throw error;
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      deleteAccount: async () => {
+        set({ isLoading: true });
+        try {
+          const { error } = await supabase.functions.invoke("delete-account", {
+            body: {},
+          });
+          if (error) throw error;
+
+          await logoutBilling();
+          await Promise.all(LEGACY_STORE_KEYS.map((key) => safeStorage.removeItem(key)));
+          set({ user: null, session: null, isAuthenticated: false });
         } finally {
           set({ isLoading: false });
         }

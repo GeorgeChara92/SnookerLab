@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -47,12 +46,10 @@ export const RegisterScreen = ({ navigation }: Props) => {
 
     try {
       await signUp(cleanEmail, password, cleanUsername);
-      Alert.alert("Success", "Account created! Please check your email to verify.");
-      navigation.navigate("Login");
+      navigation.navigate("ConfirmEmail", { email: cleanEmail });
     } catch (error: any) {
       const message = error?.message ?? "Unable to create account.";
       setErrorMessage(message);
-      Alert.alert("Registration failed", message);
     }
   };
 

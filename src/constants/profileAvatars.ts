@@ -6,10 +6,10 @@ export type PresetAvatar = {
 };
 
 export const SNOOKER_PRESET_AVATARS: PresetAvatar[] = [
-  { id: "player-pro", label: "Crucible Contender", group: "player", tag: "Matchplay" },
-  { id: "player-classic", label: "Baize Technician", group: "player", tag: "Technique" },
-  { id: "player-ace", label: "Cue Artist", group: "player", tag: "Flair" },
-  { id: "player-captain", label: "Match Captain", group: "player", tag: "Leadership" },
+  { id: "player-pro", label: "Rookie", group: "player", tag: "Starter" },
+  { id: "player-classic", label: "Club Player", group: "player", tag: "Progress" },
+  { id: "player-ace", label: "Century Player", group: "player", tag: "Scoring" },
+  { id: "player-captain", label: "Tour Contender", group: "player", tag: "Elite" },
   { id: "black-ball", label: "Black Ball Specialist", group: "snooker", tag: "Colours" },
   { id: "pack-reds", label: "Pack Splitter", group: "snooker", tag: "Break Building" },
   { id: "trophy-cue", label: "Frame Winner", group: "snooker", tag: "Matchplay" },

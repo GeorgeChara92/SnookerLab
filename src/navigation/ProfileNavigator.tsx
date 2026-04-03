@@ -14,7 +14,7 @@ export const ProfileNavigator = () => {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen name="ProfileHome" component={ProfileScreen} options={{ title: "Profile" }} />
-      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Account Settings" }} />
       <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} options={{ title: "Plans" }} />
     </Stack.Navigator>
   );

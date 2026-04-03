@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { useAuthStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -12,7 +11,7 @@ import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 
 export const ProfileScreen = () => {
   const navigation = useNavigation<any>();
-  const { user, signOut, isLoading, updateAvatarPreset, uploadProfilePhoto } = useAuthStore();
+  const { user, signOut, updateAvatarPreset } = useAuthStore();
   const { colors } = useAppTheme();
   const subscription = useSubscriptionAccess();
   const { width } = useWindowDimensions();
@@ -43,52 +42,29 @@ export const ProfileScreen = () => {
     }
   };
 
-  const handleUploadPhoto = async () => {
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!permission.granted) {
-        Alert.alert("Permission required", "Please grant photo library access to upload an avatar.");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.9,
-      });
-
-      if (result.canceled || !result.assets[0]?.uri) return;
-
-      await uploadProfilePhoto(result.assets[0].uri);
-      Alert.alert("Avatar updated", "Your profile photo is now synced to your account.");
-    } catch (error: any) {
-      Alert.alert("Upload failed", error?.message ?? "Could not upload your photo.");
-    }
-  };
-
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <AppCard style={styles.profileHeader}>
-        <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
-          {user?.profile_image_url ? (
-            <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
-          ) : (
-            <SnookerPresetAvatar presetId={user?.avatar_preset} size={100} />
-          )}
+        <View style={styles.avatarRow}>
+          <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
+            {user?.profile_image_url ? (
+              <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
+            ) : (
+              <SnookerPresetAvatar presetId={user?.avatar_preset} size={100} />
+            )}
+          </View>
+          <Pressable
+            onPress={() => navigation.navigate("SubscriptionPlans")}
+            style={[styles.tierPill, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}
+          >
+            <Text style={[styles.tierText, { color: colors.primary }]}>{subscription.tierLabel} Plan</Text>
+          </Pressable>
         </View>
         <Text style={[styles.username, { color: colors.text }]}>{user?.username || user?.email || "Player"}</Text>
         <Text style={[styles.email, { color: colors.textMuted }]}>{user?.email}</Text>
-        <View style={[styles.tierPill, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}>
-          <Text style={[styles.tierText, { color: colors.primary }]}>{subscription.tierLabel} Plan</Text>
-        </View>
         <View style={styles.avatarActions}>
           <View style={styles.actionButtonWrap}>
-            <AppButton label="Upload Photo" variant="secondary" loading={isLoading} onPress={handleUploadPhoto} />
-          </View>
-          <View style={styles.actionButtonWrap}>
-            <AppButton label="Open Settings" variant="secondary" onPress={() => navigation.navigate("Settings")} />
+            <AppButton label="Account Settings" variant="secondary" onPress={() => navigation.navigate("Settings")} />
           </View>
         </View>
       </AppCard>
@@ -226,6 +202,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 28 },
   profileHeader: { alignItems: "center", marginBottom: 12, marginTop: 4 },
+  avatarRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", width: "100%", gap: 12, marginBottom: 12 },
   avatar: {
     width: 100,
     height: 100,
@@ -233,18 +210,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 0,
     overflow: "hidden",
   },
   avatarImage: { width: "100%", height: "100%" },
   username: { fontSize: 24, fontWeight: "700", marginBottom: 4 },
   email: { fontSize: 15 },
   tierPill: {
-    marginTop: 10,
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
+    alignSelf: "center",
   },
   tierText: { fontSize: 12, fontWeight: "800" },
   avatarActions: { marginTop: 14, flexDirection: "row", gap: 8 },
