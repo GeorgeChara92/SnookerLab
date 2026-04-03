@@ -10,8 +10,8 @@ import { useAuthStore } from "../../store";
 import type { ProfileStackParamList } from "../../types";
 import { isBillingConfigured, openNativeSubscriptionSettings, presentCustomerCenter } from "../../services/billing";
 
-const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snookerlab.app/privacy";
-const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snookerlab.app/terms";
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snooker-lab.vercel.app/privacy";
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snooker-lab.vercel.app/terms";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookerlab.app";
 
 const createDeleteChallenge = () => Math.random().toString(36).toUpperCase().slice(2, 8);
