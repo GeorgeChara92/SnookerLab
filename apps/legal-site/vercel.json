@@ -24,6 +24,7 @@
     { "source": "/", "destination": "/index.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/terms", "destination": "/terms.html" },
-    { "source": "/support", "destination": "/support.html" }
+    { "source": "/support", "destination": "/support.html" },
+    { "source": "/email-confirmed", "destination": "/email-confirmed.html" }
   ]
 }

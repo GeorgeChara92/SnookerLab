@@ -10,6 +10,7 @@ Routes:
 - `/privacy`
 - `/terms`
 - `/support`
+- `/email-confirmed`
 
 ## 1) Deploy on Vercel
 
@@ -40,11 +41,19 @@ Set these in your mobile app envs (local + EAS):
 
 - `EXPO_PUBLIC_PRIVACY_URL=https://snookerlab.app/privacy`
 - `EXPO_PUBLIC_TERMS_URL=https://snookerlab.app/terms`
+- `EXPO_PUBLIC_AUTH_CONFIRM_REDIRECT_URL=https://snookerlab.app/email-confirmed`
 
 If you want support to open the support page instead of email, add:
 
 - `EXPO_PUBLIC_SUPPORT_URL=https://snookerlab.app/support`
 
-## 4) Store listing alignment
+## 4) Supabase Auth redirect URLs
+
+In Supabase Auth URL configuration, allow both:
+
+- `https://snookerlab.app/email-confirmed` (email confirmation success page)
+- `snookerlab://auth/callback` (mobile auth deep-link callback)
+
+## 5) Store listing alignment
 
 Use the same live URLs in App Store Connect and Play Console privacy/support fields.

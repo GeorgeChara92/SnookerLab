@@ -35,6 +35,7 @@ const LEGACY_STORE_KEYS = [
 ];
 
 const AUTH_REDIRECT_URL = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL ?? "snookerlab://auth/callback";
+const AUTH_CONFIRM_REDIRECT_URL = process.env.EXPO_PUBLIC_AUTH_CONFIRM_REDIRECT_URL ?? AUTH_REDIRECT_URL;
 
 interface AuthState {
   user: User | null;
@@ -80,7 +81,7 @@ export const useAuthStore = create<AuthState>()(
             email,
             password,
             options: {
-              emailRedirectTo: AUTH_REDIRECT_URL,
+              emailRedirectTo: AUTH_CONFIRM_REDIRECT_URL,
               data: {
                 username,
                 subscription_tier: "free",
@@ -117,7 +118,7 @@ export const useAuthStore = create<AuthState>()(
             type: "signup",
             email,
             options: {
-              emailRedirectTo: AUTH_REDIRECT_URL,
+              emailRedirectTo: AUTH_CONFIRM_REDIRECT_URL,
             },
           });
           if (error) throw error;
