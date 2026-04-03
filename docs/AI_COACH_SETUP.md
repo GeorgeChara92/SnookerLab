@@ -1,56 +1,50 @@
-# AI Coach Setup (Test Mode -> Production)
+# AI Coach Setup
 
-## 1) Run SQL migration
+## 1) Apply database schema
 
-In Supabase SQL Editor, run the updated `supabase/schema.sql`.
+Run `supabase/schema.sql` in Supabase SQL Editor.
 
-This creates:
+This sets up:
 
 - `public.ai_analyses`
-- RLS policy `ai_analyses_own`
-- DB-level daily rate limit trigger (`8 analyses / 24h / user`)
+- row-level security for user-owned analysis data
+- server-enforced subscription limits for monthly usage
 
-## 2) Create storage bucket
+## 2) Configure private clip storage
 
-Create private bucket:
+Create a private storage bucket:
 
 - `ai-videos`
 
-If you created the bucket manually, still run the storage policy SQL from `supabase/schema.sql` so authenticated users can write to their own folder.
+Then ensure storage policies from `supabase/schema.sql` are applied so authenticated users can upload/read only their own clip paths.
 
-Recommended path convention:
+Recommended object path:
 
 - `${user_id}/${timestamp-random}.mp4`
 
-## 3) Current runtime behavior
+## 3) Runtime flow
 
-The app now calls Edge Function `ai-analyze-clip` from `runAnalysis`.
+The app creates a real analysis pipeline (no demo fallback path):
 
-Flow:
+1. User picks or records a clip (required length: 10-20 seconds).
+2. Client uploads the clip to `ai-videos`.
+3. Client inserts `pending` row in `ai_analyses`.
+4. Client marks `processing` and calls Edge Function `ai-analyze-clip`.
+5. Edge Function performs analysis and writes structured `report_json` plus final status.
+6. On failure, analysis is marked `failed` with `error_message`.
 
-1. Upload video to `ai-videos` (or use `demo://` fallback path).
-2. Insert row in `ai_analyses` with `pending`.
-3. Client switches to `processing` and invokes Edge Function.
-4. Edge Function runs LLM analysis and writes `feedback`, `recommendations`, `status=completed`.
-5. Structured output is persisted in `report_json` for clean frontend rendering.
-6. If Edge Function call fails in app, store falls back to `runDemoAnalysis` to keep UX unblocked.
+## 4) Edge Function configuration
 
-Failure states:
-
-- Edge Function writes `status=failed` with `error_message` when server-side analysis errors.
-
-## 4) Edge Function setup
-
-Function file:
+Function source:
 
 - `supabase/functions/ai-analyze-clip/index.ts`
 
-Required Supabase secrets:
+Required secrets:
 
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL` (optional, defaults to `gpt-4o-mini`)
+- `OPENAI_MODEL` (optional, default is `gpt-4o-mini`)
 
-Deploy commands:
+Deploy:
 
 ```bash
 supabase secrets set OPENAI_API_KEY=your_key
@@ -58,28 +52,17 @@ supabase secrets set OPENAI_MODEL=gpt-4o-mini
 supabase functions deploy ai-analyze-clip
 ```
 
-Recommended first model:
-
-- `gpt-4o-mini` (good quality/cost for initial rollout)
-
-If you need stronger reasoning later, raise model tier only after validating usage and cost profiles.
-
-## 5) Cost safety
+## 5) Limits and guardrails
 
 Current protections:
 
-- Client soft limit (`8/day`) in upload screen.
-- Server hard limit (`8/day`) via Postgres trigger.
+- clip duration validation in app (10-20 seconds)
+- server-side monthly limits by subscription tier
+- private storage + signed playback URLs
 
 ## Common errors
 
 - `Bucket not found`
-  - Create `ai-videos` bucket or rerun `supabase/schema.sql`.
+  - Create `ai-videos` or rerun schema/policy setup.
 - `new row violates row-level security policy`
-  - Storage RLS policies are missing. Rerun `supabase/schema.sql` to apply `storage.objects` policies for `ai-videos`.
-
-Recommended next protections:
-
-- Edge Function rate-limit by IP + user id.
-- Optional subscription tier limits.
-- Clip duration guardrail (e.g. 15s–75s).
+  - Re-apply storage and table RLS policies from `supabase/schema.sql`.

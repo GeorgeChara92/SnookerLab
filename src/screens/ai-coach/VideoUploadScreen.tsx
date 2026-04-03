@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { View, StyleSheet, Text, Alert, ActivityIndicator, TextInput, Pressable, ScrollView } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystemLegacy from "expo-file-system/legacy";
 import { AppCard } from "../../components/ui/AppCard";
@@ -8,7 +10,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useAIAnalysesStore } from "../../store";
 import { supabase } from "../../api/supabase";
-import type { AnalysisType } from "../../types";
+import type { AICoachStackParamList, AnalysisType } from "../../types";
 import { TierPaywallModal } from "../../components/subscription";
 import { isSubscriptionLimitError } from "../../constants";
 
@@ -20,7 +22,14 @@ const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = [
   { label: "Full Session", value: "full_session" },
 ];
 
-const CONTEXT_TAGS = ["practice", "match", "break-building", "safety", "long-pot", "cue-action"];
+const CONTEXT_TAGS = [
+  { value: "practice", label: "Practice" },
+  { value: "match", label: "Match" },
+  { value: "break-building", label: "Break Building" },
+  { value: "safety", label: "Safety" },
+  { value: "long-pot", label: "Long Pot" },
+  { value: "cue-action", label: "Cue Action" },
+];
 
 const ENABLE_AI_STORAGE_UPLOAD = process.env.EXPO_PUBLIC_ENABLE_AI_STORAGE_UPLOAD !== "0";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
@@ -61,6 +70,11 @@ const formatDurationSeconds = (rawDuration?: number) => {
   return `${seconds.toFixed(1)}s`;
 };
 
+const getDurationSeconds = (rawDuration?: number) => {
+  if (!rawDuration || Number.isNaN(rawDuration) || rawDuration <= 0) return 0;
+  return rawDuration > 1000 ? rawDuration / 1000 : rawDuration;
+};
+
 const getUploadTimeoutMs = (fileSizeBytes?: number) => {
   const mb = Math.max(0, Math.ceil((fileSizeBytes ?? 0) / 1024 / 1024));
   const computed = STORAGE_UPLOAD_TIMEOUT_BASE_MS + mb * STORAGE_UPLOAD_TIMEOUT_PER_MB_MS;
@@ -68,6 +82,7 @@ const getUploadTimeoutMs = (fileSizeBytes?: number) => {
 };
 
 export const VideoUploadScreen = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<AICoachStackParamList>>();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
@@ -78,7 +93,22 @@ export const VideoUploadScreen = () => {
   const [showPaywall, setShowPaywall] = useState(false);
   const { colors } = useAppTheme();
   const subscription = useSubscriptionAccess();
-  const { createAnalysis, runAnalysis, runDemoAnalysis } = useAIAnalysesStore();
+  const { createAnalysis, runAnalysis } = useAIAnalysesStore();
+
+  const validateClipLength = (asset: any) => {
+    const seconds = getDurationSeconds(asset?.duration);
+    if (!seconds) {
+      Alert.alert("Invalid clip", "We could not read the clip duration. Please choose another video.");
+      return false;
+    }
+
+    if (seconds < 10 || seconds > 20) {
+      Alert.alert("Clip length required", "Please upload a clip between 10 and 20 seconds for best analysis quality.");
+      return false;
+    }
+
+    return true;
+  };
 
   const checkLimit = () => {
     if (!subscription.canUseAI) {
@@ -104,7 +134,9 @@ export const VideoUploadScreen = () => {
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setVideo(result.assets[0]);
+      const selected = result.assets[0];
+      if (!validateClipLength(selected)) return;
+      setVideo(selected);
     }
   };
 
@@ -123,13 +155,16 @@ export const VideoUploadScreen = () => {
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setVideo(result.assets[0]);
+      const selected = result.assets[0];
+      if (!validateClipLength(selected)) return;
+      setVideo(selected);
     }
   };
 
   const uploadVideo = async () => {
     if (!video) return;
     if (!checkLimit()) return;
+    if (!validateClipLength(video)) return;
 
     const authUser = (await supabase.auth.getUser()).data.user;
     if (!authUser) {
@@ -145,50 +180,43 @@ export const VideoUploadScreen = () => {
       const ext = (video.fileName?.split(".").pop() || video.uri.split(".").pop() || "mp4").toLowerCase();
       const path = `${authUser.id}/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
 
-      let persistedVideoPath = `demo://clip-${Date.now()}`;
-
-      if (ENABLE_AI_STORAGE_UPLOAD) {
-        try {
-          setProgress(0.2);
-          setProgressLabel("Uploading clip...");
-          const session = (await supabase.auth.getSession()).data.session;
-          if (!session?.access_token) {
-            throw new Error("Auth session missing for upload.");
-          }
-          if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-            throw new Error("Supabase env vars are missing.");
-          }
-
-          const uploadUrl = `${SUPABASE_URL}/storage/v1/object/ai-videos/${encodeURIComponent(path)}`;
-          const uploadResult = await withTimeout(
-            FileSystemLegacy.uploadAsync(uploadUrl, video.uri, {
-              httpMethod: "POST",
-              uploadType: FileSystemLegacy.FileSystemUploadType.BINARY_CONTENT,
-              headers: {
-                Authorization: `Bearer ${session.access_token}`,
-                apikey: SUPABASE_ANON_KEY,
-                "Content-Type": inferContentType(ext, video.mimeType),
-                "x-upsert": "false",
-              },
-            }),
-            getUploadTimeoutMs(video.fileSize),
-            "Storage upload timed out"
-          );
-
-          if (uploadResult.status < 200 || uploadResult.status >= 300) {
-            throw new Error(`Storage upload failed with status ${uploadResult.status}`);
-          }
-
-          persistedVideoPath = path;
-          setProgress(0.55);
-          setProgressLabel("Upload complete");
-        } catch (storageError: any) {
-          const storageMessage = safeErrorMessage(storageError);
-          console.warn("AI video storage unavailable, falling back to demo path:", storageMessage);
-          setProgress(0.55);
-          setProgressLabel("Storage fallback active");
-        }
+      if (!ENABLE_AI_STORAGE_UPLOAD) {
+        throw new Error("Clip uploads are temporarily unavailable in this build.");
       }
+
+      setProgress(0.2);
+      setProgressLabel("Uploading clip...");
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session?.access_token) {
+        throw new Error("Auth session missing for upload.");
+      }
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        throw new Error("Upload service is not fully configured.");
+      }
+
+      const uploadUrl = `${SUPABASE_URL}/storage/v1/object/ai-videos/${encodeURIComponent(path)}`;
+      const uploadResult = await withTimeout(
+        FileSystemLegacy.uploadAsync(uploadUrl, video.uri, {
+          httpMethod: "POST",
+          uploadType: FileSystemLegacy.FileSystemUploadType.BINARY_CONTENT,
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: SUPABASE_ANON_KEY,
+            "Content-Type": inferContentType(ext, video.mimeType),
+            "x-upsert": "false",
+          },
+        }),
+        getUploadTimeoutMs(video.fileSize),
+        "Storage upload timed out"
+      );
+
+      if (uploadResult.status < 200 || uploadResult.status >= 300) {
+        throw new Error(`Storage upload failed with status ${uploadResult.status}`);
+      }
+
+      const persistedVideoPath = path;
+      setProgress(0.55);
+      setProgressLabel("Upload complete");
 
       setProgress(0.68);
       setProgressLabel("Creating analysis record...");
@@ -205,17 +233,10 @@ export const VideoUploadScreen = () => {
       setProgress(1);
       setProgressLabel("Analysis complete");
 
-      Alert.alert(
-        "Analysis started",
-        persistedVideoPath.startsWith("demo://")
-          ? "Storage upload is in demo mode, but analysis feedback is generated so you can test the coach flow."
-          : ext === "mov"
-            ? "Clip uploaded and AI analysis started. If downloaded MOV does not play on your desktop player, it is usually codec compatibility (not upload corruption)."
-            : "Clip uploaded and AI analysis started. Check dashboard for results."
-      );
       setVideo(null);
       setNotes("");
       setSelectedTags([]);
+      navigation.replace("AnalysisDetail", { analysisId });
     } catch (error: any) {
       if (isSubscriptionLimitError(error)) {
         setShowPaywall(true);
@@ -235,38 +256,10 @@ export const VideoUploadScreen = () => {
     }
   };
 
-  const startDemoWithoutVideo = async () => {
-    if (!checkLimit()) return;
-
-    setUploading(true);
-    setProgress(0.25);
-    setProgressLabel("Creating demo analysis...");
-    try {
-      const analysisId = await createAnalysis({
-        videoPath: `demo://manual-${Date.now()}`,
-        analysisType,
-        contextTags: selectedTags,
-        userNotes: notes.trim() || undefined,
-      });
-      await runDemoAnalysis(analysisId);
-      setProgress(1);
-      setProgressLabel("Demo complete");
-      Alert.alert("Demo complete", "Demo coaching feedback is ready in AI Dashboard.");
-      setNotes("");
-      setSelectedTags([]);
-    } catch (error: any) {
-      Alert.alert("Demo failed", safeErrorMessage(error));
-    } finally {
-      setUploading(false);
-      setProgress(0);
-      setProgressLabel("");
-    }
-  };
-
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <Text style={[styles.title, { color: colors.text }]}>Upload Clip for AI Coach</Text>
-      <Text style={[styles.subtitle, { color: colors.textMuted }]}>30-60s clips work best. Add context so feedback is more useful.</Text>
+      <Text style={[styles.subtitle, { color: colors.textMuted }]}>Use a 10-20 second clip and add context for more accurate feedback.</Text>
 
       <AppCard style={styles.card}>
         <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 1</Text>
@@ -296,12 +289,14 @@ export const VideoUploadScreen = () => {
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Optional Context Tags</Text>
         <View style={styles.chipsWrap}>
           {CONTEXT_TAGS.map((tag) => {
-            const selected = selectedTags.includes(tag);
+            const selected = selectedTags.includes(tag.value);
             return (
               <Pressable
-                key={tag}
+                key={tag.value}
                 onPress={() =>
-                  setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]))
+                  setSelectedTags((prev) =>
+                    prev.includes(tag.value) ? prev.filter((item) => item !== tag.value) : [...prev, tag.value]
+                  )
                 }
                 style={[
                   styles.chip,
@@ -311,7 +306,7 @@ export const VideoUploadScreen = () => {
                   },
                 ]}
               >
-                <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{tag}</Text>
+                <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{tag.label}</Text>
               </Pressable>
             );
           })}
@@ -333,17 +328,15 @@ export const VideoUploadScreen = () => {
       <AppCard style={styles.card}>
         <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 4</Text>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Clip Upload</Text>
-        <Text style={[styles.metaText, { color: colors.textMuted }]}>Plan: {subscription.tierLabel} · AI used this cycle: {subscription.usage.aiAnalyses} / {subscription.limits.aiAnalysesPerPeriod ?? "∞"}</Text>
-        <Text style={[styles.metaText, { color: colors.textMuted }]}>AI left this cycle: {subscription.remaining.aiAnalyses ?? "∞"}</Text>
-        <Text style={[styles.metaText, { color: colors.textMuted }]}>LLM: Edge Function (`OPENAI_MODEL`, default `gpt-4o-mini`)</Text>
+        <Text style={[styles.metaText, { color: colors.textMuted }]}>Plan: {subscription.tierLabel} · Coach uses this month: {subscription.usage.aiAnalyses} / {subscription.limits.aiAnalysesPerPeriod ?? "∞"}</Text>
+        <Text style={[styles.metaText, { color: colors.textMuted }]}>Remaining coach uses this month: {subscription.remaining.aiAnalyses ?? "∞"}</Text>
+        <Text style={[styles.metaText, { color: colors.textMuted }]}>Clip length: 10-20 seconds</Text>
 
         {!video ? (
           <View style={styles.buttonContainer}>
             <AppButton label="Pick from Library" onPress={pickVideo} />
             <View style={styles.spacer} />
             <AppButton label="Record Video" onPress={recordVideo} variant="secondary" />
-            <View style={styles.spacer} />
-            <AppButton label="Run Demo Feedback (No Upload)" onPress={startDemoWithoutVideo} variant="secondary" />
           </View>
         ) : (
           <View>

@@ -56,6 +56,7 @@ export const MainTabNavigator = () => {
         component={PracticeNavigator}
         options={{
           tabBarLabel: "Practice",
+          popToTopOnBlur: true,
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="bullseye-arrow" size={size} color={color} />
           ),

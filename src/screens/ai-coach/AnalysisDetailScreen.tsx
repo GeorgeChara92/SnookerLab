@@ -101,8 +101,8 @@ export const AnalysisDetailScreen = () => {
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Clip</Text>
         {playbackUrl ? (
           <ClipPlayer url={playbackUrl} />
-        ) : analysis.video_url.startsWith("demo://") ? (
-          <Text style={[styles.body, { color: colors.textMuted }]}>Demo analysis has no uploaded clip attached.</Text>
+        ) : !analysis.video_url || analysis.video_url.startsWith("demo://") ? (
+          <Text style={[styles.body, { color: colors.textMuted }]}>No clip is attached to this analysis.</Text>
         ) : videoError ? (
           <Text style={[styles.body, { color: colors.danger }]}>Could not load clip: {videoError}</Text>
         ) : (

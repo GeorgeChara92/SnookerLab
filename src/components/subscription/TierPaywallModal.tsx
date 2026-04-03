@@ -58,9 +58,9 @@ export const TierPaywallModal = ({ visible, onClose, currentTier, featureLabel, 
               >
                 <View>
                   <Text style={[styles.tierName, { color: colors.text }]}>{TIER_LABELS[tier]}</Text>
-                  <Text style={[styles.tierMeta, { color: colors.textMuted }]}>Matches: {limits.matchesPerPeriod ?? "Unlimited"}/period</Text>
-                  <Text style={[styles.tierMeta, { color: colors.textMuted }]}>Tournaments: {limits.tournamentsPerPeriod ?? "Unlimited"}/period</Text>
-                  <Text style={[styles.tierMeta, { color: colors.textMuted }]}>AI Analyses: {limits.aiAnalysesPerPeriod ?? "Unlimited"}/period</Text>
+                  <Text style={[styles.tierMeta, { color: colors.textMuted }]}>Matches: {limits.matchesPerPeriod ?? "Unlimited"} / month</Text>
+                  <Text style={[styles.tierMeta, { color: colors.textMuted }]}>Tournaments: {limits.tournamentsPerPeriod ?? "Unlimited"} / month</Text>
+                  <Text style={[styles.tierMeta, { color: colors.textMuted }]}>AI analyses: {limits.aiAnalysesPerPeriod ?? "Unlimited"} / month</Text>
                 </View>
                 {active ? <Text style={[styles.currentBadge, { color: colors.primary }]}>Current</Text> : null}
               </View>

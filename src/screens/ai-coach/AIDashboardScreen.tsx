@@ -85,8 +85,8 @@ export const AIDashboardScreen = () => {
 
       <AppCard style={styles.featureCard}>
         <Text style={[styles.featureTitle, { color: colors.text }]}>How to get better results</Text>
-        <Text style={[styles.featureDescription, { color: colors.textMuted }]}>
-          Keep your full cue action in frame, use steady camera placement, and capture 30-60 seconds from one clear angle.
+        <Text style={[styles.featureDescription, { color: colors.textMuted }]}> 
+          Keep your full cue action in frame, use steady camera placement, and capture 10-20 seconds from one clear angle.
         </Text>
       </AppCard>
 

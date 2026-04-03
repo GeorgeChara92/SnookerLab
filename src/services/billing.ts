@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
 import Purchases, { CustomerInfo, LOG_LEVEL, PurchasesOfferings } from "react-native-purchases";
 import RevenueCatUI from "react-native-purchases-ui";
@@ -9,7 +9,11 @@ const RC_IOS_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS ?? "";
 const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID ?? "";
 
 const PRO_ENTITLEMENT_ID = process.env.EXPO_PUBLIC_RC_ENTITLEMENT_PRO ?? "SnookerLab Pro";
+const HALF_CENTURY_ENTITLEMENT_ID = process.env.EXPO_PUBLIC_RC_ENTITLEMENT_HALF_CENTURY ?? "half_century";
+const CENTURY_ENTITLEMENT_ID = process.env.EXPO_PUBLIC_RC_ENTITLEMENT_CENTURY ?? "century";
 const PRO_MONTHLY_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_MONTHLY ?? "monthly";
+const HALF_CENTURY_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_HALF_CENTURY ?? "half_century_monthly";
+const CENTURY_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY ?? "century_monthly";
 
 let configuredForUserId: string | null = null;
 const IS_EXPO_GO = Constants.appOwnership === "expo";
@@ -27,6 +31,8 @@ export const getBillingUnavailableReason = () => {
 };
 
 export const isBillingConfigured = () => !getBillingUnavailableReason();
+
+export const isUsingRevenueCatTestKey = () => getApiKey().startsWith("test_");
 
 export const initBilling = async (appUserId: string) => {
   const apiKey = getApiKey();
@@ -70,36 +76,40 @@ export const addBillingCustomerInfoListener = (listener: (customerInfo: Customer
   };
 };
 
-const findMonthlyPackage = (offerings: PurchasesOfferings) => {
+const findPackageForTier = (tier: Exclude<SubscriptionTier, "free">, offerings: PurchasesOfferings) => {
   const allPackages = offerings.current?.availablePackages ?? [];
 
-  const explicit = allPackages.find(
-    (pkg) => pkg.product.identifier === PRO_MONTHLY_PRODUCT_ID || pkg.identifier === PRO_MONTHLY_PRODUCT_ID
-  );
+  const productHint =
+    tier === "half_century" ? HALF_CENTURY_PRODUCT_ID : tier === "century" ? CENTURY_PRODUCT_ID : PRO_MONTHLY_PRODUCT_ID;
+
+  const explicit = allPackages.find((pkg) => pkg.product.identifier === productHint || pkg.identifier === productHint);
   if (explicit) return explicit;
 
-  return (
-    allPackages.find((pkg) => {
-      const productId = pkg.product.identifier.toLowerCase();
-      const packageId = pkg.identifier.toLowerCase();
-      return (
-        productId.includes("monthly") ||
-        packageId.includes("monthly") ||
-        productId.includes("pro") ||
-        packageId.includes("pro")
-      );
-    }) ?? null
-  );
+  const token = tier === "half_century" ? "half" : tier === "century" ? "century" : "monthly";
+  const fallbackByToken = allPackages.find((pkg) => {
+    const productId = pkg.product.identifier.toLowerCase();
+    const packageId = pkg.identifier.toLowerCase();
+    return productId.includes(token) || packageId.includes(token);
+  });
+  if (fallbackByToken) return fallbackByToken;
+
+  return null;
 };
 
-export const purchaseProMonthly = async (offerings: PurchasesOfferings) => {
-  const monthlyPackage = findMonthlyPackage(offerings);
+export const purchaseTierMonthly = async (tier: Exclude<SubscriptionTier, "free">, offerings: PurchasesOfferings) => {
+  const monthlyPackage = findPackageForTier(tier, offerings);
   if (!monthlyPackage) {
-    throw new Error("No monthly package found in current RevenueCat offering");
+    throw new Error(`No monthly package found for tier: ${tier}`);
   }
 
   const { customerInfo } = await Purchases.purchasePackage(monthlyPackage);
   return customerInfo;
+};
+
+export const getTierPriceText = (tier: Exclude<SubscriptionTier, "free">, offerings: PurchasesOfferings | null) => {
+  if (!offerings) return null;
+  const pkg = findPackageForTier(tier, offerings);
+  return pkg?.product?.priceString ?? null;
 };
 
 export const restoreBillingPurchases = async () => {
@@ -107,15 +117,18 @@ export const restoreBillingPurchases = async () => {
 };
 
 export const hasProEntitlement = (customerInfo: CustomerInfo): boolean => {
-  const activeEntitlements = customerInfo.entitlements.active;
-  if (activeEntitlements[PRO_ENTITLEMENT_ID]) return true;
-
-  const keys = Object.keys(activeEntitlements).map((key) => key.toLowerCase());
-  return keys.some((key) => key.includes("snookerlab") || key.includes("pro"));
+  return tierFromCustomerInfo(customerInfo) !== "free";
 };
 
 export const tierFromCustomerInfo = (customerInfo: CustomerInfo): SubscriptionTier => {
-  return hasProEntitlement(customerInfo) ? "century" : "free";
+  const activeEntitlements = customerInfo.entitlements.active;
+  if (activeEntitlements[CENTURY_ENTITLEMENT_ID] || activeEntitlements[PRO_ENTITLEMENT_ID]) return "century";
+  if (activeEntitlements[HALF_CENTURY_ENTITLEMENT_ID]) return "half_century";
+
+  const keys = Object.keys(activeEntitlements).map((key) => key.toLowerCase());
+  if (keys.some((key) => key.includes("century") || key.includes("snookerlab") || key.includes("pro"))) return "century";
+  if (keys.some((key) => key.includes("half") || key.includes("fifty"))) return "half_century";
+  return "free";
 };
 
 export const syncTierToSupabaseUser = async (tier: SubscriptionTier) => {
@@ -135,7 +148,11 @@ export const presentProPaywallIfNeeded = async () => {
   if (unavailableReason) {
     throw new Error(unavailableReason);
   }
-  return RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: PRO_ENTITLEMENT_ID });
+  const result = await Promise.race([
+    RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: PRO_ENTITLEMENT_ID }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Paywall timed out")), 15000)),
+  ]);
+  return result;
 };
 
 export const presentProPaywall = async () => {
@@ -143,7 +160,11 @@ export const presentProPaywall = async () => {
   if (unavailableReason) {
     throw new Error(unavailableReason);
   }
-  return RevenueCatUI.presentPaywall();
+  const result = await Promise.race([
+    RevenueCatUI.presentPaywall(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Paywall timed out")), 15000)),
+  ]);
+  return result;
 };
 
 export const presentCustomerCenter = async () => {
@@ -151,5 +172,19 @@ export const presentCustomerCenter = async () => {
   if (unavailableReason) {
     throw new Error(unavailableReason);
   }
-  return RevenueCatUI.presentCustomerCenter();
+  if (isUsingRevenueCatTestKey()) {
+    throw new Error("Subscription management is unavailable in this test build.");
+  }
+  const result = await Promise.race([
+    RevenueCatUI.presentCustomerCenter(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Customer Center timed out")), 30000)),
+  ]);
+  return result;
+};
+
+export const openNativeSubscriptionSettings = async () => {
+  const url = Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions";
+  const supported = await Linking.canOpenURL(url);
+  if (!supported) throw new Error("Could not open subscription settings URL");
+  await Linking.openURL(url);
 };

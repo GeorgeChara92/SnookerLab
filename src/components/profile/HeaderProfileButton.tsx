@@ -30,6 +30,10 @@ export const HeaderProfileButton = () => {
 
 const styles = StyleSheet.create({
   wrap: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 2,
   },
   avatar: {

@@ -33,7 +33,6 @@ interface AIAnalysesState {
     contextTags?: string[];
     userNotes?: string;
   }) => Promise<string>;
-  runDemoAnalysis: (analysisId: string) => Promise<void>;
   runAnalysis: (analysisId: string) => Promise<void>;
 }
 
@@ -109,80 +108,6 @@ export const useAIAnalysesStore = create<AIAnalysesState>()(
         const analysis = mapRow(data);
         set((state) => ({ analyses: [analysis, ...state.analyses] }));
         return analysis.id;
-      },
-
-      runDemoAnalysis: async (analysisId) => {
-        set((state) => ({
-          analyses: state.analyses.map((item) =>
-            item.id === analysisId ? { ...item, status: "processing", updated_at: new Date().toISOString() } : item
-          ),
-        }));
-
-        const processingAt = new Date().toISOString();
-        await supabase
-          .from("ai_analyses")
-          .update({ status: "processing", updated_at: processingAt })
-          .eq("id", analysisId);
-
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        const feedback =
-          "Strong stance stability and good shot commitment. Cue delivery looks mostly straight. Focus on reducing head movement through the strike and extend follow-through by ~3-5cm for cleaner cue-ball control.";
-        const recommendations = [
-          "Run 20 straight cue-action reps with a pause at address.",
-          "Practice long-pot line drills while keeping chin still.",
-          "Log 3 clips this week from side and front angles.",
-        ];
-        const report_json = {
-          summary: "Single shot clip with clear cueing intent and solid commitment through strike.",
-          positives: [
-            "Good stance stability through the shot setup.",
-            "Positive shot commitment with controlled tempo.",
-          ],
-          improvements: [
-            "Keep head movement quieter during final delivery phase.",
-            "Lengthen follow-through slightly for smoother cue-ball control.",
-          ],
-          possible_causes: [
-            "Possible cause (not fully visible): slight jab at impact may come from grip tension or rushed delivery.",
-          ],
-          not_assessable: [
-            "Bridge hand pressure and exact grip tension are not clearly visible.",
-            "Overall pattern play and tactical choices cannot be judged from a single short clip.",
-          ],
-          coaching_tip: "Run 20 controlled cue-action reps with a 1-second pause at address before striking.",
-        };
-
-        const completedAt = new Date().toISOString();
-        const { error } = await supabase
-          .from("ai_analyses")
-          .update({
-            status: "completed",
-            feedback,
-            recommendations,
-            report_json,
-            error_message: null,
-            updated_at: completedAt,
-          })
-          .eq("id", analysisId);
-
-        if (error) throw error;
-
-        set((state) => ({
-          analyses: state.analyses.map((item) =>
-            item.id === analysisId
-              ? {
-                  ...item,
-                  status: "completed",
-                  feedback,
-                  recommendations,
-                  report_json,
-                  error_message: undefined,
-                  updated_at: completedAt,
-                }
-              : item
-          ),
-        }));
       },
 
       runAnalysis: async (analysisId) => {
@@ -281,12 +206,24 @@ export const useAIAnalysesStore = create<AIAnalysesState>()(
             }
           }
 
-          if (details) {
-            console.warn("Edge analysis failed, falling back to demo analysis:", message, details);
-          } else {
-            console.warn("Edge analysis failed, falling back to demo analysis:", message);
-          }
-          await get().runDemoAnalysis(analysisId);
+          const combinedMessage = details ? `${message} ${details}` : message;
+          const failedAt = new Date().toISOString();
+
+          await supabase
+            .from("ai_analyses")
+            .update({ status: "failed", error_message: combinedMessage.slice(0, 280), updated_at: failedAt })
+            .eq("id", analysisId);
+
+          set((state) => ({
+            analyses: state.analyses.map((item) =>
+              item.id === analysisId
+                ? { ...item, status: "failed", error_message: combinedMessage.slice(0, 280), updated_at: failedAt }
+                : item
+            ),
+          }));
+
+          console.warn("Edge analysis failed:", combinedMessage);
+          throw new Error(combinedMessage);
         }
       },
     }),
