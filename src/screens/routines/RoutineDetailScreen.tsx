@@ -68,13 +68,23 @@ export const RoutineDetailScreen = () => {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.heroCard, { backgroundColor: colors.primaryStrong }]}>
-        <Text style={styles.icon}>{routine.icon ?? "🎱"}</Text>
-        <Text style={[styles.title, { color: colors.onPrimary }]}>{routine.name}</Text>
-        <Text style={[styles.meta, { color: "#D6E3DE" }]}>Category: {categoryName ?? "Practice"}</Text>
-        <Text style={[styles.meta, { color: "#D6E3DE" }]}>Difficulty: {routine.difficulty}</Text>
-        <Text style={[styles.summary, { color: "#C3D8D0" }]}>{routine.summary ?? routine.description}</Text>
+    <ScrollView contentContainerStyle={styles.content} style={[styles.container, { backgroundColor: colors.background }]}> 
+      <View style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+        <View style={styles.heroTopRow}>
+          <View style={[styles.iconChip, { backgroundColor: colors.surfaceMuted }]}>
+            <Text style={styles.icon}>{routine.icon ?? "🎱"}</Text>
+          </View>
+          <View style={styles.metaPillsRow}>
+            <View style={[styles.metaPill, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
+              <Text style={[styles.metaPillText, { color: colors.textMuted }]}>{categoryName ?? "Practice"}</Text>
+            </View>
+            <View style={[styles.metaPill, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
+              <Text style={[styles.metaPillText, { color: colors.textMuted }]}>{routine.difficulty}</Text>
+            </View>
+          </View>
+        </View>
+        <Text style={[styles.title, { color: colors.text }]}>{routine.name}</Text>
+        <Text style={[styles.summary, { color: colors.textMuted }]}>{routine.summary ?? routine.description}</Text>
       </View>
 
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -210,32 +220,54 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
   heroCard: {
-    backgroundColor: "#102A43",
     borderRadius: 18,
+    borderWidth: 1,
     padding: 18,
     marginBottom: 16,
   },
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    gap: 8,
+  },
+  iconChip: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   icon: {
-    fontSize: 26,
-    marginBottom: 6,
+    fontSize: 24,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "800",
-    marginBottom: 6,
-    color: "#FFFFFF",
+    marginBottom: 8,
   },
-  meta: {
-    fontSize: 13,
-    color: "#D9E2EC",
-    marginBottom: 3,
+  metaPillsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  metaPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  metaPillText: {
+    fontSize: 11,
+    fontWeight: "700",
     textTransform: "capitalize",
   },
   summary: {
-    marginTop: 8,
     fontSize: 14,
-    color: "#BCCCDC",
-    lineHeight: 19,
+    lineHeight: 20,
   },
   section: {
     borderRadius: 14,

@@ -1,0 +1,123 @@
+:root {
+  --bg: #f3f5f7;
+  --card: #ffffff;
+  --ink: #12202b;
+  --muted: #5d6b76;
+  --line: #d9e0e6;
+  --accent: #1e6b57;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Inter", sans-serif;
+  background: radial-gradient(circle at 15% -10%, #d7ede4 0%, transparent 45%), var(--bg);
+  color: var(--ink);
+}
+
+.shell {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 28px 16px 40px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.brand {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  color: var(--accent);
+}
+
+.nav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.nav a,
+.button,
+.button:visited {
+  text-decoration: none;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hero,
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.hero {
+  margin-bottom: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+h2 {
+  margin: 18px 0 8px;
+  font-size: 20px;
+}
+
+h3 {
+  margin: 14px 0 6px;
+  font-size: 16px;
+}
+
+p,
+li {
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 15px;
+}
+
+ul {
+  padding-left: 18px;
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.meta {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.notice {
+  border-left: 4px solid var(--accent);
+  padding-left: 10px;
+}
+
+@media (max-width: 680px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  h1 {
+    font-size: 24px;
+  }
+}

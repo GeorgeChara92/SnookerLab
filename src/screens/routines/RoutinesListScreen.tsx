@@ -1,37 +1,22 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  View,
-  StyleSheet,
-  FlatList,
-  Text,
-  Pressable,
-  LayoutAnimation,
-  Platform,
-  UIManager,
-} from "react-native";
-import { useNavigation, type NavigationProp } from "@react-navigation/native";
+import React, { useEffect, useMemo } from "react";
+import { FlatList, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useRoutinesStore } from "../../store";
-import { Routine, RoutineCategory } from "../../types";
-import { RoutineCard } from "../../components/routines/RoutineCard";
 import type { PracticeStackParamList } from "../../types";
+import { RoutineCard } from "../../components/routines/RoutineCard";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { getRoutineCategoryIconName } from "../../constants/routineCategoryIcons";
+
+type ScreenRoute = RouteProp<PracticeStackParamList, "RoutinesList">;
 
 export const RoutinesListScreen = () => {
   const navigation = useNavigation<NavigationProp<PracticeStackParamList>>();
+  const route = useRoute<ScreenRoute>();
   const { categories, routines, getRoutinesByCategory, loadRoutines } = useRoutinesStore();
   const { colors } = useAppTheme();
-  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
 
-  const orderedCategories = useMemo(
-    () => [...categories].sort((a, b) => a.order_index - b.order_index),
-    [categories]
-  );
-
-  useEffect(() => {
-    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-  }, []);
+  const categoryId = route.params.categoryId;
 
   useEffect(() => {
     loadRoutines();
@@ -43,100 +28,44 @@ export const RoutinesListScreen = () => {
     }
   }, [categories.length, routines.length]);
 
-  useEffect(() => {
-    if (!orderedCategories.length) return;
+  const category = useMemo(() => categories.find((item) => item.id === categoryId), [categories, categoryId]);
+  const categoryRoutines = getRoutinesByCategory(categoryId);
+  const iconName = getRoutineCategoryIconName(categoryId);
 
-    setExpandedCategoryIds((prev) => {
-      if (prev.length) {
-        const valid = prev.filter((id) => orderedCategories.some((category) => category.id === id));
-        if (valid.length) return valid;
-      }
-
-      return [orderedCategories[0].id];
-    });
-  }, [orderedCategories]);
-
-  const toggleCategory = (categoryId: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedCategoryIds((prev) =>
-      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
-    );
-  };
-
-  const expandAll = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedCategoryIds(orderedCategories.map((category) => category.id));
-  };
-
-  const collapseAll = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedCategoryIds([]);
-  };
-
-  const renderRoutine = (routine: Routine, category: RoutineCategory) => (
-    <RoutineCard
-      key={routine.id}
-      routine={routine}
-      categoryName={category.name}
-      categoryColor={category.color}
-      onPress={() => navigation.navigate("RoutineDetail", { routineId: routine.id })}
-    />
-  );
-
-  const renderCategory = (category: RoutineCategory) => {
-    const routines = getRoutinesByCategory(category.id);
-    const isExpanded = expandedCategoryIds.includes(category.id);
-    const countLabel = `${routines.length} ${routines.length === 1 ? "routine" : "routines"}`;
-
+  if (!category) {
     return (
-      <View key={category.id} style={styles.categorySection}>
-        <Pressable
-          style={[styles.categoryHeader, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => toggleCategory(category.id)}
-        >
-          <View style={styles.categoryHeadingLeft}>
-            <Text style={[styles.categoryTitle, { color: category.color }]}>
-              {category.icon} {category.name}
-            </Text>
-            <Text style={[styles.categoryMeta, { color: colors.textMuted }]}>{countLabel}</Text>
-          </View>
-
-          <Text style={[styles.chevron, { color: colors.textMuted }]}>{isExpanded ? "▾" : "▸"}</Text>
-        </Pressable>
-
-        {isExpanded ? (
-          <View style={styles.categoryBody}>
-            <Text style={[styles.categoryDescription, { color: colors.textMuted }]}>{category.description}</Text>
-            {routines.map((routine) => renderRoutine(routine, category))}
-          </View>
-        ) : null}
+      <View style={[styles.emptyState, { backgroundColor: colors.background }]}> 
+        <Text style={[styles.emptyTitle, { color: colors.text }]}>Category not found</Text>
+        <Text style={[styles.emptyBody, { color: colors.textMuted }]}>This category is unavailable. Go back and choose another one.</Text>
       </View>
     );
-  };
+  }
 
   return (
     <FlatList
-      data={orderedCategories}
-      renderItem={({ item }) => renderCategory(item)}
+      data={categoryRoutines}
       keyExtractor={(item) => item.id}
       contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
+      renderItem={({ item }) => (
+        <RoutineCard
+          routine={item}
+          categoryName={category.name}
+          categoryColor={category.color}
+          onPress={() => navigation.navigate("RoutineDetail", { routineId: item.id })}
+        />
+      )}
       ListHeaderComponent={
-        <View style={styles.actionsRow}>
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={expandAll}
-          >
-            <Text style={[styles.actionButtonText, { color: colors.text }]}>Expand all</Text>
-          </Pressable>
-
-          <Pressable
-            style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={collapseAll}
-          >
-            <Text style={[styles.actionButtonText, { color: colors.text }]}>Collapse all</Text>
-          </Pressable>
+        <View style={[styles.headerCard, { borderColor: colors.border, backgroundColor: colors.surface }]}> 
+          <View style={[styles.iconWrap, { backgroundColor: `${category.color}22` }]}> 
+            <MaterialCommunityIcons name={iconName as any} size={22} color={category.color} />
+          </View>
+          <View style={styles.headerTextWrap}>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>{category.name}</Text>
+            <Text style={[styles.headerMeta, { color: colors.textMuted }]}>{categoryRoutines.length} {categoryRoutines.length === 1 ? "routine" : "routines"}</Text>
+          </View>
         </View>
       }
+      ListFooterComponent={<View style={{ height: 10 }} />}
     />
   );
 };
@@ -145,58 +74,50 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 16,
     paddingTop: 14,
-    paddingBottom: 28,
+    paddingBottom: 24,
   },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 8,
+  headerCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
     marginBottom: 12,
-  },
-  actionButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 9,
-    alignItems: "center",
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  categorySection: {
-    marginBottom: 14,
-  },
-  categoryHeader: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 10,
   },
-  categoryHeadingLeft: {
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTextWrap: {
     flex: 1,
   },
-  categoryTitle: {
+  headerTitle: {
     fontSize: 19,
     fontWeight: "800",
   },
-  categoryMeta: {
-    marginTop: 4,
+  headerMeta: {
+    marginTop: 3,
     fontSize: 12,
     fontWeight: "600",
   },
-  chevron: {
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  emptyTitle: {
     fontSize: 20,
-    marginLeft: 10,
+    fontWeight: "800",
   },
-  categoryBody: {
-    marginTop: 10,
-  },
-  categoryDescription: {
-    fontSize: 13,
-    marginBottom: 12,
-    lineHeight: 18,
+  emptyBody: {
+    marginTop: 8,
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

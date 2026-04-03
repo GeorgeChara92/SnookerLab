@@ -258,7 +258,8 @@ export type DashboardStackParamList = {
 };
 
 export type PracticeStackParamList = {
-  RoutinesList: undefined;
+  RoutineCategories: undefined;
+  RoutinesList: { categoryId: string };
   RoutineDetail: { routineId: string };
   RecordRoutineScore: { routineId: string };
 };
