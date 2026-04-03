@@ -6,16 +6,14 @@ import {
   type NavigationProp,
   type RouteProp,
 } from "@react-navigation/native";
-import { WebView } from "react-native-webview";
 import { useRoutinesStore, useRoutineScoresStore } from "../../store";
 import type { PracticeStackParamList } from "../../types";
-import { getYoutubeEmbedUrl, getYoutubeThumbnailUrl, getYoutubeWatchUrl } from "../../utils/youtube";
+import { getYoutubeThumbnailUrl, getYoutubeWatchUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
 
 export const RoutineDetailScreen = () => {
   const route = useRoute<RouteProp<PracticeStackParamList, "RoutineDetail">>();
   const navigation = useNavigation<NavigationProp<PracticeStackParamList>>();
-  const [inlineVideo, setInlineVideo] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<"primary" | "alt">("primary");
   const { colors } = useAppTheme();
 
@@ -38,7 +36,6 @@ export const RoutineDetailScreen = () => {
     } else {
       setSelectedVideo("primary");
     }
-    setInlineVideo(false);
   }, [routineId, hasPrimary, hasAlt]);
 
   const activeVideoId =
@@ -62,8 +59,6 @@ export const RoutineDetailScreen = () => {
     : selectedVideo === "alt"
       ? routine?.youtube_alt_url
       : routine?.youtube_url;
-  const embedUrl = activeVideoId ? getYoutubeEmbedUrl(activeVideoId) : undefined;
-
   if (!routine) {
     return (
       <View style={styles.container}>
@@ -92,7 +87,6 @@ export const RoutineDetailScreen = () => {
                 style={[styles.videoPickerButton, selectedVideo === "primary" && styles.videoPickerButtonActive]}
                 onPress={() => {
                   setSelectedVideo("primary");
-                  setInlineVideo(false);
                 }}
               >
                 <Text
@@ -111,7 +105,6 @@ export const RoutineDetailScreen = () => {
                 style={[styles.videoPickerButton, selectedVideo === "alt" && styles.videoPickerButtonActive]}
                 onPress={() => {
                   setSelectedVideo("alt");
-                  setInlineVideo(false);
                 }}
               >
                 <Text
@@ -130,12 +123,8 @@ export const RoutineDetailScreen = () => {
         {activeTitle ? <Text style={[styles.videoMetaTitle, { color: colors.text }]}>{activeTitle}</Text> : null}
         {activeChannel ? <Text style={[styles.videoMetaChannel, { color: colors.textMuted }]}>Channel: {activeChannel}</Text> : null}
 
-        {inlineVideo && embedUrl ? (
-          <View style={styles.videoFrame}>
-            <WebView source={{ uri: embedUrl }} style={styles.webview} allowsFullscreenVideo />
-          </View>
-        ) : thumbnail ? (
-          <Pressable style={styles.thumbnailWrap} onPress={() => setInlineVideo(true)}>
+        {thumbnail ? (
+          <Pressable style={styles.thumbnailWrap} onPress={() => youtubeUrl && Linking.openURL(youtubeUrl)}>
             <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
             <View style={styles.playOverlay}>
               <Text style={styles.playOverlayText}>▶</Text>
@@ -146,10 +135,6 @@ export const RoutineDetailScreen = () => {
         )}
 
         <View style={styles.videoActions}>
-          <Pressable style={styles.inlineButton} onPress={() => setInlineVideo((prev) => !prev)}>
-            <Text style={styles.inlineButtonText}>{inlineVideo ? "Show Thumbnail" : "Play Inline"}</Text>
-          </Pressable>
-
           {youtubeUrl ? (
             <Pressable style={styles.youtubeButton} onPress={() => Linking.openURL(youtubeUrl)}>
               <Text style={styles.youtubeButtonText}>Open in YouTube</Text>
@@ -176,8 +161,7 @@ export const RoutineDetailScreen = () => {
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Scoring & Success Criteria</Text>
         <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.success_criteria}</Text>
         <Text style={[styles.statRow, { color: colors.textMuted }]}>📝 Scoring Type: {routine.scoring_type}</Text>
-        {routine.max_score ? <Text style={[styles.statRow, { color: colors.textMuted }]}>🏆 Max Score: {routine.max_score}</Text> : null}
-        {routine.target_score ? <Text style={[styles.statRow, { color: colors.textMuted }]}>🎯 Target Score: {routine.target_score}</Text> : null}
+        {routine.max_score ? <Text style={[styles.statRow, { color: colors.textMuted }]}>🏆 Session Cap: {routine.max_score}</Text> : null}
       </View>
 
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -296,15 +280,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
   },
-  videoFrame: {
-    borderRadius: 12,
-    overflow: "hidden",
-    height: 220,
-  },
-  webview: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
   videoActions: {
     marginTop: 10,
     flexDirection: "row",
@@ -347,22 +322,11 @@ const styles = StyleSheet.create({
     color: "#627D98",
     marginBottom: 8,
   },
-  inlineButton: {
-    flex: 1,
-    backgroundColor: "#DBEAFE",
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  inlineButtonText: {
-    color: "#1D4ED8",
-    fontWeight: "700",
-    fontSize: 13,
-  },
   youtubeButton: {
-    flex: 1,
+    flex: 0,
     backgroundColor: "#FEE2E2",
     borderRadius: 10,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     alignItems: "center",
   },
