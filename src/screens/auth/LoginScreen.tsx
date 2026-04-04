@@ -17,6 +17,7 @@ import { useAuthStore } from "../../store";
 import type { AuthStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
+import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
 
@@ -57,7 +58,7 @@ export const LoginScreen = ({ navigation, route }: Props) => {
       setEmail(cleanEmail);
       setNoticeMessage("Confirmation email sent. Check inbox and spam.");
     } catch (error: any) {
-      setResendError(error?.message ?? "Could not resend. Please try again.");
+      setResendError(getAuthEmailActionErrorMessage(error));
     }
   };
 

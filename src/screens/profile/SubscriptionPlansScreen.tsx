@@ -64,7 +64,11 @@ export const SubscriptionPlansScreen = () => {
         const updatedUser = await syncTierToSupabaseUser(tier);
         if (mounted && updatedUser) setUser(updatedUser);
       } catch (error) {
-        console.warn("Billing init failed:", error);
+        console.warn("Billing init failed:", {
+          message: (error as any)?.message,
+          detail: (error as any)?.detail,
+          adaptyCode: (error as any)?.adaptyCode,
+        });
       }
     };
 
@@ -95,7 +99,11 @@ export const SubscriptionPlansScreen = () => {
         const updatedUser = await syncTierToSupabaseUser(tier);
         if (updatedUser) setUser(updatedUser);
       } catch (error) {
-        console.warn("Failed to sync RevenueCat listener state:", error);
+        console.warn("Failed to sync billing listener state:", {
+          message: (error as any)?.message,
+          detail: (error as any)?.detail,
+          adaptyCode: (error as any)?.adaptyCode,
+        });
       }
     });
 
@@ -137,12 +145,12 @@ export const SubscriptionPlansScreen = () => {
     const isDowngrade = tierRank[tier] < tierRank[currentTier];
     if (isDowngrade) {
       Alert.alert(
-        "Downgrade via Customer Center",
-        "Downgrades and cancellations are managed in Customer Center and usually take effect at your next renewal.",
+        "Manage downgrade in Store Subscriptions",
+        "Downgrades and cancellations are managed in App Store/Play subscriptions and usually take effect at your next renewal.",
         [
           { text: "Not now", style: "cancel" },
           {
-            text: "Open Customer Center",
+            text: "Open Store Subscriptions",
             onPress: () => {
               void openCustomerCenter();
             },
@@ -191,8 +199,8 @@ export const SubscriptionPlansScreen = () => {
       await presentCustomerCenter();
     } catch (error: any) {
       Alert.alert(
-        "Customer Center unavailable",
-        typeof error?.message === "string" ? error.message : "Could not open Customer Center.",
+        "Subscription settings unavailable",
+        typeof error?.message === "string" ? error.message : "Could not open subscription settings.",
         [
           { text: "Close", style: "cancel" },
           {
@@ -210,7 +218,7 @@ export const SubscriptionPlansScreen = () => {
     }
   };
 
-  const refreshTierFromRevenueCat = async () => {
+  const refreshTierFromBilling = async () => {
     if (!user?.id) return;
     try {
       setRefreshing(true);
@@ -366,21 +374,21 @@ export const SubscriptionPlansScreen = () => {
       <Animated.View style={motion(4)}>
       <AppCard style={styles.supportCard}>
         <Text style={[styles.supportTitle, { color: colors.text }]}>Manage Subscription</Text>
-        <Text style={[styles.supportBody, { color: colors.textMuted }]}>Cancel or downgrade in Customer Center. Upgrades apply immediately; downgrades usually apply at next renewal. All limits are measured per month.</Text>
+        <Text style={[styles.supportBody, { color: colors.textMuted }]}>Cancel or downgrade in your App Store/Play subscriptions. Upgrades apply immediately; downgrades usually apply at next renewal. All limits are measured per month.</Text>
         {usingTestKey ? (
-          <Text style={[styles.testKeyHint, { color: colors.danger }]}>This build is using test purchases, so Customer Center may not open reliably.</Text>
+          <Text style={[styles.testKeyHint, { color: colors.danger }]}>This build is using a non-live Adapty key. Purchase flow may be test/sandbox only.</Text>
         ) : null}
         <View style={styles.supportActions}>
           <View style={styles.supportActionItem}>
             <AppButton label="Restore" variant="secondary" onPress={restore} loading={restoring} />
           </View>
           <View style={styles.supportActionItem}>
-            <AppButton label="Customer Center" variant="secondary" onPress={openCustomerCenter} loading={openingCustomerCenter} />
+            <AppButton label="Store Subscriptions" variant="secondary" onPress={openCustomerCenter} loading={openingCustomerCenter} />
           </View>
         </View>
         <View style={styles.supportActions}>
           <View style={styles.supportActionItem}>
-            <AppButton label="Refresh Plan Status" variant="secondary" onPress={refreshTierFromRevenueCat} loading={refreshing} />
+            <AppButton label="Refresh Plan Status" variant="secondary" onPress={refreshTierFromBilling} loading={refreshing} />
           </View>
         </View>
       </AppCard>

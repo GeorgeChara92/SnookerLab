@@ -28,6 +28,10 @@ export const SNOOKER_PRESET_AVATARS: PresetAvatar[] = [
   { id: "double-kiss", label: "Two Cushion Escape", group: "snooker", tag: "Escape" },
   { id: "thin-cut", label: "Thin Cut", group: "snooker", tag: "Potting" },
   { id: "final-black", label: "Final Black", group: "snooker", tag: "Matchplay" },
+  { id: "triple-crown", label: "Triple Crown", group: "snooker", tag: "Legacy" },
+  { id: "masters-room", label: "Masters Room", group: "snooker", tag: "Prestige" },
+  { id: "champion-seal", label: "Champion Seal", group: "snooker", tag: "Elite" },
+  { id: "spotlight-table", label: "Spotlight Table", group: "snooker", tag: "Focus" },
 ];
 
 export const getPresetAvatarId = (avatarId?: string) => {

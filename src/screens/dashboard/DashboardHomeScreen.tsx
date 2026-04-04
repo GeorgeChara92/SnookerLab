@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { AppButton } from "../../components/ui/AppButton";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { AppCard } from "../../components/ui/AppCard";
 import {
   useRoutineScoresStore,
@@ -30,21 +30,13 @@ const getDaysAgo = (dateKey: string) => {
   return Math.max(0, Math.floor((utcToday - utcTarget) / DAY_MS));
 };
 
-const getDateKeyDaysAgo = (daysAgo: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() - daysAgo);
-  return date.toISOString().split("T")[0];
-};
-
-const countActiveDaysInWindow = (dateKeys: Set<string>, startDaysAgo: number, endDaysAgo: number) => {
-  let total = 0;
-
-  for (let day = startDaysAgo; day <= endDaysAgo; day += 1) {
-    const key = getDateKeyDaysAgo(day);
-    if (dateKeys.has(key)) total += 1;
-  }
-
-  return total;
+const getStartOfWeekMonday = (value = new Date()) => {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  const weekday = date.getDay();
+  const daysFromMonday = (weekday + 6) % 7;
+  date.setDate(date.getDate() - daysFromMonday);
+  return date;
 };
 
 const buildCurrentStreak = (dateKeys: Set<string>) => {
@@ -84,10 +76,48 @@ export const DashboardHomeScreen = () => {
 
     const currentStreak = buildCurrentStreak(activeDateKeys);
     const lastPracticeDate = logs[0]?.date ?? entries[0]?.recorded_at;
-    const currentWeekActiveDays = countActiveDaysInWindow(activeDateKeys, 0, 6);
-    const previousWeekActiveDays = countActiveDaysInWindow(activeDateKeys, 7, 13);
+    const currentWeekStart = getStartOfWeekMonday();
+    const previousWeekStart = new Date(currentWeekStart);
+    previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+
+    const currentWeekKeys = Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(currentWeekStart);
+      day.setDate(day.getDate() + index);
+      return day.toISOString().split("T")[0];
+    });
+
+    const previousWeekKeys = Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(previousWeekStart);
+      day.setDate(day.getDate() + index);
+      return day.toISOString().split("T")[0];
+    });
+
+    const currentWeekActiveDays = currentWeekKeys.reduce((sum, key) => sum + (activeDateKeys.has(key) ? 1 : 0), 0);
+    const previousWeekActiveDays = previousWeekKeys.reduce((sum, key) => sum + (activeDateKeys.has(key) ? 1 : 0), 0);
+    const completionRate = Math.round((currentWeekActiveDays / 7) * 100);
     const consistencyDropping =
       currentWeekActiveDays < previousWeekActiveDays || (currentStreak <= 1 && currentWeekActiveDays <= 2);
+    const totalCompletions = logs.reduce((sum, log) => sum + log.results.length, 0) + entries.length;
+
+    const weeklyLoad = currentWeekKeys.map((key) => {
+      const logCount = logs.reduce((sum, log) => {
+        if (toDateKey(log.date) !== key) return sum;
+        return sum + log.results.length;
+      }, 0);
+      const entryCount = entries.reduce((sum, entry) => {
+        if (toDateKey(entry.recorded_at) !== key) return sum;
+        return sum + 1;
+      }, 0);
+
+      return {
+        key,
+        label: new Date(key).toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3),
+        count: logCount + entryCount,
+      };
+    });
+
+    const maxDailyLoad = Math.max(1, ...weeklyLoad.map((day) => day.count));
+    const weeklyTotal = weeklyLoad.reduce((sum, day) => sum + day.count, 0);
 
     const lastUsedByRoutineId = new Map<string, string>();
 
@@ -112,14 +142,14 @@ export const DashboardHomeScreen = () => {
     });
 
     const rankedByRecency = [...routines].sort((a, b) => {
-        const aDate = lastUsedByRoutineId.get(a.id);
-        const bDate = lastUsedByRoutineId.get(b.id);
+      const aDate = lastUsedByRoutineId.get(a.id);
+      const bDate = lastUsedByRoutineId.get(b.id);
 
-        if (!aDate && !bDate) return a.name.localeCompare(b.name);
-        if (!aDate) return -1;
-        if (!bDate) return 1;
-        return new Date(aDate).getTime() - new Date(bDate).getTime();
-      });
+      if (!aDate && !bDate) return a.name.localeCompare(b.name);
+      if (!aDate) return -1;
+      if (!bDate) return 1;
+      return new Date(aDate).getTime() - new Date(bDate).getTime();
+    });
 
     const foundationsCategory = categories.find((category) =>
       category.name.toLowerCase().includes("foundation")
@@ -184,58 +214,136 @@ export const DashboardHomeScreen = () => {
       lastPracticeDate,
       currentWeekActiveDays,
       previousWeekActiveDays,
+      completionRate,
       consistencyDropping,
       recommendedRoutines,
       recentActivity,
+      totalCompletions,
+      weeklyLoad,
+      maxDailyLoad,
+      weeklyTotal,
     };
   }, [categories, entries, logs, routines]);
+
+  const weekDelta = dashboard.currentWeekActiveDays - dashboard.previousWeekActiveDays;
+  const weekDeltaLabel = `${weekDelta >= 0 ? "+" : ""}${weekDelta} day${Math.abs(weekDelta) === 1 ? "" : "s"}`;
 
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.title, { color: colors.text }]}>Your Training Dashboard</Text>
-      <Text style={[styles.subtitle, { color: colors.textMuted }]}>Track momentum, pick your next drills, and keep your rhythm.</Text>
-
-      <AppCard>
-        <Text style={[styles.cardHeading, { color: colors.text }]}>This Week</Text>
-        <View style={styles.weekGrid}>
-          <View style={[styles.weekMetric, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}>
-            <Text style={[styles.weekMetricValue, { color: colors.text }]}>{dashboard.currentWeekActiveDays}</Text>
-            <Text style={[styles.weekMetricLabel, { color: colors.textMuted }]}>Active Days</Text>
-          </View>
-          <View style={[styles.weekMetric, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}>
-            <Text style={[styles.weekMetricValue, { color: colors.text }]}>{dashboard.recentActivity.length}</Text>
-            <Text style={[styles.weekMetricLabel, { color: colors.textMuted }]}>Routines Done</Text>
-          </View>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={[styles.headerCaption, { color: colors.textMuted }]}>Performance Lounge</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Dashboard</Text>
         </View>
-        <Text style={[styles.cardHint, { color: colors.textMuted }]}>
-          {dashboard.currentWeekActiveDays - dashboard.previousWeekActiveDays >= 0 ? "Up" : "Down"} {Math.abs(dashboard.currentWeekActiveDays - dashboard.previousWeekActiveDays)} day{Math.abs(dashboard.currentWeekActiveDays - dashboard.previousWeekActiveDays) === 1 ? "" : "s"} vs last week.
-        </Text>
+        <View style={[styles.headerAvatar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <MaterialCommunityIcons name="diamond-stone" size={18} color={colors.primary} />
+        </View>
+      </View>
+
+      <View style={[styles.editorialHero, { backgroundColor: colors.primaryStrong }]}> 
+        <View style={styles.heroOrbTop} />
+        <View style={styles.heroOrbBottom} />
+        <Text style={[styles.heroKicker, { color: colors.onPrimary }]}>Match Preparation</Text>
+        <Text style={[styles.heroTitle, { color: colors.onPrimary }]}>Step into your next frame</Text>
+        <Text style={[styles.heroBody, { color: colors.onPrimary }]}>Plan your session, jump into AI review, and keep your table work consistent through the week.</Text>
+
+        {lastTemplate ? (
+          <Pressable
+            style={[styles.heroAction, { borderColor: colors.onPrimary }]}
+            onPress={() =>
+              navigation.navigate("Sessions", {
+                screen: "ActiveSession",
+                params: { templateId: lastTemplate.id },
+              })
+            }
+          >
+            <View style={styles.heroActionTextWrap}>
+              <Text style={[styles.heroActionLabel, { color: colors.onPrimary }]}>Continue session plan</Text>
+              <Text style={[styles.heroActionTitle, { color: colors.onPrimary }]}>{lastTemplate.name}</Text>
+            </View>
+            <MaterialCommunityIcons name="arrow-top-right" size={18} color={colors.onPrimary} />
+          </Pressable>
+        ) : (
+          <Text style={[styles.heroEmpty, { color: colors.onPrimary }]}>Build a session preset to start training in one tap.</Text>
+        )}
+      </View>
+
+      <AppCard style={styles.cardGap}>
+        <Text style={[styles.cardHeading, { color: colors.text }]}>Quick Actions</Text>
+        <View style={styles.quickRow}>
+          <Pressable style={[styles.quickAction, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]} onPress={() => navigation.navigate("Sessions")}>
+            <MaterialCommunityIcons name="play-circle-outline" size={20} color={colors.primary} />
+            <Text style={[styles.quickText, { color: colors.text }]}>Start</Text>
+          </Pressable>
+          <Pressable style={[styles.quickAction, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]} onPress={() => navigation.navigate("AICoach")}>
+            <MaterialCommunityIcons name="robot-outline" size={20} color={colors.primary} />
+            <Text style={[styles.quickText, { color: colors.text }]}>AI Coach</Text>
+          </Pressable>
+          <Pressable style={[styles.quickAction, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]} onPress={() => navigation.navigate("Stats")}>
+            <MaterialCommunityIcons name="chart-line" size={20} color={colors.primary} />
+            <Text style={[styles.quickText, { color: colors.text }]}>Stats</Text>
+          </Pressable>
+        </View>
       </AppCard>
 
       <AppCard style={styles.cardGap}>
-        <Text style={[styles.cardHeading, { color: colors.text }]}>Current Streak</Text>
-        <Text style={[styles.streakValue, { color: colors.primary }]}>
-          {dashboard.currentStreak} day{dashboard.currentStreak === 1 ? "" : "s"}
-        </Text>
-        <Text style={[styles.cardHint, { color: colors.textMuted }]}>
-          {dashboard.lastPracticeDate
-            ? `Last activity: ${new Date(dashboard.lastPracticeDate).toLocaleDateString()}`
-            : "No activity logged yet. Start your first routine today."}
-        </Text>
+        <View style={styles.cardHeaderRow}>
+          <Text style={[styles.cardHeading, { color: colors.text }]}>Practice Sessions This Week</Text>
+          <Text style={[styles.cardTag, { color: weekDelta >= 0 ? colors.primary : colors.textMuted }]}>{weekDeltaLabel}</Text>
+        </View>
+        <View style={styles.chartRow}>
+          {dashboard.weeklyLoad.map((day) => (
+            <View key={day.key} style={styles.chartBarWrap}>
+              <View style={[styles.chartTrack, { backgroundColor: colors.surfaceMuted }]}>
+                <View
+                  style={[
+                    styles.chartFill,
+                    {
+                      backgroundColor: day.count > 0 ? colors.primary : colors.border,
+                      height: `${Math.max(12, Math.round((day.count / dashboard.maxDailyLoad) * 100))}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.chartDay, { color: colors.textMuted }]}>{day.label}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={[styles.cardHint, { color: colors.textMuted }]}>Monday to Sunday view. Last activity: {dashboard.lastPracticeDate ? new Date(dashboard.lastPracticeDate).toLocaleDateString() : "No activity logged yet"}</Text>
       </AppCard>
 
       <AppCard style={styles.cardGap}>
-        <Text style={[styles.cardHeading, { color: colors.text }]}>Recommended Routines</Text>
+        <Text style={[styles.cardHeading, { color: colors.text }]}>Session Notes</Text>
+        <View style={styles.noteRow}>
+          <MaterialCommunityIcons name="fire" size={16} color={colors.primary} />
+          <Text style={[styles.noteText, { color: colors.textMuted }]}>Current run: {dashboard.currentStreak} day streak</Text>
+        </View>
+        <View style={styles.noteRow}>
+          <MaterialCommunityIcons name="calendar-week" size={16} color={colors.primary} />
+          <Text style={[styles.noteText, { color: colors.textMuted }]}>This week: {dashboard.currentWeekActiveDays} active days ({weekDeltaLabel} vs last week)</Text>
+        </View>
+        <View style={styles.noteRow}>
+          <MaterialCommunityIcons name="counter" size={16} color={colors.primary} />
+          <Text style={[styles.noteText, { color: colors.textMuted }]}>Volume: {dashboard.weeklyTotal} sessions this week, {dashboard.totalCompletions} total logged</Text>
+        </View>
+      </AppCard>
+
+      <AppCard style={styles.cardGap}>
+        <View style={styles.cardHeaderRow}>
+          <Text style={[styles.cardHeading, { color: colors.text }]}>Recommended Routines</Text>
+          <MaterialCommunityIcons name="star-four-points" size={16} color={colors.primary} />
+        </View>
         {dashboard.consistencyDropping ? (
-          <Text style={[styles.recommendationHint, { color: colors.primary }]}>Consistency dipped this week - foundations prioritised.</Text>
+          <Text style={[styles.recommendationHint, { color: colors.primary }]}>Foundations are prioritised this week to tighten control.</Text>
         ) : null}
         {dashboard.recommendedRoutines.map((routine) => (
           <Pressable
             key={routine.id}
-            style={[styles.rowItem, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+            style={[styles.listItem, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
             onPress={() =>
               navigation.navigate("Practice", {
                 screen: "RoutineDetail",
@@ -243,13 +351,11 @@ export const DashboardHomeScreen = () => {
               })
             }
           >
-            <View style={styles.rowTextWrap}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>{routine.name}</Text>
-              <Text style={[styles.rowMeta, { color: colors.textMuted }]}>
-                {routine.categoryName} - {routine.note}
-              </Text>
+            <View style={styles.listTextWrap}>
+              <Text style={[styles.listTitle, { color: colors.text }]}>{routine.name}</Text>
+              <Text style={[styles.listMeta, { color: colors.textMuted }]}>{routine.categoryName} - {routine.note}</Text>
             </View>
-            <Text style={[styles.rowChevron, { color: colors.primary }]}>›</Text>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
           </Pressable>
         ))}
       </AppCard>
@@ -262,7 +368,7 @@ export const DashboardHomeScreen = () => {
           dashboard.recentActivity.map((item) => (
             <Pressable
               key={`${item.id}-${item.date}`}
-              style={[styles.rowItem, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+              style={[styles.listItem, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
               onPress={() =>
                 navigation.navigate("Practice", {
                   screen: "RoutineDetail",
@@ -270,69 +376,110 @@ export const DashboardHomeScreen = () => {
                 })
               }
             >
-              <View style={styles.rowTextWrap}>
-                <Text style={[styles.rowTitle, { color: colors.text }]}>{item.name}</Text>
-                <Text style={[styles.rowMeta, { color: colors.textMuted }]}>
-                  {new Date(item.date).toLocaleDateString()}
-                </Text>
+              <View style={styles.listTextWrap}>
+                <Text style={[styles.listTitle, { color: colors.text }]}>{item.name}</Text>
+                <Text style={[styles.listMeta, { color: colors.textMuted }]}>{new Date(item.date).toLocaleDateString()}</Text>
               </View>
-              <Text style={[styles.rowChevron, { color: colors.primary }]}>›</Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
             </Pressable>
           ))
         )}
       </AppCard>
 
-      <View style={styles.actionsSection}>
-        <Text style={[styles.cardHeading, { color: colors.text }]}>Quick Actions</Text>
-        <View style={styles.actionsGrid}>
-          <View style={styles.actionButtonWrap}>
-            <AppButton label="Start Session" onPress={() => navigation.navigate("Sessions")} />
-          </View>
-          <View style={styles.actionButtonWrap}>
-            <AppButton label="Record Score" variant="secondary" onPress={() => navigation.navigate("Practice")} />
-          </View>
-        </View>
-
-        {lastTemplate ? (
-          <Pressable
-            style={[styles.lastPreset, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() =>
-              navigation.navigate("Sessions", {
-                screen: "ActiveSession",
-                params: { templateId: lastTemplate.id },
-              })
-            }
-          >
-            <Text style={[styles.lastPresetTitle, { color: colors.text }]}>Resume Last Preset</Text>
-            <Text style={[styles.lastPresetMeta, { color: colors.textMuted }]}>{lastTemplate.name}</Text>
-          </Pressable>
-        ) : null}
-      </View>
+      <View style={styles.bottomSpace} />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 28 },
-  title: { fontSize: 28, fontWeight: "800" },
-  subtitle: { marginTop: 6, fontSize: 14, lineHeight: 20, marginBottom: 14 },
-  cardHeading: { fontSize: 17, fontWeight: "800", marginBottom: 8 },
-  streakValue: { fontSize: 38, fontWeight: "800", lineHeight: 42 },
-  cardHint: { marginTop: 4, fontSize: 13 },
-  cardGap: { marginTop: 12 },
-  weekGrid: { flexDirection: "row", gap: 8 },
-  weekMetric: {
-    flex: 1,
+  content: { padding: 16, paddingBottom: 20 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  headerCaption: { fontSize: 12, fontWeight: "700", letterSpacing: 0.7, textTransform: "uppercase" },
+  headerTitle: { marginTop: 2, fontSize: 30, fontWeight: "800" },
+  headerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     borderWidth: 1,
-    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editorialHero: {
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  heroOrbTop: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 999,
+    right: -24,
+    top: -38,
+    backgroundColor: "rgba(186, 51, 42, 0.25)",
+  },
+  heroOrbBottom: {
+    position: "absolute",
+    width: 88,
+    height: 88,
+    borderRadius: 999,
+    left: -18,
+    bottom: -34,
+    backgroundColor: "rgba(186, 51, 42, 0.18)",
+  },
+  heroKicker: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.1, opacity: 0.9 },
+  heroTitle: { marginTop: 8, fontSize: 28, fontWeight: "900", lineHeight: 31 },
+  heroBody: { marginTop: 6, fontSize: 13, lineHeight: 19, maxWidth: "85%", opacity: 0.9 },
+  heroAction: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  weekMetricValue: { fontSize: 24, fontWeight: "800" },
-  weekMetricLabel: { fontSize: 12, marginTop: 2 },
+  heroActionTextWrap: { flex: 1, marginRight: 10 },
+  heroActionLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6, opacity: 0.88 },
+  heroActionTitle: { marginTop: 2, fontSize: 15, fontWeight: "800" },
+  heroEmpty: { marginTop: 12, fontSize: 12, opacity: 0.82 },
+  cardGap: { marginTop: 12 },
+  cardHeading: { fontSize: 16, fontWeight: "800", marginBottom: 8 },
+  cardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  cardTag: { fontSize: 12, fontWeight: "700" },
+  cardHint: { marginTop: 8, fontSize: 12 },
+  quickRow: { flexDirection: "row", gap: 8 },
+  quickAction: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+    gap: 6,
+  },
+  quickText: { fontSize: 12, fontWeight: "700" },
+  noteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  noteText: { fontSize: 13, lineHeight: 18 },
   recommendationHint: { marginBottom: 8, fontSize: 12, fontWeight: "700" },
-  rowItem: {
+  listItem: {
     borderWidth: 1,
     borderRadius: 12,
     paddingVertical: 10,
@@ -342,19 +489,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  rowTextWrap: { flex: 1, marginRight: 10 },
-  rowTitle: { fontSize: 14, fontWeight: "700" },
-  rowMeta: { fontSize: 12, marginTop: 2 },
-  rowChevron: { fontSize: 22, fontWeight: "700" },
-  actionsSection: { marginTop: 12 },
-  actionsGrid: { flexDirection: "row", gap: 8 },
-  actionButtonWrap: { flex: 1 },
-  lastPreset: {
-    marginTop: 8,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
+  listTextWrap: { flex: 1, marginRight: 10 },
+  listTitle: { fontSize: 14, fontWeight: "700" },
+  listMeta: { fontSize: 12, marginTop: 2 },
+  chartRow: {
+    marginTop: 4,
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
-  lastPresetTitle: { fontSize: 14, fontWeight: "700" },
-  lastPresetMeta: { marginTop: 3, fontSize: 12 },
+  chartBarWrap: { width: 30, alignItems: "center" },
+  chartTrack: {
+    height: 82,
+    width: 16,
+    borderRadius: 999,
+    justifyContent: "flex-end",
+    padding: 2,
+  },
+  chartFill: {
+    width: "100%",
+    borderRadius: 999,
+    minHeight: 6,
+  },
+  chartDay: { marginTop: 6, fontSize: 11, fontWeight: "700" },
+  bottomSpace: { height: 8 },
 });

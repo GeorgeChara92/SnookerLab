@@ -170,6 +170,30 @@ const PRESET_AVATAR_CONFIG: Record<string, AvatarConfig> = {
     border: "#CBD5E1",
     color: "#0F172A",
   },
+  "triple-crown": {
+    icon: "trophy-outline",
+    background: "#FFF7ED",
+    border: "#FED7AA",
+    color: "#9A3412",
+  },
+  "masters-room": {
+    icon: "diamond-stone",
+    background: "#FDF4FF",
+    border: "#E9D5FF",
+    color: "#6B21A8",
+  },
+  "champion-seal": {
+    icon: "medal-outline",
+    background: "#FFFBEB",
+    border: "#FDE68A",
+    color: "#92400E",
+  },
+  "spotlight-table": {
+    icon: "star-four-points",
+    background: "#FEF2F2",
+    border: "#FECACA",
+    color: "#B91C1C",
+  },
 };
 
 const styles = StyleSheet.create({

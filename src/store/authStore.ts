@@ -42,12 +42,15 @@ interface AuthState {
   session: any | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  requiresPasswordReset: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, username: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   resendEmailVerification: (email: string) => Promise<void>;
   deleteAccount: () => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
+  setRequiresPasswordReset: (value: boolean) => void;
   updateAvatarPreset: (presetId: string) => Promise<void>;
   uploadProfilePhoto: (photoUri: string) => Promise<void>;
   setUser: (user: User | any | null) => void;
@@ -60,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
       session: null,
       isLoading: false,
       isAuthenticated: false,
+      requiresPasswordReset: false,
       signIn: async (email, password) => {
         set({ isLoading: true });
         try {
@@ -68,7 +72,7 @@ export const useAuthStore = create<AuthState>()(
             password,
           });
           if (error) throw error;
-          set({ user: mapAuthUser(data.user), session: data.session, isAuthenticated: true });
+          set({ user: mapAuthUser(data.user), session: data.session, isAuthenticated: true, requiresPasswordReset: false });
         } finally {
           set({ isLoading: false });
         }
@@ -98,7 +102,7 @@ export const useAuthStore = create<AuthState>()(
         await supabase.auth.signOut();
         await logoutBilling();
         await Promise.all(LEGACY_STORE_KEYS.map((key) => safeStorage.removeItem(key)));
-        set({ user: null, session: null, isAuthenticated: false });
+        set({ user: null, session: null, isAuthenticated: false, requiresPasswordReset: false });
       },
       resetPassword: async (email) => {
         set({ isLoading: true });
@@ -136,10 +140,28 @@ export const useAuthStore = create<AuthState>()(
 
           await logoutBilling();
           await Promise.all(LEGACY_STORE_KEYS.map((key) => safeStorage.removeItem(key)));
-          set({ user: null, session: null, isAuthenticated: false });
+          set({ user: null, session: null, isAuthenticated: false, requiresPasswordReset: false });
         } finally {
           set({ isLoading: false });
         }
+      },
+      updatePassword: async (password) => {
+        set({ isLoading: true });
+        try {
+          const { data, error } = await supabase.auth.updateUser({ password });
+          if (error) throw error;
+
+          if (data.user) {
+            set({ user: mapAuthUser(data.user), isAuthenticated: true, requiresPasswordReset: false });
+          } else {
+            set({ requiresPasswordReset: false });
+          }
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      setRequiresPasswordReset: (value) => {
+        set({ requiresPasswordReset: value });
       },
       updateAvatarPreset: async (presetId) => {
         const authUser = (await supabase.auth.getUser()).data.user;

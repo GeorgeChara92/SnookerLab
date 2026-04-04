@@ -242,6 +242,7 @@ export type AuthStackParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   ConfirmEmail: { email: string };
+  UpdatePassword: undefined;
 };
 
 export type MainTabParamList = {

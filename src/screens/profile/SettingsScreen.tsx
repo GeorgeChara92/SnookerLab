@@ -9,6 +9,7 @@ import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useAuthStore } from "../../store";
 import type { ProfileStackParamList } from "../../types";
 import { isBillingConfigured, openNativeSubscriptionSettings, presentCustomerCenter } from "../../services/billing";
+import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snooker-lab.vercel.app/privacy";
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snooker-lab.vercel.app/terms";
@@ -35,7 +36,7 @@ export const SettingsScreen = () => {
     try {
       await presentCustomerCenter();
     } catch (error: any) {
-      Alert.alert("Customer Center unavailable", typeof error?.message === "string" ? error.message : "Could not open Customer Center.", [
+      Alert.alert("Subscription settings unavailable", typeof error?.message === "string" ? error.message : "Could not open subscription settings.", [
         { text: "Close", style: "cancel" },
         {
           text: "Open Store Subscriptions",
@@ -60,7 +61,7 @@ export const SettingsScreen = () => {
       await resetPassword(email);
       Alert.alert("Check your inbox", "Password reset instructions were sent to your email.");
     } catch (error: any) {
-      Alert.alert("Could not send reset", error?.message ?? "Please try again in a moment.");
+      Alert.alert("Could not send reset", getAuthEmailActionErrorMessage(error));
     }
   };
 
@@ -75,7 +76,7 @@ export const SettingsScreen = () => {
       await resendEmailVerification(email);
       Alert.alert("Email sent", "A new verification email has been sent.");
     } catch (error: any) {
-      Alert.alert("Could not send email", error?.message ?? "Please try again in a moment.");
+      Alert.alert("Could not send email", getAuthEmailActionErrorMessage(error));
     }
   };
 

@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { Linking } from "react-native";
 import { DarkTheme, DefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import {
@@ -20,7 +21,7 @@ import { initBilling, isBillingConfigured } from "../services/billing";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppNavigator = () => {
-  const { session, isAuthenticated, setUser } = useAuthStore();
+  const { session, isAuthenticated, requiresPasswordReset, setRequiresPasswordReset, setUser } = useAuthStore();
   const setSessionsOwner = useSessionsStore((state) => state.setOwnerUserId);
   const hydrateSessionsForUser = useSessionsStore((state) => state.hydrateSessionsForUser);
   const setMatchesOwner = useMatchesStore((state) => state.setOwnerUserId);
@@ -46,15 +47,50 @@ export const AppNavigator = () => {
     },
   };
 
+  const extractAuthParams = (url: string) => {
+    const decode = (value: string) => {
+      try {
+        return decodeURIComponent(value.replace(/\+/g, " "));
+      } catch {
+        return value;
+      }
+    };
+
+    const parseChunk = (chunk: string) =>
+      chunk
+        .split("&")
+        .filter(Boolean)
+        .reduce<Record<string, string>>((acc, pair) => {
+          const [rawKey, ...rawRest] = pair.split("=");
+          if (!rawKey) return acc;
+          acc[decode(rawKey)] = decode(rawRest.join("="));
+          return acc;
+        }, {});
+
+    const hash = url.includes("#") ? url.split("#")[1] : "";
+    const query = url.includes("?") ? url.split("?")[1].split("#")[0] : "";
+    const params = { ...parseChunk(query), ...parseChunk(hash) };
+
+    const access_token = params.access_token;
+    const refresh_token = params.refresh_token;
+    const type = params.type;
+
+    return { access_token, refresh_token, type };
+  };
+
   useEffect(() => {
     // Check for existing session on app start
     if (session?.user) {
       setUser(session.user);
-      if (isBillingConfigured()) {
-        void initBilling(session.user.id).catch((error) => {
-          console.warn("RevenueCat init failed:", error);
-        });
-      }
+        if (isBillingConfigured()) {
+          void initBilling(session.user.id).catch((error) => {
+          console.warn("Billing init failed:", {
+            message: error?.message,
+            detail: error?.detail,
+            adaptyCode: error?.adaptyCode,
+          });
+          });
+        }
       setSessionsOwner(session.user.id);
       void hydrateSessionsForUser(session.user.id);
       setMatchesOwner(session.user.id);
@@ -88,12 +124,45 @@ export const AppNavigator = () => {
   ]);
 
   useEffect(() => {
+    let disposed = false;
+
+    const handleAuthDeepLink = async (url: string | null) => {
+      if (!url || disposed) return;
+
+      const { access_token, refresh_token, type } = extractAuthParams(url);
+      if (!access_token || !refresh_token) return;
+
+      const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+      if (error) return;
+
+      setRequiresPasswordReset(type === "recovery");
+    };
+
+    void Linking.getInitialURL().then((url) => {
+      void handleAuthDeepLink(url);
+    });
+
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      void handleAuthDeepLink(url);
+    });
+
+    return () => {
+      disposed = true;
+      subscription.remove();
+    };
+  }, [setRequiresPasswordReset]);
+
+  useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (nextSession?.user) {
         setUser(nextSession.user);
         if (isBillingConfigured()) {
           void initBilling(nextSession.user.id).catch((error) => {
-            console.warn("RevenueCat init failed:", error);
+            console.warn("Billing init failed:", {
+              message: error?.message,
+              detail: error?.detail,
+              adaptyCode: error?.adaptyCode,
+            });
           });
         }
         setSessionsOwner(nextSession.user.id);
@@ -110,6 +179,7 @@ export const AppNavigator = () => {
       }
 
       setUser(null);
+      setRequiresPasswordReset(false);
       setSessionsOwner(null);
       setMatchesOwner(null);
       setRoutineScoresOwner(null);
@@ -127,6 +197,7 @@ export const AppNavigator = () => {
     setAIOwner,
     setMatchesOwner,
     setRoutineScoresOwner,
+    setRequiresPasswordReset,
     setSessionsOwner,
     setTournamentsOwner,
     setUser,
@@ -135,7 +206,7 @@ export const AppNavigator = () => {
   return (
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isAuthenticated ? (
+        {isAuthenticated && !requiresPasswordReset ? (
           <>
             <Stack.Screen name="Main" component={MainTabNavigator} />
             <Stack.Screen

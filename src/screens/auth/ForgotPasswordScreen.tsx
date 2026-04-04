@@ -15,6 +15,7 @@ import type { AuthStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { AppButton } from "../../components/ui/AppButton";
+import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "ForgotPassword">;
 
@@ -36,7 +37,7 @@ export const ForgotPasswordScreen = ({ navigation }: Props) => {
         { text: "Back to Sign In", onPress: () => navigation.navigate("Login") },
       ]);
     } catch (error: any) {
-      Alert.alert("Unable to reset", error?.message ?? "Please try again in a moment.");
+      Alert.alert("Unable to reset", getAuthEmailActionErrorMessage(error));
     }
   };
 

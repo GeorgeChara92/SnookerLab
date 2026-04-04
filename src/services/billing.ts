@@ -1,133 +1,194 @@
 import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
-import Purchases, { CustomerInfo, LOG_LEVEL, PurchasesOfferings } from "react-native-purchases";
-import RevenueCatUI from "react-native-purchases-ui";
+import { adapty, type AdaptyPaywall, type AdaptyPaywallProduct, type AdaptyProfile } from "react-native-adapty";
 import { supabase } from "../api/supabase";
 import type { SubscriptionTier } from "../types";
 
-const RC_IOS_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_IOS ?? "";
-const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID ?? "";
+const ADAPTY_PUBLIC_SDK_KEY = process.env.EXPO_PUBLIC_ADAPTY_PUBLIC_SDK_KEY ?? "";
+const ADAPTY_PLACEMENT_ID = process.env.EXPO_PUBLIC_ADAPTY_PLACEMENT_ID ?? "main_subscription";
 
-const PRO_ENTITLEMENT_ID = process.env.EXPO_PUBLIC_RC_ENTITLEMENT_PRO ?? "SnookerLab Pro";
-const HALF_CENTURY_ENTITLEMENT_ID = process.env.EXPO_PUBLIC_RC_ENTITLEMENT_HALF_CENTURY ?? "half_century";
-const CENTURY_ENTITLEMENT_ID = process.env.EXPO_PUBLIC_RC_ENTITLEMENT_CENTURY ?? "century";
-const PRO_MONTHLY_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_MONTHLY ?? "monthly";
-const HALF_CENTURY_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_HALF_CENTURY ?? "half_century_monthly";
-const CENTURY_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY ?? "century_monthly";
+const PRO_ACCESS_LEVEL_ID = process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_PRO ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_PRO ?? "SnookerLab Pro";
+const HALF_CENTURY_ACCESS_LEVEL_ID =
+  process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_HALF_CENTURY ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_HALF_CENTURY ?? "half_century";
+const CENTURY_ACCESS_LEVEL_ID = process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_CENTURY ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_CENTURY ?? "century";
 
-let configuredForUserId: string | null = null;
-const IS_EXPO_GO = Constants.appOwnership === "expo";
+const PRO_MONTHLY_PRODUCT_ID = process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_MONTHLY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_MONTHLY ?? "monthly";
+const HALF_CENTURY_PRODUCT_ID =
+  process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_HALF_CENTURY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_HALF_CENTURY ?? "half_century_monthly";
+const CENTURY_PRODUCT_ID = process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_CENTURY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY ?? "century_monthly";
 
-const getApiKey = () => {
-  if (Platform.OS === "ios") return RC_IOS_KEY;
-  if (Platform.OS === "android") return RC_ANDROID_KEY;
-  return "";
+type BillingOfferings = {
+  paywall: AdaptyPaywall;
+  products: AdaptyPaywallProduct[];
 };
 
+let configuredForUserId: string | null = null;
+let isAdaptyActivated = false;
+let activationPromise: Promise<void> | null = null;
+
+const isActivateOnceError = (error: unknown) => {
+  const message = String((error as any)?.message ?? "").toLowerCase();
+  const code = String((error as any)?.adaptyCode ?? "").toLowerCase();
+  return message.includes("activateonceerror") || message.includes("3005") || code === "3005";
+};
+
+const IS_EXPO_GO = Constants.appOwnership === "expo";
+
+const getApiKey = () => ADAPTY_PUBLIC_SDK_KEY;
+
 export const getBillingUnavailableReason = () => {
-  if (IS_EXPO_GO) return "Expo Go preview mode does not support native RevenueCat paywall/purchases.";
-  if (!getApiKey()) return "RevenueCat API key missing for this platform.";
+  if (IS_EXPO_GO) return "Expo Go preview mode does not support native Adapty purchases.";
+  if (!getApiKey()) return "Adapty public SDK key is missing for this build.";
   return null;
 };
 
 export const isBillingConfigured = () => !getBillingUnavailableReason();
 
-export const isUsingRevenueCatTestKey = () => getApiKey().startsWith("test_");
+export const isUsingRevenueCatTestKey = () => !getApiKey().startsWith("public_live_");
 
 export const initBilling = async (appUserId: string) => {
-  const apiKey = getApiKey();
   const unavailableReason = getBillingUnavailableReason();
   if (unavailableReason) {
     throw new Error(unavailableReason);
   }
 
-  if (!apiKey) {
-    throw new Error("RevenueCat API key missing for this platform");
+  if (activationPromise) {
+    await activationPromise;
   }
 
-  if (configuredForUserId === appUserId) return;
+  if (!isAdaptyActivated) {
+    try {
+      isAdaptyActivated = await adapty.isActivated();
+    } catch {
+      isAdaptyActivated = false;
+    }
+  }
 
-  Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
-  await Purchases.configure({ apiKey, appUserID: appUserId });
-  configuredForUserId = appUserId;
+  if (isAdaptyActivated && configuredForUserId === appUserId) {
+    return;
+  }
+
+  if (!isAdaptyActivated) {
+    activationPromise = (async () => {
+      try {
+        await adapty.activate(getApiKey(), { customerUserId: appUserId });
+      } catch (error) {
+        if (!isActivateOnceError(error)) throw error;
+      }
+
+      isAdaptyActivated = true;
+      configuredForUserId = appUserId;
+    })();
+
+    try {
+      await activationPromise;
+    } finally {
+      activationPromise = null;
+    }
+
+    return;
+  }
+
+  if (configuredForUserId !== appUserId) {
+    await adapty.identify(appUserId);
+    configuredForUserId = appUserId;
+  }
 };
 
 export const logoutBilling = async () => {
   configuredForUserId = null;
+  if (!isAdaptyActivated) return;
   try {
-    await Purchases.logOut();
+    await adapty.logout();
   } catch {
     // Ignore logout failures to avoid blocking sign-out.
   }
 };
 
-export const fetchCurrentOfferings = async (): Promise<PurchasesOfferings> => {
-  return Purchases.getOfferings();
+export const fetchCurrentOfferings = async (): Promise<BillingOfferings> => {
+  const paywall = await adapty.getPaywall(ADAPTY_PLACEMENT_ID);
+  const products = await adapty.getPaywallProducts(paywall);
+  return { paywall, products };
 };
 
-export const getBillingCustomerInfo = async (): Promise<CustomerInfo> => {
-  return Purchases.getCustomerInfo();
+export const getBillingCustomerInfo = async (): Promise<AdaptyProfile> => {
+  return adapty.getProfile();
 };
 
-export const addBillingCustomerInfoListener = (listener: (customerInfo: CustomerInfo) => void) => {
-  Purchases.addCustomerInfoUpdateListener(listener);
+export const addBillingCustomerInfoListener = (listener: (profile: AdaptyProfile) => void) => {
+  const subscription = adapty.addEventListener("onLatestProfileLoad", listener);
   return () => {
-    Purchases.removeCustomerInfoUpdateListener(listener);
+    subscription.remove();
   };
 };
 
-const findPackageForTier = (tier: Exclude<SubscriptionTier, "free">, offerings: PurchasesOfferings) => {
-  const allPackages = offerings.current?.availablePackages ?? [];
+const findProductForTier = (tier: Exclude<SubscriptionTier, "free">, offerings: BillingOfferings) => {
+  const allProducts = offerings.products;
 
   const productHint =
     tier === "half_century" ? HALF_CENTURY_PRODUCT_ID : tier === "century" ? CENTURY_PRODUCT_ID : PRO_MONTHLY_PRODUCT_ID;
 
-  const explicit = allPackages.find((pkg) => pkg.product.identifier === productHint || pkg.identifier === productHint);
+  const explicit = allProducts.find((item) => item.vendorProductId === productHint);
   if (explicit) return explicit;
 
   const token = tier === "half_century" ? "half" : tier === "century" ? "century" : "monthly";
-  const fallbackByToken = allPackages.find((pkg) => {
-    const productId = pkg.product.identifier.toLowerCase();
-    const packageId = pkg.identifier.toLowerCase();
-    return productId.includes(token) || packageId.includes(token);
-  });
+  const fallbackByToken = allProducts.find((item) => item.vendorProductId.toLowerCase().includes(token));
   if (fallbackByToken) return fallbackByToken;
 
   return null;
 };
 
-export const purchaseTierMonthly = async (tier: Exclude<SubscriptionTier, "free">, offerings: PurchasesOfferings) => {
-  const monthlyPackage = findPackageForTier(tier, offerings);
-  if (!monthlyPackage) {
-    throw new Error(`No monthly package found for tier: ${tier}`);
+export const purchaseTierMonthly = async (tier: Exclude<SubscriptionTier, "free">, offerings: BillingOfferings) => {
+  const product = findProductForTier(tier, offerings);
+  if (!product) {
+    throw new Error(`No product found for tier: ${tier}. Check Adapty placement and product IDs.`);
   }
 
-  const { customerInfo } = await Purchases.purchasePackage(monthlyPackage);
-  return customerInfo;
+  const result = await adapty.makePurchase(product);
+
+  if (result.type === "success") return result.profile;
+  if (result.type === "user_cancelled") {
+    const cancelError = new Error("Purchase cancelled by user") as Error & { userCancelled?: boolean };
+    cancelError.userCancelled = true;
+    throw cancelError;
+  }
+
+  throw new Error("Purchase is pending. Please verify the subscription status in a moment.");
 };
 
-export const getTierPriceText = (tier: Exclude<SubscriptionTier, "free">, offerings: PurchasesOfferings | null) => {
+export const getTierPriceText = (tier: Exclude<SubscriptionTier, "free">, offerings: BillingOfferings | null) => {
   if (!offerings) return null;
-  const pkg = findPackageForTier(tier, offerings);
-  return pkg?.product?.priceString ?? null;
+  const product = findProductForTier(tier, offerings);
+  return product?.price?.localizedString ?? null;
 };
 
 export const restoreBillingPurchases = async () => {
-  return Purchases.restorePurchases();
+  return adapty.restorePurchases();
 };
 
-export const hasProEntitlement = (customerInfo: CustomerInfo): boolean => {
-  return tierFromCustomerInfo(customerInfo) !== "free";
+export const hasProEntitlement = (profile: AdaptyProfile): boolean => {
+  return tierFromCustomerInfo(profile) !== "free";
 };
 
-export const tierFromCustomerInfo = (customerInfo: CustomerInfo): SubscriptionTier => {
-  const activeEntitlements = customerInfo.entitlements.active;
-  if (activeEntitlements[CENTURY_ENTITLEMENT_ID] || activeEntitlements[PRO_ENTITLEMENT_ID]) return "century";
-  if (activeEntitlements[HALF_CENTURY_ENTITLEMENT_ID]) return "half_century";
+export const tierFromCustomerInfo = (profile: AdaptyProfile): SubscriptionTier => {
+  const activeAccessLevels = Object.values(profile.accessLevels ?? {}).filter((level) => level.isActive);
 
-  const keys = Object.keys(activeEntitlements).map((key) => key.toLowerCase());
-  if (keys.some((key) => key.includes("century") || key.includes("snookerlab") || key.includes("pro"))) return "century";
-  if (keys.some((key) => key.includes("half") || key.includes("fifty"))) return "half_century";
+  if (profile.accessLevels?.[CENTURY_ACCESS_LEVEL_ID]?.isActive || profile.accessLevels?.[PRO_ACCESS_LEVEL_ID]?.isActive) {
+    return "century";
+  }
+  if (profile.accessLevels?.[HALF_CENTURY_ACCESS_LEVEL_ID]?.isActive) {
+    return "half_century";
+  }
+
+  const accessLevelTokens = activeAccessLevels.map((level) => `${level.id} ${level.vendorProductId}`.toLowerCase());
+
+  if (accessLevelTokens.some((value) => value.includes("century") || value.includes("snookerlab") || value.includes("pro"))) {
+    return "century";
+  }
+  if (accessLevelTokens.some((value) => value.includes("half") || value.includes("fifty"))) {
+    return "half_century";
+  }
+
   return "free";
 };
 
@@ -144,46 +205,22 @@ export const syncTierToSupabaseUser = async (tier: SubscriptionTier) => {
 };
 
 export const presentProPaywallIfNeeded = async () => {
-  const unavailableReason = getBillingUnavailableReason();
-  if (unavailableReason) {
-    throw new Error(unavailableReason);
-  }
-  const result = await Promise.race([
-    RevenueCatUI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: PRO_ENTITLEMENT_ID }),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("Paywall timed out")), 15000)),
-  ]);
-  return result;
+  throw new Error("Adapty paywall UI is not wired yet in this build.");
 };
 
 export const presentProPaywall = async () => {
-  const unavailableReason = getBillingUnavailableReason();
-  if (unavailableReason) {
-    throw new Error(unavailableReason);
-  }
-  const result = await Promise.race([
-    RevenueCatUI.presentPaywall(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("Paywall timed out")), 15000)),
-  ]);
-  return result;
+  throw new Error("Adapty paywall UI is not wired yet in this build.");
 };
 
 export const presentCustomerCenter = async () => {
-  const unavailableReason = getBillingUnavailableReason();
-  if (unavailableReason) {
-    throw new Error(unavailableReason);
-  }
-  if (isUsingRevenueCatTestKey()) {
-    throw new Error("Subscription management is unavailable in this test build.");
-  }
-  const result = await Promise.race([
-    RevenueCatUI.presentCustomerCenter(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("Customer Center timed out")), 30000)),
-  ]);
-  return result;
+  return openNativeSubscriptionSettings();
 };
 
 export const openNativeSubscriptionSettings = async () => {
-  const url = Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions";
+  const url =
+    Platform.OS === "ios"
+      ? "https://apps.apple.com/account/subscriptions"
+      : "https://play.google.com/store/account/subscriptions";
   const supported = await Linking.canOpenURL(url);
   if (!supported) throw new Error("Could not open subscription settings URL");
   await Linking.openURL(url);

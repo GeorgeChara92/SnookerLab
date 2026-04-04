@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SnookerApp",
+    "name": "Snooker Lab",
     "slug": "SnookerApp",
     "scheme": "snookerlab",
     "version": "1.0.0",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.georgechara.snookerlab",
-      "supportsTablet": true,
+      "supportsTablet": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -32,7 +32,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "react-native-adapty"
     ],
     "extra": {
       "eas": {
