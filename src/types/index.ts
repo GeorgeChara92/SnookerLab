@@ -1,5 +1,6 @@
 export type SkillLevel = "beginner" | "intermediate" | "advanced" | "professional";
 export type DifficultyLevel = "beginner" | "intermediate" | "advanced";
+export type RoutineContentType = "routine" | "guide";
 export type ScoringType = "points" | "percentage" | "count" | "time";
 export type SyncStatus = "synced" | "pending" | "error";
 export type MatchType = "casual" | "league" | "tournament" | "practice";
@@ -9,6 +10,9 @@ export type TournamentType = "knockout" | "league";
 export type TournamentEntryMode = "singles" | "doubles";
 export type TournamentPairingMode = "random" | "manual";
 export type TournamentFixtureStatus = "pending" | "completed";
+export type LiveFrameSide = "user" | "opponent";
+export type LiveFrameWinner = "user" | "opponent" | "draw";
+export type LiveFrameFoulType = "in_off" | "foul_and_miss" | "push_shot" | "touching_ball" | "wrong_ball" | "other";
 export type AnalysisType = "shot" | "stance" | "technique" | "tactical" | "full_session";
 export type AnalysisStatus = "pending" | "processing" | "completed" | "failed";
 export type SubscriptionTier = "free" | "half_century" | "century";
@@ -55,6 +59,7 @@ export interface Routine {
   youtube_alt_title?: string;
   youtube_alt_channel?: string;
   description?: string;
+  content_type?: RoutineContentType;
   difficulty: DifficultyLevel;
   setup_instructions?: string;
   steps?: string[];
@@ -131,6 +136,40 @@ export interface FrameScore {
   winner?: "user" | "opponent";
   user_break?: number;
   opponent_break?: number;
+  created_at: string;
+}
+
+export interface LiveFrameBreakEntry {
+  player: LiveFrameSide;
+  points: number;
+  endedBy: "visit_end" | "foul" | "switch" | "frame_end";
+  timestamp: string;
+}
+
+export interface LiveFrameEvent {
+  id: string;
+  kind: "pot" | "foul" | "visit_end" | "switch" | "re_rack" | "frame_saved";
+  timestamp: string;
+  player?: LiveFrameSide;
+  ball?: "red" | "yellow" | "green" | "brown" | "blue" | "pink" | "black";
+  points?: number;
+  foulValue?: 4 | 5 | 6 | 7;
+  foulType?: LiveFrameFoulType;
+  note?: string;
+}
+
+export interface LiveFrameRecord {
+  id: string;
+  match_id: string;
+  frame_number: number;
+  user_score: number;
+  opponent_score: number;
+  winner: LiveFrameWinner;
+  highest_break_user: number;
+  highest_break_opponent: number;
+  breaks: LiveFrameBreakEntry[];
+  events: LiveFrameEvent[];
+  abandoned?: boolean;
   created_at: string;
 }
 
@@ -263,12 +302,14 @@ export type PracticeStackParamList = {
   RoutinesList: { categoryId: string };
   RoutineDetail: { routineId: string };
   RecordRoutineScore: { routineId: string };
+  ARRoutineSetup: { routineId: string };
 };
 
 export type MatchesStackParamList = {
   MatchesList: undefined;
   OpponentMatches: { opponentName: string };
   MatchDetail: { matchId: string };
+  LiveFrameScoring: { matchId: string };
   NewMatch: { opponentName?: string } | undefined;
   NewTournament:
     | {

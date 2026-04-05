@@ -2,17 +2,16 @@ import React, { useRef, useState } from "react";
 import {
   Alert,
   Animated,
-  Keyboard,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  Vibration,
   View,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { AppButton } from "../../components/ui/AppButton";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -22,7 +21,18 @@ import type { MatchesStackParamList, TournamentEntryMode, TournamentPairingMode,
 import { TierPaywallModal } from "../../components/subscription";
 import { isSubscriptionLimitError } from "../../constants";
 
-const framesOptions = [1, 3, 5, 7, 9, 11, 19];
+const framesOptions = [1, 3, 5, 7, 9, 11, 13, 19];
+const creationSteps = ["Basics", "Format", "Players", "Draw", "Review"];
+const iconOptions = ["🏆", "🎱", "⚡", "🔥", "🥇", "🎯"];
+
+const triggerHaptic = async (type: "light" | "success") => {
+  try {
+    if (type === "light") await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  } catch {
+    Vibration.vibrate(type === "light" ? 10 : 18);
+  }
+};
 
 const isByeName = (value: string) => /^BYE\b/i.test(value);
 
@@ -61,8 +71,10 @@ export const NewTournamentScreen = () => {
   const subscription = useSubscriptionAccess();
   const [isSaving, setIsSaving] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
 
   const [name, setName] = useState(prefill ? buildFreshStartName(prefill.name) : "");
+  const [tournamentIcon, setTournamentIcon] = useState("🏆");
   const [notes, setNotes] = useState(prefill?.previousChampion ? `Previous champion: ${prefill.previousChampion}` : "");
   const [participantName, setParticipantName] = useState("");
   const [singlesParticipants, setSinglesParticipants] = useState<string[]>(
@@ -80,17 +92,24 @@ export const NewTournamentScreen = () => {
   const [drawModalVisible, setDrawModalVisible] = useState(false);
   const [drawParticipants, setDrawParticipants] = useState<string[]>([]);
   const [drawPreviewPairs, setDrawPreviewPairs] = useState<Array<{ a: string; b: string }>>([]);
-  const [drawPreviewBalls, setDrawPreviewBalls] = useState<string[]>([]);
-  const [revealedPairsCount, setRevealedPairsCount] = useState(0);
-  const [revealedBallsCount, setRevealedBallsCount] = useState(0);
+  const [revealedPairs, setRevealedPairs] = useState<Array<{ a: string; b: string }>>([]);
+  const [activeDrawPair, setActiveDrawPair] = useState<{ a: string; b: string } | null>(null);
+  const [activeMatchNumber, setActiveMatchNumber] = useState<number>(0);
+  const [drawComplete, setDrawComplete] = useState(false);
+  const [drawMode, setDrawMode] = useState<"animated" | "quick">("animated");
   const [didAutoRunDraw, setDidAutoRunDraw] = useState(false);
-  const revealTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [manualPairs, setManualPairs] = useState<Array<{ participantA: string; participantB: string }>>([]);
   const [manualAvailable, setManualAvailable] = useState<string[]>([]);
   const [manualPicked, setManualPicked] = useState<string[]>([]);
 
-  const drawOpacity = useRef(new Animated.Value(1)).current;
-  const drawShift = useRef(new Animated.Value(0)).current;
+  const stepFade = useRef(new Animated.Value(1)).current;
+  const stepShift = useRef(new Animated.Value(0)).current;
+  const revealAOpacity = useRef(new Animated.Value(0)).current;
+  const revealATranslate = useRef(new Animated.Value(-34)).current;
+  const revealBOpacity = useRef(new Animated.Value(0)).current;
+  const revealBTranslate = useRef(new Animated.Value(34)).current;
+  const revealPulse = useRef(new Animated.Value(1)).current;
 
   const participants = entryMode === "singles" ? singlesParticipants : doublesTeams;
   const hasEnoughParticipants = participants.filter((item) => !isByeName(item)).length >= 2;
@@ -105,10 +124,62 @@ export const NewTournamentScreen = () => {
 
   React.useEffect(
     () => () => {
-      if (revealTimerRef.current) clearInterval(revealTimerRef.current);
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     },
     []
   );
+
+  const clearRevealTimer = () => {
+    if (revealTimerRef.current) {
+      clearTimeout(revealTimerRef.current);
+      revealTimerRef.current = null;
+    }
+  };
+
+  const animatePairReveal = (pair: { a: string; b: string }, matchNumber: number, onDone: () => void) => {
+    triggerHaptic("light");
+    setActiveDrawPair(pair);
+    setActiveMatchNumber(matchNumber);
+    revealAOpacity.setValue(0);
+    revealATranslate.setValue(-34);
+    revealBOpacity.setValue(0);
+    revealBTranslate.setValue(34);
+    revealPulse.setValue(1);
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(revealAOpacity, { toValue: 1, duration: 240, useNativeDriver: true }),
+        Animated.timing(revealATranslate, { toValue: 0, duration: 240, useNativeDriver: true }),
+      ]),
+      Animated.delay(120),
+      Animated.parallel([
+        Animated.timing(revealBOpacity, { toValue: 1, duration: 240, useNativeDriver: true }),
+        Animated.timing(revealBTranslate, { toValue: 0, duration: 240, useNativeDriver: true }),
+      ]),
+      Animated.sequence([
+        Animated.timing(revealPulse, { toValue: 1.05, duration: 170, useNativeDriver: true }),
+        Animated.timing(revealPulse, { toValue: 1, duration: 170, useNativeDriver: true }),
+      ]),
+      Animated.delay(170),
+    ]).start(() => {
+      triggerHaptic("success");
+      setRevealedPairs((prev) => [...prev, pair]);
+      setActiveDrawPair(null);
+      onDone();
+    });
+  };
+
+  const runAnimatedDraw = (pairs: Array<{ a: string; b: string }>, index = 0) => {
+    if (index >= pairs.length) {
+      triggerHaptic("success");
+      setDrawComplete(true);
+      return;
+    }
+
+    animatePairReveal(pairs[index], index + 1, () => {
+      revealTimerRef.current = setTimeout(() => runAnimatedDraw(pairs, index + 1), 320);
+    });
+  };
 
   const onAddEntry = () => {
     const trimmed = participantName.trim();
@@ -142,8 +213,6 @@ export const NewTournamentScreen = () => {
 
     const arranged = arrangeToAvoidByePairs(shuffled);
     setDrawParticipants(arranged);
-    if (entryMode === "singles") setSinglesParticipants(arranged);
-    else setDoublesTeams(arranged);
 
     const seeded = arranged.length % 2 !== 0 ? [...arranged, makeByeLabel(arranged)] : arranged;
     const pairs: Array<{ a: string; b: string }> = [];
@@ -151,26 +220,20 @@ export const NewTournamentScreen = () => {
       pairs.push({ a: seeded[i], b: seeded[i + 1] ?? "BYE" });
     }
 
+    clearRevealTimer();
     setDrawPreviewPairs(pairs);
-    setDrawPreviewBalls(seeded);
-    setRevealedBallsCount(0);
-    setRevealedPairsCount(0);
+    setRevealedPairs([]);
+    setActiveDrawPair(null);
+    setDrawComplete(false);
     setDrawModalVisible(true);
 
-    if (revealTimerRef.current) clearInterval(revealTimerRef.current);
-    revealTimerRef.current = setInterval(() => {
-      setRevealedBallsCount((ballPrev) => {
-        const nextBalls = Math.min(seeded.length, ballPrev + 1);
-        setRevealedPairsCount(Math.floor(nextBalls / 2));
+    if (drawMode === "quick") {
+      setRevealedPairs(pairs);
+      setDrawComplete(true);
+      return;
+    }
 
-        if (nextBalls >= seeded.length && revealTimerRef.current) {
-          clearInterval(revealTimerRef.current);
-          revealTimerRef.current = null;
-        }
-
-        return nextBalls;
-      });
-    }, 1250);
+    runAnimatedDraw(pairs);
   };
 
   React.useEffect(() => {
@@ -315,7 +378,7 @@ export const NewTournamentScreen = () => {
     try {
       setIsSaving(true);
       const tournamentId = await createTournament({
-        name,
+        name: `${tournamentIcon} ${name}`.trim(),
         notes,
         tournamentType,
         entryMode,
@@ -339,87 +402,145 @@ export const NewTournamentScreen = () => {
 
   const create = async () => createWith();
 
-  return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={90}
-    >
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-        <Pressable style={[styles.dismissKeyboard, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]} onPress={() => Keyboard.dismiss()}>
-          <Text style={[styles.dismissKeyboardText, { color: colors.text }]}>Done Editing</Text>
-        </Pressable>
+  const transitionToStep = (nextStep: number) => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(stepFade, { toValue: 0, duration: 120, useNativeDriver: true }),
+        Animated.timing(stepShift, { toValue: -8, duration: 120, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(stepFade, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.timing(stepShift, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]),
+    ]).start();
+    setCurrentStep(nextStep);
+  };
 
-        <Text style={[styles.title, { color: colors.text }]}>Create Tournament</Text>
-        <Text style={[styles.subtitle, { color: colors.textMuted }]}>Build knockout or league events with random or manual draws.</Text>
+  const canGoNext = () => {
+    if (currentStep === 0) return !!name.trim();
+    if (currentStep === 2) return hasEnoughParticipants;
+    if (currentStep === 3 && tournamentType === "knockout" && pairingMode === "manual") {
+      return manualAvailable.length === 0 && manualPicked.length === 0;
+    }
+    return true;
+  };
 
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.label, { color: colors.text }]}>Tournament Name</Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Friday Club Open"
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]}
-          />
-
-          <Text style={[styles.label, { color: colors.text }]}>Notes (optional)</Text>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Best of 11 final..."
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, styles.notes, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]}
-            multiline
-            textAlignVertical="top"
-          />
+  const renderPlayersStep = () => (
+    <>
+      <Text style={[styles.label, { color: colors.text }]}>Add {entryMode === "singles" ? "Players" : "Doubles Pool Players"}</Text>
+      <View style={styles.addRow}>
+        <TextInput
+          value={participantName}
+          onChangeText={setParticipantName}
+          onSubmitEditing={onAddEntry}
+          placeholder={entryMode === "singles" ? "Enter player name" : "Enter player for doubles pool"}
+          placeholderTextColor={colors.textMuted}
+          style={[styles.input, styles.flexInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]}
+        />
+        <View style={styles.addButtonWrap}>
+          <AppButton label="Add" onPress={onAddEntry} />
         </View>
+      </View>
 
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.label, { color: colors.text }]}>Format</Text>
-          <View style={styles.rowButtons}>
-            {([
-              ["knockout", "Knockout"],
-              ["league", "League"],
-            ] as const).map(([value, label]) => (
-              <Pressable
-                key={value}
-                onPress={() => setTournamentType(value)}
-                style={[
-                  styles.segment,
-                  {
-                    borderColor: tournamentType === value ? colors.primary : colors.border,
-                    backgroundColor: tournamentType === value ? colors.surfaceMuted : colors.surface,
-                  },
-                ]}
-              >
-                <Text style={[styles.segmentText, { color: tournamentType === value ? colors.primary : colors.text }]}>{label}</Text>
+      {entryMode === "singles" ? (
+        <View style={styles.participantWrap}>
+          {singlesParticipants.map((nameValue) => (
+            <Pressable key={nameValue} onPress={() => removeParticipant(nameValue)} style={[styles.participantChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
+              <Text style={[styles.participantText, { color: colors.text }]}>{nameValue}</Text>
+              <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : (
+        <>
+          <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Tap two players to create a doubles team. Long press to remove.</Text>
+          <View style={styles.participantWrap}>
+            {doublesPlayers.map((nameValue) => {
+              const selected = selectedDoublesPlayers.includes(nameValue);
+              return (
+                <Pressable
+                  key={nameValue}
+                  onPress={() => toggleDoublesSelection(nameValue)}
+                  onLongPress={() => removeDoublesPlayer(nameValue)}
+                  style={[
+                    styles.participantChip,
+                    {
+                      borderColor: selected ? colors.primary : colors.border,
+                      backgroundColor: selected ? colors.surfaceMuted : colors.surface,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.participantText, { color: selected ? colors.primary : colors.text }]}>{nameValue}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.toolsSplit}>
+            <View style={styles.toolButton}><AppButton label="Build Team" onPress={createTeamFromSelection} disabled={selectedDoublesPlayers.length !== 2} /></View>
+            <View style={styles.toolButton}><AppButton label="Auto Build" variant="secondary" onPress={randomBuildDoublesTeams} disabled={doublesPlayers.length < 2} /></View>
+          </View>
+          <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Created Teams:</Text>
+          <View style={styles.participantWrap}>
+            {doublesTeams.map((team) => (
+              <Pressable key={team} onPress={() => removeParticipant(team)} style={[styles.participantChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
+                <Text style={[styles.participantText, { color: colors.text }]}>{team}</Text>
+                <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
               </Pressable>
             ))}
           </View>
+        </>
+      )}
 
-          <Text style={[styles.label, { color: colors.text }]}>Entries</Text>
+      {tournamentType === "knockout" ? (
+        <View style={styles.toolsSplit}>
+          <View style={styles.toolButton}><AppButton label="Add BYE Slot" variant="secondary" onPress={addByeSlot} /></View>
+        </View>
+      ) : null}
+      <Text style={[styles.smallHint, { color: colors.textMuted }]}>Need at least 2 real entries to continue.</Text>
+    </>
+  );
+
+  const renderCurrentStep = () => {
+    if (currentStep === 0) {
+      return (
+        <>
+          <Text style={[styles.label, { color: colors.text }]}>Tournament Name</Text>
+          <TextInput value={name} onChangeText={setName} placeholder="Friday Club Open" placeholderTextColor={colors.textMuted} style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]} />
+          <Text style={[styles.label, { color: colors.text }]}>Event Icon</Text>
+          <View style={styles.framesRow}>
+            {iconOptions.map((icon) => (
+              <Pressable key={icon} onPress={() => setTournamentIcon(icon)} style={[styles.frameChip, { borderColor: tournamentIcon === icon ? colors.primary : colors.border, backgroundColor: tournamentIcon === icon ? colors.surfaceMuted : colors.surface }]}> 
+                <Text style={styles.iconChip}>{icon}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={[styles.label, { color: colors.text }]}>Notes (Optional)</Text>
+          <TextInput value={notes} onChangeText={setNotes} placeholder="Final night starts at 7:30pm" placeholderTextColor={colors.textMuted} style={[styles.input, styles.notes, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]} multiline textAlignVertical="top" />
+        </>
+      );
+    }
+
+    if (currentStep === 1) {
+      return (
+        <>
+          <Text style={[styles.label, { color: colors.text }]}>Tournament Format</Text>
+          <View style={styles.cardsRow}>
+            <Pressable style={[styles.selectCard, { borderColor: tournamentType === "knockout" ? colors.primary : colors.border, backgroundColor: colors.surfaceMuted }]} onPress={() => setTournamentType("knockout")}>
+              <Text style={styles.selectEmoji}>🏆</Text>
+              <Text style={[styles.selectTitle, { color: colors.text }]}>Knockout</Text>
+              <Text style={[styles.selectMeta, { color: colors.textMuted }]}>Single elimination bracket</Text>
+            </Pressable>
+            <Pressable style={[styles.selectCard, { borderColor: tournamentType === "league" ? colors.primary : colors.border, backgroundColor: colors.surfaceMuted }]} onPress={() => setTournamentType("league")}>
+              <Text style={styles.selectEmoji}>📋</Text>
+              <Text style={[styles.selectTitle, { color: colors.text }]}>League</Text>
+              <Text style={[styles.selectMeta, { color: colors.textMuted }]}>Round-robin standings</Text>
+            </Pressable>
+          </View>
+
+          <Text style={[styles.label, { color: colors.text }]}>Entry Mode</Text>
           <View style={styles.rowButtons}>
-            {([
-              ["singles", "Singles"],
-              ["doubles", "Doubles"],
-            ] as const).map(([value, label]) => (
-              <Pressable
-                key={value}
-                onPress={() => setEntryMode(value)}
-                style={[
-                  styles.segment,
-                  {
-                    borderColor: entryMode === value ? colors.primary : colors.border,
-                    backgroundColor: entryMode === value ? colors.surfaceMuted : colors.surface,
-                  },
-                ]}
-              >
+            {([ ["singles", "Singles"], ["doubles", "Doubles"] ] as const).map(([value, label]) => (
+              <Pressable key={value} onPress={() => setEntryMode(value)} style={[styles.segment, { borderColor: entryMode === value ? colors.primary : colors.border, backgroundColor: entryMode === value ? colors.surfaceMuted : colors.surface }]}> 
                 <Text style={[styles.segmentText, { color: entryMode === value ? colors.primary : colors.text }]}>{label}</Text>
               </Pressable>
             ))}
@@ -427,23 +548,10 @@ export const NewTournamentScreen = () => {
 
           {tournamentType === "knockout" ? (
             <>
-              <Text style={[styles.label, { color: colors.text }]}>Draw Setup</Text>
+              <Text style={[styles.label, { color: colors.text }]}>Draw Type</Text>
               <View style={styles.rowButtons}>
-                {([
-                  ["random", "Random Draw"],
-                  ["manual", "Manual Draw"],
-                ] as const).map(([value, label]) => (
-                  <Pressable
-                    key={value}
-                    onPress={() => setPairingMode(value)}
-                    style={[
-                      styles.segment,
-                      {
-                        borderColor: pairingMode === value ? colors.primary : colors.border,
-                        backgroundColor: pairingMode === value ? colors.surfaceMuted : colors.surface,
-                      },
-                    ]}
-                  >
+                {([ ["random", "🎲 Random Draw"], ["manual", "🧩 Manual Draw"] ] as const).map(([value, label]) => (
+                  <Pressable key={value} onPress={() => setPairingMode(value)} style={[styles.segment, { borderColor: pairingMode === value ? colors.primary : colors.border, backgroundColor: pairingMode === value ? colors.surfaceMuted : colors.surface }]}> 
                     <Text style={[styles.segmentText, { color: pairingMode === value ? colors.primary : colors.text }]}>{label}</Text>
                   </Pressable>
                 ))}
@@ -451,276 +559,292 @@ export const NewTournamentScreen = () => {
             </>
           ) : null}
 
-          <Text style={[styles.label, { color: colors.text }]}>Best of Frames</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Match Length (Best Of)</Text>
           <View style={styles.framesRow}>
             {framesOptions.map((option) => (
-              <Pressable
-                key={option}
-                onPress={() => setBestOfFrames(option)}
-                style={[
-                  styles.frameChip,
-                  {
-                    borderColor: bestOfFrames === option ? colors.primary : colors.border,
-                    backgroundColor: bestOfFrames === option ? colors.surfaceMuted : colors.surface,
-                  },
-                ]}
-              >
+              <Pressable key={option} onPress={() => setBestOfFrames(option)} style={[styles.frameChip, { borderColor: bestOfFrames === option ? colors.primary : colors.border, backgroundColor: bestOfFrames === option ? colors.surfaceMuted : colors.surface }]}> 
                 <Text style={[styles.frameLabel, { color: bestOfFrames === option ? colors.primary : colors.text }]}>{option}</Text>
               </Pressable>
             ))}
           </View>
-        </View>
+          <Text style={[styles.smallHint, { color: colors.textMuted }]}>First to {Math.floor(bestOfFrames / 2) + 1} frames.</Text>
+        </>
+      );
+    }
 
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.label, { color: colors.text }]}>
-            {entryMode === "singles" ? "Add Players" : "Add Player Pool (for doubles teams)"}
-          </Text>
-          <View style={styles.addRow}>
-            <TextInput
-              value={participantName}
-              onChangeText={setParticipantName}
-              onSubmitEditing={onAddEntry}
-              blurOnSubmit={false}
-              placeholder={entryMode === "singles" ? "Player name" : "Player for doubles pool"}
-              placeholderTextColor={colors.textMuted}
-              style={[styles.input, styles.flexInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]}
-            />
-            <View style={styles.addButtonWrap}>
-              <AppButton label="Add" onPress={onAddEntry} />
-            </View>
-          </View>
+    if (currentStep === 2) return renderPlayersStep();
 
-          {entryMode === "singles" ? (
-            <Animated.View style={{ opacity: drawOpacity, transform: [{ translateY: drawShift }] }}>
-              <View style={styles.participantWrap}>
-                {singlesParticipants.map((nameValue) => (
-                  <Pressable
-                    key={nameValue}
-                    onPress={() => removeParticipant(nameValue)}
-                    style={[styles.participantChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-                  >
-                    <Text style={[styles.participantText, { color: colors.text }]}>{nameValue}</Text>
-                    <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
-                  </Pressable>
-                ))}
+    if (currentStep === 3) {
+      return (
+        <>
+          <Text style={[styles.label, { color: colors.text }]}>Draw Setup</Text>
+          {tournamentType === "league" ? (
+            <Text style={[styles.smallHint, { color: colors.textMuted }]}>League format auto-generates fixtures from participant list.</Text>
+          ) : pairingMode === "random" ? (
+            <>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Generate a live reveal draw with animated pairing cards.</Text>
+              <View style={styles.toolsRow}>
+                <AppButton label="Generate Live Draw" onPress={randomiseAndDraw} disabled={participants.length < 2} />
               </View>
-            </Animated.View>
+            </>
           ) : (
             <>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Tap two players to create a doubles team.</Text>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Tap one entry then another to pair fixtures manually.</Text>
+              <View style={styles.manualToolsRow}>
+                <View style={styles.toolButton}><AppButton label="Undo" variant="secondary" onPress={undoLastManualFixture} disabled={!manualPairs.length} /></View>
+                <View style={styles.toolButton}><AppButton label="Reset" variant="secondary" onPress={resetManualPairing} /></View>
+              </View>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Selected:</Text>
               <View style={styles.participantWrap}>
-                {doublesPlayers.map((nameValue) => {
-                  const selected = selectedDoublesPlayers.includes(nameValue);
-                  return (
-                    <Pressable
-                      key={nameValue}
-                      onPress={() => toggleDoublesSelection(nameValue)}
-                      onLongPress={() => removeDoublesPlayer(nameValue)}
-                      style={[
-                        styles.participantChip,
-                        {
-                          borderColor: selected ? colors.primary : colors.border,
-                          backgroundColor: selected ? colors.surfaceMuted : colors.surface,
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.participantText, { color: selected ? colors.primary : colors.text }]}>{nameValue}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={styles.toolsSplit}>
-                <View style={styles.toolButton}><AppButton label="Build Team" onPress={createTeamFromSelection} disabled={selectedDoublesPlayers.length !== 2} /></View>
-                <View style={styles.toolButton}><AppButton label="Auto Build" variant="secondary" onPress={randomBuildDoublesTeams} disabled={doublesPlayers.length < 2} /></View>
-              </View>
-
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Created teams (tap to remove):</Text>
-              <Animated.View style={{ opacity: drawOpacity, transform: [{ translateY: drawShift }] }}>
-                <View style={styles.participantWrap}>
-                  {doublesTeams.map((team) => (
-                    <Pressable
-                      key={team}
-                      onPress={() => removeParticipant(team)}
-                      style={[styles.participantChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-                    >
-                      <Text style={[styles.participantText, { color: colors.text }]}>{team}</Text>
-                      <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </Animated.View>
-            </>
-          )}
-
-          {tournamentType === "knockout" ? (
-            <View style={styles.toolsRow}>
-              <AppButton label="Randomise & Draw" variant="secondary" onPress={randomiseAndDraw} disabled={participants.length < 2} />
-            </View>
-          ) : null}
-
-          {tournamentType === "knockout" ? (
-            <View style={styles.toolsRow}>
-              <AppButton label="Add BYE Slot" variant="secondary" onPress={addByeSlot} />
-            </View>
-          ) : null}
-
-          <Text style={[styles.smallHint, { color: colors.textMuted }]}>Minimum 2 real entries needed. Long press a doubles pool player to remove.</Text>
-        </View>
-
-        <Modal visible={drawModalVisible} transparent animationType="fade" onRequestClose={() => setDrawModalVisible(false)}>
-          <View style={styles.modalBackdrop}>
-            <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Live Draw</Text>
-              <Text style={[styles.modalHint, { color: colors.textMuted }]}>Fixtures revealed in real time</Text>
-
-              <View style={styles.ballWrap}>
-                {drawPreviewBalls.map((ball, index) => (
-                  <View
-                    key={`${ball}-${index}`}
-                    style={[
-                      styles.ball,
-                      {
-                        backgroundColor: index < revealedBallsCount ? colors.primaryStrong : colors.surfaceMuted,
-                        borderColor: colors.border,
-                        opacity: index < revealedBallsCount ? 1 : 0.28,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.ballText, { color: colors.onPrimary }]}>{ball}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.modalList}>
-                {drawPreviewPairs.slice(0, revealedPairsCount).map((pair, index) => (
-                  <View
-                    key={`${pair.a}-${pair.b}-${index}`}
-                    style={[
-                      styles.drawRow,
-                      {
-                        borderColor: colors.border,
-                        backgroundColor: colors.surfaceMuted,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.drawName, { color: colors.text }]}>{pair.a}</Text>
-                    <Text style={[styles.drawVs, { color: colors.textMuted }]}>vs</Text>
-                    <Text style={[styles.drawName, { color: colors.text }]}>{pair.b}</Text>
-                  </View>
-                ))}
-                {revealedBallsCount % 2 === 1 && revealedPairsCount < drawPreviewPairs.length ? (
-                  <View style={[styles.drawRow, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, opacity: 0.8 }]}> 
-                    <Text style={[styles.drawName, { color: colors.text }]}>{drawPreviewBalls[revealedBallsCount - 1]}</Text>
-                    <Text style={[styles.drawVs, { color: colors.textMuted }]}>vs</Text>
-                    <Text style={[styles.drawName, { color: colors.textMuted }]}>...</Text>
-                  </View>
-                ) : null}
-                {revealedPairsCount < drawPreviewPairs.length ? (
-                  <Text style={[styles.drawingText, { color: colors.textMuted }]}>Drawing next fixture...</Text>
-                ) : null}
-              </View>
-
-              <AppButton
-                label="Use This Draw"
-                disabled={revealedBallsCount < drawPreviewBalls.length}
-                onPress={async () => {
-                  if (revealTimerRef.current) {
-                    clearInterval(revealTimerRef.current);
-                    revealTimerRef.current = null;
-                  }
-                  setDrawModalVisible(false);
-                  await createWith(
-                    drawParticipants.length
-                      ? drawParticipants
-                      : entryMode === "singles"
-                        ? singlesParticipants
-                        : doublesTeams
-                  );
-                }}
-              />
-            </View>
-          </View>
-        </Modal>
-
-        {tournamentType === "knockout" && pairingMode === "manual" ? (
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-            <Text style={[styles.label, { color: colors.text }]}>Manual Fixtures (Tap to Pair)</Text>
-            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Tap one entry then another to create each fixture.</Text>
-
-            <View style={styles.manualToolsRow}>
-              <View style={styles.toolButton}>
-                <AppButton label="Undo Last" variant="secondary" onPress={undoLastManualFixture} disabled={!manualPairs.length} />
-              </View>
-              <View style={styles.toolButton}>
-                <AppButton label="Reset" variant="secondary" onPress={resetManualPairing} />
-              </View>
-            </View>
-
-            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Selected for next fixture:</Text>
-            <View style={styles.participantWrap}>
-              {manualPicked.length === 0 ? (
-                <Text style={[styles.emptyManualText, { color: colors.textMuted }]}>No selection yet.</Text>
-              ) : (
-                manualPicked.map((item) => (
-                  <Pressable
-                    key={`picked-${item}`}
-                    onPress={() => unpickManualEntry(item)}
-                    style={[styles.participantChip, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}
-                  >
+                {manualPicked.length === 0 ? <Text style={[styles.emptyManualText, { color: colors.textMuted }]}>No selection yet.</Text> : manualPicked.map((item) => (
+                  <Pressable key={item} onPress={() => unpickManualEntry(item)} style={[styles.participantChip, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}> 
                     <Text style={[styles.participantText, { color: colors.primary }]}>{item}</Text>
-                    <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
                   </Pressable>
-                ))
-              )}
-            </View>
-
-            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Available entries:</Text>
-            <View style={styles.participantWrap}>
-              {manualAvailable.map((item) => (
-                <Pressable
-                  key={`available-${item}`}
-                  onPress={() => pickManualEntry(item)}
-                  style={[styles.participantChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-                >
-                  <Text style={[styles.participantText, { color: colors.text }]}>{item}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Fixture preview:</Text>
-            <View style={styles.fixturePreviewWrap}>
-              {manualPairs.length === 0 ? (
-                <Text style={[styles.emptyManualText, { color: colors.textMuted }]}>No fixtures paired yet.</Text>
-              ) : (
-                manualPairs.map((pair, index) => (
-                  <View key={`preview-${index}`} style={[styles.fixturePreview, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
+                ))}
+              </View>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Available:</Text>
+              <View style={styles.participantWrap}>
+                {manualAvailable.map((item) => (
+                  <Pressable key={item} onPress={() => pickManualEntry(item)} style={[styles.participantChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
+                    <Text style={[styles.participantText, { color: colors.text }]}>{item}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Fixture Preview:</Text>
+              <View style={styles.fixturePreviewWrap}>
+                {manualPairs.length === 0 ? <Text style={[styles.emptyManualText, { color: colors.textMuted }]}>No fixtures paired yet.</Text> : manualPairs.map((pair, index) => (
+                  <View key={`manual-${index}`} style={[styles.fixturePreview, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
                     <Text style={[styles.fixturePreviewText, { color: colors.text }]}>{pair.participantA}</Text>
                     <Text style={[styles.fixturePreviewVs, { color: colors.textMuted }]}>vs</Text>
                     <Text style={[styles.fixturePreviewText, { color: colors.text }]}>{pair.participantB}</Text>
                   </View>
-                ))
+                ))}
+              </View>
+            </>
+          )}
+        </>
+      );
+    }
+
+    return (
+      <>
+        <Text style={[styles.label, { color: colors.text }]}>Review & Create</Text>
+        <View style={[styles.reviewCard, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
+          <Text style={[styles.reviewLine, { color: colors.text }]}>{tournamentIcon} {name || "Untitled Tournament"}</Text>
+          <Text style={[styles.reviewSub, { color: colors.textMuted }]}>Type: {tournamentType.toUpperCase()} · {entryMode.toUpperCase()}</Text>
+          <Text style={[styles.reviewSub, { color: colors.textMuted }]}>Draw: {tournamentType === "knockout" ? pairingMode.toUpperCase() : "AUTO LEAGUE"}</Text>
+          <Text style={[styles.reviewSub, { color: colors.textMuted }]}>Best of {bestOfFrames} (First to {Math.floor(bestOfFrames / 2) + 1})</Text>
+          <Text style={[styles.reviewSub, { color: colors.textMuted }]}>Entries: {participants.length}</Text>
+        </View>
+        <AppButton label="Create Tournament" onPress={create} loading={isSaving} disabled={!hasEnoughParticipants || !name.trim() || isSaving} />
+      </>
+    );
+  };
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}> 
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={[styles.heroCard, { borderColor: colors.border, backgroundColor: colors.surface }]}> 
+          <Text style={[styles.heroEyebrow, { color: colors.textMuted }]}>Tournament Creator</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Set Up Your Event</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Wizard-style flow with live draw reveal and full bracket control.</Text>
+        </View>
+
+        <View style={styles.stepDotsRow}>
+          {creationSteps.map((label, index) => (
+            <Pressable key={label} onPress={() => transitionToStep(index)} style={[styles.stepDot, { borderColor: colors.border, backgroundColor: index === currentStep ? colors.primary : colors.surfaceMuted }]}> 
+              <Text style={[styles.stepDotLabel, { color: index === currentStep ? colors.onPrimary : colors.textMuted }]}>{index + 1}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={[styles.stepLabel, { color: colors.text }]}>{creationSteps[currentStep]}</Text>
+
+        <Animated.View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: stepFade, transform: [{ translateY: stepShift }] }]}> 
+          {renderCurrentStep()}
+        </Animated.View>
+
+        <View style={styles.wizardNavRow}>
+          <View style={styles.toolButton}><AppButton label="Back" variant="secondary" onPress={() => transitionToStep(Math.max(0, currentStep - 1))} disabled={currentStep === 0} /></View>
+          {currentStep < creationSteps.length - 1 ? (
+            <View style={styles.toolButton}><AppButton label="Next" onPress={() => transitionToStep(Math.min(creationSteps.length - 1, currentStep + 1))} disabled={!canGoNext()} /></View>
+          ) : null}
+        </View>
+      </ScrollView>
+
+      <Modal
+        visible={drawModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          clearRevealTimer();
+          setDrawModalVisible(false);
+        }}
+      >
+        <View style={[styles.drawFullscreen, { backgroundColor: "rgba(5,12,9,0.96)" }]}> 
+          <View style={styles.drawTopBar}>
+            <Text style={[styles.modalTitle, { color: "#ECFFF5" }]}>🎲 Tournament Draw</Text>
+            <Pressable
+              onPress={() => {
+                clearRevealTimer();
+                setDrawModalVisible(false);
+              }}
+              style={styles.closeDrawButton}
+            >
+              <Text style={styles.closeDrawText}>Close</Text>
+            </Pressable>
+          </View>
+
+          <Text style={[styles.modalHint, { color: "#8FB9AB" }]}>One match reveals at a time</Text>
+
+          <View style={styles.drawModeRow}>
+            <Pressable style={[styles.drawModeChip, drawMode === "animated" && styles.drawModeChipActive]} onPress={() => setDrawMode("animated")}>
+              <Text style={[styles.drawModeText, drawMode === "animated" && styles.drawModeTextActive]}>Animated Draw</Text>
+            </Pressable>
+            <Pressable style={[styles.drawModeChip, drawMode === "quick" && styles.drawModeChipActive]} onPress={() => setDrawMode("quick")}>
+              <Text style={[styles.drawModeText, drawMode === "quick" && styles.drawModeTextActive]}>Quick Draw</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.drawCenterZone}>
+            <View style={styles.activeRevealWrap}>
+              {activeDrawPair ? (
+                <>
+                  <Text style={styles.activeMatchLabel}>Match {activeMatchNumber}</Text>
+                  <Animated.View style={[styles.activeCardsRow, { transform: [{ scale: revealPulse }] }]}> 
+                    <Animated.View style={[styles.activePlayerCard, { opacity: revealAOpacity, transform: [{ translateX: revealATranslate }] }]}>
+                      <Text style={styles.activePlayerName}>{activeDrawPair.a}</Text>
+                    </Animated.View>
+                    <Text style={styles.activeVsText}>vs</Text>
+                    <Animated.View style={[styles.activePlayerCard, { opacity: revealBOpacity, transform: [{ translateX: revealBTranslate }] }]}>
+                      <Text style={styles.activePlayerName}>{activeDrawPair.b}</Text>
+                    </Animated.View>
+                  </Animated.View>
+                </>
+              ) : (
+                <Text style={styles.awaitingDrawText}>{drawComplete ? "Draw Complete 🎱" : "Preparing draw..."}</Text>
               )}
             </View>
           </View>
-        ) : null}
 
-        <AppButton label="Create Tournament" onPress={create} loading={isSaving} disabled={!hasEnoughParticipants || !name.trim() || isSaving} />
-      </ScrollView>
+          <ScrollView style={styles.modalList} contentContainerStyle={{ paddingBottom: 12 }}>
+            {revealedPairs.map((pair, index) => (
+              <View key={`${pair.a}-${pair.b}-${index}`} style={styles.drawRow}> 
+                <Text style={styles.drawMatchIndex}>M{index + 1}</Text>
+                <Text style={styles.drawName}>{pair.a}</Text>
+                <Text style={styles.drawVs}>vs</Text>
+                <Text style={styles.drawName}>{pair.b}</Text>
+              </View>
+            ))}
+          </ScrollView>
 
-      <TierPaywallModal
-        visible={showPaywall}
-        onClose={() => setShowPaywall(false)}
-        currentTier={subscription.tier}
-        featureLabel="Monthly Tournament Limit"
-      />
-    </KeyboardAvoidingView>
+          <View style={styles.modalActionRow}>
+            <View style={styles.toolButton}>
+              <AppButton label="Restart Draw" variant="secondary" onPress={randomiseAndDraw} disabled={participants.length < 2} />
+            </View>
+            <View style={styles.toolButton}>
+              <AppButton
+                label="Use This Draw"
+                disabled={!drawComplete}
+                onPress={async () => {
+                  clearRevealTimer();
+                  setDrawModalVisible(false);
+                  await createWith(drawParticipants.length ? drawParticipants : entryMode === "singles" ? singlesParticipants : doublesTeams);
+                }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <TierPaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} currentTier={subscription.tier} featureLabel="Monthly Tournament Limit" />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 24 },
+  heroCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+  },
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  stepDotsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+  stepDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepDotLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  stepLabel: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  wizardNavRow: {
+    marginTop: 2,
+    flexDirection: "row",
+    gap: 8,
+  },
+  cardsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+  selectCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 10,
+  },
+  selectEmoji: {
+    fontSize: 20,
+  },
+  selectTitle: {
+    marginTop: 6,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  selectMeta: {
+    marginTop: 3,
+    fontSize: 12,
+  },
+  iconChip: {
+    fontSize: 18,
+  },
+  reviewCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  reviewLine: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  reviewSub: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: "600",
+  },
   dismissKeyboard: {
     alignSelf: "flex-end",
     borderWidth: 1,
@@ -806,6 +930,118 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 18,
   },
+  drawFullscreen: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 44,
+    paddingBottom: 16,
+  },
+  drawTopBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  closeDrawButton: {
+    borderWidth: 1,
+    borderColor: "#36584D",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#11231D",
+  },
+  closeDrawText: {
+    color: "#D8F3E8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  drawModeRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    gap: 8,
+  },
+  drawModeChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#3B5E52",
+    borderRadius: 999,
+    paddingVertical: 8,
+    alignItems: "center",
+    backgroundColor: "#132821",
+  },
+  drawModeChipActive: {
+    borderColor: "#5BD0A2",
+    backgroundColor: "#1A6B4D",
+  },
+  drawModeText: {
+    color: "#B9DDD0",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  drawModeTextActive: {
+    color: "#EDFFF8",
+  },
+  drawCenterZone: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  activeRevealWrap: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: "#2F4C41",
+    backgroundColor: "#0F201A",
+    borderRadius: 14,
+    minHeight: 170,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+  },
+  activeMatchLabel: {
+    color: "#80DDB7",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    letterSpacing: 0.7,
+  },
+  activeCardsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+  },
+  activePlayerCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#58CDA0",
+    backgroundColor: "#183028",
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    shadowColor: "#58CDA0",
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+  },
+  activePlayerName: {
+    color: "#EDFFF8",
+    fontSize: 14,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  activeVsText: {
+    color: "#8BB8A8",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  awaitingDrawText: {
+    color: "#A9CDC0",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  modalActionRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    gap: 8,
+  },
   modalCard: {
     width: "100%",
     borderWidth: 1,
@@ -830,9 +1066,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
-  modalList: { marginTop: 10, marginBottom: 12, gap: 8 },
+  modalList: { marginTop: 10, marginBottom: 4, gap: 8, maxHeight: 240 },
   drawRow: {
     borderWidth: 1,
+    borderColor: "#315347",
+    backgroundColor: "#11241D",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 8,
@@ -840,7 +1078,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  drawName: { flex: 1, fontSize: 13, fontWeight: "700", textAlign: "center" },
-  drawVs: { fontSize: 12, fontWeight: "700" },
+  drawMatchIndex: { width: 34, color: "#7FB8A3", fontSize: 11, fontWeight: "800" },
+  drawName: { flex: 1, fontSize: 13, fontWeight: "700", textAlign: "center", color: "#E7FCF3" },
+  drawVs: { fontSize: 12, fontWeight: "700", color: "#95BDAF" },
   drawingText: { fontSize: 12, fontWeight: "700", textAlign: "center" },
 });

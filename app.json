@@ -4,6 +4,7 @@
     "slug": "SnookerApp",
     "scheme": "snookerlab",
     "version": "1.0.0",
+    "newArchEnabled": true,
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -33,7 +34,14 @@
     },
     "plugins": [
       "expo-secure-store",
-      "react-native-adapty"
+      "react-native-adapty",
+      "@reactvision/react-viro",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Snooker Lab uses the camera to help align table setup for routines."
+        }
+      ]
     ],
     "extra": {
       "eas": {

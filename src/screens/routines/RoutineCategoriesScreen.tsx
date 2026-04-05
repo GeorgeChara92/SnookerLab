@@ -50,7 +50,10 @@ export const RoutineCategoriesScreen = () => {
 
   const renderCategory = ({ item, index }: { item: RoutineCategory; index: number }) => {
     const iconName = getRoutineCategoryIconName(item.id);
-    const routinesCount = getRoutinesByCategory(item.id).length;
+    const categoryItems = getRoutinesByCategory(item.id);
+    const routinesCount = categoryItems.length;
+    const categoryContainsOnlyGuides = categoryItems.length > 0 && categoryItems.every((entry) => entry.content_type === "guide");
+    const itemLabel = categoryContainsOnlyGuides ? "guide" : "routine";
     const animation = entranceAnimations[index] ?? new Animated.Value(1);
 
     return (
@@ -88,9 +91,9 @@ export const RoutineCategoriesScreen = () => {
             </View>
           </View>
           <Text style={[styles.categoryName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
-          <Text style={[styles.count, { color: colors.textMuted }]}>{routinesCount} {routinesCount === 1 ? "routine" : "routines"}</Text>
+          <Text style={[styles.count, { color: colors.textMuted }]}>{routinesCount} {routinesCount === 1 ? itemLabel : `${itemLabel}s`}</Text>
           <View style={styles.cardFooter}>
-            <Text style={[styles.footerText, { color: colors.textMuted }]}>Browse drills</Text>
+            <Text style={[styles.footerText, { color: colors.textMuted }]}>{categoryContainsOnlyGuides ? "Browse guides" : "Browse drills"}</Text>
             <MaterialCommunityIcons name="arrow-right" size={16} color={colors.textMuted} />
           </View>
         </Pressable>
@@ -109,7 +112,7 @@ export const RoutineCategoriesScreen = () => {
       ListHeaderComponent={
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Practice Categories</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Pick a category to browse routines and start training.</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Pick a category to browse routines and guides.</Text>
         </View>
       }
     />

@@ -62,6 +62,7 @@ export const SessionSetupScreen = () => {
       .map((category) => {
         const categoryRoutines = routines
           .filter((routine) => routine.category_id === category.id)
+          .filter((routine) => routine.content_type !== "guide")
           .filter((routine) => {
             if (!normalizedQuery) return true;
 

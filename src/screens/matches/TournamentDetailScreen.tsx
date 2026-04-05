@@ -1,10 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { Alert, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, Vibration, View } from "react-native";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, TournamentFixture, TournamentFrameScore } from "../../types";
+
+const triggerHaptic = async (type: "light" | "success") => {
+  try {
+    if (type === "light") await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    else await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  } catch {
+    Vibration.vibrate(type === "light" ? 10 : 18);
+  }
+};
 
 const FixtureRow = ({
   fixture,
@@ -24,6 +34,8 @@ const FixtureRow = ({
   const isByeA = /^BYE\b/i.test(fixture.participant_a);
   const isByeB = /^BYE\b/i.test(fixture.participant_b);
   const isAutoAdvanced = (isByeA && !isByeB) || (isByeB && !isByeA);
+  const isLive = fixture.status === "pending" && fixture.participant_a !== "TBD" && fixture.participant_b !== "TBD" && !isAutoAdvanced;
+  const statusLabel = fixture.status === "completed" ? "Completed" : isLive ? "Live" : "Upcoming";
   const requiredFrameWins = Math.floor(fixture.best_of_frames / 2) + 1;
   const [isExpanded, setIsExpanded] = useState(initialExpanded);
   const [frames, setFrames] = React.useState(() => {
@@ -90,6 +102,7 @@ const FixtureRow = ({
       return;
     }
 
+    triggerHaptic("light");
     onSave(fixture.id, parsed);
   };
 
@@ -105,10 +118,48 @@ const FixtureRow = ({
         },
       ]}
     >
-      <View style={styles.rowBetween}>
-        <Text style={[styles.fixtureName, { color: colors.text }]}>{fixture.participant_a}</Text>
+      <View style={styles.fixtureHeadRow}>
+        <Text style={[styles.bestOfBadge, { color: colors.textMuted }]}>Best of {fixture.best_of_frames}</Text>
+        <View
+          style={[
+            styles.statusPill,
+            fixture.status === "completed"
+              ? { backgroundColor: colors.surfaceMuted, borderColor: colors.border }
+              : isLive
+                ? { backgroundColor: colors.primaryStrong, borderColor: colors.primary }
+                : { backgroundColor: colors.surfaceMuted, borderColor: colors.border },
+          ]}
+        >
+          <Text style={[styles.statusPillText, { color: fixture.status === "completed" ? colors.textMuted : isLive ? colors.onPrimary : colors.textMuted }]}>{statusLabel}</Text>
+        </View>
+      </View>
+
+      <View style={styles.fixturePlayersRow}>
+        <View style={styles.playerCell}>
+          <Text
+            style={[
+              styles.fixtureName,
+              { color: fixture.winner === fixture.participant_a ? colors.primary : colors.text, fontWeight: fixture.winner === fixture.participant_a ? "800" : "700" },
+            ]}
+          >
+            {fixture.participant_a}
+          </Text>
+          <Text style={[styles.playerSubMeta, { color: colors.textMuted }]}>{fixture.score_a ?? "-"}</Text>
+        </View>
+
         <Text style={[styles.vsText, { color: colors.textMuted }]}>vs</Text>
-        <Text style={[styles.fixtureName, { color: colors.text }]}>{fixture.participant_b}</Text>
+
+        <View style={styles.playerCell}>
+          <Text
+            style={[
+              styles.fixtureName,
+              { color: fixture.winner === fixture.participant_b ? colors.primary : colors.text, fontWeight: fixture.winner === fixture.participant_b ? "800" : "700" },
+            ]}
+          >
+            {fixture.participant_b}
+          </Text>
+          <Text style={[styles.playerSubMeta, { color: colors.textMuted }]}>{fixture.score_b ?? "-"}</Text>
+        </View>
       </View>
 
       {collapsible ? (
@@ -158,11 +209,12 @@ const FixtureRow = ({
           <Pressable style={[styles.saveChip, { backgroundColor: colors.primary }]} onPress={saveResult}>
             <Text style={[styles.saveChipText, { color: colors.onPrimary }]}>Save Frames</Text>
           </Pressable>
+
         </>
       ) : null}
 
       {fixture.score_a !== undefined && fixture.score_b !== undefined ? (
-        <Text style={[styles.matchScoreText, { color: colors.textMuted }]}>Frames: {fixture.score_a} - {fixture.score_b}</Text>
+        <Text style={[styles.matchScoreText, { color: colors.textMuted }]}>Scoreline: {fixture.score_a} - {fixture.score_b}</Text>
       ) : null}
 
       {fixture.winner && ((fixture.score_a ?? 0) >= requiredFrameWins || (fixture.score_b ?? 0) >= requiredFrameWins) ? (
@@ -176,20 +228,17 @@ export const TournamentDetailScreen = () => {
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
   const route = useRoute<RouteProp<MatchesStackParamList, "TournamentDetail">>();
   const { tournamentId } = route.params;
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const { getTournamentById, updateFixtureResult, deleteTournament } = useTournamentsStore();
   const tournament = getTournamentById(tournamentId);
   const [selectedLeaguePlayer, setSelectedLeaguePlayer] = useState<string>("All");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const { width } = useWindowDimensions();
-  const confettiAnimations = useRef(
-    Array.from({ length: 18 }, () => ({
-      y: new Animated.Value(-20),
-      x: new Animated.Value(0),
-      rotate: new Animated.Value(0),
-    }))
-  ).current;
+  const [leagueTab, setLeagueTab] = useState<"fixtures" | "table">("fixtures");
+  const [showChampionModal, setShowChampionModal] = useState(false);
+  const [showActionsModal, setShowActionsModal] = useState(false);
+  const [collapsedKnockoutRounds, setCollapsedKnockoutRounds] = useState<Record<number, boolean>>({});
+  const [collapsedLeagueMatchdays, setCollapsedLeagueMatchdays] = useState<Record<number, boolean>>({});
+  const heroProgressAnim = useRef(new Animated.Value(0)).current;
   const previousCompletedRef = useRef(tournament?.status === "completed");
 
   const roundLabel = (round: number, totalRounds: number) => {
@@ -300,6 +349,23 @@ export const TournamentDetailScreen = () => {
       .sort((a, b) => a.fixture_index - b.fixture_index);
   }, [selectedLeaguePlayer, tournament]);
 
+  const groupedLeagueFixtures = useMemo(() => {
+    if (!tournament || tournament.tournament_type !== "league") return [] as Array<{ day: number; fixtures: TournamentFixture[] }>;
+    const activeParticipants = tournament.participants.filter((name) => !/^BYE\b/i.test(name));
+    const matchesPerDay = Math.max(1, Math.floor(activeParticipants.length / 2));
+    const groups = new Map<number, TournamentFixture[]>();
+
+    leagueFixtures.forEach((fixture, index) => {
+      const day = Math.floor(index / matchesPerDay) + 1;
+      const existing = groups.get(day) ?? [];
+      groups.set(day, [...existing, fixture]);
+    });
+
+    return Array.from(groups.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([day, fixtures]) => ({ day, fixtures }));
+  }, [leagueFixtures, tournament]);
+
   const completion = useMemo(() => {
     if (!tournament) return { completed: false, champion: null as string | null, done: 0, total: 0 };
 
@@ -318,42 +384,48 @@ export const TournamentDetailScreen = () => {
     return { completed, champion, done, total };
   }, [standings, tournament]);
 
+  const progressRatio = completion.total > 0 ? completion.done / completion.total : 0;
+
+  const stageLabel = useMemo(() => {
+    if (!tournament) return "";
+    if (completion.completed) return "Completed";
+
+    if (tournament.tournament_type === "knockout") {
+      const nextRound = rounds.find((round) => round.fixtures.some((fixture) => fixture.status !== "completed"));
+      return nextRound ? roundLabel(nextRound.round, rounds.length) : "Opening Round";
+    }
+
+    const firstPendingIndex = groupedLeagueFixtures.findIndex((group) => group.fixtures.some((fixture) => fixture.status !== "completed"));
+    if (firstPendingIndex >= 0) return `Matchday ${groupedLeagueFixtures[firstPendingIndex].day}`;
+    return groupedLeagueFixtures.length ? `Matchday ${groupedLeagueFixtures[groupedLeagueFixtures.length - 1].day}` : "Matchday 1";
+  }, [completion.completed, groupedLeagueFixtures, rounds, tournament]);
+
+  const heroDisplayName = useMemo(() => {
+    const trimmed = tournament?.name?.trim() ?? "";
+    if (!trimmed) return "🏆 Tournament";
+    const emojiOnly = /^[^A-Za-z0-9]+$/u.test(trimmed);
+    if (emojiOnly) return `${trimmed} Tournament`;
+    return trimmed;
+  }, [tournament?.name]);
+
+  useEffect(() => {
+    Animated.timing(heroProgressAnim, {
+      toValue: progressRatio,
+      duration: 450,
+      useNativeDriver: false,
+    }).start();
+  }, [heroProgressAnim, progressRatio]);
+
   useEffect(() => {
     if (!previousCompletedRef.current && completion.completed) {
-      setShowCelebration(true);
+      setShowChampionModal(true);
+      triggerHaptic("success");
       previousCompletedRef.current = true;
-
-      confettiAnimations.forEach((particle, index) => {
-        particle.y.setValue(-20);
-        particle.x.setValue((index % 2 === 0 ? -1 : 1) * (20 + (index % 5) * 12));
-        particle.rotate.setValue(0);
-
-        Animated.parallel([
-          Animated.timing(particle.y, {
-            toValue: 520 + (index % 4) * 20,
-            duration: 1700 + index * 30,
-            useNativeDriver: true,
-          }),
-          Animated.timing(particle.x, {
-            toValue: ((index % 3) - 1) * (80 + index * 2),
-            duration: 1700,
-            useNativeDriver: true,
-          }),
-          Animated.timing(particle.rotate, {
-            toValue: 1,
-            duration: 1700,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      });
-
-      const timeout = setTimeout(() => setShowCelebration(false), 2200);
-      return () => clearTimeout(timeout);
     }
 
     previousCompletedRef.current = completion.completed;
     return undefined;
-  }, [completion.completed, confettiAnimations]);
+  }, [completion.completed]);
 
   if (!tournament) {
     return (
@@ -363,127 +435,134 @@ export const TournamentDetailScreen = () => {
     );
   }
 
+  const handleFreshStart = () => {
+    if (tournament.tournament_type === "knockout") {
+      Alert.alert("Fresh Start", "How should round one fixtures be generated?", [
+        {
+          text: "Manual",
+          onPress: () => {
+            navigation.navigate("NewTournament", {
+              prefill: {
+                name: tournament.name,
+                participants: tournament.participants,
+                tournamentType: tournament.tournament_type,
+                entryMode: tournament.entry_mode,
+                pairingMode: "manual",
+                bestOfFrames: tournament.best_of_frames,
+                previousChampion: completion.champion ?? undefined,
+              },
+            });
+          },
+        },
+        {
+          text: "Random",
+          onPress: () => {
+            navigation.navigate("NewTournament", {
+              prefill: {
+                name: tournament.name,
+                participants: tournament.participants,
+                tournamentType: tournament.tournament_type,
+                entryMode: tournament.entry_mode,
+                pairingMode: "random",
+                bestOfFrames: tournament.best_of_frames,
+                previousChampion: completion.champion ?? undefined,
+                autoRunDraw: true,
+              },
+            });
+          },
+        },
+        { text: "Cancel", style: "cancel" },
+      ]);
+      return;
+    }
+
+    navigation.navigate("NewTournament", {
+      prefill: {
+        name: tournament.name,
+        participants: tournament.participants,
+        tournamentType: tournament.tournament_type,
+        entryMode: tournament.entry_mode,
+        pairingMode: tournament.pairing_mode,
+        bestOfFrames: tournament.best_of_frames,
+        previousChampion: completion.champion ?? undefined,
+      },
+    });
+  };
+
+  const handleDeleteTournament = () => {
+    Alert.alert("Delete Tournament", "This tournament and all fixtures will be removed.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteTournament(tournament.id);
+            navigation.goBack();
+          } catch (error) {
+            Alert.alert("Delete failed", "Could not delete this tournament right now.");
+          }
+        },
+      },
+    ]);
+  };
+
+  const openHeroActions = () => {
+    setShowActionsModal(true);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}> 
-      {showCelebration ? (
-        <View pointerEvents="none" style={styles.confettiLayer}>
-          {confettiAnimations.map((particle, index) => (
-            <Animated.Text
-              key={`confetti-${index}`}
-              style={[
-                styles.confettiPiece,
-                {
-                  left: width / 2,
-                  transform: [
-                    { translateX: particle.x },
-                    { translateY: particle.y },
-                    {
-                      rotate: particle.rotate.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ["0deg", `${180 + index * 22}deg`],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              {index % 3 === 0 ? "🎉" : index % 3 === 1 ? "✨" : "🎊"}
-            </Animated.Text>
-          ))}
-        </View>
-      ) : null}
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={[styles.hero, { backgroundColor: colors.primaryStrong }]}> 
+      <View style={[styles.hero, { backgroundColor: isDark ? "#1A3A31" : colors.primaryStrong, borderColor: isDark ? "#3E7A66" : colors.primary }]}> 
+        <View style={styles.heroAmbientGlow} />
         <View style={styles.heroTopActions}>
           <Pressable
-            style={[styles.iconAction, { backgroundColor: "rgba(255,255,255,0.16)" }]}
-            onPress={() => {
-              if (tournament.tournament_type === "knockout") {
-                Alert.alert("Fresh Start", "How should round one fixtures be generated?", [
-                  {
-                    text: "Manual",
-                    onPress: () => {
-                      navigation.navigate("NewTournament", {
-                        prefill: {
-                          name: tournament.name,
-                          participants: tournament.participants,
-                          tournamentType: tournament.tournament_type,
-                          entryMode: tournament.entry_mode,
-                          pairingMode: "manual",
-                          bestOfFrames: tournament.best_of_frames,
-                          previousChampion: completion.champion ?? undefined,
-                        },
-                      });
-                    },
-                  },
-                  {
-                    text: "Random",
-                    onPress: () => {
-                      navigation.navigate("NewTournament", {
-                        prefill: {
-                          name: tournament.name,
-                          participants: tournament.participants,
-                          tournamentType: tournament.tournament_type,
-                          entryMode: tournament.entry_mode,
-                          pairingMode: "random",
-                          bestOfFrames: tournament.best_of_frames,
-                          previousChampion: completion.champion ?? undefined,
-                          autoRunDraw: true,
-                        },
-                      });
-                    },
-                  },
-                  { text: "Cancel", style: "cancel" },
-                ]);
-                return;
-              }
-
-              navigation.navigate("NewTournament", {
-                prefill: {
-                  name: tournament.name,
-                  participants: tournament.participants,
-                  tournamentType: tournament.tournament_type,
-                  entryMode: tournament.entry_mode,
-                  pairingMode: tournament.pairing_mode,
-                  bestOfFrames: tournament.best_of_frames,
-                  previousChampion: completion.champion ?? undefined,
-                },
-              });
-            }}
+            style={[styles.heroNameRow]}
           >
-            <MaterialCommunityIcons name="restart" size={18} color={colors.onPrimary} />
-            <Text style={[styles.iconActionText, { color: colors.onPrimary }]}>Fresh Start</Text>
+            <Text style={[styles.heroTitle, { color: "#F2FFF9" }]} numberOfLines={1}>{heroDisplayName}</Text>
           </Pressable>
 
           <Pressable
-            style={[styles.iconAction, { backgroundColor: "rgba(127,29,29,0.65)" }]}
-            onPress={() => {
-              Alert.alert("Delete Tournament", "This tournament and all fixtures will be removed.", [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete",
-                  style: "destructive",
-                  onPress: async () => {
-                    try {
-                      await deleteTournament(tournament.id);
-                      navigation.goBack();
-                    } catch (error) {
-                      Alert.alert("Delete failed", "Could not delete this tournament right now.");
-                    }
-                  },
-                },
-              ]);
-            }}
+            style={[styles.iconAction, { backgroundColor: "rgba(255,255,255,0.16)" }]}
+            onPress={openHeroActions}
           >
-            <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.onPrimary} />
+            <MaterialCommunityIcons name="dots-horizontal" size={18} color={colors.onPrimary} />
           </Pressable>
         </View>
 
-        <Text style={[styles.heroTitle, { color: colors.onPrimary }]}>{tournament.name}</Text>
-        <Text style={[styles.heroMeta, { color: "#C7E1D7" }]}> 
-          {tournament.tournament_type.toUpperCase()} · {tournament.entry_mode.toUpperCase()} · Best of {tournament.best_of_frames}
-        </Text>
-        <Text style={[styles.heroMeta, { color: "#C7E1D7" }]}>Completed Fixtures: {completion.done}/{completion.total}</Text>
+        <View style={styles.heroChipRow}>
+          <View style={[styles.heroChip, { backgroundColor: "rgba(52,211,153,0.30)", borderColor: "rgba(52,211,153,0.55)" }]}><Text style={[styles.heroChipText, { color: "#F6FFFB" }]}>{tournament.tournament_type.toUpperCase()}</Text></View>
+          <View style={[styles.heroChip, { backgroundColor: "rgba(56,189,248,0.30)", borderColor: "rgba(56,189,248,0.55)" }]}><Text style={[styles.heroChipText, { color: "#F6FFFB" }]}>{tournament.entry_mode.toUpperCase()}</Text></View>
+          <View style={[styles.heroChip, { backgroundColor: "rgba(250,204,21,0.30)", borderColor: "rgba(250,204,21,0.55)" }]}><Text style={[styles.heroChipText, { color: "#172012" }]}>Best of {tournament.best_of_frames}</Text></View>
+          <View style={[styles.heroChip, { backgroundColor: "rgba(168,85,247,0.34)", borderColor: "rgba(168,85,247,0.58)" }]}><Text style={[styles.heroChipText, { color: "#F6FFFB" }]}>{tournament.participants.filter((item) => !/^BYE\b/i.test(item)).length} players</Text></View>
+        </View>
+
+        <View style={styles.heroStatusRow}>
+          <Text style={[styles.heroMeta, { color: "#D3EDE2", marginTop: 0 }]}>{tournament.participants.filter((item) => !/^BYE\b/i.test(item)).length} Players · {stageLabel}</Text>
+          <View style={[styles.heroBadge, { borderColor: "rgba(255,255,255,0.34)", backgroundColor: "rgba(255,255,255,0.14)" }]}>
+            <Text style={[styles.heroBadgeText, { color: colors.onPrimary }]}>{completion.completed ? "Completed" : "In Progress"}</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.heroProgressLabel, { color: "#DDF5EB" }]}>Progress</Text>
+        <View style={styles.heroProgressRow}>
+          <View style={[styles.heroProgressTrack, { backgroundColor: "rgba(255,255,255,0.24)" }]}>
+            <Animated.View
+              style={[
+                styles.heroProgressFill,
+                {
+                  width: heroProgressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
+                  backgroundColor: "#E6FFF4",
+                },
+              ]}
+            />
+          </View>
+        </View>
+        <View style={styles.heroProgressMetaRow}>
+          <Text style={[styles.heroMeta, { color: "#C7E1D7", marginTop: 0 }]}>{completion.done} of {completion.total} matches completed</Text>
+          <Text style={[styles.heroProgressText, { color: colors.onPrimary }]}>{Math.round(progressRatio * 100)}%</Text>
+        </View>
         {completion.champion ? (
           <Text style={[styles.championText, { color: colors.onPrimary }]}>Champion: {completion.champion}</Text>
         ) : null}
@@ -493,19 +572,31 @@ export const TournamentDetailScreen = () => {
       </View>
 
       {tournament.tournament_type === "knockout" ? (
-        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Live Bracket Projection</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Bracket View</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.bracketRow}>
               {virtualKnockoutRounds.map((round, index) => (
                 <Animated.View
                   key={round.title + index}
-                  style={[styles.bracketColumn, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+                  style={[
+                    styles.bracketColumn,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: index === virtualKnockoutRounds.length - 1 ? colors.surface : colors.surfaceMuted,
+                    },
+                  ]}
                 >
                   <Text style={[styles.bracketTitle, { color: colors.text }]}>{round.title}</Text>
-                  {round.names.map((name, i) => (
-                    <Text key={`${round.title}-${i}`} style={[styles.bracketName, { color: colors.textMuted }]}>• {name}</Text>
-                  ))}
+                  {round.names.map((name, i) => {
+                    const isWinner = completion.completed && completion.champion === name;
+                    return (
+                      <View key={`${round.title}-${i}`} style={[styles.bracketMatchCard, { borderColor: colors.border, backgroundColor: colors.surface }]}> 
+                        <Text style={[styles.bracketName, { color: isWinner ? colors.primary : colors.textMuted, fontWeight: isWinner ? "800" : "700" }]}> {name} </Text>
+                      </View>
+                    );
+                  })}
+                  {index < virtualKnockoutRounds.length - 1 ? <View style={[styles.bracketConnector, { backgroundColor: colors.border }]} /> : null}
                 </Animated.View>
               ))}
             </View>
@@ -516,41 +607,56 @@ export const TournamentDetailScreen = () => {
       {tournament.tournament_type === "league" ? (
         <>
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>League Table</Text>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderName, { color: colors.textMuted }]}>Player</Text>
-              <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>P</Text>
-              <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>W</Text>
-              <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>D</Text>
-              <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>L</Text>
-              <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>+/-</Text>
-              <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>Pts</Text>
-            </View>
-            {standings.map((row, index) => (
-              <View
-                key={row.name}
+            <View style={styles.leagueTabRow}>
+              <Pressable
                 style={[
-                  styles.tableRow,
-                  completion.completed && index === 0
-                    ? { backgroundColor: colors.surfaceMuted, borderRadius: 8, paddingVertical: 4 }
-                    : null,
+                  styles.leagueTab,
+                  { borderColor: leagueTab === "fixtures" ? colors.primary : colors.border, backgroundColor: leagueTab === "fixtures" ? colors.surfaceMuted : colors.surface },
                 ]}
+                onPress={() => setLeagueTab("fixtures")}
               >
-                <Text style={[styles.tableName, { color: colors.text }]} numberOfLines={1}>
-                  {index + 1}. {row.name}
-                </Text>
-                <Text style={[styles.tableCell, { color: colors.text }]}>{row.p}</Text>
-                <Text style={[styles.tableCell, { color: colors.text }]}>{row.w}</Text>
-                <Text style={[styles.tableCell, { color: colors.text }]}>{row.d}</Text>
-                <Text style={[styles.tableCell, { color: colors.text }]}>{row.l}</Text>
-                <Text style={[styles.tableCell, { color: colors.text }]}>{row.f - row.a}</Text>
-                <Text style={[styles.tablePts, { color: colors.primary }]}>{row.pts}</Text>
-              </View>
-            ))}
-          </View>
+                <Text style={[styles.leagueTabText, { color: leagueTab === "fixtures" ? colors.primary : colors.textMuted }]}>Fixtures</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.leagueTab,
+                  { borderColor: leagueTab === "table" ? colors.primary : colors.border, backgroundColor: leagueTab === "table" ? colors.surfaceMuted : colors.surface },
+                ]}
+                onPress={() => setLeagueTab("table")}
+              >
+                <Text style={[styles.leagueTabText, { color: leagueTab === "table" ? colors.primary : colors.textMuted }]}>Table</Text>
+              </Pressable>
+            </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>League Fixtures</Text>
+            {leagueTab === "table" ? (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>League Table</Text>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderName, { color: colors.textMuted }]}>Player</Text>
+                  <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>P</Text>
+                  <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>W</Text>
+                  <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>L</Text>
+                  <Text style={[styles.tableHeaderCellWide, { color: colors.textMuted }]}>FF</Text>
+                  <Text style={[styles.tableHeaderCellWide, { color: colors.textMuted }]}>FA</Text>
+                  <Text style={[styles.tableHeaderCell, { color: colors.textMuted }]}>Pts</Text>
+                </View>
+                {standings.map((row, index) => (
+                  <View key={row.name} style={[styles.tableRow, { backgroundColor: index % 2 === 0 ? colors.surfaceMuted : "transparent", borderRadius: 8 }]}> 
+                    <Text style={[styles.tableName, { color: colors.text }]} numberOfLines={1}>
+                      {index + 1}. {row.name}
+                    </Text>
+                    <Text style={[styles.tableCell, { color: colors.text }]}>{row.p}</Text>
+                    <Text style={[styles.tableCell, { color: colors.text }]}>{row.w}</Text>
+                    <Text style={[styles.tableCell, { color: colors.text }]}>{row.l}</Text>
+                    <Text style={[styles.tableCellWide, { color: colors.text }]}>{row.f}</Text>
+                    <Text style={[styles.tableCellWide, { color: colors.text }]}>{row.a}</Text>
+                    <Text style={[styles.tablePts, { color: index < 2 ? colors.primary : colors.text }]}>{row.pts}</Text>
+                  </View>
+                ))}
+              </>
+            ) : (
+              <>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>League Fixtures</Text>
             <View style={styles.dropdownWrap}>
               <Pressable
                 onPress={() => setIsFilterOpen((prev) => !prev)}
@@ -584,41 +690,136 @@ export const TournamentDetailScreen = () => {
               ) : null}
             </View>
 
-            {leagueFixtures.map((fixture, fixtureIndex) => (
-              <FixtureRow
-                key={fixture.id}
-                fixture={fixture}
-                delay={40 * (fixtureIndex + 1)}
-                colors={colors}
-                collapsible
-                initialExpanded={false}
-                onSave={(fixtureId, frameScores) => updateFixtureResult(tournament.id, fixtureId, { frameScores })}
-              />
-            ))}
+                {groupedLeagueFixtures.length === 0 ? (
+                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>No fixtures available for this filter.</Text>
+                ) : (
+                  groupedLeagueFixtures.map((group) => (
+                    <View key={`day-${group.day}`} style={styles.matchdayBlock}>
+                      <Pressable
+                        style={[styles.fixtureCollapseHeader, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+                        onPress={() =>
+                          setCollapsedLeagueMatchdays((prev) => ({
+                            ...prev,
+                            [group.day]: !prev[group.day],
+                          }))
+                        }
+                      >
+                        <Text style={[styles.matchdayTitle, { color: colors.textMuted }]}>Matchday {group.day}</Text>
+                        <Text style={[styles.matchdayCaret, { color: colors.textMuted }]}>{collapsedLeagueMatchdays[group.day] ? "▼" : "▲"}</Text>
+                      </Pressable>
+                      {!collapsedLeagueMatchdays[group.day]
+                        ? group.fixtures.map((fixture, fixtureIndex) => (
+                            <FixtureRow
+                              key={fixture.id}
+                              fixture={fixture}
+                              delay={40 * (fixtureIndex + 1)}
+                              colors={colors}
+                              collapsible
+                              initialExpanded={false}
+                              onSave={(fixtureId, frameScores) => updateFixtureResult(tournament.id, fixtureId, { frameScores })}
+                            />
+                          ))
+                        : null}
+                    </View>
+                  ))
+                )}
+              </>
+            )}
           </View>
         </>
       ) : null}
 
       {tournament.tournament_type === "knockout"
         ? rounds.map((round, roundIndex) => (
-        <View key={`round-${round.round}`} style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{roundLabel(round.round, rounds.length)}</Text>
-          {round.fixtures
-            .sort((a, b) => a.fixture_index - b.fixture_index)
-            .map((fixture, fixtureIndex) => (
-              <FixtureRow
-                key={fixture.id}
-                fixture={fixture}
-                delay={60 * (fixtureIndex + 1 + roundIndex)}
-                colors={colors}
-                onSave={(fixtureId, frameScores) => updateFixtureResult(tournament.id, fixtureId, { frameScores })}
-              />
-            ))}
-        </View>
-      ))
+          <View key={`round-${round.round}`} style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+              <Pressable
+                style={[styles.fixtureCollapseHeader, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+                onPress={() =>
+                  setCollapsedKnockoutRounds((prev) => ({
+                    ...prev,
+                    [round.round]: !prev[round.round],
+                  }))
+                }
+              >
+                <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>{roundLabel(round.round, rounds.length)}</Text>
+                <Text style={[styles.matchdayCaret, { color: colors.textMuted }]}>{collapsedKnockoutRounds[round.round] ? "▼" : "▲"}</Text>
+              </Pressable>
+              {!collapsedKnockoutRounds[round.round] ? (
+                round.fixtures.length === 0 ? (
+                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>No matches in this round yet.</Text>
+                ) : (
+                  round.fixtures
+                    .sort((a, b) => a.fixture_index - b.fixture_index)
+                    .map((fixture, fixtureIndex) => (
+                      <FixtureRow
+                        key={fixture.id}
+                        fixture={fixture}
+                        delay={60 * (fixtureIndex + 1 + roundIndex)}
+                        colors={colors}
+                        onSave={(fixtureId, frameScores) => updateFixtureResult(tournament.id, fixtureId, { frameScores })}
+                      />
+                    ))
+                )
+              ) : null}
+            </View>
+          ))
         : null}
 
     </ScrollView>
+
+    <Modal visible={showActionsModal} transparent animationType="fade" onRequestClose={() => setShowActionsModal(false)}>
+      <View style={styles.actionsOverlay}>
+        <View style={[styles.actionsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <Text style={[styles.actionsTitle, { color: colors.text }]}>Tournament Actions</Text>
+          <Pressable style={[styles.actionsItem, { borderColor: colors.border }]} onPress={() => { setShowActionsModal(false); handleFreshStart(); }}>
+            <MaterialCommunityIcons name="restart" size={16} color={colors.text} />
+            <Text style={[styles.actionsItemText, { color: colors.text }]}>Fresh Start</Text>
+          </Pressable>
+          <Pressable style={[styles.actionsItem, { borderColor: colors.border }]} onPress={() => { setShowActionsModal(false); handleDeleteTournament(); }}>
+            <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.danger} />
+            <Text style={[styles.actionsItemText, { color: colors.danger }]}>Delete Tournament</Text>
+          </Pressable>
+          <Pressable style={[styles.actionsCancel, { borderColor: colors.border }]} onPress={() => setShowActionsModal(false)}>
+            <Text style={[styles.actionsCancelText, { color: colors.textMuted }]}>Cancel</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+
+    <Modal visible={showChampionModal && !!completion.champion} transparent animationType="fade" onRequestClose={() => setShowChampionModal(false)}>
+      <View style={styles.championOverlay}>
+        <View style={[styles.championCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <Text style={[styles.championTitle, { color: colors.primary }]}>Champion 🏆</Text>
+          <Text style={[styles.championName, { color: colors.text }]}>{completion.champion}</Text>
+          <Text style={[styles.championSubtitle, { color: colors.textMuted }]}>Tournament complete with {completion.done} fixtures recorded.</Text>
+
+          <View style={styles.championActions}>
+            <Pressable style={[styles.championButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]} onPress={() => setShowChampionModal(false)}>
+              <Text style={[styles.championButtonText, { color: colors.text }]}>View Summary</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.championButton, { backgroundColor: colors.primary, borderColor: colors.primaryStrong }]}
+              onPress={() => {
+                setShowChampionModal(false);
+                navigation.navigate("NewTournament", {
+                  prefill: {
+                    name: tournament.name,
+                    participants: tournament.participants,
+                    tournamentType: tournament.tournament_type,
+                    entryMode: tournament.entry_mode,
+                    pairingMode: tournament.pairing_mode,
+                    bestOfFrames: tournament.best_of_frames,
+                    previousChampion: completion.champion ?? undefined,
+                  },
+                });
+              }}
+            >
+              <Text style={[styles.championButtonText, { color: colors.onPrimary }]}>Start New Tournament</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
     </View>
   );
 };
@@ -636,23 +837,127 @@ const styles = StyleSheet.create({
   },
   content: { padding: 16, paddingBottom: 24 },
   hero: { borderRadius: 16, padding: 14, marginBottom: 12 },
+  heroAmbientGlow: {
+    position: "absolute",
+    right: -40,
+    top: -30,
+    width: 180,
+    height: 180,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
   heroTopActions: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 10,
+  },
+  heroNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 10,
+    paddingRight: 8,
+  },
+  heroIdentityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 10,
+    paddingRight: 8,
+  },
+  heroLeadIcon: {
+    fontSize: 26,
+  },
+  heroTitleWrap: {
+    flex: 1,
+  },
+  heroStageText: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  heroBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  heroBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.6,
+  },
+  heroActionsRow: {
+    flexDirection: "row",
+    gap: 8,
   },
   iconAction: {
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    width: 36,
+    height: 36,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
   },
   iconActionText: { fontSize: 12, fontWeight: "700" },
   heroTitle: { fontSize: 24, fontWeight: "800" },
   heroMeta: { marginTop: 6, fontSize: 13, fontWeight: "600" },
+  heroChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
+  heroChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  heroChipText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  heroStatusRow: {
+    marginTop: 4,
+    marginBottom: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  heroProgressLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  heroProgressRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  heroProgressTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  heroProgressFill: {
+    height: "100%",
+    borderRadius: 999,
+  },
+  heroProgressText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  heroProgressMetaRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   championText: { marginTop: 8, fontSize: 16, fontWeight: "800" },
   section: {
     borderWidth: 1,
@@ -661,6 +966,38 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: { fontSize: 16, fontWeight: "800", marginBottom: 8 },
+  fixtureHeadRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  bestOfBadge: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  statusPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  fixturePlayersRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  playerCell: {
+    flex: 1,
+    alignItems: "center",
+  },
   fixtureCard: {
     borderWidth: 1,
     borderRadius: 12,
@@ -669,6 +1006,11 @@ const styles = StyleSheet.create({
   },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   fixtureName: { flex: 1, fontSize: 13, fontWeight: "700", textAlign: "center" },
+  playerSubMeta: {
+    marginTop: 2,
+    fontSize: 18,
+    fontWeight: "800",
+  },
   vsText: { fontSize: 12, fontWeight: "700" },
   expandRow: {
     marginTop: 8,
@@ -697,19 +1039,86 @@ const styles = StyleSheet.create({
   hyphen: { fontWeight: "700" },
   saveChip: { marginTop: 10, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, alignSelf: "flex-start" },
   saveChipText: { fontSize: 12, fontWeight: "700" },
+  liveChip: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignSelf: "flex-start",
+  },
+  liveChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
   matchScoreText: { marginTop: 8, fontSize: 12, fontWeight: "700" },
   winnerText: { marginTop: 8, fontSize: 12, fontWeight: "700" },
   bracketRow: { flexDirection: "row", gap: 8, paddingBottom: 4 },
   bracketColumn: { width: 170, borderWidth: 1, borderRadius: 12, padding: 10 },
+  bracketMatchCard: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    marginBottom: 6,
+  },
+  bracketConnector: {
+    position: "absolute",
+    right: -8,
+    top: "50%",
+    width: 8,
+    height: 2,
+  },
   bracketTitle: { fontSize: 13, fontWeight: "800", marginBottom: 4 },
   bracketName: { fontSize: 12, marginBottom: 3 },
+  leagueTabRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 10,
+  },
+  leagueTab: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  leagueTabText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
   tableHeader: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
   tableHeaderName: { flex: 1.6, fontSize: 11, fontWeight: "700" },
   tableHeaderCell: { width: 26, textAlign: "center", fontSize: 11, fontWeight: "700" },
+  tableHeaderCellWide: { width: 34, textAlign: "center", fontSize: 11, fontWeight: "700" },
   tableRow: { marginTop: 6, flexDirection: "row", alignItems: "center" },
   tableName: { flex: 1.6, fontSize: 12, fontWeight: "700", paddingRight: 6 },
   tableCell: { width: 26, textAlign: "center", fontSize: 12, fontWeight: "700" },
+  tableCellWide: { width: 34, textAlign: "center", fontSize: 12, fontWeight: "700" },
   tablePts: { width: 32, textAlign: "center", fontSize: 12, fontWeight: "800" },
+  matchdayBlock: {
+    marginBottom: 10,
+  },
+  fixtureCollapseHeader: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 6,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  matchdayTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  matchdayCaret: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
   dropdownWrap: { marginBottom: 10 },
   dropdownTrigger: {
     borderWidth: 1,
@@ -732,6 +1141,90 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   dropdownItemText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  championOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.56)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 18,
+  },
+  championCard: {
+    width: "100%",
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+  },
+  championTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  championName: {
+    marginTop: 8,
+    fontSize: 28,
+    fontWeight: "900",
+  },
+  championSubtitle: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  championActions: {
+    marginTop: 14,
+    flexDirection: "row",
+    gap: 8,
+  },
+  championButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  championButtonText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  actionsOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    padding: 18,
+  },
+  actionsCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+  },
+  actionsTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  actionsItem: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionsItemText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  actionsCancel: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 10,
+    alignItems: "center",
+  },
+  actionsCancelText: {
     fontSize: 12,
     fontWeight: "700",
   },

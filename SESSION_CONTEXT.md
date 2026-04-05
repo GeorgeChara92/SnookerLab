@@ -1,142 +1,121 @@
 # SnookerApp Session Context (Handover)
 
-Last updated: 2026-04-02
+Last updated: 2026-04-04
 
 ## Product Direction
 
-- Build a premium-feeling snooker training app with strong core functionality first.
-- Keep the app free for now; paid tier/paywall work is deferred.
-- Design target: professional, clean, minimal, high quality.
-- Language preference: UK English throughout the app copy.
+- Premium-feeling snooker training app with clean, modern UX and UK English copy.
+- Monetisation is now active work (no longer deferred): tiered subscriptions are being migrated to Adapty.
+- Current release target is iOS first, with App Store review and TestFlight validation in progress.
 
-## Major Work Completed
+## What Changed This Session
 
-### 1) Practice Routines rebuilt as a video-first experience
+### 1) Dashboard redesign (luxury editorial direction)
 
-- Replaced old routines with a curated catalogue of **25** structured routines.
-- Added richer routine content: name, category, difficulty, summary, setup, steps, scoring, improvements.
-- Added YouTube metadata support:
-  - `youtube_video_id`, `youtube_url`, `youtube_title`, `youtube_channel`
-  - optional alternative video fields: `youtube_alt_video_id`, `youtube_alt_url`, `youtube_alt_title`, `youtube_alt_channel`
-- Routine cards show YouTube thumbnail and play affordance.
-- Routine detail supports:
-  - primary/alternative video switcher
-  - inline playback via `react-native-webview`
-  - open in YouTube action
-  - video title/channel display
-
-Key files:
-- `src/constants/routines.ts`
-- `src/types/index.ts`
-- `src/components/routines/RoutineCard.tsx`
-- `src/screens/routines/RoutineDetailScreen.tsx`
-- `src/utils/youtube.ts`
-
-### 2) Foundations section and Shaun Murphy channel integration
-
-- Top category is now **The Foundations**.
-- Foundations routines include core basics (stance, bridge, sighting, potting).
-- Added/raised Shaun Murphy Snooker videos where appropriate, including in selected non-foundation routines.
-
-### 3) Sessions data model and preset workflow
-
-- Sessions are preset-based and log results by date.
-- Routine score/session migrations were set to wipe old local data for clean rollout.
-- Session setup screen redesigned to be more premium and easier to use:
-  - cleaner layout and hierarchy
-  - grouped routines by category
-  - search routines/categories
-  - selected routines summary
-  - sticky save action
-
-Key files:
-- `src/store/sessionsStore.ts`
-- `src/screens/sessions/SessionSetupScreen.tsx`
-- `src/screens/sessions/SessionsHomeScreen.tsx`
-- `src/screens/sessions/SessionTemplateDetailScreen.tsx`
-- `src/screens/sessions/ActiveSessionScreen.tsx`
-
-### 4) Matches UX improvements
-
-- Opponent history now has **Add Match Against This Opponent**.
-- `NewMatch` accepts optional prefilled opponent name.
-- Label update: "Overall Frames" -> **"Total Points"** in match summaries.
-
-Key files:
-- `src/types/index.ts` (NewMatch route params)
-- `src/screens/matches/OpponentMatchesScreen.tsx`
-- `src/screens/matches/NewMatchScreen.tsx`
-- `src/screens/matches/MatchesListScreen.tsx`
-
-### 5) App-wide UI quality and theming foundation
-
-- Added system-aware light/dark theme tokens and hook.
-- Wired navigation theme to system mode.
-- Added reusable UI primitives:
-  - `AppButton`
-  - `AppCard`
-- Standardised stack header/content styling with shared stack options.
-- Improved auth flows (login/register/forgot password): validation, loading states, cleaner hierarchy.
-- Tab bar made safer for modern iPhones with bottom safe-area handling.
-
-Key files:
-- `src/constants/theme.ts`
-- `src/hooks/useAppTheme.ts`
-- `src/navigation/AppNavigator.tsx`
-- `src/navigation/MainTabNavigator.tsx`
-- `src/navigation/stackOptions.ts`
-- `src/components/ui/AppButton.tsx`
-- `src/components/ui/AppCard.tsx`
-- `src/screens/auth/LoginScreen.tsx`
-- `src/screens/auth/RegisterScreen.tsx`
-- `src/screens/auth/ForgotPasswordScreen.tsx`
-
-### 6) Practice categories now collapsible
-
-- Practice category sections are collapsible to reduce overwhelm.
-- Added **Expand all** / **Collapse all** actions.
-- Added smooth open/close animation via `LayoutAnimation`.
+- `DashboardHomeScreen` was rebuilt with a premium editorial flow and updated section order.
+- Removed the previous weekly focus/readiness hero.
+- New order: hero -> quick actions -> practice sessions this week -> session notes -> recommended routines -> recent routines.
+- Weekly chart is now Monday-based (Mon-Sun) and renamed to **Practice Sessions This Week**.
+- Hero background orbs are subtle red accents to reference snooker reds.
+- Quick action changed from Record to **AI Coach**.
+- Text/copy across dashboard was refreshed to feel less generic and more on-brand.
 
 Key file:
-- `src/screens/routines/RoutinesListScreen.tsx`
+- `src/screens/dashboard/DashboardHomeScreen.tsx`
 
-## Important Fixes and Decisions
+### 2) Avatar/header updates
 
-- Fixed duplicate navigation screen-name warning by renaming profile stack screen:
-  - `Profile` -> `ProfileHome` in profile stack params/screen.
-- Removed unstable icon package usage that caused Metro resolution issues.
-- Root cause of theme not switching: `app.json` had `"userInterfaceStyle": "light"`.
-  - Changed to `"automatic"`.
+- Header profile button premium shell/badge experiment was reverted per request.
+- Added new premium avatar presets, then removed two by request:
+  - removed: `baize-architect`, `pro-circuit`
+- Remaining added premium presets include: `triple-crown`, `masters-room`, `champion-seal`, `spotlight-table`.
+
+Key files:
+- `src/components/profile/HeaderProfileButton.tsx`
+- `src/constants/profileAvatars.ts`
+- `src/components/profile/SnookerPresetAvatar.tsx`
+
+### 3) Billing migration: RevenueCat -> Adapty
+
+- Billing service was replaced to use `react-native-adapty`.
+- RevenueCat packages removed.
+- Adapty plugin added to Expo config.
+- Subscription and settings UI wording updated from "Customer Center" to store-native subscription management.
+- Tier mapping kept as app tiers (`free`, `half_century`, `century`) based on Adapty access levels and product IDs.
+
+Key files:
+- `src/services/billing.ts`
+- `src/screens/profile/SubscriptionPlansScreen.tsx`
+- `src/screens/profile/SettingsScreen.tsx`
+- `src/navigation/AppNavigator.tsx`
+- `.env.example`
+- `app.json`
+- `package.json`
+
+### 4) Adapty init/race hardening and diagnostics
+
+- Added activation guards (`activationPromise`, `isActivated` checks, `activateOnceError` handling).
+- Added richer warning logs for billing init (`message`, `detail`, `adaptyCode`) to debug live issues.
+
+Current known billing state:
+- Placement issue was fixed (`main_subscription` now exists).
+- Current blocker seen in logs: `#1000 noProductIDsFound` (StoreKit cannot resolve product IDs yet).
+- This points to App Store Connect/Adapty product readiness and first-submission workflow, not SDK install.
+
+## Store/Release Status (important)
+
+- EAS `preview` and `production` environments now include Adapty variables.
+- A new iOS build was triggered and App Store review submission flow is underway.
+- App metadata/privacy fields were being completed in App Store Connect.
+- Subscriptions are configured as auto-renewables:
+  - `century_monthly`
+  - `half_century_monthly`
+  - `monthly`
+
+## Configuration Changes
+
+- App name changed from `SnookerApp` -> `Snooker Lab`.
+- iPad support disabled for now (`ios.supportsTablet = false`) to avoid iPad screenshot requirements.
+- Keep app version at `1.0.0` for now; production builds auto-increment build number via EAS.
 
 Key file:
 - `app.json`
 
-## Current Behaviour Snapshot
+## Auth/Account Supporting Changes Present in Repo
 
-- System light/dark mode is implemented and should respond to device appearance.
-- Practice routines use structured categories, collapsible sections, and video-first cards/details.
-- Sessions can be created as category-aware presets with searchable routine selection.
-- Matches can be added directly from opponent history with opponent prefilled.
+- Additional auth flow improvements are in current working state/commit set (including update password and auth error helper usage).
+
+Key files:
+- `src/screens/auth/UpdatePasswordScreen.tsx`
+- `src/utils/authErrors.ts`
+- `src/screens/auth/LoginScreen.tsx`
+- `src/screens/auth/ForgotPasswordScreen.tsx`
+- `src/screens/auth/ConfirmEmailScreen.tsx`
+- `src/navigation/AuthNavigator.tsx`
+- `src/store/authStore.ts`
+
+## Git State Snapshot
+
+- Latest commit created and pushed to `master`:
+  - `ca33cca` - "Migrate billing to Adapty and refine premium app flow"
 
 ## Recommended Start Steps Next Session
 
-1. Run app with clean cache: `npx expo start -c`.
-2. Quick QA pass on device:
-   - Toggle iOS Light/Dark and confirm full-screen consistency.
-   - Test Practice category expand/collapse + expand/collapse all animations.
-   - Test Add Match from opponent history and verify prefilled opponent.
-   - Test session preset create/edit flow with grouped routine selection.
-3. Continue premium polish on remaining screens with any hardcoded legacy colours/copy.
+1. Check App Store review result for first binary + subscriptions.
+2. Re-test subscriptions in TestFlight/sandbox after Apple propagation.
+3. If `noProductIDsFound` persists:
+   - verify Adapty placement `main_subscription` contains exact iOS product IDs
+   - verify products are fully actionable in App Store Connect (agreements/metadata/pricing/availability)
+   - verify sandbox tester account and storefront
+4. Once product fetch works, complete end-to-end checks:
+   - price load
+   - purchase success path
+   - restore path
+   - tier sync to Supabase
 
-## Open Follow-ups (Good Next Tasks)
+## Notes
 
-- Final pass for full token-based styling consistency across every screen/component.
-- Optional chevron rotation animation on routine category headers.
-- Name normalisation in matches (avoid duplicate opponent histories due to case/spacing).
-- Continue UK English copy sweep for any remaining US spellings.
-
-## Notes for Future Work
-
-- Keep functionality-first priority before monetisation UI.
-- Keep auth stable and avoid regressions in sessions/matches while polishing visuals.
-- Preserve YouTube compliance approach (embed/open YouTube, no video downloading/rehosting).
+- Do not change access level IDs to product IDs.
+  - Access levels: `half_century`, `century`
+  - Product IDs: `half_century_monthly`, `century_monthly`, `monthly`
+- App Store review metadata should remain accurate to actual data collection and auth flows.

@@ -75,6 +75,24 @@ create table if not exists public.matches (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.match_frames (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  match_id uuid not null references public.matches(id) on delete cascade,
+  frame_number int not null,
+  user_score int not null,
+  opponent_score int not null,
+  winner text not null,
+  highest_break_user int not null default 0,
+  highest_break_opponent int not null default 0,
+  breaks jsonb not null default '[]'::jsonb,
+  events jsonb not null default '[]'::jsonb,
+  abandoned boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (match_id, frame_number)
+);
+
 create table if not exists public.tournaments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -141,6 +159,7 @@ create index if not exists idx_session_templates_user on public.session_template
 create index if not exists idx_session_logs_user on public.session_logs(user_id, recorded_at desc);
 create index if not exists idx_routine_score_entries_user on public.routine_score_entries(user_id, recorded_at desc);
 create index if not exists idx_matches_user on public.matches(user_id, date desc);
+create index if not exists idx_match_frames_user_match on public.match_frames(user_id, match_id, frame_number);
 create index if not exists idx_tournaments_user on public.tournaments(user_id, created_at desc);
 
 alter table public.profiles enable row level security;
@@ -149,6 +168,7 @@ alter table public.session_logs enable row level security;
 alter table public.session_log_results enable row level security;
 alter table public.routine_score_entries enable row level security;
 alter table public.matches enable row level security;
+alter table public.match_frames enable row level security;
 alter table public.tournaments enable row level security;
 alter table public.tournament_fixtures enable row level security;
 alter table public.tournament_fixture_frames enable row level security;
@@ -162,6 +182,7 @@ drop policy if exists session_logs_own on public.session_logs;
 drop policy if exists session_log_results_own on public.session_log_results;
 drop policy if exists routine_score_entries_own on public.routine_score_entries;
 drop policy if exists matches_own on public.matches;
+drop policy if exists match_frames_own on public.match_frames;
 drop policy if exists tournaments_own on public.tournaments;
 drop policy if exists tournament_fixtures_own on public.tournament_fixtures;
 drop policy if exists tournament_fixture_frames_own on public.tournament_fixture_frames;
@@ -194,6 +215,9 @@ create policy routine_score_entries_own on public.routine_score_entries
 for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy matches_own on public.matches
+for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy match_frames_own on public.match_frames
 for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy tournaments_own on public.tournaments

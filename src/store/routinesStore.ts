@@ -2,15 +2,55 @@ import { create } from "zustand";
 import { Routine, RoutineCategory } from "../types";
 import { DEFAULT_CATEGORIES, DEFAULT_ROUTINES } from "../constants";
 
-const CUE_BALL_CONTROL_ORDER = [
-  "routine-cue-ball-control",
-  "routine-top-spin-control",
-  "routine-stun-line",
-  "routine-stun-run-through",
-  "routine-screw-back",
-  "routine-deep-screw",
-  "routine-side-spin-control",
-];
+const ROUTINE_ORDER_BY_CATEGORY: Record<string, string[]> = {
+  "cat-basics": [
+    "routine-bridge-grip-stance",
+    "routine-pre-shot-routine",
+    "routine-bridge-fundamentals",
+    "routine-rest-shot-fundamentals",
+    "routine-potting-fundamentals",
+    "routine-head-position-fundamentals",
+    "routine-feathering-delivery-fundamentals",
+    "routine-follow-through-fundamentals",
+    "routine-straight-cueing-fundamentals-guide",
+    "routine-cue-ball-control-fundamentals-guide",
+    "routine-pre-shot-system-fundamentals",
+    "routine-mental-commitment-fundamentals",
+  ],
+  "cat-break-building": [
+    "routine-break-building-foundations",
+    "routine-3-reds-colours",
+    "routine-around-colours",
+    "routine-pink-ball-routine",
+    "routine-line-up",
+    "routine-t-routine",
+    "routine-black-off-spot",
+    "routine-blue-ball-control",
+  ],
+  "cat-safety": [
+    "routine-baulk-safety",
+    "routine-escape-science",
+    "routine-two-cushion-escape",
+    "routine-three-cushion-escape",
+  ],
+  "cat-straight-cueing": [
+    "routine-straight-cueing-line",
+    "routine-cueing-secret-session",
+  ],
+  "cat-cue-ball-control": [
+    "routine-cue-ball-control",
+    "routine-top-spin-control",
+    "routine-stun-line",
+    "routine-stun-run-through",
+    "routine-screw-back",
+    "routine-deep-screw",
+    "routine-side-spin-control",
+  ],
+  "cat-long-potting": [
+    "routine-long-potting-classic",
+    "routine-long-blue-straight-cue",
+  ],
+};
 
 interface RoutinesState {
   routines: Routine[];
@@ -27,9 +67,10 @@ export const useRoutinesStore = create<RoutinesState>()((set, get) => ({
   isLoading: false,
   getRoutinesByCategory: (categoryId) => {
     const routines = get().routines.filter((routine) => routine.category_id === categoryId);
-    if (categoryId !== "cat-cue-ball-control") return routines;
+    const orderList = ROUTINE_ORDER_BY_CATEGORY[categoryId];
+    if (!orderList) return routines;
 
-    const order = new Map(CUE_BALL_CONTROL_ORDER.map((id, index) => [id, index]));
+    const order = new Map(orderList.map((id, index) => [id, index]));
     return [...routines].sort((a, b) => {
       const ai = order.get(a.id);
       const bi = order.get(b.id);

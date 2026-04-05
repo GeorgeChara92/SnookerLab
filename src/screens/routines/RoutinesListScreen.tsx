@@ -30,6 +30,8 @@ export const RoutinesListScreen = () => {
 
   const category = useMemo(() => categories.find((item) => item.id === categoryId), [categories, categoryId]);
   const categoryRoutines = getRoutinesByCategory(categoryId);
+  const categoryContainsOnlyGuides = categoryRoutines.length > 0 && categoryRoutines.every((item) => item.content_type === "guide");
+  const itemLabel = categoryContainsOnlyGuides ? "guide" : "routine";
   const iconName = getRoutineCategoryIconName(categoryId);
 
   if (!category) {
@@ -61,7 +63,7 @@ export const RoutinesListScreen = () => {
           </View>
           <View style={styles.headerTextWrap}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>{category.name}</Text>
-            <Text style={[styles.headerMeta, { color: colors.textMuted }]}>{categoryRoutines.length} {categoryRoutines.length === 1 ? "routine" : "routines"}</Text>
+            <Text style={[styles.headerMeta, { color: colors.textMuted }]}>{categoryRoutines.length} {categoryRoutines.length === 1 ? itemLabel : `${itemLabel}s`}</Text>
           </View>
         </View>
       }

@@ -1,9 +1,6 @@
 import React, { useState } from "react";
 import {
   Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -27,14 +24,17 @@ export const NewMatchScreen = () => {
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
   const route = useRoute<RouteProp<MatchesStackParamList, "NewMatch">>();
   const { addMatch } = useMatchesStore();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const subscription = useSubscriptionAccess();
   const [showPaywall, setShowPaywall] = useState(false);
   const [opponentName, setOpponentName] = useState(route.params?.opponentName ?? "");
   const [location, setLocation] = useState("");
   const [userScore, setUserScore] = useState("");
   const [opponentScore, setOpponentScore] = useState("");
+  const [framesPlayedInput, setFramesPlayedInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  const quickFrames = [1, 3, 5, 7, 9, 11, 13];
 
   const getResult = (): MatchResult => {
     const uScore = parseInt(userScore) || 0;
@@ -52,6 +52,9 @@ export const NewMatchScreen = () => {
 
     const uScore = parseInt(userScore) || 0;
     const oScore = parseInt(opponentScore) || 0;
+    const scorelineFrames = uScore + oScore;
+    const manualFrames = parseInt(framesPlayedInput) || 0;
+    const framesPlayed = manualFrames > 0 ? manualFrames : scorelineFrames;
 
     const match = {
       user_id: "",
@@ -60,7 +63,7 @@ export const NewMatchScreen = () => {
       location,
       match_type: "casual" as const,
       format: "best_of" as const,
-      frames_played: uScore + oScore,
+      frames_played: framesPlayed,
       user_score: uScore,
       opponent_score: oScore,
       result: getResult(),
@@ -82,59 +85,131 @@ export const NewMatchScreen = () => {
     }
   };
 
+  const handleCreateAndStartLive = async () => {
+    if (!subscription.canCreateMatch) {
+      setShowPaywall(true);
+      return;
+    }
+
+    if (!opponentName.trim()) {
+      Alert.alert("Opponent required", "Please add an opponent name before starting live scoring.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const match = await addMatch({
+        user_id: "",
+        opponent_name: opponentName.trim(),
+        date: new Date().toISOString().split("T")[0],
+        location,
+        match_type: "casual",
+        format: "best_of",
+        target_frames: (parseInt(framesPlayedInput) || 7),
+        frames_played: 0,
+        user_score: 0,
+        opponent_score: 0,
+        result: "draw",
+        sync_status: "pending",
+      });
+
+      navigation.navigate("LiveFrameScoring", { matchId: match.id });
+    } catch (error: any) {
+      if (isSubscriptionLimitError(error)) {
+        setShowPaywall(true);
+      } else {
+        Alert.alert("Start failed", "Could not start live frame scoring right now.");
+      }
+      console.warn("Failed to start live match:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={90}
-    >
-      <ScrollView
-        style={styles.container}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-      <Pressable style={styles.dismissKeyboard} onPress={() => Keyboard.dismiss()}>
-        <Text style={[styles.dismissKeyboardText, { color: colors.text }]}>Done Editing</Text>
-      </Pressable>
-      <Text style={[styles.label, { color: colors.text }]}>Opponent Name</Text>
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
-        value={opponentName}
-        onChangeText={setOpponentName}
-        placeholder="John Smith"
-        placeholderTextColor={colors.textMuted}
-      />
+    <View style={[styles.container, { backgroundColor: "#081310" }]}> 
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        <View style={[styles.hero, { borderColor: "#2C4D41" }]}> 
+          <Text style={styles.heroEyebrow}>Match Setup</Text>
+          <Text style={styles.heroTitle}>Create a New Match</Text>
+          <Text style={styles.heroMeta}>Manual result entry or launch premium live frame scoring.</Text>
+        </View>
 
-      <Text style={[styles.label, { color: colors.text }]}>Location</Text>
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
-        value={location}
-        onChangeText={setLocation}
-        placeholder="Local Club"
-        placeholderTextColor={colors.textMuted}
-      />
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Players & Venue</Text>
+          <Text style={styles.label}>Opponent Name</Text>
+          <TextInput
+            style={styles.input}
+            value={opponentName}
+            onChangeText={setOpponentName}
+            placeholder="John Smith"
+            placeholderTextColor="#7FA79A"
+          />
 
-      <Text style={[styles.label, { color: colors.text }]}>Your Score</Text>
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
-        value={userScore}
-        onChangeText={setUserScore}
-        keyboardType="numeric"
-        placeholder="0"
-        placeholderTextColor={colors.textMuted}
-      />
+          <Text style={styles.label}>Location</Text>
+          <TextInput
+            style={styles.input}
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Local Club"
+            placeholderTextColor="#7FA79A"
+          />
+        </View>
 
-      <Text style={[styles.label, { color: colors.text }]}>Opponent Score</Text>
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
-        value={opponentScore}
-        onChangeText={setOpponentScore}
-        keyboardType="numeric"
-        placeholder="0"
-        placeholderTextColor={colors.textMuted}
-      />
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Scoreline</Text>
+          <View style={styles.scoreRow}>
+            <View style={styles.scoreCol}>
+              <Text style={styles.label}>You</Text>
+              <TextInput style={styles.input} value={userScore} onChangeText={setUserScore} keyboardType="numeric" placeholder="0" placeholderTextColor="#7FA79A" />
+            </View>
+            <View style={styles.scoreCol}>
+              <Text style={styles.label}>{opponentName.trim() || "Opponent"}</Text>
+              <TextInput style={styles.input} value={opponentScore} onChangeText={setOpponentScore} keyboardType="numeric" placeholder="0" placeholderTextColor="#7FA79A" />
+            </View>
+          </View>
 
-      <AppButton label="Save Match" onPress={handleSave} loading={isSaving} disabled={!opponentName.trim() || isSaving} />
+          <Text style={styles.label}>Frames Played (type or select)</Text>
+          <TextInput
+            style={styles.input}
+            value={framesPlayedInput}
+            onChangeText={setFramesPlayedInput}
+            keyboardType="numeric"
+            placeholder={`Auto from scoreline (${(parseInt(userScore) || 0) + (parseInt(opponentScore) || 0)})`}
+            placeholderTextColor="#7FA79A"
+          />
+
+          <View style={styles.quickFramesRow}>
+            {quickFrames.map((frameCount) => (
+              <Pressable
+                key={frameCount}
+                onPress={() => setFramesPlayedInput(String(frameCount))}
+                style={[
+                  styles.quickFrameChip,
+                  framesPlayedInput === String(frameCount) && { backgroundColor: "#2DA777", borderColor: "#4FD4A1" },
+                ]}
+              >
+                <Text style={[styles.quickFrameChipText, framesPlayedInput === String(frameCount) && { color: isDark ? colors.onPrimary : "#072D22" }]}>{frameCount}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable style={styles.autoFramesButton} onPress={() => setFramesPlayedInput("")}> 
+            <Text style={styles.autoFramesText}>Use scoreline total automatically</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.actionsCard}>
+          <AppButton label="Save Match" onPress={handleSave} loading={isSaving} disabled={!opponentName.trim() || isSaving} />
+          <View style={styles.secondaryAction}>
+            <AppButton
+              label="Create & Start Live Frame"
+              onPress={handleCreateAndStartLive}
+              disabled={!opponentName.trim() || isSaving}
+              variant="secondary"
+            />
+          </View>
+        </View>
       </ScrollView>
 
       <TierPaywallModal
@@ -143,21 +218,107 @@ export const NewMatchScreen = () => {
         currentTier={subscription.tier}
         featureLabel="Monthly Match Limit"
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  dismissKeyboard: {
-    alignSelf: "flex-end",
-    backgroundColor: "#D9E2EC",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    marginBottom: 8,
+  container: { flex: 1 },
+  content: { padding: 16, paddingBottom: 24 },
+  hero: {
+    borderRadius: 16,
+    borderWidth: 1,
+    backgroundColor: "#0F201A",
+    padding: 14,
+    marginBottom: 12,
   },
-  dismissKeyboardText: { fontSize: 12, fontWeight: "700" },
-  label: { fontSize: 16, fontWeight: "600", marginBottom: 8, marginTop: 16 },
-  input: { borderWidth: 1, padding: 12, borderRadius: 8, fontSize: 16 },
+  heroEyebrow: {
+    color: "#9AC8B8",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  heroTitle: {
+    marginTop: 5,
+    color: "#EAFFF7",
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  heroMeta: {
+    marginTop: 6,
+    color: "#8FB4A8",
+    fontSize: 13,
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#2C4D41",
+    backgroundColor: "#0E1B17",
+    padding: 12,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    color: "#DDF8EE",
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+  label: { color: "#9AC5B8", fontSize: 12, fontWeight: "700", marginBottom: 6, marginTop: 10 },
+  input: {
+    borderWidth: 1,
+    borderColor: "#2B4A3F",
+    backgroundColor: "#11231D",
+    color: "#ECFFF7",
+    padding: 11,
+    borderRadius: 11,
+    fontSize: 16,
+  },
+  scoreRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  scoreCol: {
+    flex: 1,
+  },
+  quickFramesRow: {
+    marginTop: 9,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  quickFrameChip: {
+    minWidth: 42,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#3B5E52",
+    backgroundColor: "#183029",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    alignItems: "center",
+  },
+  quickFrameChipText: {
+    color: "#CFE9DE",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  autoFramesButton: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+  },
+  autoFramesText: {
+    color: "#7CE0B8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  actionsCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#2C4D41",
+    backgroundColor: "#0F201A",
+    padding: 12,
+  },
+  secondaryAction: {
+    marginTop: 10,
+  },
 });
