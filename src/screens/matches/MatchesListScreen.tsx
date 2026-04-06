@@ -156,8 +156,8 @@ export const MatchesListScreen = () => {
             </View>
 
             <Text style={[styles.record, { color: colors.text }]}>Record: {item.wins}W - {item.losses}L - {item.draws}D</Text>
-            <Text style={[styles.frames, { color: colors.textMuted }]}>Total Points: {item.framesFor} - {item.framesAgainst}</Text>
-            <Text style={[styles.tapHint, { color: colors.primary }]}>Tap to view match history ›</Text>
+            <Text style={[styles.frames, { color: colors.textMuted }]}>Frames: {item.framesFor} - {item.framesAgainst}</Text>
+            <Text style={[styles.tapHint, { color: colors.primary }]}>Tap to view match history and details ›</Text>
           </Pressable>
         )}
       />

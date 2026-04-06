@@ -40,6 +40,21 @@ export const MatchDetailScreen = () => {
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
   const frameRecords = getFrameRecordsByMatchId(matchId).sort((a, b) => b.frame_number - a.frame_number);
   const selectedFrame = frameRecords.find((frame) => frame.id === selectedFrameId);
+  const hasManualScoreline = (match?.user_score ?? 0) > 0 || (match?.opponent_score ?? 0) > 0 || (match?.frames_played ?? 0) > 0;
+
+  const getBestOfFrames = (format: string, targetFrames?: number) => {
+    if (targetFrames && targetFrames > 0) return targetFrames;
+    if (format.startsWith("best_of_")) {
+      const parsed = parseInt(format.replace("best_of_", ""));
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+  };
+
+  const bestOfFrames = getBestOfFrames(match?.format ?? "", match?.target_frames);
+  const firstToWins = bestOfFrames ? Math.floor(bestOfFrames / 2) + 1 : undefined;
+  const isMatchComplete = firstToWins ? (match?.user_score ?? 0) >= firstToWins || (match?.opponent_score ?? 0) >= firstToWins : false;
+  const canOpenLiveScoring = (!hasManualScoreline || frameRecords.length > 0) && !isMatchComplete;
 
   if (!match) {
     return (
@@ -159,13 +174,20 @@ export const MatchDetailScreen = () => {
           placeholderTextColor={colors.textMuted}
         />
 
-        <Pressable
-          style={[styles.liveButton, { backgroundColor: colors.primaryStrong, borderColor: colors.border }]}
-          onPress={() => navigation.navigate("LiveFrameScoring", { matchId: match.id })}
-        >
-          <Text style={[styles.liveButtonTitle, { color: colors.onPrimary }]}>Open Live Frame Scoring</Text>
-          <Text style={[styles.liveButtonMeta, { color: colors.onPrimary }]}>Track frame ball-by-ball with fouls, breaks, and snookers required.</Text>
-        </Pressable>
+        {canOpenLiveScoring ? (
+          <Pressable
+            style={[styles.liveButton, { backgroundColor: colors.primaryStrong, borderColor: colors.border }]}
+            onPress={() => navigation.navigate("LiveFrameScoring", { matchId: match.id })}
+          >
+            <Text style={[styles.liveButtonTitle, { color: colors.onPrimary }]}>Open Live Frame Scoring</Text>
+            <Text style={[styles.liveButtonMeta, { color: colors.onPrimary }]}>Track frame ball-by-ball with fouls, breaks, and snookers required.</Text>
+          </Pressable>
+        ) : (
+          <View style={[styles.liveDisabledCard, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
+            <Text style={[styles.liveDisabledTitle, { color: colors.text }]}>Live scoring unavailable</Text>
+            <Text style={[styles.liveDisabledMeta, { color: colors.textMuted }]}>This match is completed or has a manual scoreline. Start a new live match to continue frame-by-frame tracking.</Text>
+          </View>
+        )}
 
         <View style={[styles.framesSection, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
           <Text style={[styles.framesTitle, { color: colors.text }]}>Saved Frames</Text>
@@ -297,6 +319,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
     opacity: 0.9,
+  },
+  liveDisabledCard: {
+    marginTop: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  liveDisabledTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  liveDisabledMeta: {
+    marginTop: 4,
+    fontSize: 12,
   },
   framesSection: {
     marginTop: 12,

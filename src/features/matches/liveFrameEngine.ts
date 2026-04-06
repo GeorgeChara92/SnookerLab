@@ -34,6 +34,7 @@ export type LiveFrameState = {
   breakHistory: BreakEntry[];
   events: LiveFrameEvent[];
   redsRemaining: number;
+  awaitingColorAfterRed: boolean;
   phase: LivePhase;
   nextColorIndex: number;
 };
@@ -63,7 +64,11 @@ const finalizeCurrentBreak = (
   state: LiveFrameState,
   endedBy: "visit_end" | "foul" | "switch" | "frame_end"
 ): LiveFrameState => {
-  if (state.currentBreak <= 0) return state;
+  const shouldResetAwaitingColor = endedBy !== "frame_end" && state.phase === "reds" && state.redsRemaining > 0;
+
+  if (state.currentBreak <= 0) {
+    return shouldResetAwaitingColor ? { ...state, awaitingColorAfterRed: false } : state;
+  }
 
   const entry: BreakEntry = {
     player: state.atTable,
@@ -80,6 +85,7 @@ const finalizeCurrentBreak = (
   return {
     ...state,
     currentBreak: 0,
+    awaitingColorAfterRed: shouldResetAwaitingColor ? false : state.awaitingColorAfterRed,
     highestBreakUser,
     highestBreakOpponent,
     breakHistory: [entry, ...state.breakHistory],
@@ -97,6 +103,7 @@ export const createInitialLiveFrameState = (frameNumber: number, atTable: LiveSi
   breakHistory: [],
   events: [],
   redsRemaining: 15,
+  awaitingColorAfterRed: false,
   phase: "reds",
   nextColorIndex: 0,
 });
@@ -104,7 +111,7 @@ export const createInitialLiveFrameState = (frameNumber: number, atTable: LiveSi
 export const getPointsRemaining = (state: LiveFrameState): number => {
   if (state.phase === "ended") return 0;
   if (state.phase === "reds") {
-    return state.redsRemaining * 8 + 27;
+    return state.redsRemaining * 8 + 27 + (state.awaitingColorAfterRed ? 7 : 0);
   }
   return COLOR_SEQUENCE.slice(state.nextColorIndex).reduce((acc, color) => acc + BALL_POINTS[color], 0);
 };
@@ -130,6 +137,14 @@ export const getSnookersRequired = (state: LiveFrameState):
 export const potBall = (state: LiveFrameState, ball: LiveBall): LiveFrameState => {
   if (state.phase === "ended") return state;
 
+  if (state.phase === "reds") {
+    if (state.awaitingColorAfterRed) {
+      if (ball === "red") return state;
+    } else if (ball !== "red") {
+      return state;
+    }
+  }
+
   if (state.phase === "colors") {
     const expected = COLOR_SEQUENCE[state.nextColorIndex];
     if (ball !== expected) return state;
@@ -146,6 +161,11 @@ export const potBall = (state: LiveFrameState, ball: LiveBall): LiveFrameState =
 
   if (ball === "red" && next.phase === "reds") {
     next.redsRemaining = Math.max(0, next.redsRemaining - 1);
+    next.awaitingColorAfterRed = true;
+  }
+
+  if (next.phase === "reds" && ball !== "red" && next.awaitingColorAfterRed) {
+    next.awaitingColorAfterRed = false;
     if (next.redsRemaining === 0) {
       next.phase = "colors";
       next.nextColorIndex = 0;

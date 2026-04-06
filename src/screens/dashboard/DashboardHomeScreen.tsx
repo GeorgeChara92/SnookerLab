@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
@@ -55,6 +55,7 @@ const buildCurrentStreak = (dateKeys: Set<string>) => {
 
 export const DashboardHomeScreen = () => {
   const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
   const { templates, logs } = useSessionsStore();
   const { entries } = useRoutineScoresStore();
@@ -255,185 +256,265 @@ export const DashboardHomeScreen = () => {
     navigation.navigate("Sessions");
   };
 
+  const carouselPages = ["performance", "recommended", "recent"] as const;
+  const [activePage, setActivePage] = useState(0);
+  const carouselWidth = Math.max(280, width - 24);
+
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.topShell}>
-        <Text style={[styles.headerCaption, { color: colors.textMuted }]}>Elite Training Hub</Text>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Dashboard</Text>
-      </View>
-
-      <View style={[styles.focusHero, { backgroundColor: colors.primaryStrong }]}> 
-        <View style={styles.focusGlow} />
-        <Text style={[styles.focusKicker, { color: colors.onPrimary }]}>TODAY'S FOCUS</Text>
-        <Text style={[styles.focusTitle, { color: colors.onPrimary }]}>{lastTemplate ? "Your Next Session" : "Set Your Next Session"}</Text>
-        <Text style={[styles.focusDescription, { color: colors.onPrimary }]}>
-          {lastTemplate
-            ? `${lastTemplate.name} is ready. Keep your routine sharp and build match rhythm.`
-            : "Build a high-quality session plan and start with one decisive action."}
-        </Text>
-        <View style={styles.focusActionsRow}>
-          <Pressable style={[styles.focusPrimaryButton, { backgroundColor: colors.onPrimary }]} onPress={startPrimarySession}>
-            <Text style={[styles.focusPrimaryText, { color: colors.primaryStrong }]}>Start Session</Text>
-            <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primaryStrong} />
-          </Pressable>
-          <Pressable style={[styles.focusSecondaryButton, { borderColor: colors.onPrimary }]} onPress={() => navigation.navigate("Practice")}> 
-            <Text style={[styles.focusSecondaryText, { color: colors.onPrimary }]}>View Plan</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.sectionWrap}>
-        <Text style={[styles.sectionHeading, { color: colors.text }]}>Quick Actions</Text>
-        <View style={styles.quickActionsGrid}>
-          <Pressable style={[styles.quickActionCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={startPrimarySession}>
-            <MaterialCommunityIcons name="target" size={22} color={colors.primary} />
-            <Text style={[styles.quickActionTitle, { color: colors.text }]}>Start Session</Text>
-            <Text style={[styles.quickActionMeta, { color: colors.textMuted }]}>Launch focused practice</Text>
-          </Pressable>
-          <Pressable style={[styles.quickActionCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate("AICoach")}>
-            <MaterialCommunityIcons name="robot-outline" size={22} color={colors.primary} />
-            <Text style={[styles.quickActionTitle, { color: colors.text }]}>AI Coach</Text>
-            <Text style={[styles.quickActionMeta, { color: colors.textMuted }]}>Video and tactical review</Text>
-          </Pressable>
-          <Pressable style={[styles.quickActionCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate("Stats")}>
-            <MaterialCommunityIcons name="chart-timeline-variant" size={22} color={colors.primary} />
-            <Text style={[styles.quickActionTitle, { color: colors.text }]}>Stats</Text>
-            <Text style={[styles.quickActionMeta, { color: colors.textMuted }]}>Track progress and form</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.sectionWrap}>
-        <View style={[styles.insightCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <View style={styles.insightHeaderRow}>
-            <Text style={[styles.sectionHeading, { color: colors.text }]}>Weekly Sessions</Text>
-            <Text style={[styles.weekDeltaTag, { color: weekDelta >= 0 ? colors.primary : colors.textMuted }]}>{weekDeltaLabel} vs last week</Text>
-          </View>
-          <View style={styles.chartRow}>
-            {dashboard.weeklyLoad.map((day, index) => {
-              const isToday = toDateKey(new Date().toISOString()) === day.key;
-              return (
-                <View key={day.key} style={styles.chartBarWrap}>
-                  <View style={[styles.chartTrack, { backgroundColor: colors.surfaceMuted, borderColor: isToday ? colors.primary : colors.border }]}> 
-                    <Animated.View
-                      style={[
-                        styles.chartFill,
-                        {
-                          backgroundColor: day.count > 0 ? colors.primary : colors.border,
-                          height: barAnims[index].interpolate({
-                            inputRange: [0, dashboard.maxDailyLoad || 1],
-                            outputRange: [12, 104],
-                            extrapolate: "clamp",
-                          }),
-                          opacity: isToday ? 1 : 0.92,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={[styles.chartDay, { color: isToday ? colors.primary : colors.textMuted }]}>{day.label}</Text>
-                </View>
-              );
-            })}
-          </View>
-          <Text style={[styles.chartHint, { color: colors.textMuted }]}>Total {dashboard.weeklyTotal} sessions this week. Last activity: {dashboard.lastPracticeDate ? new Date(dashboard.lastPracticeDate).toLocaleDateString() : "No activity logged yet"}.</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}> 
+      <View style={styles.content}>
+        <View style={styles.topShell}>
+          <Text style={[styles.headerCaption, { color: colors.textMuted }]}>Elite Training Hub</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Dashboard</Text>
         </View>
 
-        <View style={[styles.insightCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>Performance Insights</Text>
-          <View style={styles.metricRow}><MaterialCommunityIcons name="fire" size={16} color={colors.primary} /><Text style={[styles.metricText, { color: colors.textMuted }]}>Streak: {dashboard.currentStreak} day run</Text></View>
-          <View style={styles.metricRow}><MaterialCommunityIcons name="calendar-week" size={16} color={colors.primary} /><Text style={[styles.metricText, { color: colors.textMuted }]}>Weekly activity: {dashboard.currentWeekActiveDays} days active</Text></View>
-          <View style={styles.metricRow}><MaterialCommunityIcons name="counter" size={16} color={colors.primary} /><Text style={[styles.metricText, { color: colors.textMuted }]}>Volume: {dashboard.totalCompletions} total completions logged</Text></View>
-          <View style={styles.metricRow}><MaterialCommunityIcons name="percent-circle-outline" size={16} color={colors.primary} /><Text style={[styles.metricText, { color: colors.textMuted }]}>Weekly completion: {dashboard.completionRate}%</Text></View>
-        </View>
-      </View>
-
-      <View style={styles.sectionWrap}>
-        <View style={styles.listHeaderRow}>
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>Recommended Routines</Text>
-          <MaterialCommunityIcons name="star-four-points" size={16} color={colors.primary} />
-        </View>
-        {dashboard.consistencyDropping ? (
-          <Text style={[styles.recommendationHint, { color: colors.primary }]}>Focus Area: Fundamentals are prioritised this week.</Text>
-        ) : null}
-        {dashboard.recommendedRoutines.map((routine, index) => (
-          <Pressable
-            key={routine.id}
-            style={[
-              styles.recommendationCard,
-              {
-                borderColor: index === 0 ? colors.primary : colors.border,
-                backgroundColor: colors.surface,
-              },
-            ]}
-            onPress={() =>
-              navigation.navigate("Practice", {
-                screen: "RoutineDetail",
-                params: { routineId: routine.id },
-              })
-            }
-          >
-            <View style={styles.listTextWrap}>
-              <View style={styles.recoTopRow}>
-                <Text style={[styles.listTitle, { color: colors.text }]}>{routine.name}</Text>
-                {index === 0 ? <Text style={[styles.recoPill, { color: colors.primary }]}>Recommended</Text> : null}
-              </View>
-              <Text style={[styles.listMeta, { color: colors.textMuted }]}>{routine.categoryName} • {routine.note}</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.sectionWrap}>
-        <Text style={[styles.sectionHeading, { color: colors.text }]}>Recent Routines</Text>
-        {dashboard.recentActivity.length === 0 ? (
-          <Text style={[styles.chartHint, { color: colors.textMuted }]}>No routine activity yet.</Text>
-        ) : (
-          dashboard.recentActivity.map((item) => (
-            <Pressable
-              key={`${item.id}-${item.date}`}
-              style={[styles.recentItem, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-              onPress={() =>
-                navigation.navigate("Practice", {
-                  screen: "RoutineDetail",
-                  params: { routineId: item.id },
-                })
-              }
-            >
-              <View style={styles.listTextWrap}>
-                <Text style={[styles.listTitle, { color: colors.text }]}>{item.name}</Text>
-                <Text style={[styles.listMeta, { color: colors.textMuted }]}>{new Date(item.date).toLocaleDateString()}</Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
+        <View style={[styles.focusHero, { backgroundColor: colors.primaryStrong }]}> 
+          <View style={styles.focusGlow} />
+          <Text style={[styles.focusKicker, { color: colors.onPrimary }]}>TODAY'S FOCUS</Text>
+          <Text style={[styles.focusTitle, { color: colors.onPrimary }]}>{lastTemplate ? "Your Next Session" : "Set Your Next Session"}</Text>
+          <Text style={[styles.focusDescription, { color: colors.onPrimary }]}> 
+            {lastTemplate
+              ? `${lastTemplate.name} is ready. Keep your routine sharp and build match rhythm.`
+              : "Build a high-quality session plan and start with one decisive action."}
+          </Text>
+          <View style={styles.focusActionsRow}>
+            <Pressable style={[styles.focusPrimaryButton, { backgroundColor: colors.onPrimary }]} onPress={startPrimarySession}>
+              <Text style={[styles.focusPrimaryText, { color: colors.primaryStrong }]}>Start Session</Text>
+              <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primaryStrong} />
             </Pressable>
-          ))
-        )}
-      </View>
+            <Pressable style={[styles.focusSecondaryButton, { borderColor: "rgba(255,255,255,0.45)" }]} onPress={() => navigation.navigate("Practice")}>
+              <Text style={[styles.focusSecondaryText, { color: colors.onPrimary }]}>View Plan</Text>
+            </Pressable>
+          </View>
+        </View>
 
-      <View style={styles.bottomSpace} />
-    </ScrollView>
+        <View style={styles.sectionWrap}>
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>Quick Actions</Text>
+          <View style={styles.quickActionsGrid}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.quickActionCard,
+                { backgroundColor: colors.surface, borderColor: pressed ? colors.primary : colors.border },
+                pressed && styles.quickActionCardPressed,
+              ]}
+              onPress={startPrimarySession}
+            >
+              <MaterialCommunityIcons name="target" size={24} color={colors.primary} />
+              <Text style={[styles.quickActionTitle, { color: colors.text }]}>Start Session</Text>
+              <Text style={[styles.quickActionMeta, { color: colors.textMuted }]}>Focused practice</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.quickActionCard,
+                { backgroundColor: colors.surface, borderColor: pressed ? colors.primary : colors.border },
+                pressed && styles.quickActionCardPressed,
+              ]}
+              onPress={() => navigation.navigate("AICoach")}
+            >
+              <MaterialCommunityIcons name="robot-outline" size={24} color={colors.primary} />
+              <Text style={[styles.quickActionTitle, { color: colors.text }]}>AI Coach</Text>
+              <Text style={[styles.quickActionMeta, { color: colors.textMuted }]}>Review and analysis</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.quickActionCard,
+                { backgroundColor: colors.surface, borderColor: pressed ? colors.primary : colors.border },
+                pressed && styles.quickActionCardPressed,
+              ]}
+              onPress={() => navigation.navigate("Stats")}
+            >
+              <MaterialCommunityIcons name="chart-timeline-variant" size={24} color={colors.primary} />
+              <Text style={[styles.quickActionTitle, { color: colors.text }]}>Stats</Text>
+              <Text style={[styles.quickActionMeta, { color: colors.textMuted }]}>Progress and form</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.carouselSection}>
+          <FlatList
+            horizontal
+            pagingEnabled
+            data={carouselPages as unknown as string[]}
+            keyExtractor={(item) => item}
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={carouselWidth}
+            decelerationRate="fast"
+            contentContainerStyle={styles.carouselTrack}
+            onScroll={(event) => {
+              const x = event.nativeEvent.contentOffset.x;
+              const index = Math.floor((x + carouselWidth * 0.5) / carouselWidth);
+              setActivePage(index);
+            }}
+            scrollEventThrottle={16}
+            renderItem={({ item }) => (
+              <View style={[styles.carouselPage, { width: carouselWidth }]}> 
+                {item === "performance" ? (
+                  <View style={styles.pageShell}>
+                    <View style={styles.pageDominant}> 
+                      <View style={styles.insightHeaderRow}>
+                        <Text style={[styles.pageTitle, { color: colors.text }]}>Performance Overview</Text>
+                        <Text style={[styles.weekDeltaTag, { color: weekDelta >= 0 ? colors.primary : colors.textMuted }]}>{weekDeltaLabel}</Text>
+                      </View>
+                      <View style={styles.chartRow}>
+                        {dashboard.weeklyLoad.map((day, index) => {
+                          const isToday = toDateKey(new Date().toISOString()) === day.key;
+                          return (
+<View key={day.key} style={styles.chartBarWrap}> 
+                              <View style={[styles.chartTrack, { backgroundColor: colors.surface, borderWidth: 1, borderColor: isToday ? colors.primary : colors.border }]}> 
+                                <Animated.View
+                                  style={[
+                                    styles.chartFill,
+                                    {
+                                      backgroundColor: day.count > 0 ? colors.primary : colors.border,
+                                      height: barAnims[index].interpolate({
+                                        inputRange: [0, dashboard.maxDailyLoad || 1],
+                                        outputRange: [14, 172],
+                                        extrapolate: "clamp",
+                                      }),
+                                    },
+                                  ]}
+                                />
+                              </View>
+                              <Text style={[styles.chartDay, { color: isToday ? colors.primary : colors.textMuted }]}>{day.label}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    <View style={styles.statsStrip}>
+                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}> 
+                        <Text style={[styles.statValue, { color: colors.text }]}>{dashboard.currentStreak}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Streak</Text>
+                      </View>
+                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}> 
+                        <Text style={[styles.statValue, { color: colors.text }]}>{dashboard.currentWeekActiveDays}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Active Days</Text>
+                      </View>
+                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}> 
+                        <Text style={[styles.statValue, { color: colors.text }]}>{dashboard.completionRate}%</Text>
+                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Completion</Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
+
+                {item === "recommended" ? (
+                  <View style={styles.pageShell}>
+                    <Text style={[styles.pageTitle, { color: colors.text }]}>Recommended Training</Text>
+                    {dashboard.consistencyDropping ? (
+                      <Text style={[styles.recommendationHint, { color: colors.primary }]}>Focus: fundamentals this week.</Text>
+                    ) : null}
+                    {dashboard.recommendedRoutines.slice(0, 4).map((routine, index) => (
+                      <Pressable
+                        key={routine.id}
+                        style={({ pressed }) => [
+                          styles.featureRoutineCard,
+                          {
+                            backgroundColor: colors.surface,
+                            borderColor: index === 0 ? colors.primary : "transparent",
+                            transform: [{ scale: pressed ? 0.985 : 1 }],
+                          },
+                        ]}
+                        onPress={() =>
+                          navigation.navigate("Practice", {
+                            screen: "RoutineDetail",
+                            params: { routineId: routine.id },
+                          })
+                        }
+                      >
+                        <View style={styles.listTextWrap}>
+                          <Text style={[styles.listTitle, { color: colors.text }]}>{routine.name}</Text>
+                          <Text style={[styles.listMeta, { color: colors.textMuted }]}>{routine.categoryName}</Text>
+                          <Text style={[styles.featureRoutineMeta, { color: colors.primary }]}>{routine.note}</Text>
+                        </View>
+                        <MaterialCommunityIcons name="chevron-right" size={18} color={colors.primary} />
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+
+                {item === "recent" ? (
+                  <View style={styles.pageShell}>
+                    <View style={styles.pageTopBlock}>
+                      <Text style={[styles.pageTitle, { color: colors.text }]}>Recent Activity</Text>
+                      {dashboard.recentActivity.length === 0 ? (
+                        <Text style={[styles.chartHint, { color: colors.textMuted }]}>No routine activity yet.</Text>
+                      ) : (
+                        <View style={styles.recentListWrap}>
+                          {dashboard.recentActivity.slice(0, 5).map((itemEntry, index) => (
+                            <Pressable
+                              key={`${itemEntry.id}-${itemEntry.date}`}
+                              style={[
+                                styles.recentItem,
+                                { borderColor: "transparent", backgroundColor: "transparent" },
+                                index < 4 && styles.recentItemDivider,
+                              ]}
+                              onPress={() =>
+                                navigation.navigate("Practice", {
+                                  screen: "RoutineDetail",
+                                  params: { routineId: itemEntry.id },
+                                })
+                              }
+                            >
+                              <View style={styles.recentBullet} />
+                              <View style={styles.listTextWrap}>
+                                <Text style={[styles.recentTitle, { color: colors.text }]}>{itemEntry.name}</Text>
+                                <Text style={[styles.listMeta, { color: colors.textMuted }]}>{new Date(itemEntry.date).toLocaleDateString()}</Text>
+                              </View>
+                              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={[styles.pageBottomAnchor, styles.recentFooter, { backgroundColor: colors.surfaceMuted }]}> 
+                      <Text style={[styles.recentFooterValue, { color: colors.text }]}>{dashboard.weeklyTotal}</Text>
+                      <Text style={[styles.recentFooterLabel, { color: colors.textMuted }]}>Total sessions this week</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            )}
+          />
+
+          <View style={styles.carouselDots}>
+            {carouselPages.map((page, index) => (
+              <View
+                key={page}
+                style={[
+                  styles.carouselDot,
+                  {
+                    backgroundColor: index === activePage ? colors.primary : colors.textMuted,
+                    opacity: index === activePage ? 0.95 : 0.35,
+                    transform: [{ scale: index === activePage ? 1.16 : 1 }],
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 22 },
-  topShell: { marginBottom: 10 },
+  content: { flex: 1, padding: 14, paddingBottom: 8 },
+  topShell: { marginBottom: 6 },
   headerCaption: { fontSize: 12, fontWeight: "700", letterSpacing: 0.7, textTransform: "uppercase" },
-  headerTitle: { marginTop: 2, fontSize: 34, fontWeight: "900" },
+  headerTitle: { marginTop: 2, fontSize: 28, fontWeight: "900" },
   focusHero: {
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 14,
+    borderRadius: 18,
+    padding: 10,
+    marginBottom: 7,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOpacity: 0.24,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 2,
   },
   focusGlow: {
     position: "absolute",
@@ -442,55 +523,110 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     right: -44,
     top: -40,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
   focusKicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
-  focusTitle: { marginTop: 8, fontSize: 32, fontWeight: "900", lineHeight: 36 },
-  focusDescription: { marginTop: 6, fontSize: 14, lineHeight: 20, maxWidth: "88%" },
+  focusTitle: { marginTop: 4, fontSize: 21, fontWeight: "900", lineHeight: 24 },
+  focusDescription: { marginTop: 3, fontSize: 12, lineHeight: 15, maxWidth: "100%" },
   focusActionsRow: {
-    marginTop: 16,
+    marginTop: 8,
     flexDirection: "row",
     gap: 8,
   },
   focusPrimaryButton: {
     flex: 1,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  focusPrimaryText: { fontSize: 15, fontWeight: "900" },
+  focusPrimaryText: { fontSize: 13, fontWeight: "900" },
   focusSecondaryButton: {
     borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     justifyContent: "center",
   },
-  focusSecondaryText: { fontSize: 13, fontWeight: "800" },
+  focusSecondaryText: { fontSize: 12, fontWeight: "800" },
   sectionWrap: {
-    marginTop: 12,
+    marginTop: 8,
   },
-  sectionHeading: { fontSize: 17, fontWeight: "900", marginBottom: 10 },
+  sectionHeading: { fontSize: 16, fontWeight: "900", marginBottom: 8 },
   quickActionsGrid: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
   },
   quickActionCard: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    borderWidth: 0,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
   },
-  quickActionTitle: { marginTop: 8, fontSize: 14, fontWeight: "800" },
-  quickActionMeta: { marginTop: 2, fontSize: 11 },
+  quickActionCardPressed: {
+    transform: [{ scale: 0.98 }],
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  quickActionTitle: { marginTop: 6, fontSize: 12, fontWeight: "800" },
+  quickActionMeta: { marginTop: 1, fontSize: 10 },
+  pageShell: {
+    flex: 1,
+    gap: 8,
+    justifyContent: "space-between",
+  },
+  pageTopBlock: {
+    flex: 1,
+  },
+  pageBottomAnchor: {
+    marginTop: 8,
+  },
+  recommendedSecondaryWrap: {
+    paddingTop: 2,
+  },
+  pageDominant: {
+    flex: 1.6,
+    borderRadius: 14,
+    padding: 10,
+  },
+  pageTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  statsStrip: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+  },
+  statChip: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  statLabel: {
+    marginTop: 2,
+    fontSize: 10,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
   insightCard: {
+    flex: 1,
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 10,
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 0,
   },
   insightHeaderRow: {
     flexDirection: "row",
@@ -506,16 +642,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 9,
+    marginBottom: 6,
   },
-  metricText: { fontSize: 13, lineHeight: 18 },
-  recommendationHint: { marginBottom: 8, fontSize: 12, fontWeight: "700" },
-  recommendationCard: {
+  metricText: { fontSize: 12, lineHeight: 16 },
+  recommendationHint: { marginBottom: 6, fontSize: 11, fontWeight: "700" },
+  featureRoutineCard: {
     borderWidth: 1,
     borderRadius: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 12,
     marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  featureRoutineTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  featureRoutineMeta: {
+    marginTop: 3,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  supportRoutineRow: {
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  recommendationCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 6,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -539,39 +702,108 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  listTitle: { fontSize: 14, fontWeight: "700" },
-  listMeta: { fontSize: 12, marginTop: 2 },
+  listTitle: { fontSize: 13, fontWeight: "700" },
+  listMeta: { fontSize: 11, marginTop: 2 },
   chartRow: {
     marginTop: 4,
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  chartBarWrap: { width: 36, alignItems: "center" },
+  chartBarWrap: { width: 34, alignItems: "center" },
   chartTrack: {
-    height: 108,
-    width: 22,
-    borderRadius: 12,
+    height: 170,
+    width: 24,
+    borderRadius: 13,
     borderWidth: 1,
     justifyContent: "flex-end",
-    paddingHorizontal: 2,
-    paddingBottom: 2,
+    overflow: "hidden",
   },
   chartFill: {
-    width: "100%",
-    borderRadius: 10,
-    minHeight: 12,
+    position: "absolute",
+    left: -1.5,
+    right: -1.5,
+    bottom: -1.5,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 14,
   },
-  chartDay: { marginTop: 6, fontSize: 11, fontWeight: "700" },
-  chartHint: { marginTop: 8, fontSize: 12 },
+  chartDay: { marginTop: 5, fontSize: 10, fontWeight: "700" },
+  chartHint: { marginTop: 6, fontSize: 11 },
   recentItem: {
-    borderWidth: 1,
+    borderWidth: 0,
     borderRadius: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 11,
-    marginBottom: 7,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 4,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  bottomSpace: { height: 8 },
+  recentListWrap: {
+    marginTop: 3,
+  },
+  recentItemDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(120,120,120,0.18)",
+  },
+  recentBullet: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(90,180,140,0.55)",
+    marginRight: 10,
+    marginTop: 3,
+  },
+  recentTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  recentFooter: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+  },
+  recentFooterValue: {
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  recentFooterLabel: {
+    marginTop: 2,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  carouselSection: {
+    marginTop: 8,
+    flex: 1,
+  },
+  carouselTrack: {
+    paddingRight: 4,
+  },
+  carouselPage: {
+    paddingRight: 8,
+    paddingBottom: 2,
+  },
+  stackedPage: {
+    flex: 1,
+    gap: 8,
+  },
+  stackedCardTop: {
+    flex: 1.05,
+  },
+  stackedCardBottom: {
+    flex: 0.95,
+  },
+  carouselDots: {
+    marginTop: 3,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  carouselDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
 });

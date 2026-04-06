@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.georgechara.snookerlab",
       "supportsTablet": false,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Snooker Lab may access your location while using AR routine setup to improve motion tracking and camera alignment."
       }
     },
     "android": {

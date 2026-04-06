@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LiveFrameEvent as SavedLiveFrameEvent, MatchesStackParamList } from "../../types";
 import { useAuthStore, useMatchesStore } from "../../store";
@@ -109,7 +110,7 @@ export const LiveFrameScoringScreen = () => {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useAppTheme();
   const { user } = useAuthStore();
-  const { getMatchById, getFrameRecordsByMatchId, getNextFrameNumber, saveFrameRecord, updateMatch } = useMatchesStore();
+  const { getMatchById, getFrameRecordsByMatchId, getNextFrameNumber, saveFrameRecord, updateMatch, deleteMatch } = useMatchesStore();
   const match = getMatchById(route.params.matchId);
 
   const frameRecords = getFrameRecordsByMatchId(route.params.matchId);
@@ -125,10 +126,19 @@ export const LiveFrameScoringScreen = () => {
   const [raceToInput, setRaceToInput] = useState("4");
   const [foulBannerText, setFoulBannerText] = useState<string | null>(null);
   const [selectedSavedFrameId, setSelectedSavedFrameId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"match" | "stats" | "log">("match");
+  const [potNotice, setPotNotice] = useState<string | null>(null);
 
   const scorePulse = useRef(new Animated.Value(1)).current;
   const breakPulse = useRef(new Animated.Value(1)).current;
   const foulBannerY = useRef(new Animated.Value(-70)).current;
+  const noticeBannerY = useRef(new Animated.Value(-70)).current;
+  const userActiveAnim = useRef(new Animated.Value(frame.atTable === "user" ? 1 : 0)).current;
+  const opponentActiveAnim = useRef(new Animated.Value(frame.atTable === "opponent" ? 1 : 0)).current;
+  const userScoreScale = useRef(new Animated.Value(1)).current;
+  const opponentScoreScale = useRef(new Animated.Value(1)).current;
+  const previousScoresRef = useRef({ user: frame.userScore, opponent: frame.opponentScore });
+  const allowExitWithoutGuardRef = useRef(false);
 
   const pointsRemaining = getPointsRemaining(frame);
   const snookersRequired = getSnookersRequired(frame);
@@ -157,20 +167,70 @@ export const LiveFrameScoringScreen = () => {
 
   const frameStats = useMemo(() => summarizeFrameStats(frame), [frame]);
   const selectedSavedFrame = useMemo(() => frameRecords.find((record) => record.id === selectedSavedFrameId), [frameRecords, selectedSavedFrameId]);
+  const scoreDiff = Math.abs(frame.userScore - frame.opponentScore);
+  const potCounts = useMemo(() => {
+    const createEmptyCounts = (): Record<LiveBall, number> => ({
+      red: 0,
+      yellow: 0,
+      green: 0,
+      brown: 0,
+      blue: 0,
+      pink: 0,
+      black: 0,
+    });
+
+    const user = createEmptyCounts();
+    const opponent = createEmptyCounts();
+
+    frame.events.forEach((event) => {
+      if (event.kind !== "pot" || !event.ball) return;
+      if (event.player === "user") user[event.ball] += 1;
+      if (event.player === "opponent") opponent[event.ball] += 1;
+    });
+
+    return { user, opponent };
+  }, [frame.events]);
+
+  const playerCards = useMemo(
+    () => [
+      {
+        key: "user" as const,
+        name: userLabel,
+        score: frame.userScore,
+        highBreak: frame.highestBreakUser,
+        isActive: frame.atTable === "user",
+        potCounts: potCounts.user,
+      },
+      {
+        key: "opponent" as const,
+        name: opponentLabel,
+        score: frame.opponentScore,
+        highBreak: frame.highestBreakOpponent,
+        isActive: frame.atTable === "opponent",
+        potCounts: potCounts.opponent,
+      },
+    ],
+    [frame.atTable, frame.highestBreakOpponent, frame.highestBreakUser, frame.opponentScore, frame.userScore, opponentLabel, potCounts.opponent, potCounts.user, userLabel]
+  );
+
+  const orderedPlayerCards = useMemo(
+    () => [...playerCards].sort((a, b) => Number(b.isActive) - Number(a.isActive)),
+    [playerCards]
+  );
 
   const ui = useMemo(
     () =>
       isDark
         ? {
-            page: "#081310",
-            panel: "#0F201A",
-            panelAlt: "#0E1B17",
-            panelSoft: "#11231D",
-            border: "#2C4D41",
-            borderStrong: "#3B5E52",
-            text: "#ECFFF7",
-            textMuted: "#9BC7B8",
-            accent: "#7CE0B8",
+            page: "#040A08",
+            panel: "#0A1613",
+            panelAlt: "#09110F",
+            panelSoft: "#0F211C",
+            border: "#1D3830",
+            borderStrong: "#2B5145",
+            text: "#ECFFF6",
+            textMuted: "#8DB3A4",
+            accent: "#6EE0B1",
             snookerBg: "#4C1F1F",
             snookerBorder: "#975050",
             snookerText: "#FCD8D8",
@@ -197,6 +257,50 @@ export const LiveFrameScoringScreen = () => {
     const currentBestOf = getBestOfFrames(match.format, match.target_frames) ?? 7;
     setRaceToInput(String(currentBestOf));
   }, [match?.format, match?.target_frames]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(userActiveAnim, {
+        toValue: frame.atTable === "user" ? 1 : 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opponentActiveAnim, {
+        toValue: frame.atTable === "opponent" ? 1 : 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [frame.atTable, opponentActiveAnim, userActiveAnim]);
+
+  useEffect(() => {
+    const previous = previousScoresRef.current;
+    const animations: Animated.CompositeAnimation[] = [];
+
+    if (frame.userScore !== previous.user) {
+      animations.push(
+        Animated.sequence([
+          Animated.timing(userScoreScale, { toValue: 1.12, duration: 120, useNativeDriver: true }),
+          Animated.timing(userScoreScale, { toValue: 1, duration: 130, useNativeDriver: true }),
+        ])
+      );
+    }
+
+    if (frame.opponentScore !== previous.opponent) {
+      animations.push(
+        Animated.sequence([
+          Animated.timing(opponentScoreScale, { toValue: 1.12, duration: 120, useNativeDriver: true }),
+          Animated.timing(opponentScoreScale, { toValue: 1, duration: 130, useNativeDriver: true }),
+        ])
+      );
+    }
+
+    if (animations.length > 0) {
+      Animated.parallel(animations).start();
+    }
+
+    previousScoresRef.current = { user: frame.userScore, opponent: frame.opponentScore };
+  }, [frame.opponentScore, frame.userScore, opponentScoreScale, userScoreScale]);
 
   const syncRaceInputFromMatch = () => {
     if (!match) return;
@@ -244,6 +348,25 @@ export const LiveFrameScoringScreen = () => {
     ]).start(() => setFoulBannerText(null));
   };
 
+  const showPotNotice = (text: string) => {
+    setPotNotice(text);
+    Animated.sequence([
+      Animated.timing(noticeBannerY, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.delay(1050),
+      Animated.timing(noticeBannerY, { toValue: -70, duration: 220, useNativeDriver: true }),
+    ]).start(() => setPotNotice(null));
+  };
+
+  const getBallGradient = (ball: LiveBall): readonly [string, string, string] => {
+    if (ball === "red") return ["#F06169", "#B1222B", "#65090F"];
+    if (ball === "yellow") return ["#FFE68B", "#D2AC2A", "#8D6500"];
+    if (ball === "green") return ["#4DBA7D", "#1D7A4A", "#0C4A2B"];
+    if (ball === "brown") return ["#B08563", "#7A4D32", "#4B2A19"];
+    if (ball === "blue") return ["#67A7E8", "#2F6FB2", "#153C73"];
+    if (ball === "pink") return ["#F7A9C7", "#DB6E9E", "#9F3D67"];
+    return ["#737373", "#252525", "#070707"];
+  };
+
   const applyFrameMutation = (mutator: (state: LiveFrameState) => LiveFrameState, options?: { scoreChange?: boolean }) => {
     setFrame((current) => {
       const next = mutator(current);
@@ -258,10 +381,22 @@ export const LiveFrameScoringScreen = () => {
   };
 
   const handlePot = (ball: LiveBall) => {
+    if (frame.phase === "reds") {
+      if (!frame.awaitingColorAfterRed && ball !== "red") {
+        showPotNotice("Red on. Pot a red first.");
+        return;
+      }
+
+      if (frame.awaitingColorAfterRed && ball === "red") {
+        showPotNotice("Colour on. Pot a colour before the next red.");
+        return;
+      }
+    }
+
     if (frame.phase === "colors") {
       const expected = COLOR_SEQUENCE[frame.nextColorIndex];
       if (ball !== expected) {
-        Alert.alert("Colors sequence", `Next ball on is ${expected.toUpperCase()}.`);
+        showPotNotice(`Next ball on: ${expected.toUpperCase()}.`);
         return;
       }
     }
@@ -383,6 +518,44 @@ export const LiveFrameScoringScreen = () => {
     ]);
   };
 
+  useEffect(() => {
+    if (!match) return;
+
+    const canAutoDiscardEmptyMatch =
+      frameRecords.length === 0 &&
+      frame.events.length === 0 &&
+      match.user_score === 0 &&
+      match.opponent_score === 0 &&
+      frame.userScore === 0 &&
+      frame.opponentScore === 0;
+
+    const unsubscribe = navigation.addListener("beforeRemove", (event) => {
+      if (allowExitWithoutGuardRef.current || !canAutoDiscardEmptyMatch || isSaving) return;
+
+      event.preventDefault();
+      Alert.alert("Discard empty match?", "No frames were played. This empty 0-0 match will be removed.", [
+        { text: "Keep", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMatch(match.id);
+            } catch (error) {
+              Alert.alert("Could not discard", "Please try again.");
+              return;
+            }
+
+            allowExitWithoutGuardRef.current = true;
+            navigation.dispatch(event.data.action);
+          },
+        },
+      ]);
+    });
+
+    return unsubscribe;
+  }, [deleteMatch, frame.events.length, frame.opponentScore, frame.userScore, frameRecords.length, isSaving, match, navigation]);
+
   if (!match) {
     return (
       <View style={[styles.missingWrap, { backgroundColor: colors.background }]}> 
@@ -396,229 +569,306 @@ export const LiveFrameScoringScreen = () => {
       <Animated.View style={[styles.foulBanner, { transform: [{ translateY: foulBannerY }] }]}> 
         <Text style={styles.foulBannerText}>{foulBannerText ?? ""}</Text>
       </Animated.View>
+      <Animated.View style={[styles.noticeBanner, { transform: [{ translateY: noticeBannerY }] }]}> 
+        <Text style={styles.noticeBannerText}>{potNotice ?? ""}</Text>
+      </Animated.View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 18 }]}> 
-        <View style={styles.topMetaRow}>
-          <Text style={[styles.topMetaText, { color: ui.textMuted }]}>Frame {frame.frameNumber}</Text>
-          <Text style={[styles.topMetaText, { color: ui.textMuted }]}>Match {matchFrameWins.user}-{matchFrameWins.opponent}</Text>
-        </View>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 226 }]}> 
+        <View style={[styles.matchHeader, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
+          <Text style={[styles.matchTitle, { color: ui.text }]}>Frame {frame.frameNumber}</Text>
+          <Text style={[styles.matchFramescore, { color: ui.accent }]}>{matchFrameWins.user}-{matchFrameWins.opponent}</Text>
+          <Text style={[styles.matchContext, { color: ui.textMuted }]}> 
+            {userLabel} vs {opponentLabel}
+          </Text>
+          <Text style={[styles.matchContext, { color: ui.textMuted }]}> 
+            {scoreDiff === 0
+              ? "Frame level"
+              : `${frame.userScore > frame.opponentScore ? userLabel : opponentLabel} leads by ${scoreDiff}`}
+          </Text>
 
-        {firstToWins ? (
-          <View style={[styles.matchRaceBanner, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
-            <Text style={[styles.matchRaceText, { color: ui.text }]}>Best out of {bestOfFrames} (First to {firstToWins})</Text>
-            <Text style={[styles.matchRaceMeta, { color: ui.textMuted }]}> 
-              {userLabel} {matchFrameWins.user} - {matchFrameWins.opponent} {opponentLabel}
-            </Text>
-            {isMatchComplete ? (
-              <Text style={[styles.matchCompleteText, { color: ui.accent }]}> 
-                Match complete: {matchFrameWins.user > matchFrameWins.opponent ? userLabel : opponentLabel} won.
-              </Text>
-            ) : null}
-            <View style={styles.raceAdjustWrap}>
-              {Array.from({ length: 10 }, (_, index) => index * 2 + 1).map((race) => (
-                <Pressable
-                  key={race}
-                  style={[
-                    styles.raceChip,
-                    { backgroundColor: ui.panelSoft, borderColor: ui.borderStrong },
-                    String(race) === raceToInput && [styles.raceChipActive, { backgroundColor: colors.primaryStrong, borderColor: colors.primary }],
-                  ]}
-                  onPress={() => {
-                    setRaceToInput(String(race));
-                    applyRaceToUpdate(race);
-                  }}
-                >
-                  <Text style={[styles.raceChipText, { color: ui.textMuted }, String(race) === raceToInput && [styles.raceChipTextActive, { color: colors.onPrimary }]]}>{race}</Text>
-                </Pressable>
-              ))}
-            </View>
+          {firstToWins ? (
             <View style={styles.raceRow}>
+              <Text style={[styles.raceDescriptor, { color: ui.textMuted }]}>Best of {bestOfFrames} (first to {firstToWins})</Text>
               <TextInput
                 value={raceToInput}
                 onFocus={syncRaceInputFromMatch}
                 onChangeText={setRaceToInput}
                 onEndEditing={() => {
                   const typed = Math.max(1, parseInt(raceToInput) || 1);
-                  if (typed <= 19) {
-                    applyRaceToUpdate(typed);
-                  }
+                  applyRaceToUpdate(typed);
                 }}
                 keyboardType="numeric"
+                editable={!isUpdatingRace}
                 style={[styles.raceInput, { borderColor: ui.borderStrong, backgroundColor: ui.panelSoft, color: ui.text }]}
-                placeholder="Best out of"
+                placeholder="Best of"
                 placeholderTextColor={ui.textMuted}
               />
-              {(Math.max(1, parseInt(raceToInput) || 1) > 19) ? (
-                <Pressable
-                  style={[styles.raceApplyButton, { backgroundColor: colors.primaryStrong, borderColor: colors.primary }, isUpdatingRace && { opacity: 0.7 }]}
-                  onPress={() => applyRaceToUpdate(Math.max(1, parseInt(raceToInput) || 1))}
-                  disabled={isUpdatingRace}
-                >
-                  <Text style={[styles.raceApplyText, { color: colors.onPrimary }]}>{isUpdatingRace ? "Applying..." : "Set Best Of"}</Text>
-                </Pressable>
-              ) : null}
             </View>
-          </View>
-        ) : null}
+          ) : null}
 
-        <Animated.View style={[styles.scoreboardCard, { transform: [{ scale: scorePulse }], backgroundColor: ui.panel, borderColor: ui.border }]}> 
-          <View style={[styles.playerPanel, { backgroundColor: ui.panelSoft, borderColor: ui.borderStrong }, frame.atTable === "user" && [styles.playerPanelActive, { borderColor: colors.primary }]]}>
-            <Text style={[styles.playerName, { color: ui.textMuted }]}>{userLabel}</Text>
-            <Text style={[styles.playerScore, { color: ui.text }]}>{frame.userScore}</Text>
-            <Text style={[styles.breakMeta, { color: ui.textMuted }]}>High {frame.highestBreakUser}</Text>
-          </View>
+          {isUpdatingRace ? <Text style={[styles.matchContext, { color: ui.textMuted }]}>Updating match race...</Text> : null}
 
-          <View style={styles.centerMeta}>
-            <Text style={[styles.centerLabel, { color: ui.textMuted }]}>At Table</Text>
-            <Text style={[styles.centerValue, { color: ui.text }]}>{frame.atTable === "user" ? userLabel : opponentLabel}</Text>
-            <Animated.Text style={[styles.currentBreakText, { transform: [{ scale: breakPulse }], color: ui.accent }]}>Break {frame.currentBreak}</Animated.Text>
-          </View>
+          {isMatchComplete ? (
+            <Text style={[styles.matchCompleteText, { color: ui.accent }]}> 
+              Match complete: {matchFrameWins.user > matchFrameWins.opponent ? userLabel : opponentLabel} won.
+            </Text>
+          ) : null}
 
-          <View style={[styles.playerPanel, { backgroundColor: ui.panelSoft, borderColor: ui.borderStrong }, frame.atTable === "opponent" && [styles.playerPanelActive, { borderColor: colors.primary }]]}>
-            <Text style={[styles.playerName, { color: ui.textMuted }]}>{opponentLabel}</Text>
-            <Text style={[styles.playerScore, { color: ui.text }]}>{frame.opponentScore}</Text>
-            <Text style={[styles.breakMeta, { color: ui.textMuted }]}>High {frame.highestBreakOpponent}</Text>
+          <View style={styles.tabRow}>
+            {[
+              { key: "match", label: "Match" },
+              { key: "stats", label: "Stats" },
+              { key: "log", label: "Log" },
+            ].map((tab) => (
+              <Pressable
+                key={tab.key}
+                style={[
+                  styles.tabPill,
+                  { borderColor: ui.borderStrong, backgroundColor: ui.panelSoft },
+                  activeTab === tab.key && { backgroundColor: colors.primaryStrong, borderColor: colors.primary },
+                ]}
+                onPress={() => setActiveTab(tab.key as "match" | "stats" | "log")}
+              >
+                <Text style={[styles.tabPillText, { color: activeTab === tab.key ? colors.onPrimary : ui.textMuted }]}>{tab.label}</Text>
+              </Pressable>
+            ))}
           </View>
+        </View>
+
+        <Animated.View style={[styles.playerZone, { transform: [{ scale: scorePulse }] }]}> 
+          {orderedPlayerCards.map((card) => {
+            const activeAnim = card.key === "user" ? userActiveAnim : opponentActiveAnim;
+            const scoreAnim = card.key === "user" ? userScoreScale : opponentScoreScale;
+            const cardScale = activeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
+            const cardOpacity = activeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+
+            return (
+              <Pressable
+                key={card.key}
+                disabled={card.isActive}
+                onPress={() => applyFrameMutation((state) => switchPlayer(state))}
+                style={styles.playerPressArea}
+              >
+                <Animated.View
+                  style={[
+                    styles.playerMatchCard,
+                    {
+                      backgroundColor: card.isActive ? ui.panel : ui.panelAlt,
+                      borderColor: card.isActive ? colors.primary : ui.border,
+                      opacity: cardOpacity,
+                      transform: [{ scale: cardScale }],
+                    },
+                    card.isActive && [styles.playerMatchCardActive, { shadowColor: colors.primary }],
+                  ]}
+                >
+                  <View style={styles.playerMatchCardTop}>
+                    <Text style={[styles.playerMatchName, { color: ui.text }]}>{card.name}</Text>
+                    <Text
+                      style={[
+                        styles.playerBadge,
+                        {
+                          backgroundColor: card.isActive ? colors.primaryStrong : ui.panelSoft,
+                          color: card.isActive ? colors.onPrimary : ui.textMuted,
+                          borderColor: card.isActive ? colors.primary : ui.borderStrong,
+                        },
+                      ]}
+                    >
+                      {card.isActive ? "AT TABLE" : "TAP TO SWITCH"}
+                    </Text>
+                  </View>
+
+                  <Animated.Text style={[styles.playerMatchScore, { color: ui.text, transform: [{ scale: scoreAnim }] }]}>{card.score}</Animated.Text>
+
+                  {card.isActive ? (
+                    <Animated.Text style={[styles.breakHighlight, { color: ui.accent, transform: [{ scale: breakPulse }] }]}>Break: {frame.currentBreak}</Animated.Text>
+                  ) : (
+                    <Text style={[styles.breakSupporting, { color: ui.textMuted }]}>High break {card.highBreak}</Text>
+                  )}
+
+                  {snookersRequired && snookersRequired.player === card.key ? (
+                    <Text style={[styles.breakSupporting, { color: ui.snookerText }]}>Needs snookers: {snookersRequired.count}</Text>
+                  ) : null}
+
+                  <View style={styles.recentBallRow}>
+                    {BALL_META.filter((item) => card.potCounts[item.key] > 0).length === 0 ? (
+                      <Text style={[styles.recentEmpty, { color: ui.textMuted }]}>No pots yet</Text>
+                    ) : (
+                      BALL_META.filter((item) => card.potCounts[item.key] > 0).map((meta) => {
+                        return (
+                          <View
+                            key={`${card.key}-${meta.key}`}
+                            style={[
+                              styles.recentBallCounter,
+                              { backgroundColor: meta.color, borderColor: "rgba(255,255,255,0.55)" },
+                            ]}
+                          >
+                            <Text style={[styles.recentBallCounterText, { color: meta.textColor }]}>{card.potCounts[meta.key]}</Text>
+                          </View>
+                        );
+                      })
+                    )}
+                  </View>
+                </Animated.View>
+              </Pressable>
+            );
+          })}
         </Animated.View>
 
-        <View style={styles.infoRow}>
-          <View style={[styles.infoChip, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
-            <Text style={[styles.infoChipLabel, { color: ui.textMuted }]}>Reds Left</Text>
-            <Text style={[styles.infoChipValue, { color: ui.text }]}>{frame.redsRemaining}</Text>
-          </View>
-          <View style={[styles.infoChip, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
-            <Text style={[styles.infoChipLabel, { color: ui.textMuted }]}>Points Remaining</Text>
-            <Text style={[styles.infoChipValue, { color: ui.text }]}>{pointsRemaining}</Text>
-          </View>
-          <View style={[styles.infoChip, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
-            <Text style={[styles.infoChipLabel, { color: ui.textMuted }]}>Phase</Text>
-            <Text style={[styles.infoChipValue, { color: ui.text }]}>{frame.phase.toUpperCase()}</Text>
-          </View>
-        </View>
-
-        {snookersRequired ? (
-          <View style={[styles.snookerBanner, { backgroundColor: ui.snookerBg, borderColor: ui.snookerBorder }]}> 
-            <Text style={[styles.snookerBannerText, { color: ui.snookerText }]}> 
-              {(snookersRequired.player === "user" ? userLabel : opponentLabel)} requires {snookersRequired.count} snooker
-              {snookersRequired.count > 1 ? "s" : ""}
-            </Text>
+        {activeTab === "stats" ? (
+          <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
+            <Text style={[styles.sectionTitle, { color: ui.text }]}>Frame Stats</Text>
+            <View style={styles.infoRow}>
+              <View style={[styles.infoChip, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
+                <Text style={[styles.infoChipLabel, { color: ui.textMuted }]}>Reds</Text>
+                <Text style={[styles.infoChipValue, { color: ui.text }]}>{frame.redsRemaining}</Text>
+              </View>
+              <View style={[styles.infoChip, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
+                <Text style={[styles.infoChipLabel, { color: ui.textMuted }]}>Remaining</Text>
+                <Text style={[styles.infoChipValue, { color: ui.text }]}>{pointsRemaining}</Text>
+              </View>
+              <View style={[styles.infoChip, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
+                <Text style={[styles.infoChipLabel, { color: ui.textMuted }]}>Phase</Text>
+                <Text style={[styles.infoChipValue, { color: ui.text }]}>{frame.phase.toUpperCase()}</Text>
+              </View>
+            </View>
+            <View style={styles.analyticsGrid}>
+              <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}>
+                <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Pots</Text>
+                <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.potsCount}</Text>
+              </View>
+              <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}>
+                <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Fouls</Text>
+                <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.foulCount}</Text>
+              </View>
+              <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}>
+                <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Visits</Text>
+                <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.scoringVisits}</Text>
+              </View>
+              <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}>
+                <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Avg Break</Text>
+                <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.averageBreak.toFixed(1)}</Text>
+              </View>
+              <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}>
+                <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Penalty</Text>
+                <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.penaltiesAwarded}</Text>
+              </View>
+            </View>
           </View>
         ) : null}
 
-        <View style={styles.ballGrid}>
-          {BALL_ROWS.map((row, rowIndex) => (
-            <View key={`ball-row-${rowIndex}`} style={styles.ballRow}>
-              {row.map((ballKey) => {
-                const ballMeta = BALL_META.find((item) => item.key === ballKey)!;
-                return (
-                  <Pressable
-                    key={ballMeta.key}
-                    onPress={() => handlePot(ballMeta.key)}
-                    style={({ pressed }) => [
-                      styles.ballButton,
-                      {
-                        backgroundColor: ballMeta.color,
-                        opacity: pressed ? 0.8 : 1,
-                        transform: [{ scale: pressed ? 0.97 : 1 }],
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.ballPoints, { color: ballMeta.textColor }]}>+{BALL_POINTS[ballMeta.key]}</Text>
-                    <Text style={[styles.ballLabel, { color: ballMeta.textColor }]}>{ballMeta.key.toUpperCase()}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
-        </View>
+        {activeTab === "log" ? (
+          <>
+            <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
+              <Text style={[styles.sectionTitle, { color: ui.text }]}>Frame Log</Text>
+              {frame.events.length === 0 ? (
+                <Text style={[styles.emptyLog, { color: ui.textMuted }]}>No events yet.</Text>
+              ) : (
+                frame.events.slice(0, 22).map((event) => {
+                  const stamp = new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  let message = "";
 
-        <View style={styles.controlsWrap}>
-          <AppButton label="End Visit" onPress={() => applyFrameMutation((state) => endVisit(state))} variant="secondary" />
-          <AppButton label="Switch Player" onPress={() => applyFrameMutation((state) => switchPlayer(state))} variant="secondary" />
-          <AppButton label="Foul" onPress={() => setIsFoulOpen(true)} variant="danger" />
-          <AppButton label="Undo" onPress={handleUndo} disabled={undoStack.length === 0} variant="secondary" />
-        </View>
+                  if (event.kind === "pot") message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball} (+${event.points})`;
+                  if (event.kind === "foul") message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType] : "foul"})`;
+                  if (event.kind === "visit_end") message = `${event.player === "user" ? userLabel : opponentLabel} ended visit`;
+                  if (event.kind === "switch") message = `Turn switched from ${event.player === "user" ? userLabel : opponentLabel}`;
+                  if (event.kind === "re_rack") message = "Frame re-racked";
 
-        <View style={styles.secondaryControlsWrap}>
-          <Pressable style={[styles.reRackButton, { backgroundColor: isDark ? "#3B3523" : "#EFE8D2", borderColor: isDark ? "#706B5A" : "#CDBD8F" }]} onPress={handleReRack}>
-            <Text style={[styles.reRackText, { color: isDark ? "#F2E7B5" : "#6F5A20" }]}>Re-rack</Text>
-          </Pressable>
-          <Pressable style={[styles.saveButton, { backgroundColor: colors.primaryStrong, borderColor: colors.primary }]} onPress={handleSaveFrame} disabled={isSaving}>
-            <Text style={[styles.saveButtonText, { color: colors.onPrimary }]}> 
-              {isSaving ? "Saving..." : snookersRequired ? "End Frame" : isFrameComplete ? "Save Frame" : "Save Abandoned"}
-            </Text>
-          </Pressable>
-        </View>
+                  return (
+                    <View key={event.id} style={styles.eventRow}>
+                      <Text style={[styles.eventMessage, { color: ui.text }]}>{message}</Text>
+                      <Text style={[styles.eventTime, { color: ui.textMuted }]}>{stamp}</Text>
+                    </View>
+                  );
+                })
+              )}
+            </View>
 
-        <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
-          <Text style={[styles.sectionTitle, { color: ui.text }]}>Frame Analytics</Text>
-          <View style={styles.analyticsGrid}>
-            <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
-              <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Pots</Text>
-              <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.potsCount}</Text>
+            <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
+              <Text style={[styles.sectionTitle, { color: ui.text }]}>Saved Frames</Text>
+              {frameRecords.length === 0 ? (
+                <Text style={[styles.emptyLog, { color: ui.textMuted }]}>No saved frames yet.</Text>
+              ) : (
+                frameRecords
+                  .slice()
+                  .sort((a, b) => b.frame_number - a.frame_number)
+                  .map((record) => (
+                    <Pressable key={record.id} style={[styles.savedFrameRow, { backgroundColor: ui.panelSoft, borderColor: ui.border }]} onPress={() => setSelectedSavedFrameId(record.id)}>
+                      <Text style={[styles.savedFrameTitle, { color: ui.text }]}>Frame {record.frame_number}</Text>
+                      <Text style={[styles.savedFrameScore, { color: ui.text }]}>{record.user_score}-{record.opponent_score}</Text>
+                      <Text style={[styles.savedFrameMeta, { color: ui.textMuted }]}>Tap to view full log</Text>
+                    </Pressable>
+                  ))
+              )}
             </View>
-            <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
-              <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Fouls</Text>
-              <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.foulCount}</Text>
-            </View>
-            <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
-              <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Scoring Visits</Text>
-              <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.scoringVisits}</Text>
-            </View>
-            <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
-              <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Avg Break</Text>
-              <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.averageBreak.toFixed(1)}</Text>
-            </View>
-            <View style={[styles.analyticsCell, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
-              <Text style={[styles.analyticsLabel, { color: ui.textMuted }]}>Penalty Pts</Text>
-              <Text style={[styles.analyticsValue, { color: ui.text }]}>{frameStats.penaltiesAwarded}</Text>
-            </View>
+          </>
+        ) : null}
+      </ScrollView>
+
+      <View style={styles.stickyInputWrap}> 
+        <View style={[styles.inputPanel, { backgroundColor: ui.panelAlt, borderColor: "transparent" }]}> 
+          <View style={styles.ballGrid}>
+            {BALL_ROWS.map((row, rowIndex) => (
+              <View key={`ball-row-${rowIndex}`} style={styles.ballRow}>
+                {row.map((ballKey) => {
+                  const ballMeta = BALL_META.find((item) => item.key === ballKey)!;
+                  return (
+                    <Pressable
+                      key={ballMeta.key}
+                      onPress={() => handlePot(ballMeta.key)}
+                      style={({ pressed }) => [
+                        styles.ballButton,
+                        { transform: [{ scale: pressed ? 0.93 : 1 }] },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={getBallGradient(ballMeta.key)}
+                        start={{ x: 0.2, y: 0.12 }}
+                        end={{ x: 0.8, y: 1 }}
+                        style={styles.ballSurface}
+                      >
+                        <View style={styles.ballHighlight} />
+                        <Text style={[styles.ballPoints, { color: ballMeta.textColor }]}>{BALL_POINTS[ballMeta.key]}</Text>
+                      </LinearGradient>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.actionPillRow}>
+            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }, undoStack.length === 0 && styles.disabledPill]} onPress={handleUndo} disabled={undoStack.length === 0}>
+              <Text style={[styles.actionPillText, { color: ui.text }]}>Undo</Text>
+            </Pressable>
+            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => setIsFoulOpen(true)}>
+              <Text style={[styles.actionPillText, { color: ui.text }]}>Foul</Text>
+            </Pressable>
+            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => endVisit(state))}>
+              <Text style={[styles.actionPillText, { color: ui.text }]}>Safety</Text>
+            </Pressable>
+            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => endVisit(state))}>
+              <Text style={[styles.actionPillText, { color: ui.text }]}>End Break</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.actionPillRow}>
+            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => switchPlayer(state))}>
+              <Text style={[styles.actionPillText, { color: ui.text }]}>Switch</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.secondaryControlsWrap}>
+            <Pressable style={[styles.reRackButton, { backgroundColor: isDark ? "#2F2A1E" : "#EFE8D2", borderColor: isDark ? "#625A44" : "#CDBD8F" }]} onPress={handleReRack}>
+              <Text style={[styles.reRackText, { color: isDark ? "#F2E7B5" : "#6F5A20" }]}>Re-rack</Text>
+            </Pressable>
+            <Pressable style={[styles.saveButton, { backgroundColor: colors.primaryStrong, borderColor: colors.primary }]} onPress={handleSaveFrame} disabled={isSaving}>
+              <Text style={[styles.saveButtonText, { color: colors.onPrimary }]}> 
+                {isSaving ? "Saving..." : snookersRequired ? "End Frame" : isFrameComplete ? "Save Frame" : "Save Abandoned"}
+              </Text>
+            </Pressable>
           </View>
         </View>
-
-        <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
-          <Text style={[styles.sectionTitle, { color: ui.text }]}>Frame Log</Text>
-          {frame.events.length === 0 ? (
-            <Text style={[styles.emptyLog, { color: ui.textMuted }]}>No events yet. Start potting to build the frame log.</Text>
-          ) : (
-            frame.events.slice(0, 18).map((event) => {
-              const stamp = new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-              let message = "";
-
-              if (event.kind === "pot") message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball} (+${event.points})`;
-              if (event.kind === "foul") message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType] : "foul"})`;
-              if (event.kind === "visit_end") message = `${event.player === "user" ? userLabel : opponentLabel} ended visit`;
-              if (event.kind === "switch") message = `Turn switched from ${event.player === "user" ? userLabel : opponentLabel}`;
-              if (event.kind === "re_rack") message = "Frame re-racked";
-
-              return (
-                <View key={event.id} style={styles.eventRow}>
-                  <Text style={[styles.eventMessage, { color: ui.text }]}>{message}</Text>
-                  <Text style={[styles.eventTime, { color: ui.textMuted }]}>{stamp}</Text>
-                </View>
-              );
-            })
-          )}
-        </View>
-
-        <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
-          <Text style={[styles.sectionTitle, { color: ui.text }]}>Saved Match Log</Text>
-          {frameRecords.length === 0 ? (
-            <Text style={[styles.emptyLog, { color: ui.textMuted }]}>No saved frames yet.</Text>
-          ) : (
-            frameRecords
-              .slice()
-              .sort((a, b) => b.frame_number - a.frame_number)
-              .map((record) => (
-                <Pressable key={record.id} style={[styles.savedFrameRow, { backgroundColor: ui.panelSoft, borderColor: ui.border }]} onPress={() => setSelectedSavedFrameId(record.id)}>
-                  <Text style={[styles.savedFrameTitle, { color: ui.text }]}>Frame {record.frame_number}</Text>
-                  <Text style={[styles.savedFrameScore, { color: ui.text }]}>{record.user_score}-{record.opponent_score}</Text>
-                  <Text style={[styles.savedFrameMeta, { color: ui.textMuted }]}>Tap to view full event log</Text>
-                </Pressable>
-              ))
-          )}
-        </View>
-      </ScrollView>
+      </View>
 
       <Modal visible={isFoulOpen} transparent animationType="fade" onRequestClose={() => setIsFoulOpen(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setIsFoulOpen(false)}>
@@ -708,6 +958,146 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 14,
   },
+  matchHeader: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  tabRow: {
+    marginTop: 10,
+    width: "100%",
+    flexDirection: "row",
+    gap: 8,
+  },
+  tabPill: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabPillText: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  matchTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  matchFramescore: {
+    marginTop: 4,
+    fontSize: 26,
+    fontWeight: "900",
+  },
+  matchContext: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  raceDescriptor: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  playerZone: {
+    marginTop: 12,
+    gap: 10,
+  },
+  playerPressArea: {
+    width: "100%",
+  },
+  playerMatchCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 170,
+    justifyContent: "space-between",
+  },
+  playerMatchCardActive: {
+    shadowOpacity: 0.38,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
+  },
+  playerMatchCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  playerMatchName: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  playerBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    overflow: "hidden",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.7,
+  },
+  playerMatchScore: {
+    marginTop: 6,
+    fontSize: 46,
+    fontWeight: "900",
+    lineHeight: 50,
+  },
+  breakHighlight: {
+    marginTop: 4,
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  breakSupporting: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  playerCardFooter: {
+    marginTop: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  recentBallRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  recentEmpty: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  recentBallDot: {
+    width: 13,
+    height: 13,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  recentBallCounter: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recentBallCounterText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
   topMetaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -774,9 +1164,12 @@ const styles = StyleSheet.create({
     color: "#F0FFF8",
   },
   raceRow: {
-    marginTop: 8,
+    marginTop: 10,
+    width: "100%",
     flexDirection: "row",
-    gap: 8,
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
   },
   raceInput: {
     flex: 1,
@@ -913,67 +1306,133 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   ballGrid: {
-    marginTop: 12,
-    gap: 8,
+    marginTop: 6,
+    gap: 6,
   },
   ballRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
+    justifyContent: "center",
   },
   ballButton: {
-    flex: 1,
-    minHeight: 64,
+    width: 48,
+    height: 48,
+    borderRadius: 999,
+    shadowColor: "#000000",
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  ballSurface: {
+    width: "100%",
+    height: "100%",
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.45)",
+    overflow: "hidden",
+  },
+  ballHighlight: {
+    position: "absolute",
+    top: 7,
+    left: 8,
+    width: 14,
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.35)",
   },
   ballPoints: {
-    fontSize: 14,
-    fontWeight: "800",
+    fontSize: 13,
+    fontWeight: "900",
   },
   ballLabel: {
-    marginTop: 1,
-    fontSize: 10,
+    marginTop: 2,
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.5,
+  },
+  inputPanel: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+  },
+  stickyInputWrap: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    bottom: 0,
+    shadowColor: "#000000",
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 8,
+  },
+  inputTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  inputSubtitle: {
+    marginTop: 3,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  actionPillRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    gap: 6,
+  },
+  actionPill: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 9,
+    minHeight: 34,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  disabledPill: {
+    opacity: 0.4,
+  },
+  actionPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
   },
   controlsWrap: {
     marginTop: 14,
     gap: 8,
   },
   secondaryControlsWrap: {
-    marginTop: 8,
+    marginTop: 6,
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
   },
   reRackButton: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 9,
     borderWidth: 1,
     borderColor: "#706B5A",
     backgroundColor: "#3B3523",
-    paddingVertical: 12,
+    paddingVertical: 8,
     alignItems: "center",
   },
   reRackText: {
     color: "#F2E7B5",
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "700",
   },
   saveButton: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 9,
     backgroundColor: "#1E6A4E",
     borderWidth: 1,
     borderColor: "#42A57A",
-    paddingVertical: 12,
+    paddingVertical: 8,
     alignItems: "center",
   },
   saveButtonText: {
     color: "#EAF8F2",
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: "800",
   },
   eventCard: {
@@ -1077,6 +1536,23 @@ const styles = StyleSheet.create({
   },
   foulBannerText: {
     color: "#FFECEC",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  noticeBanner: {
+    position: "absolute",
+    top: 44,
+    alignSelf: "center",
+    zIndex: 19,
+    backgroundColor: "#102A22",
+    borderColor: "#3C7B66",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  noticeBannerText: {
+    color: "#DFF8EE",
     fontSize: 12,
     fontWeight: "800",
   },
