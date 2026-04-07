@@ -27,13 +27,13 @@ export const RoutineDetailScreen = () => {
   const categoryName = categories.find((c) => c.id === routine?.category_id)?.name;
   const entries = getEntriesForRoutine(routineId).slice(0, 4);
 
+  const isGuide = routine?.content_type === "guide";
   const primaryVideoId = routine?.youtube_video_id;
   const altVideoId = routine?.youtube_alt_video_id;
   const hasPrimary = Boolean(primaryVideoId);
   const hasAlt = Boolean(altVideoId);
   const referenceImage = routine ? getRoutineReferenceImageByRoutineId(routine.id) : undefined;
-  const hasImageGuide = Boolean(referenceImage);
-  const isGuide = routine?.content_type === "guide";
+  const hasImageGuide = !isGuide && Boolean(referenceImage);
   const guidePlaybook = routine && isGuide ? getGuidePlaybookByRoutineId(routine.id) : undefined;
   const arEnabled = !isGuide && isRoutineAREnabled(routine);
 
@@ -103,26 +103,15 @@ export const RoutineDetailScreen = () => {
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Guides & Reference</Text>
 
-        {(hasImageGuide || hasPrimary || hasAlt) ? (
+        {(hasPrimary || hasAlt) ? (
           <View style={styles.videoPickerRow}>
-            {hasImageGuide ? (
-              <Pressable
-                style={[styles.videoPickerButton, selectedGuide === "image" && styles.videoPickerButtonActive]}
-                onPress={() => setSelectedGuide("image")}
-              >
-                <Text style={[styles.videoPickerButtonText, selectedGuide === "image" && styles.videoPickerButtonTextActive]}>
-                  Setup Image
-                </Text>
-              </Pressable>
-            ) : null}
-
             {hasPrimary ? (
               <Pressable
                 style={[styles.videoPickerButton, selectedGuide === "primary" && styles.videoPickerButtonActive]}
                 onPress={() => setSelectedGuide("primary")}
               >
                 <Text style={[styles.videoPickerButtonText, selectedGuide === "primary" && styles.videoPickerButtonTextActive]}>
-                  Main Video
+                  {isGuide ? "Video Tutorial" : "Main Video"}
                 </Text>
               </Pressable>
             ) : null}
@@ -137,10 +126,21 @@ export const RoutineDetailScreen = () => {
                 </Text>
               </Pressable>
             ) : null}
+
+            {!isGuide && hasImageGuide ? (
+              <Pressable
+                style={[styles.videoPickerButton, selectedGuide === "image" && styles.videoPickerButtonActive]}
+                onPress={() => setSelectedGuide("image")}
+              >
+                <Text style={[styles.videoPickerButtonText, selectedGuide === "image" && styles.videoPickerButtonTextActive]}>
+                  Setup Image
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
-        {selectedGuide === "image" && referenceImage ? (
+        {selectedGuide === "image" && referenceImage && !isGuide ? (
           <Image source={referenceImage} style={styles.thumbnail} resizeMode="contain" />
         ) : thumbnail ? (
           <Pressable style={styles.thumbnailWrap} onPress={() => youtubeUrl && Linking.openURL(youtubeUrl)}>
@@ -149,9 +149,7 @@ export const RoutineDetailScreen = () => {
               <Text style={styles.playOverlayText}>▶</Text>
             </View>
           </Pressable>
-        ) : (
-          <Text style={styles.empty}>No media attached yet.</Text>
-        )}
+        ) : null}
 
         {selectedGuide !== "image" ? (
           <>

@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Routine } from "../../types";
 import { getYoutubeThumbnailUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { getRoutineReferenceImageByRoutineId, isRoutineAREnabled } from "../../features/ar/routineLayouts";
+import { getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
 
 interface RoutineCardProps {
   routine: Routine;
@@ -17,15 +17,11 @@ export const RoutineCard = ({ routine, categoryName, categoryColor, onPress }: R
   const thumbnail = videoId ? getYoutubeThumbnailUrl(videoId) : undefined;
   const referenceImage = getRoutineReferenceImageByRoutineId(routine.id);
   const imageSource = referenceImage ? referenceImage : thumbnail ? { uri: thumbnail } : undefined;
-  const arEnabled = isRoutineAREnabled(routine);
   const isGuide = routine.content_type === "guide";
   const { colors } = useAppTheme();
 
   return (
     <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={onPress}>
-      <View style={styles.topRightBadges}>
-        {arEnabled ? <Text style={styles.arBadge}>AR READY</Text> : null}
-      </View>
       {imageSource ? (
         <View>
           <Image source={imageSource} style={styles.previewImage} />
@@ -84,25 +80,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  topRightBadges: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    zIndex: 5,
-    flexDirection: "row",
-    gap: 6,
-  },
-  arBadge: {
-    borderRadius: 999,
-    backgroundColor: "#F59E0B",
-    color: "#111827",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 0.7,
-    overflow: "hidden",
   },
   leftMeta: {
     flexDirection: "row",

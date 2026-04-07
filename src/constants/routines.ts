@@ -262,14 +262,14 @@ export const DEFAULT_ROUTINES: Routine[] = [
     updated_at: now,
     ...withYouTube(
       {
-        id: "Ba6TqwXogSA",
-        title: "Potting terminology explained...",
-        channel: "Shaun Murphy Snooker",
+        id: "Tr0Olz9qnDo",
+        title: "Cue Action and Follow Through",
+        channel: "Barry Stark Snooker Coach",
       },
       {
-        id: "ilS_YOUpf9s",
-        title: "Master Your Potting Angles (The Easy Way!)",
-        channel: "Stephen Hendry's Cue Tips",
+        id: "FEntZrOzjBM",
+        title: "SNOOKER CUEING - The Secret To Good Snooker",
+        channel: "BartonSnooker",
       }
     ),
   },
@@ -301,92 +301,14 @@ export const DEFAULT_ROUTINES: Routine[] = [
     updated_at: now,
     ...withYouTube(
       {
-        id: "CJHVs0SN4jI",
-        title: "A Dummies Guide to Sighting",
-        channel: "Shaun Murphy Snooker",
+        id: "EtMpcY6aJEU",
+        title: "Head Position and Stability",
+        channel: "Barry Stark Snooker Coach",
       },
       {
-        id: "nSVc5gvvlmc",
-        title: "Aiming in Snooker - Where should you look?",
-        channel: "Barry Stark Snooker Coach",
-      }
-    ),
-  },
-  {
-    id: "routine-feathering-delivery-fundamentals",
-    category_id: "cat-basics",
-    name: "Feathering and Delivery Timing",
-    icon: "⏱️",
-    content_type: "guide",
-    difficulty: "beginner",
-    summary: "Use feathering with purpose so the final delivery starts from control, not rush or guesswork.",
-    description:
-      "Feathering is not decoration. It is your final calibration before striking: confirming line, bridge stability, grip softness, and pace intention. Many players miss because their feather rhythm and trigger are inconsistent. This guide builds a repeatable feather-to-delivery process.",
-    setup_instructions:
-      "Use one repeat pot from short and medium range. Keep pace moderate and focus on rhythm quality rather than power.",
-    steps: [
-      "Take two to five purposeful feathers while checking cue runs cleanly through the bridge.",
-      "Let feather length and speed remain similar on each rep to stabilize timing.",
-      "Pause briefly at the end of final backswing before committing to the strike.",
-      "Deliver through the ball without adding a last-second jab or shoulder push.",
-    ],
-    success_criteria:
-      "Your final backswing pause and trigger should feel predictable, with fewer rushed or stabbed deliveries over a full set.",
-    improves: ["Rhythm control", "Trigger consistency", "Delivery quality"],
-    scoring_type: "count",
-    estimated_duration_minutes: 14,
-    is_system_routine: true,
-    created_at: now,
-    updated_at: now,
-    ...withYouTube(
-      {
-        id: "FEntZrOzjBM",
-        title: "SNOOKER CUEING - The Secret To Good Snooker",
+        id: "CjBAH5FV4EM",
+        title: "Snooker T Exercise - Discipline & Consistency",
         channel: "BartonSnooker",
-      },
-      {
-        id: "oU3-Cl-N59I",
-        title: "Snooker T Practice Routine",
-        channel: "Barry Stark Snooker Coach",
-      }
-    ),
-  },
-  {
-    id: "routine-follow-through-fundamentals",
-    category_id: "cat-basics",
-    name: "Follow-Through and Stillness",
-    icon: "🎬",
-    content_type: "guide",
-    difficulty: "beginner",
-    summary: "Train complete follow-through and post-shot stillness to improve strike quality and honest feedback.",
-    description:
-      "Follow-through reveals whether your strike was committed or manipulated. Pulling out early usually produces deceleration and unwanted cue movement. Holding still after impact also gives clean diagnostic feedback. This guide helps players finish shots like a coach would expect in fundamentals work.",
-    setup_instructions:
-      "Use plain-ball shots on easy pots and record your finish position after each shot for review.",
-    steps: [
-      "Deliver cue through the cue-ball so the cue finishes naturally down the intended line.",
-      "Keep head and chest still until object-ball reaches the pocket area.",
-      "Freeze finish for a two-count and check cue direction, tip finish height, and balance.",
-      "If finish feels snatched or awkward, reduce pace and rebuild rhythm before adding power.",
-    ],
-    success_criteria:
-      "Most shots should end with a stable finish position and minimal body movement through and after impact.",
-    improves: ["Commitment through strike", "Shot feedback quality", "Pressure stability"],
-    scoring_type: "count",
-    estimated_duration_minutes: 12,
-    is_system_routine: true,
-    created_at: now,
-    updated_at: now,
-    ...withYouTube(
-      {
-        id: "Tr0Olz9qnDo",
-        title: "Cue Action and Follow Through",
-        channel: "Barry Stark Snooker Coach",
-      },
-      {
-        id: "ilS_YOUpf9s",
-        title: "Master Your Potting Angles (The Easy Way!)",
-        channel: "Stephen Hendry's Cue Tips",
       }
     ),
   },
@@ -418,14 +340,14 @@ export const DEFAULT_ROUTINES: Routine[] = [
     updated_at: now,
     ...withYouTube(
       {
-        id: "Q-iskgM3P0E",
-        title: "Straight Cueing Drill - Long Blue Pot",
-        channel: "OneFourStephen",
+        id: "UZeeYTCXlhI",
+        title: "Snooker Mindset For STRAIGHT CUEING",
+        channel: "BartonSnooker",
       },
       {
-        id: "FEntZrOzjBM",
-        title: "SNOOKER CUEING - The Secret To Good Snooker",
-        channel: "BartonSnooker",
+        id: "dQnL-Ot7jXA",
+        title: "Snooker Straight Cueing How To Practice",
+        channel: "Break from life",
       }
     ),
   },
@@ -457,14 +379,14 @@ export const DEFAULT_ROUTINES: Routine[] = [
     updated_at: now,
     ...withYouTube(
       {
-        id: "Zz6Afney-fo",
-        title: "Number 1 Routine To IMPROVE Cue Ball Control",
-        channel: "Stephen Hendry's Cue Tips",
-      },
-      {
         id: "JA-QGjD7WMA",
         title: "How To Play Top Spin, Stun, & Screw",
         channel: "Stephen Hendry's Cue Tips",
+      },
+      {
+        id: "l6cTzXMuEzM",
+        title: "How To Generate MAXIMUM Top Spin!",
+        channel: "BartonSnooker",
       }
     ),
   },
@@ -496,53 +418,14 @@ export const DEFAULT_ROUTINES: Routine[] = [
     updated_at: now,
     ...withYouTube(
       {
-        id: "pOWMCJLlQxc",
-        title: "The SNOOKER SETUP | Important Details",
-        channel: "BartonSnooker",
-      },
-      {
         id: "olOV1TVMqtI",
         title: "The Stance",
         channel: "Shaun Murphy Snooker",
-      }
-    ),
-  },
-  {
-    id: "routine-mental-commitment-fundamentals",
-    category_id: "cat-basics",
-    name: "Stillness and Shot Commitment",
-    icon: "🧘",
-    content_type: "guide",
-    difficulty: "beginner",
-    summary: "Train calm commitment so you stay still and trust the shot instead of steering under pressure.",
-    description:
-      "Mental errors in snooker often appear as physical errors: indecision, steering, lifting early, or quitting on the shot. This guide teaches practical mental habits for commitment, stillness, and reset routines after misses.",
-    setup_instructions:
-      "Use pressure-light drills first, then add simple consequence scoring to simulate match tension.",
-    steps: [
-      "Before getting down, make one clear decision and avoid reopening options at address.",
-      "Use one breathing cycle to settle tempo before final feather and trigger.",
-      "After contact, stay down and complete finish regardless of result.",
-      "Between shots, run a quick reset: accept result, identify cause, commit to next process cue.",
-    ],
-    success_criteria:
-      "You stay process-focused across full sets with fewer rushed decisions and fewer early head lifts.",
-    improves: ["Composure", "Stillness under pressure", "Decision commitment"],
-    scoring_type: "count",
-    estimated_duration_minutes: 12,
-    is_system_routine: true,
-    created_at: now,
-    updated_at: now,
-    ...withYouTube(
-      {
-        id: "CjBAH5FV4EM",
-        title: "Snooker T Exercise - Discipline & Consistency",
-        channel: "BartonSnooker",
       },
       {
-        id: "oU3-Cl-N59I",
-        title: "Snooker T Practice Routine",
-        channel: "Barry Stark Snooker Coach",
+        id: "FEntZrOzjBM",
+        title: "SNOOKER CUEING - The Secret To Good Snooker",
+        channel: "BartonSnooker",
       }
     ),
   },
