@@ -34,6 +34,7 @@ interface AIAnalysesState {
     userNotes?: string;
   }) => Promise<string>;
   runAnalysis: (analysisId: string) => Promise<void>;
+  deleteAnalysis: (analysisId: string) => Promise<void>;
 }
 
 const mapRow = (row: any): AIAnalysis => ({
@@ -225,6 +226,18 @@ export const useAIAnalysesStore = create<AIAnalysesState>()(
           console.warn("Edge analysis failed:", combinedMessage);
           throw new Error(combinedMessage);
         }
+      },
+
+      deleteAnalysis: async (analysisId) => {
+        const authUser = (await supabase.auth.getUser()).data.user;
+        if (!authUser) throw new Error("You need to be signed in to delete analyses.");
+
+        const { error } = await supabase.from("ai_analyses").delete().eq("id", analysisId).eq("user_id", authUser.id);
+        if (error) throw error;
+
+        set((state) => ({
+          analyses: state.analyses.filter((item) => item.id !== analysisId),
+        }));
       },
     }),
     {

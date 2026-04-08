@@ -3,20 +3,23 @@ import Constants from "expo-constants";
 import { adapty, type AdaptyPaywall, type AdaptyPaywallProduct, type AdaptyProfile } from "react-native-adapty";
 import { supabase } from "../api/supabase";
 import type { SubscriptionTier } from "../types";
-
 const ADAPTY_PUBLIC_SDK_KEY = process.env.EXPO_PUBLIC_ADAPTY_PUBLIC_SDK_KEY ?? "";
 const ADAPTY_PLACEMENT_ID = process.env.EXPO_PUBLIC_ADAPTY_PLACEMENT_ID ?? "main_subscription";
 
 const PRO_ACCESS_LEVEL_ID = process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_PRO ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_PRO ?? "SnookerLab Pro";
 const HALF_CENTURY_ACCESS_LEVEL_ID =
   process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_HALF_CENTURY ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_HALF_CENTURY ?? "half_century";
-const CENTURY_ACCESS_LEVEL_ID = process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_CENTURY ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_CENTURY ?? "century";
+const CENTURY_ACCESS_LEVEL_ID =
+  process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_CENTURY ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_CENTURY ?? "century";
 
 const PRO_MONTHLY_PRODUCT_ID = process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_MONTHLY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_MONTHLY ?? "monthly";
 const HALF_CENTURY_PRODUCT_ID =
   process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_HALF_CENTURY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_HALF_CENTURY ?? "half_century_monthly";
-const CENTURY_PRODUCT_ID = process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_CENTURY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY ?? "century_monthly";
+const CENTURY_PRODUCT_ID =
+  process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_CENTURY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY ?? "century_monthly";
 
+const DEFAULT_HALF_CENTURY_PRICE = process.env.EXPO_PUBLIC_DEFAULT_PRICE_HALF_CENTURY ?? "$3.49";
+const DEFAULT_CENTURY_PRICE = process.env.EXPO_PUBLIC_DEFAULT_PRICE_CENTURY ?? "$5.00";
 type BillingOfferings = {
   paywall: AdaptyPaywall;
   products: AdaptyPaywallProduct[];
@@ -25,11 +28,21 @@ type BillingOfferings = {
 let configuredForUserId: string | null = null;
 let isAdaptyActivated = false;
 let activationPromise: Promise<void> | null = null;
+let adaptyActivationCheck: Promise<boolean> | null = null;
 
 const isActivateOnceError = (error: unknown) => {
   const message = String((error as any)?.message ?? "").toLowerCase();
   const code = String((error as any)?.adaptyCode ?? "").toLowerCase();
-  return message.includes("activateonceerror") || message.includes("3005") || code === "3005";
+  const errorCode = String((error as any)?.code ?? "").toLowerCase();
+  return (
+    message.includes("activateonceerror") ||
+    message.includes("3005") ||
+    message.includes("3305") ||
+    code === "3005" ||
+    code === "3305"||
+    errorCode === "3005" ||
+    errorCode === "3305"
+  );
 };
 
 const IS_EXPO_GO = Constants.appOwnership === "expo";
@@ -56,11 +69,24 @@ export const initBilling = async (appUserId: string) => {
     await activationPromise;
   }
 
+  if (adaptyActivationCheck) {
+    await adaptyActivationCheck;
+  }
+
   if (!isAdaptyActivated) {
+    adaptyActivationCheck = (async () => {
+      try {
+        const activated = await adapty.isActivated();
+        return activated;
+      } catch {
+        return false;
+      }
+    })();
+
     try {
-      isAdaptyActivated = await adapty.isActivated();
-    } catch {
-      isAdaptyActivated = false;
+      isAdaptyActivated = await adaptyActivationCheck;
+    } finally {
+      adaptyActivationCheck = null;
     }
   }
 
@@ -73,11 +99,12 @@ export const initBilling = async (appUserId: string) => {
       try {
         await adapty.activate(getApiKey(), { customerUserId: appUserId });
       } catch (error) {
-        if (!isActivateOnceError(error)) throw error;
+        if (isActivateOnceError(error)) {
+          isAdaptyActivated = true;
+          return;
+        }
+        throw error;
       }
-
-      isAdaptyActivated = true;
-      configuredForUserId = appUserId;
     })();
 
     try {
@@ -86,6 +113,8 @@ export const initBilling = async (appUserId: string) => {
       activationPromise = null;
     }
 
+    isAdaptyActivated = true;
+    configuredForUserId = appUserId;
     return;
   }
 
@@ -157,9 +186,15 @@ export const purchaseTierMonthly = async (tier: Exclude<SubscriptionTier, "free"
 };
 
 export const getTierPriceText = (tier: Exclude<SubscriptionTier, "free">, offerings: BillingOfferings | null) => {
-  if (!offerings) return null;
-  const product = findProductForTier(tier, offerings);
-  return product?.price?.localizedString ?? null;
+  if (offerings) {
+    const product = findProductForTier(tier, offerings);
+    if (product?.price?.localizedString) {
+      return product.price.localizedString;
+    }
+  }
+  if (tier === "half_century") return DEFAULT_HALF_CENTURY_PRICE;
+  if (tier === "century") return DEFAULT_CENTURY_PRICE;
+  return null;
 };
 
 export const restoreBillingPurchases = async () => {

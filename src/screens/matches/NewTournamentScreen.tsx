@@ -96,9 +96,13 @@ export const NewTournamentScreen = () => {
   const [activeDrawPair, setActiveDrawPair] = useState<{ a: string; b: string } | null>(null);
   const [activeMatchNumber, setActiveMatchNumber] = useState<number>(0);
   const [drawComplete, setDrawComplete] = useState(false);
+  const [drawPhase, setDrawPhase] = useState<"setup" | "revealing" | "complete">("setup");
+  const [slotLeftName, setSlotLeftName] = useState("");
+  const [slotRightName, setSlotRightName] = useState("");
   const [drawMode, setDrawMode] = useState<"animated" | "quick">("animated");
   const [didAutoRunDraw, setDidAutoRunDraw] = useState(false);
-  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const drawTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const drawCancelledRef = useRef(false);
   const [manualPairs, setManualPairs] = useState<Array<{ participantA: string; participantB: string }>>([]);
   const [manualAvailable, setManualAvailable] = useState<string[]>([]);
   const [manualPicked, setManualPicked] = useState<string[]>([]);
@@ -110,6 +114,7 @@ export const NewTournamentScreen = () => {
   const revealBOpacity = useRef(new Animated.Value(0)).current;
   const revealBTranslate = useRef(new Animated.Value(34)).current;
   const revealPulse = useRef(new Animated.Value(1)).current;
+  const finalRevealAnim = useRef(new Animated.Value(0)).current;
 
   const participants = entryMode === "singles" ? singlesParticipants : doublesTeams;
   const hasEnoughParticipants = participants.filter((item) => !isByeName(item)).length >= 2;
@@ -122,63 +127,112 @@ export const NewTournamentScreen = () => {
     setManualPicked([]);
   }, [participants, pairingMode, tournamentType]);
 
+  const clearRevealTimer = () => {
+    drawCancelledRef.current = true;
+    drawTimersRef.current.forEach((timer) => clearTimeout(timer));
+    drawTimersRef.current = [];
+  };
+
   React.useEffect(
     () => () => {
-      if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+      clearRevealTimer();
     },
     []
   );
 
-  const clearRevealTimer = () => {
-    if (revealTimerRef.current) {
-      clearTimeout(revealTimerRef.current);
-      revealTimerRef.current = null;
-    }
-  };
-
-  const animatePairReveal = (pair: { a: string; b: string }, matchNumber: number, onDone: () => void) => {
-    triggerHaptic("light");
-    setActiveDrawPair(pair);
-    setActiveMatchNumber(matchNumber);
-    revealAOpacity.setValue(0);
-    revealATranslate.setValue(-34);
-    revealBOpacity.setValue(0);
-    revealBTranslate.setValue(34);
-    revealPulse.setValue(1);
-
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(revealAOpacity, { toValue: 1, duration: 240, useNativeDriver: true }),
-        Animated.timing(revealATranslate, { toValue: 0, duration: 240, useNativeDriver: true }),
-      ]),
-      Animated.delay(120),
-      Animated.parallel([
-        Animated.timing(revealBOpacity, { toValue: 1, duration: 240, useNativeDriver: true }),
-        Animated.timing(revealBTranslate, { toValue: 0, duration: 240, useNativeDriver: true }),
-      ]),
-      Animated.sequence([
-        Animated.timing(revealPulse, { toValue: 1.05, duration: 170, useNativeDriver: true }),
-        Animated.timing(revealPulse, { toValue: 1, duration: 170, useNativeDriver: true }),
-      ]),
-      Animated.delay(170),
-    ]).start(() => {
-      triggerHaptic("success");
-      setRevealedPairs((prev) => [...prev, pair]);
-      setActiveDrawPair(null);
-      onDone();
+  const waitFor = (duration: number) =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, duration);
+      drawTimersRef.current.push(timer);
     });
+
+  const animateSlotReveal = async (
+    target: string,
+    pool: string[],
+    setter: (value: string) => void
+  ) => {
+    const sequence = [70, 70, 80, 90, 105, 120, 145, 175, 220];
+    for (let index = 0; index < sequence.length; index += 1) {
+      if (drawCancelledRef.current) return;
+      const candidate = pool[Math.floor(Math.random() * pool.length)] ?? target;
+      setter(candidate);
+      await waitFor(sequence[index]);
+    }
+    setter(target);
+    await triggerHaptic("light");
   };
 
-  const runAnimatedDraw = (pairs: Array<{ a: string; b: string }>, index = 0) => {
-    if (index >= pairs.length) {
-      triggerHaptic("success");
+  const startDrawSequence = async () => {
+    if (!drawPreviewPairs.length) return;
+
+    drawCancelledRef.current = false;
+    finalRevealAnim.setValue(0);
+    setDrawPhase("revealing");
+    setDrawComplete(false);
+    setRevealedPairs([]);
+    setActiveDrawPair(null);
+    setActiveMatchNumber(0);
+
+    if (drawMode === "quick") {
+      setRevealedPairs(drawPreviewPairs);
       setDrawComplete(true);
+      setDrawPhase("complete");
+      Animated.timing(finalRevealAnim, { toValue: 1, duration: 280, useNativeDriver: true }).start();
+      await triggerHaptic("success");
       return;
     }
 
-    animatePairReveal(pairs[index], index + 1, () => {
-      revealTimerRef.current = setTimeout(() => runAnimatedDraw(pairs, index + 1), 320);
-    });
+    const slotPool = Array.from(new Set(drawPreviewPairs.flatMap((pair) => [pair.a, pair.b])));
+
+    for (let index = 0; index < drawPreviewPairs.length; index += 1) {
+      if (drawCancelledRef.current) return;
+
+      const pair = drawPreviewPairs[index];
+      setActiveDrawPair(pair);
+      setActiveMatchNumber(index + 1);
+      setSlotLeftName("...");
+      setSlotRightName("...");
+
+      revealAOpacity.setValue(0);
+      revealATranslate.setValue(-26);
+      revealBOpacity.setValue(0);
+      revealBTranslate.setValue(26);
+      revealPulse.setValue(1);
+
+      Animated.parallel([
+        Animated.timing(revealAOpacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.timing(revealATranslate, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start();
+
+      await animateSlotReveal(pair.a, slotPool, setSlotLeftName);
+      await waitFor(180);
+
+      Animated.parallel([
+        Animated.timing(revealBOpacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.timing(revealBTranslate, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start();
+
+      await animateSlotReveal(pair.b, slotPool, setSlotRightName);
+
+      await new Promise<void>((resolve) => {
+        Animated.sequence([
+          Animated.timing(revealPulse, { toValue: 1.05, duration: 160, useNativeDriver: true }),
+          Animated.timing(revealPulse, { toValue: 1, duration: 180, useNativeDriver: true }),
+        ]).start(() => resolve());
+      });
+
+      if (drawCancelledRef.current) return;
+
+      await triggerHaptic("success");
+      setRevealedPairs((prev) => [...prev, pair]);
+      await waitFor(340);
+    }
+
+    setActiveDrawPair(null);
+    setDrawComplete(true);
+    setDrawPhase("complete");
+    Animated.timing(finalRevealAnim, { toValue: 1, duration: 320, useNativeDriver: true }).start();
+    await triggerHaptic("success");
   };
 
   const onAddEntry = () => {
@@ -221,19 +275,17 @@ export const NewTournamentScreen = () => {
     }
 
     clearRevealTimer();
+    drawCancelledRef.current = false;
     setDrawPreviewPairs(pairs);
     setRevealedPairs([]);
     setActiveDrawPair(null);
+    setActiveMatchNumber(0);
     setDrawComplete(false);
+    setDrawPhase("setup");
+    setSlotLeftName("");
+    setSlotRightName("");
+    finalRevealAnim.setValue(0);
     setDrawModalVisible(true);
-
-    if (drawMode === "quick") {
-      setRevealedPairs(pairs);
-      setDrawComplete(true);
-      return;
-    }
-
-    runAnimatedDraw(pairs);
   };
 
   React.useEffect(() => {
@@ -243,6 +295,12 @@ export const NewTournamentScreen = () => {
     setDidAutoRunDraw(true);
     randomiseAndDraw();
   }, [didAutoRunDraw, participants.length, prefill?.autoRunDraw]);
+
+  React.useEffect(() => {
+    if (!drawModalVisible || drawPhase !== "setup" || !prefill?.autoRunDraw) return;
+    if (!drawPreviewPairs.length) return;
+    void startDrawSequence();
+  }, [drawModalVisible, drawPhase, prefill?.autoRunDraw, drawPreviewPairs.length]);
 
   const removeParticipant = (target: string) => {
     if (entryMode === "singles") setSinglesParticipants((prev) => prev.filter((item) => item !== target));
@@ -335,13 +393,17 @@ export const NewTournamentScreen = () => {
     setSelectedDoublesPlayers([]);
   };
 
-  const createWith = async (entriesOverride?: string[]) => {
+  const createWith = async (options?: {
+    entriesOverride?: string[];
+    manualFixturesOverride?: Array<{ participantA: string; participantB: string }>;
+  }) => {
     if (!subscription.canCreateTournament) {
       setShowPaywall(true);
       return;
     }
 
-    const sourceParticipants = entriesOverride ?? participants;
+    const sourceParticipants = options?.entriesOverride ?? participants;
+    const manualFixturesOverride = options?.manualFixturesOverride;
 
     if (!name.trim()) {
       Alert.alert("Tournament name needed", "Give your tournament a name before creating it.");
@@ -354,9 +416,10 @@ export const NewTournamentScreen = () => {
     }
 
     if (tournamentType === "knockout") {
+      const effectiveManualPairs = manualFixturesOverride ?? manualPairs;
       const source =
-        pairingMode === "manual"
-          ? manualPairs.flatMap((pair) => [pair.participantA, pair.participantB])
+        manualFixturesOverride?.length || pairingMode === "manual"
+          ? effectiveManualPairs.flatMap((pair) => [pair.participantA, pair.participantB])
           : sourceParticipants;
       const seeded = source.length % 2 !== 0 ? [...source, makeByeLabel(source)] : source;
       const hasByeVsBye = seeded.some((_, index) => {
@@ -385,7 +448,7 @@ export const NewTournamentScreen = () => {
         pairingMode,
         bestOfFrames,
         participants: sourceParticipants,
-        manualFixtures: pairingMode === "manual" ? manualPairs : undefined,
+        manualFixtures: manualFixturesOverride ?? (pairingMode === "manual" ? manualPairs : undefined),
       });
 
       navigation.navigate("TournamentDetail", { tournamentId });
@@ -582,9 +645,9 @@ export const NewTournamentScreen = () => {
             <Text style={[styles.smallHint, { color: colors.textMuted }]}>League format auto-generates fixtures from participant list.</Text>
           ) : pairingMode === "random" ? (
             <>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Generate a live reveal draw with animated pairing cards.</Text>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Open the draw arena to reveal fixtures with suspense, or run a quick draw.</Text>
               <View style={styles.toolsRow}>
-                <AppButton label="Generate Live Draw" onPress={randomiseAndDraw} disabled={participants.length < 2} />
+                <AppButton label="Open Draw" onPress={randomiseAndDraw} disabled={participants.length < 2} />
               </View>
             </>
           ) : (
@@ -694,65 +757,98 @@ export const NewTournamentScreen = () => {
             </Pressable>
           </View>
 
-          <Text style={[styles.modalHint, { color: "#8FB9AB" }]}>One match reveals at a time</Text>
+          <Text style={[styles.modalHint, { color: "#8FB9AB" }]}>
+            {drawPreviewPairs.length * 2} players · {drawPreviewPairs.length} matches
+          </Text>
 
-          <View style={styles.drawModeRow}>
-            <Pressable style={[styles.drawModeChip, drawMode === "animated" && styles.drawModeChipActive]} onPress={() => setDrawMode("animated")}>
-              <Text style={[styles.drawModeText, drawMode === "animated" && styles.drawModeTextActive]}>Animated Draw</Text>
-            </Pressable>
-            <Pressable style={[styles.drawModeChip, drawMode === "quick" && styles.drawModeChipActive]} onPress={() => setDrawMode("quick")}>
-              <Text style={[styles.drawModeText, drawMode === "quick" && styles.drawModeTextActive]}>Quick Draw</Text>
-            </Pressable>
-          </View>
+          {drawPhase === "setup" ? (
+            <View style={styles.preDrawCard}>
+              <Text style={styles.preDrawTitle}>Tournament Draw</Text>
+              <Text style={styles.preDrawSubtitle}>Choose a reveal style before opening the bracket.</Text>
 
-          <View style={styles.drawCenterZone}>
-            <View style={styles.activeRevealWrap}>
-              {activeDrawPair ? (
-                <>
-                  <Text style={styles.activeMatchLabel}>Match {activeMatchNumber}</Text>
-                  <Animated.View style={[styles.activeCardsRow, { transform: [{ scale: revealPulse }] }]}> 
-                    <Animated.View style={[styles.activePlayerCard, { opacity: revealAOpacity, transform: [{ translateX: revealATranslate }] }]}>
-                      <Text style={styles.activePlayerName}>{activeDrawPair.a}</Text>
-                    </Animated.View>
-                    <Text style={styles.activeVsText}>vs</Text>
-                    <Animated.View style={[styles.activePlayerCard, { opacity: revealBOpacity, transform: [{ translateX: revealBTranslate }] }]}>
-                      <Text style={styles.activePlayerName}>{activeDrawPair.b}</Text>
-                    </Animated.View>
-                  </Animated.View>
-                </>
-              ) : (
-                <Text style={styles.awaitingDrawText}>{drawComplete ? "Draw Complete 🎱" : "Preparing draw..."}</Text>
-              )}
-            </View>
-          </View>
-
-          <ScrollView style={styles.modalList} contentContainerStyle={{ paddingBottom: 12 }}>
-            {revealedPairs.map((pair, index) => (
-              <View key={`${pair.a}-${pair.b}-${index}`} style={styles.drawRow}> 
-                <Text style={styles.drawMatchIndex}>M{index + 1}</Text>
-                <Text style={styles.drawName}>{pair.a}</Text>
-                <Text style={styles.drawVs}>vs</Text>
-                <Text style={styles.drawName}>{pair.b}</Text>
+              <View style={styles.drawModeRow}>
+                <Pressable style={[styles.drawModeChip, drawMode === "animated" && styles.drawModeChipActive]} onPress={() => setDrawMode("animated")}>
+                  <Text style={[styles.drawModeText, drawMode === "animated" && styles.drawModeTextActive]}>Animated Draw</Text>
+                </Pressable>
+                <Pressable style={[styles.drawModeChip, drawMode === "quick" && styles.drawModeChipActive]} onPress={() => setDrawMode("quick")}>
+                  <Text style={[styles.drawModeText, drawMode === "quick" && styles.drawModeTextActive]}>Quick Draw</Text>
+                </Pressable>
               </View>
-            ))}
-          </ScrollView>
 
-          <View style={styles.modalActionRow}>
-            <View style={styles.toolButton}>
-              <AppButton label="Restart Draw" variant="secondary" onPress={randomiseAndDraw} disabled={participants.length < 2} />
+              <View style={styles.startDrawButtonWrap}>
+                <AppButton label="Start Draw" onPress={() => void startDrawSequence()} disabled={!drawPreviewPairs.length} />
+              </View>
             </View>
-            <View style={styles.toolButton}>
-              <AppButton
-                label="Use This Draw"
-                disabled={!drawComplete}
-                onPress={async () => {
-                  clearRevealTimer();
-                  setDrawModalVisible(false);
-                  await createWith(drawParticipants.length ? drawParticipants : entryMode === "singles" ? singlesParticipants : doublesTeams);
-                }}
-              />
+          ) : null}
+
+          {drawPhase === "revealing" ? (
+            <View style={styles.drawCenterZone}>
+              <View style={styles.activeRevealWrap}>
+                <Text style={styles.activeMatchLabel}>Match {activeMatchNumber}</Text>
+                <Animated.View style={[styles.activeCardsRow, { transform: [{ scale: revealPulse }] }]}> 
+                  <Animated.View style={[styles.activePlayerCard, styles.activePlayerGlow, { opacity: revealAOpacity, transform: [{ translateX: revealATranslate }] }]}>
+                    <Text style={styles.activePlayerName}>{slotLeftName || "..."}</Text>
+                  </Animated.View>
+                  <Text style={styles.activeVsText}>vs</Text>
+                  <Animated.View style={[styles.activePlayerCard, styles.activePlayerGlow, { opacity: revealBOpacity, transform: [{ translateX: revealBTranslate }] }]}>
+                    <Text style={styles.activePlayerName}>{slotRightName || "..."}</Text>
+                  </Animated.View>
+                </Animated.View>
+              </View>
+              <Text style={styles.awaitingDrawText}>Revealing one match at a time...</Text>
             </View>
-          </View>
+          ) : null}
+
+          {drawPhase === "complete" ? (
+            <Animated.View
+              style={[
+                styles.finalRevealWrap,
+                {
+                  opacity: finalRevealAnim,
+                  transform: [
+                    {
+                      scale: finalRevealAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.96, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.finalRevealTitle}>Final Bracket</Text>
+              <ScrollView style={styles.modalList} contentContainerStyle={{ paddingBottom: 12 }}>
+                {revealedPairs.map((pair, index) => (
+                  <View key={`${pair.a}-${pair.b}-${index}`} style={styles.drawRow}> 
+                    <Text style={styles.drawMatchIndex}>M{index + 1}</Text>
+                    <Text style={styles.drawName}>{pair.a}</Text>
+                    <Text style={styles.drawVs}>vs</Text>
+                    <Text style={styles.drawName}>{pair.b}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <View style={styles.modalActionRow}>
+                <View style={styles.toolButton}>
+                  <AppButton label="Restart Draw" variant="secondary" onPress={randomiseAndDraw} disabled={participants.length < 2} />
+                </View>
+                <View style={styles.toolButton}>
+                  <AppButton
+                    label="Use This Draw"
+                    disabled={!drawComplete}
+                    onPress={async () => {
+                      clearRevealTimer();
+                      setDrawModalVisible(false);
+                      await createWith({
+                        entriesOverride: drawParticipants.length ? drawParticipants : entryMode === "singles" ? singlesParticipants : doublesTeams,
+                        manualFixturesOverride: drawPreviewPairs.map((pair) => ({ participantA: pair.a, participantB: pair.b })),
+                      });
+                    }}
+                  />
+                </View>
+              </View>
+            </Animated.View>
+          ) : null}
         </View>
       </Modal>
 
@@ -941,6 +1037,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  preDrawCard: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#2F4C41",
+    backgroundColor: "#0F201A",
+    borderRadius: 16,
+    padding: 14,
+  },
+  preDrawTitle: {
+    color: "#ECFFF5",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  preDrawSubtitle: {
+    marginTop: 6,
+    color: "#8FB9AB",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  startDrawButtonWrap: {
+    marginTop: 14,
+  },
   closeDrawButton: {
     borderWidth: 1,
     borderColor: "#36584D",
@@ -1021,6 +1139,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 10,
   },
+  activePlayerGlow: {
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
   activePlayerName: {
     color: "#EDFFF8",
     fontSize: 14,
@@ -1041,6 +1163,16 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexDirection: "row",
     gap: 8,
+  },
+  finalRevealWrap: {
+    flex: 1,
+    marginTop: 12,
+  },
+  finalRevealTitle: {
+    color: "#E8FFF4",
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 6,
   },
   modalCard: {
     width: "100%",

@@ -4,7 +4,6 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystemLegacy from "expo-file-system/legacy";
-import { AppCard } from "../../components/ui/AppCard";
 import { AppButton } from "../../components/ui/AppButton";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
@@ -91,6 +90,7 @@ export const VideoUploadScreen = () => {
   const [notes, setNotes] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const { colors } = useAppTheme();
   const subscription = useSubscriptionAccess();
   const { createAnalysis, runAnalysis } = useAIAnalysesStore();
@@ -256,113 +256,145 @@ export const VideoUploadScreen = () => {
     }
   };
 
+  const remaining = subscription.remaining.aiAnalyses ?? Infinity;
+  const remainingText = remaining === Infinity ? "Unlimited" : `${remaining} remaining`;
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: colors.text }]}>Upload Clip for AI Coach</Text>
-      <Text style={[styles.subtitle, { color: colors.textMuted }]}>Use a 10-20 second clip and add context for more accurate feedback.</Text>
+      <View style={[styles.headerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+        <Text style={[styles.title, { color: colors.text }]}>New Analysis</Text>
+        <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+          Upload a 10-20 second clip for personalised coaching feedback.
+        </Text>
+        <Text style={[styles.metaText, { color: colors.textMuted }]}>
+          {subscription.tierLabel} · {remainingText} this month
+        </Text>
+      </View>
 
-      <AppCard style={styles.card}>
-        <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 1</Text>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Analysis Type</Text>
-        <View style={styles.chipsWrap}>
-          {ANALYSIS_TYPES.map((item) => {
-            const selected = analysisType === item.value;
-            return (
-              <Pressable
-                key={item.value}
-                onPress={() => setAnalysisType(item.value)}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? colors.primary : colors.border,
-                    backgroundColor: selected ? colors.surfaceMuted : colors.surface,
-                  },
-                ]}
-              >
-                <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{item.label}</Text>
-              </Pressable>
-            );
-          })}
+      {!video ? (
+        <View style={[styles.uploadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <AppButton label="Upload from Library" onPress={pickVideo} />
+          <View style={styles.buttonSpacer} />
+          <AppButton label="Record Video" onPress={recordVideo} variant="secondary" />
+          <Text style={[styles.hintText, { color: colors.textMuted }]}>
+            Select a 10-20 second clip
+          </Text>
         </View>
-
-        <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 2</Text>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Optional Context Tags</Text>
-        <View style={styles.chipsWrap}>
-          {CONTEXT_TAGS.map((tag) => {
-            const selected = selectedTags.includes(tag.value);
-            return (
-              <Pressable
-                key={tag.value}
-                onPress={() =>
-                  setSelectedTags((prev) =>
-                    prev.includes(tag.value) ? prev.filter((item) => item !== tag.value) : [...prev, tag.value]
-                  )
-                }
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? colors.primary : colors.border,
-                    backgroundColor: selected ? colors.surfaceMuted : colors.surface,
-                  },
-                ]}
-              >
-                <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{tag.label}</Text>
+      ) : (
+        <>
+          <View style={[styles.videoCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}> 
+            <View style={styles.videoHeader}>
+              <Text style={[styles.videoLabel, { color: colors.primary }]}>CLIP READY</Text>
+              <Pressable onPress={() => setVideo(null)}>
+                <Text style={[styles.changeButton, { color: colors.primary }]}>Change</Text>
               </Pressable>
-            );
-          })}
-        </View>
-
-        <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 3</Text>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Coach Notes (optional)</Text>
-        <TextInput
-          style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-          placeholder="e.g. please check head movement and cue delivery"
-          placeholderTextColor={colors.textMuted}
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          textAlignVertical="top"
-        />
-      </AppCard>
-
-      <AppCard style={styles.card}>
-        <Text style={[styles.stepLabel, { color: colors.primary }]}>Step 4</Text>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Clip Upload</Text>
-        <Text style={[styles.metaText, { color: colors.textMuted }]}>Plan: {subscription.tierLabel} · Coach uses this month: {subscription.usage.aiAnalyses} / {subscription.limits.aiAnalysesPerPeriod ?? "∞"}</Text>
-        <Text style={[styles.metaText, { color: colors.textMuted }]}>Remaining coach uses this month: {subscription.remaining.aiAnalyses ?? "∞"}</Text>
-        <Text style={[styles.metaText, { color: colors.textMuted }]}>Clip length: 10-20 seconds</Text>
-
-        {!video ? (
-          <View style={styles.buttonContainer}>
-            <AppButton label="Pick from Library" onPress={pickVideo} />
-            <View style={styles.spacer} />
-            <AppButton label="Record Video" onPress={recordVideo} variant="secondary" />
+            </View>
+            <Text style={[styles.videoInfo, { color: colors.text }]}>
+              {formatDurationSeconds(video.duration)} · {((video.fileSize ?? 0) / 1024 / 1024).toFixed(1)} MB
+            </Text>
           </View>
-        ) : (
-          <View>
-            <Text style={[styles.videoName, { color: colors.text }]}>Video selected</Text>
-            <Text style={[styles.videoInfo, { color: colors.textMuted }]}>Duration: {formatDurationSeconds(video.duration)}</Text>
-            <Text style={[styles.videoInfo, { color: colors.textMuted }]}>Size: {((video.fileSize ?? 0) / 1024 / 1024).toFixed(2)} MB</Text>
 
-            {uploading ? (
-              <View>
-                <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
-                <Text style={[styles.progressLabel, { color: colors.textMuted }]}>{progressLabel || "Working..."}</Text>
-                <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-                  <View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.round(progress * 100)}%` }]} />
-                </View>
-                <Text style={[styles.progressPercent, { color: colors.textMuted }]}>{Math.max(5, Math.round(progress * 100))}%</Text>
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Analysis Type</Text>
+            <View style={styles.chipsRow}>
+              {ANALYSIS_TYPES.slice(0, 3).map((item) => {
+                const selected = analysisType === item.value;
+                return (
+                  <Pressable
+                    key={item.value}
+                    onPress={() => setAnalysisType(item.value)}
+                    style={[styles.chip, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary + "15" : colors.surfaceMuted }]}
+                  >
+                    <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{item.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.chipsRow}>
+              {ANALYSIS_TYPES.slice(3).map((item) => {
+                const selected = analysisType === item.value;
+                return (
+                  <Pressable
+                    key={item.value}
+                    onPress={() => setAnalysisType(item.value)}
+                    style={[styles.chip, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary + "15" : colors.surfaceMuted }]}
+                  >
+                    <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{item.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Context Tags</Text>
+            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Optional · helps focus the analysis</Text>
+            <View style={styles.chipsRow}>
+              {CONTEXT_TAGS.slice(0, 3).map((tag) => {
+                const selected = selectedTags.includes(tag.value);
+                return (
+                  <Pressable
+                    key={tag.value}
+                    onPress={() => setSelectedTags((prev) => (prev.includes(tag.value) ? prev.filter((t) => t !== tag.value) : [...prev, tag.value]))}
+                    style={[styles.chipSmall, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary + "15" : "transparent" }]}
+                  >
+                    <Text style={[styles.chipSmallText, { color: selected ? colors.primary : colors.textMuted }]}>{tag.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.chipsRow}>
+              {CONTEXT_TAGS.slice(3).map((tag) => {
+                const selected = selectedTags.includes(tag.value);
+                return (
+                  <Pressable
+                    key={tag.value}
+                    onPress={() => setSelectedTags((prev) => (prev.includes(tag.value) ? prev.filter((t) => t !== tag.value) : [...prev, tag.value]))}
+                    style={[styles.chipSmall, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary + "15" : "transparent" }]}
+                  >
+                    <Text style={[styles.chipSmallText, { color: selected ? colors.primary : colors.textMuted }]}>{tag.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <Pressable style={[styles.notesToggle, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]} onPress={() => setShowNotes(!showNotes)}>
+            <Text style={[styles.notesToggleText, { color: colors.text }]}>
+              {showNotes ? "Hide notes" : "Add notes (optional)"}
+            </Text>
+          </Pressable>
+
+          {showNotes && (
+            <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+              <TextInput
+                style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
+                placeholder="e.g. Please check my cue action on long pots"
+                placeholderTextColor={colors.textMuted}
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          )}
+
+          {uploading ? (
+            <View style={[styles.progressCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.progressLabel, { color: colors.text }]}>{progressLabel || "Working..."}</Text>
+              <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+                <View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${Math.round(progress * 100)}%` }]} />
               </View>
-            ) : (
-              <>
-                <AppButton label="Upload for Analysis" onPress={uploadVideo} />
-                <View style={styles.spacer} />
-                <AppButton label="Choose Different Video" onPress={() => setVideo(null)} variant="secondary" />
-              </>
-            )}
-          </View>
-        )}
-      </AppCard>
+              <Text style={[styles.progressPercent, { color: colors.textMuted }]}>{Math.max(5, Math.round(progress * 100))}%</Text>
+            </View>
+          ) : (
+            <View style={styles.uploadActions}>
+              <AppButton label="Upload for Analysis" onPress={uploadVideo} />
+            </View>
+          )}
+        </>
+      )}
 
       <TierPaywallModal
         visible={showPaywall}
@@ -376,24 +408,93 @@ export const VideoUploadScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 26 },
-  title: { fontSize: 24, fontWeight: "800" },
-  subtitle: { fontSize: 14, marginTop: 6, marginBottom: 14 },
-  card: { marginBottom: 12 },
-  stepLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: "800", marginBottom: 4, marginTop: 2 },
-  sectionTitle: { fontSize: 15, fontWeight: "800", marginBottom: 8 },
-  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  chipText: { fontSize: 12, fontWeight: "700" },
-  input: { borderWidth: 1, borderRadius: 10, minHeight: 80, paddingHorizontal: 10, paddingVertical: 10 },
-  metaText: { fontSize: 12, marginBottom: 10 },
-  buttonContainer: {},
-  spacer: { height: 12 },
-  videoName: { fontSize: 16, fontWeight: "700", marginBottom: 6 },
-  videoInfo: { fontSize: 13, marginBottom: 3 },
-  loader: { marginVertical: 10 },
-  progressLabel: { fontSize: 12, marginBottom: 8, textAlign: "center" },
-  progressTrack: { height: 8, borderRadius: 999, overflow: "hidden" },
-  progressFill: { height: "100%" },
-  progressPercent: { marginTop: 6, fontSize: 11, textAlign: "center", fontWeight: "700" },
+  content: { padding: 16, paddingBottom: 32 },
+  headerCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  title: { fontSize: 24, fontWeight: "800", marginBottom: 4 },
+  subtitle: { fontSize: 14, lineHeight: 20, marginBottom: 8 },
+  metaText: { fontSize: 12 },
+  uploadCard: {
+    borderRadius: 14,
+    padding: 20,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  buttonSpacer: { height: 12 },
+  hintText: { fontSize: 12, marginTop: 12, textAlign: "center" },
+  videoCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1.5,
+    marginBottom: 12,
+  },
+  videoHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  videoLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  videoInfo: { fontSize: 14 },
+  changeButton: { fontSize: 13, fontWeight: "600" },
+  sectionCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  sectionTitle: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
+  sectionHint: { fontSize: 12, marginBottom: 12 },
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 8,
+  },
+  chip: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  chipText: { fontSize: 13, fontWeight: "600" },
+  chipSmall: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  chipSmallText: { fontSize: 12, fontWeight: "500" },
+  notesToggle: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+    alignItems: "center",
+  },
+  notesToggleText: { fontSize: 13, fontWeight: "600" },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    minHeight: 80,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    fontSize: 14,
+  },
+  progressCard: {
+    borderRadius: 14,
+    padding: 20,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  progressLabel: { fontSize: 14, marginTop: 12, marginBottom: 12, textAlign: "center" },
+  progressTrack: { height: 6, borderRadius: 3, overflow: "hidden", width: "100%" },
+  progressFill: { height: "100%", borderRadius: 3 },
+  progressPercent: { marginTop: 8, fontSize: 12, fontWeight: "600" },
+  uploadActions: { marginTop: 8 },
 });

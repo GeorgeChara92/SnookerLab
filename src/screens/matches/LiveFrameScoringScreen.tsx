@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  AppState,
   Modal,
   Pressable,
   ScrollView,
@@ -15,6 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LiveFrameEvent as SavedLiveFrameEvent, MatchesStackParamList } from "../../types";
 import { useAuthStore, useMatchesStore } from "../../store";
+import { useSnookerScanStore } from "../../store/snookerScanStore";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
 import {
@@ -111,6 +113,7 @@ export const LiveFrameScoringScreen = () => {
   const { colors, isDark } = useAppTheme();
   const { user } = useAuthStore();
   const { getMatchById, getFrameRecordsByMatchId, getNextFrameNumber, saveFrameRecord, updateMatch, deleteMatch } = useMatchesStore();
+  const snookerScanStore = useSnookerScanStore();
   const match = getMatchById(route.params.matchId);
 
   const frameRecords = getFrameRecordsByMatchId(route.params.matchId);
@@ -420,6 +423,7 @@ export const LiveFrameScoringScreen = () => {
         onPress: () => {
           setUndoStack([]);
           setFrame((current) => reRack(current));
+          snookerScanStore.endScan();
         },
       },
     ]);
@@ -470,7 +474,7 @@ export const LiveFrameScoringScreen = () => {
             ? opponentLabel
             : null;
 
-      Alert.alert(
+Alert.alert(
         projectedMatchWinner ? "Match complete" : "Frame saved",
         projectedMatchWinner
           ? `${projectedMatchWinner} wins the match ${projectedWins.user}-${projectedWins.opponent}.`
@@ -478,17 +482,18 @@ export const LiveFrameScoringScreen = () => {
             ? "Frame saved as abandoned."
             : "Frame saved successfully.",
         [
-        {
-          text: "Next frame",
-          style: projectedMatchWinner ? "cancel" : "default",
-          isPreferred: !projectedMatchWinner,
-          onPress: () => {
-            const nextFrameNo = frame.frameNumber + 1;
-            setFrame(createInitialLiveFrameState(nextFrameNo, frame.atTable));
-            setUndoStack([]);
+          {
+            text: "Next frame",
+            style: projectedMatchWinner ? "cancel" : "default",
+            isPreferred: !projectedMatchWinner,
+            onPress: () => {
+              const nextFrameNo = frame.frameNumber + 1;
+              setFrame(createInitialLiveFrameState(nextFrameNo, frame.atTable));
+              setUndoStack([]);
+              snookerScanStore.endScan();
+            },
           },
-        },
-        { text: "Done", onPress: () => navigation.goBack() },
+          { text: "Done", onPress: () => navigation.goBack() },
         ]
       );
     } catch (error) {
@@ -516,6 +521,12 @@ export const LiveFrameScoringScreen = () => {
       { text: "Cancel", style: "cancel" },
       { text: "Save Abandoned", onPress: () => persistFrame(true) },
     ]);
+  };
+
+  const handleOpenSnookerScan = () => {
+    if (!match) return;
+    snookerScanStore.startScan(match.id, frame.frameNumber);
+    navigation.navigate("SnookerScan" as any, { matchId: match.id, frameNumber: frame.frameNumber });
   };
 
   useEffect(() => {
@@ -556,10 +567,42 @@ export const LiveFrameScoringScreen = () => {
     return unsubscribe;
   }, [deleteMatch, frame.events.length, frame.opponentScore, frame.userScore, frameRecords.length, isSaving, match, navigation]);
 
+  useEffect(() => {
+    if (!match) return;
+
+    const canAutoDiscardEmptyMatch =
+      frameRecords.length === 0 &&
+      frame.events.length === 0 &&
+      match.user_score === 0 &&
+      match.opponent_score === 0 &&
+      frame.userScore === 0 &&
+      frame.opponentScore === 0;
+
+    if (!canAutoDiscardEmptyMatch) return;
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "inactive" || nextAppState === "background") {
+        deleteMatch(match.id).catch(() => {});
+      }
+    });
+
+    return () => subscription.remove();
+  }, [deleteMatch, frame.events.length, frame.opponentScore, frame.userScore, frameRecords.length, match]);
+
+  useEffect(() => {
+    if (!match) {
+      const timer = setTimeout(() => {
+        navigation.navigate("MatchesList" as any);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [match, navigation]);
+
   if (!match) {
     return (
       <View style={[styles.missingWrap, { backgroundColor: colors.background }]}> 
-        <Text style={[styles.missingText, { color: colors.textMuted }]}>Match not found.</Text>
+        <Text style={[styles.missingText, { color: colors.textMuted }]}>Match not found</Text>
+        <Text style={[styles.missingSubtext, { color: colors.textMuted }]}>Redirecting to matches...</Text>
       </View>
     );
   }
@@ -846,15 +889,27 @@ export const LiveFrameScoringScreen = () => {
             <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => endVisit(state))}>
               <Text style={[styles.actionPillText, { color: ui.text }]}>Safety</Text>
             </Pressable>
-            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => endVisit(state))}>
-              <Text style={[styles.actionPillText, { color: ui.text }]}>End Break</Text>
-            </Pressable>
           </View>
 
           <View style={styles.actionPillRow}>
+            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => endVisit(state))}>
+              <Text style={[styles.actionPillText, { color: ui.text }]}>End Break</Text>
+            </Pressable>
             <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => switchPlayer(state))}>
               <Text style={[styles.actionPillText, { color: ui.text }]}>Switch</Text>
             </Pressable>
+            {snookerScanStore.isActive && snookerScanStore.markers.length > 0 ? (
+              <Pressable
+                style={[styles.actionPill, { backgroundColor: ui.snookerBg, borderColor: ui.snookerBorder }]}
+                onPress={handleOpenSnookerScan}
+              >
+                <Text style={[styles.actionPillText, { color: ui.snookerText }]}>Markers ({snookerScanStore.markers.length})</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={handleOpenSnookerScan}>
+                <Text style={[styles.actionPillText, { color: ui.text }]}>Scan Snooker</Text>
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.secondaryControlsWrap}>
@@ -1638,5 +1693,10 @@ const styles = StyleSheet.create({
   missingText: {
     fontSize: 15,
     fontWeight: "600",
+  },
+  missingSubtext: {
+    fontSize: 13,
+    fontWeight: "400",
+    marginTop: 8,
   },
 });

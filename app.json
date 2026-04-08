@@ -18,7 +18,9 @@
       "supportsTablet": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "Snooker Lab may access your location while using AR routine setup to improve motion tracking and camera alignment."
+        "NSLocationWhenInUseUsageDescription": "Snooker Lab may access your location while using AR routine setup to improve motion tracking and camera alignment.",
+        "NSPhotoLibraryUsageDescription": "Snooker Lab accesses your photo library to select video clips for AI coaching analysis. For example, you can choose a recorded video of your practice session to receive personalized feedback on your technique.",
+        "NSMicrophoneUsageDescription": "Snooker Lab uses the microphone to record audio while capturing video for AI coaching analysis. For example, when recording a practice session, the audio helps provide comprehensive technique feedback."
       }
     },
     "android": {
@@ -40,9 +42,10 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Snooker Lab uses the camera to help align table setup for routines."
+          "cameraPermission": "Snooker Lab uses the camera to record video clips for AI coaching analysis and to align table setup for AR routines. For example, you can record your practice session to receive personalized technique feedback."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "extra": {
       "eas": {

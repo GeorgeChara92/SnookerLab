@@ -155,7 +155,7 @@ const buildKnockoutFixtures = (
   const drawSize = nextPowerOfTwo(Math.max(2, participants.length));
   let slots: string[];
 
-  if (pairingMode === "manual" && manualFixtures?.length) {
+  if (manualFixtures?.length) {
     slots = manualFixtures.flatMap((fixture) => [fixture.participantA, fixture.participantB]);
   } else {
     slots = shuffled(participants);

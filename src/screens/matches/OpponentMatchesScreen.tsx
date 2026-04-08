@@ -40,6 +40,7 @@ export const OpponentMatchesScreen = () => {
 
         const frameRecords = getFrameRecordsByMatchId(match.id);
         if (frameRecords.length > 0) {
+          // Live scored match - use frame records
           acc.totalScoreFor += frameRecords.reduce((sum, frame) => sum + frame.user_score, 0);
           acc.totalScoreAgainst += frameRecords.reduce((sum, frame) => sum + frame.opponent_score, 0);
 
@@ -50,13 +51,15 @@ export const OpponentMatchesScreen = () => {
             if (frame.winner === "draw") acc.frameDraws += 1;
           });
         } else {
+          // Manual entry - single frame with point scores
           acc.totalScoreFor += match.user_score;
           acc.totalScoreAgainst += match.opponent_score;
 
-          const inferredFrames = Math.max(0, (match.user_score ?? 0) + (match.opponent_score ?? 0));
-          acc.totalFrames += inferredFrames;
-          acc.frameWins += Math.max(0, match.user_score ?? 0);
-          acc.frameLosses += Math.max(0, match.opponent_score ?? 0);
+          // Manual entry is always 1 frame
+          acc.totalFrames += 1;
+          if (match.result === "win") acc.frameWins += 1;
+          if (match.result === "loss") acc.frameLosses += 1;
+          if (match.result === "draw") acc.frameDraws += 1;
         }
 
         return acc;

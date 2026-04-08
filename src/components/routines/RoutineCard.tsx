@@ -1,9 +1,10 @@
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Routine } from "../../types";
 import { getYoutubeThumbnailUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
+import { getRoutineReferenceImageByRoutineId, isRoutineARBadgeVisible } from "../../features/ar/routineLayouts";
 
 interface RoutineCardProps {
   routine: Routine;
@@ -18,6 +19,7 @@ export const RoutineCard = ({ routine, categoryName, categoryColor, onPress }: R
   const referenceImage = getRoutineReferenceImageByRoutineId(routine.id);
   const imageSource = referenceImage ? referenceImage : thumbnail ? { uri: thumbnail } : undefined;
   const isGuide = routine.content_type === "guide";
+  const showARBadge = isRoutineARBadgeVisible(routine);
   const { colors } = useAppTheme();
 
   return (
@@ -28,6 +30,12 @@ export const RoutineCard = ({ routine, categoryName, categoryColor, onPress }: R
           {!referenceImage ? (
             <View style={styles.playBadge}>
               <Text style={styles.playText}>▶</Text>
+            </View>
+          ) : null}
+          {showARBadge ? (
+            <View style={styles.arBadge}>
+              <MaterialCommunityIcons name="camera-outline" size={12} color="#FFFFFF" />
+              <Text style={styles.arBadgeText}>AR</Text>
             </View>
           ) : null}
         </View>
@@ -75,6 +83,29 @@ const styles = StyleSheet.create({
   playText: {
     color: "#FFFFFF",
     fontWeight: "700",
+  },
+  arBadge: {
+    position: "absolute",
+    left: 10,
+    top: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "rgba(15,118,110,0.95)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  arBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   topRow: {
     flexDirection: "row",

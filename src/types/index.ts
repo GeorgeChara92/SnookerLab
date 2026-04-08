@@ -310,6 +310,7 @@ export type MatchesStackParamList = {
   OpponentMatches: { opponentName: string };
   MatchDetail: { matchId: string };
   LiveFrameScoring: { matchId: string };
+  SnookerScan: { matchId: string; frameNumber: number };
   NewMatch: { opponentName?: string } | undefined;
   NewTournament:
     | {
@@ -333,6 +334,7 @@ export type SessionsStackParamList = {
   SessionTemplateDetail: { templateId: string };
   SessionSetup: { templateId?: string } | undefined;
   ActiveSession: { templateId: string; date?: string };
+  GuidedSessionBuilder: undefined;
 };
 
 export type StatsStackParamList = {
@@ -350,4 +352,6 @@ export type ProfileStackParamList = {
   ProfileHome: undefined;
   Settings: undefined;
   SubscriptionPlans: undefined;
+  Achievements: undefined;
+  EditProfileField: { field: "skill_level" | "country_code" | "cue_preference" };
 };

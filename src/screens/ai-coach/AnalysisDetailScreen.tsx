@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { AppCard } from "../../components/ui/AppCard";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAIAnalysesStore } from "../../store";
 import { AICoachStackParamList } from "../../types";
@@ -14,19 +13,43 @@ const ClipPlayer = ({ url }: { url: string }) => {
   const player = useVideoPlayer({ uri: url }, (instance) => {
     instance.loop = false;
   });
-
   return <VideoView player={player} style={styles.videoPlayer} nativeControls contentFit="contain" />;
+};
+
+const ANALYSIS_LABELS: Record<string, { label: string }> = {
+  stroke_analysis: { label: "Stroke" },
+  alignment_check: { label: "Alignment" },
+  technique_review: { label: "Technique" },
+};
+
+const formatDate = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return date.toLocaleDateString();
 };
 
 export const AnalysisDetailScreen = () => {
   const route = useRoute<AnalysisDetailRoute>();
+  const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
-  const { analyses } = useAIAnalysesStore();
+  const { analyses, deleteAnalysis } = useAIAnalysesStore();
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
   const analysis = analyses.find((item) => item.id === route.params.analysisId);
   const report = analysis?.report_json;
+
+  const toggleSection = (key: string) => {
+    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -62,6 +85,20 @@ export const AnalysisDetailScreen = () => {
     };
   }, [analysis?.id, analysis?.video_url]);
 
+  const handleDelete = async () => {
+    if (!analysis) return;
+    setIsDeleting(true);
+    try {
+      await deleteAnalysis(analysis.id);
+      navigation.goBack();
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Failed to delete analysis");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
   if (!analysis) {
     return (
       <View style={[styles.emptyContainer, { backgroundColor: colors.background }]}> 
@@ -71,147 +108,262 @@ export const AnalysisDetailScreen = () => {
     );
   }
 
+  const typeInfo = ANALYSIS_LABELS[analysis.analysis_type] ?? { label: analysis.analysis_type };
+  const statusColor = analysis.status === "completed" ? colors.primary : analysis.status === "failed" ? colors.danger : colors.textMuted;
+
+  const renderBulletList = (items: string[], key: string) => (
+    <View style={styles.bulletList}>
+      {items.map((item, index) => (
+        <View key={`${key}-${index}`} style={styles.bulletRow}>
+          <View style={[styles.bulletDot, { backgroundColor: colors.primary }]} />
+          <Text style={[styles.bulletText, { color: colors.text }]}>{item}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  const CollapsibleSection = ({ title, children, sectionKey, defaultExpanded = false }: { title: string; children: React.ReactNode; sectionKey: string; defaultExpanded?: boolean }) => {
+    const isExpanded = expandedSections[sectionKey] ?? defaultExpanded;
+    return (
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Pressable style={styles.collapsibleHeader} onPress={() => toggleSection(sectionKey)}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.chevron, { color: colors.textMuted }]}>{isExpanded ? "▲" : "▼"}</Text>
+        </Pressable>
+        {isExpanded && children}
+      </View>
+    );
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <AppCard style={styles.card}>
-        <View style={styles.metaRow}>
-          <Text style={[styles.type, { color: colors.text }]}>{analysis.analysis_type.replace("_", " ").toUpperCase()}</Text>
-          <Text
-            style={[
-              styles.status,
-              { color: analysis.status === "completed" ? colors.primary : analysis.status === "failed" ? colors.danger : colors.textMuted },
-            ]}
-          >
-            {analysis.status.toUpperCase()}
-          </Text>
+      <View style={[styles.headerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <Text style={[styles.typeLabel, { color: colors.text }]}>{typeInfo.label}</Text>
+            <Text style={[styles.dateLabel, { color: colors.textMuted }]}>{formatDate(analysis.created_at)}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}> 
+            <Text style={[styles.statusText, { color: statusColor }]}>{analysis.status.toUpperCase()}</Text>
+          </View>
         </View>
-        <Text style={[styles.date, { color: colors.textMuted }]}>{new Date(analysis.created_at).toLocaleString()}</Text>
-        {analysis.context_tags && analysis.context_tags.length > 0 ? (
-          <View style={styles.tagsWrap}>
+        {analysis.context_tags && analysis.context_tags.length > 0 && (
+          <View style={styles.tagsRow}>
             {analysis.context_tags.map((tag) => (
-              <View key={`${analysis.id}-${tag}`} style={[styles.tagChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}>
+              <View key={tag} style={[styles.tag, { backgroundColor: colors.surfaceMuted }]}> 
                 <Text style={[styles.tagText, { color: colors.textMuted }]}>{tag}</Text>
               </View>
             ))}
           </View>
-        ) : null}
-      </AppCard>
+        )}
+        <Pressable style={styles.deleteButton} onPress={() => setShowDeleteModal(true)}>
+          <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Delete</Text>
+        </Pressable>
+      </View>
 
-      <AppCard style={styles.card}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Clip</Text>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+        <Text style={[styles.cardTitle, { color: colors.text }]}>Clip</Text>
         {playbackUrl ? (
           <ClipPlayer url={playbackUrl} />
         ) : !analysis.video_url || analysis.video_url.startsWith("demo://") ? (
-          <Text style={[styles.body, { color: colors.textMuted }]}>No clip is attached to this analysis.</Text>
+          <Text style={[styles.placeholderText, { color: colors.textMuted }]}>No clip attached to this analysis.</Text>
         ) : videoError ? (
-          <Text style={[styles.body, { color: colors.danger }]}>Could not load clip: {videoError}</Text>
+          <Text style={[styles.errorText, { color: colors.danger }]}>Could not load clip: {videoError}</Text>
         ) : (
-          <Text style={[styles.body, { color: colors.textMuted }]}>Preparing secure playback link...</Text>
+          <Text style={[styles.placeholderText, { color: colors.textMuted }]}>Loading clip...</Text>
         )}
-        <Text style={[styles.privacyNote, { color: colors.textMuted }]}>Private clip playback uses short-lived signed links.</Text>
-      </AppCard>
+      </View>
 
-      {report ? (
+      {report && (
         <>
-          <AppCard style={styles.card}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Summary</Text>
-            <Text style={[styles.body, { color: colors.text }]}>{report.summary}</Text>
-          </AppCard>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Key Takeaway</Text>
+            <Text style={[styles.takeawayText, { color: colors.text }]}>{report.summary}</Text>
+          </View>
 
-          <AppCard style={styles.card}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>What Was Done Well</Text>
-            {report.positives.map((item, index) => (
-              <Text key={`${analysis.id}-positive-${index}`} style={[styles.body, { color: colors.text }]}>
-                - {item}
-              </Text>
-            ))}
-          </AppCard>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+            <Text style={[styles.cardTitle, { color: colors.text }]}>What You Did Well</Text>
+            {renderBulletList(report.positives, "positives")}
+          </View>
 
-          <AppCard style={styles.card}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Areas to Improve (Observed)</Text>
-            {report.improvements.map((item, index) => (
-              <Text key={`${analysis.id}-improve-${index}`} style={[styles.body, { color: colors.text }]}>
-                - {item}
-              </Text>
-            ))}
-          </AppCard>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+            <Text style={[styles.cardTitle, { color: colors.text }]}>What to Improve</Text>
+            {renderBulletList(report.improvements, "improvements")}
+          </View>
 
-          <AppCard style={styles.card}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Possible Causes (If Applicable)</Text>
-            {report.possible_causes.length > 0 ? (
-              report.possible_causes.map((item, index) => (
-                <Text key={`${analysis.id}-cause-${index}`} style={[styles.body, { color: colors.text }]}>- {item}</Text>
-              ))
-            ) : (
-              <Text style={[styles.body, { color: colors.textMuted }]}>None identified from this clip.</Text>
-            )}
-          </AppCard>
+          <View style={[styles.tipCard, { backgroundColor: colors.primaryStrong, borderColor: colors.primary }]}> 
+            <Text style={styles.tipLabel}>COACHING TIP</Text>
+            <Text style={styles.tipText}>{report.coaching_tip}</Text>
+          </View>
 
-          <AppCard style={styles.card}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>What Cannot Be Assessed</Text>
-            {report.not_assessable.map((item, index) => (
-              <Text key={`${analysis.id}-unknown-${index}`} style={[styles.body, { color: colors.text }]}>- {item}</Text>
-            ))}
-          </AppCard>
+          {report.possible_causes.length > 0 && (
+            <CollapsibleSection title="Possible Causes" sectionKey="causes" defaultExpanded={false}>
+              {renderBulletList(report.possible_causes, "causes")}
+            </CollapsibleSection>
+          )}
 
-          <AppCard style={styles.card}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Coaching Tip</Text>
-            <Text style={[styles.body, { color: colors.text }]}>{report.coaching_tip}</Text>
-          </AppCard>
+          {report.not_assessable.length > 0 && (
+            <CollapsibleSection title="Limitations" sectionKey="limitations" defaultExpanded={false}>
+              {renderBulletList(report.not_assessable, "limitations")}
+            </CollapsibleSection>
+          )}
         </>
-      ) : null}
+      )}
 
-      {analysis.user_notes ? (
-        <AppCard style={styles.card}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Coach Notes</Text>
-          <Text style={[styles.body, { color: colors.text }]}>{analysis.user_notes}</Text>
-        </AppCard>
-      ) : null}
+      {analysis.user_notes && (
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Your Notes</Text>
+          <Text style={[styles.bodyText, { color: colors.text }]}>{analysis.user_notes}</Text>
+        </View>
+      )}
 
-      {!report && analysis.feedback ? (
-        <AppCard style={styles.card}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Feedback</Text>
-          <Text style={[styles.body, { color: colors.text }]}>{analysis.feedback}</Text>
-        </AppCard>
-      ) : null}
+      {!report && analysis.feedback && (
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Feedback</Text>
+          <Text style={[styles.bodyText, { color: colors.text }]}>{analysis.feedback}</Text>
+        </View>
+      )}
 
-      {analysis.recommendations && analysis.recommendations.length > 0 ? (
-        <AppCard style={styles.card}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recommendations</Text>
+      {analysis.recommendations && analysis.recommendations.length > 0 && (
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Recommendations</Text>
           {analysis.recommendations.map((item, index) => (
-            <Text key={`${analysis.id}-rec-${index}`} style={[styles.body, { color: colors.text }]}>
-              {index + 1}. {item}
-            </Text>
+            <View key={`rec-${index}`} style={styles.recRow}>
+              <Text style={[styles.recIndex, { color: colors.primary }]}>{index + 1}</Text>
+              <Text style={[styles.bodyText, { color: colors.text }]}>{item}</Text>
+            </View>
           ))}
-        </AppCard>
-      ) : null}
+        </View>
+      )}
 
-      {analysis.status === "failed" && analysis.error_message ? (
-        <AppCard style={styles.card}>
-          <Text style={[styles.sectionTitle, { color: colors.danger }]}>Analysis Error</Text>
-          <Text style={[styles.body, { color: colors.danger }]}>{analysis.error_message}</Text>
-        </AppCard>
-      ) : null}
+      {analysis.status === "failed" && analysis.error_message && (
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.danger }]}> 
+          <Text style={[styles.cardTitle, { color: colors.danger }]}>Error</Text>
+          <Text style={[styles.bodyText, { color: colors.danger }]}>{analysis.error_message}</Text>
+        </View>
+      )}
+
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}> 
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Delete Analysis?</Text>
+            <Text style={[styles.modalBody, { color: colors.textMuted }]}>This cannot be undone. The analysis and its video will be permanently removed.</Text>
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.modalButton, styles.modalCancel]} onPress={() => setShowDeleteModal(false)}>
+                <Text style={[styles.modalCancelText, { color: colors.textMuted }]}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.modalButton, styles.modalDelete, { backgroundColor: colors.danger }]} onPress={handleDelete} disabled={isDeleting}>
+                <Text style={styles.modalDeleteText}>{isDeleting ? "Deleting..." : "Delete"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 28 },
-  card: { marginBottom: 12 },
-  metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  type: { fontSize: 13, fontWeight: "800" },
-  status: { fontSize: 12, fontWeight: "700" },
-  date: { marginTop: 8, fontSize: 12 },
-  tagsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
-  tagChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
-  tagText: { fontSize: 11, fontWeight: "700" },
-  sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8 },
-  body: { fontSize: 14, lineHeight: 20, marginBottom: 6 },
-  videoPlayer: { width: "100%", height: 220, borderRadius: 10, backgroundColor: "#000" },
-  privacyNote: { marginTop: 8, fontSize: 12 },
+  content: { padding: 16, paddingBottom: 32 },
+  headerCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  headerLeft: { flex: 1 },
+  typeLabel: { fontSize: 18, fontWeight: "800", marginBottom: 4 },
+  dateLabel: { fontSize: 13 },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  statusText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  tagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+  },
+  tag: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  tagText: { fontSize: 11, fontWeight: "600" },
+  deleteButton: {
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  deleteButtonText: { fontSize: 13, fontWeight: "600" },
+  card: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  cardTitle: { fontSize: 15, fontWeight: "700", marginBottom: 12 },
+  placeholderText: { fontSize: 14, lineHeight: 20 },
+  errorText: { fontSize: 14, lineHeight: 20 },
+  videoPlayer: { width: "100%", height: 200, borderRadius: 10, backgroundColor: "#000", marginTop: 8 },
+  takeawayText: { fontSize: 15, lineHeight: 22, fontWeight: "500" },
+  bulletList: { gap: 8 },
+  bulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  bulletDot: { width: 6, height: 6, borderRadius: 3, marginTop: 7 },
+  bulletText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  tipCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1.5,
+    marginBottom: 12,
+  },
+  tipLabel: { color: "#BDE6D7", fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginBottom: 8 },
+  tipText: { color: "#FFFFFF", fontSize: 15, lineHeight: 22 },
+  collapsibleHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  sectionTitle: { fontSize: 15, fontWeight: "700" },
+  chevron: { fontSize: 12 },
+  recRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 8,
+  },
+  recIndex: { fontSize: 14, fontWeight: "700" },
+  bodyText: { fontSize: 14, lineHeight: 20 },
   emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
   emptyTitle: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
   emptySubtitle: { fontSize: 14, textAlign: "center" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalCard: {
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 320,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
+  modalBody: { fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  modalActions: { flexDirection: "row", gap: 12 },
+  modalButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
+  modalCancel: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#ccc" },
+  modalCancelText: { fontSize: 14, fontWeight: "600" },
+  modalDelete: {},
+  modalDeleteText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
 });

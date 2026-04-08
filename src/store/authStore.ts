@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { safeStorage } from "../utils/storage";
 import { supabase } from "../api/supabase";
-import { User } from "../types";
+import { User, SkillLevel } from "../types";
 import { logoutBilling } from "../services/billing";
 
 const mapAuthUser = (authUser: any): User => ({
@@ -32,6 +32,17 @@ const LEGACY_STORE_KEYS = [
   "matches-storage",
   "routine-scores-storage",
   "tournaments-storage",
+  "ai-analyses-storage",
+  "seen_achievements",
+];
+
+const DATA_STORE_KEYS = [
+  "sessions-storage",
+  "matches-storage",
+  "routine-scores-storage",
+  "tournaments-storage",
+  "ai-analyses-storage",
+  "seen_achievements",
 ];
 
 const AUTH_REDIRECT_URL = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL ?? "snookerlab://auth/callback";
@@ -44,15 +55,17 @@ interface AuthState {
   isAuthenticated: boolean;
   requiresPasswordReset: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string) => Promise<void>;
+  signUp: (email: string, password: string, username: string, skillLevel?: SkillLevel, countryCode?: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   resendEmailVerification: (email: string) => Promise<void>;
   deleteAccount: () => Promise<void>;
+  resetProfile: () => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
   setRequiresPasswordReset: (value: boolean) => void;
   updateAvatarPreset: (presetId: string) => Promise<void>;
   uploadProfilePhoto: (photoUri: string) => Promise<void>;
+  updateProfile: (updates: { skill_level?: SkillLevel; country_code?: string; cue_preference?: string }) => Promise<void>;
   setUser: (user: User | any | null) => void;
 }
 
@@ -77,7 +90,7 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
         }
       },
-      signUp: async (email, password, username) => {
+      signUp: async (email, password, username, skillLevel, countryCode) => {
         set({ isLoading: true });
         try {
           const nowIso = new Date().toISOString();
@@ -90,6 +103,8 @@ export const useAuthStore = create<AuthState>()(
                 username,
                 subscription_tier: "free",
                 subscription_anchor_date: nowIso,
+                ...(skillLevel && { skill_level: skillLevel }),
+                ...(countryCode && { country_code: countryCode }),
               },
             },
           });
@@ -145,6 +160,53 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
         }
       },
+      resetProfile: async () => {
+        const authUser = (await supabase.auth.getUser()).data.user;
+        if (!authUser) throw new Error("You need to be signed in to reset your profile.");
+
+        set({ isLoading: true });
+        try {
+          // First clear AsyncStorage (before clearing in-memory to prevent persist from re-saving)
+          await Promise.all(DATA_STORE_KEYS.map((key) => safeStorage.removeItem(key)));
+
+          // Then clear in-memory stores
+          const { useMatchesStore } = await import("./matchesStore");
+          const { useSessionsStore } = await import("./sessionsStore");
+          const { useTournamentsStore } = await import("./tournamentsStore");
+          const { useRoutineScoresStore } = await import("./routineScoresStore");
+          const { useAIAnalysesStore } = await import("./aiAnalysesStore");
+
+          useMatchesStore.setState({ ownerUserId: null, matches: [], liveFramesByMatch: {} });
+          useSessionsStore.setState({ ownerUserId: null, templates: [], logs: [], activeResults: [] });
+          useTournamentsStore.setState({ ownerUserId: null, tournaments: [] });
+          useRoutineScoresStore.setState({ ownerUserId: null, entries: [] });
+          useAIAnalysesStore.setState({ ownerUserId: null, analyses: [] });
+
+          // Then delete from server
+          const { error } = await supabase.functions.invoke("reset-profile", {
+            body: {},
+          });
+          if (error) throw error;
+
+          // Finally update user metadata
+          const updatedUser = mapAuthUser({
+            ...authUser,
+            user_metadata: {
+              ...authUser.user_metadata,
+              subscription_tier: authUser.user_metadata?.subscription_tier,
+              subscription_anchor_date: authUser.user_metadata?.subscription_anchor_date,
+              avatar_preset: undefined,
+              skill_level: undefined,
+              country_code: undefined,
+              cue_preference: undefined,
+              bio: undefined,
+            },
+          });
+          set({ user: updatedUser });
+        } finally {
+          set({ isLoading: false });
+        }
+      },
       updatePassword: async (password) => {
         set({ isLoading: true });
         try {
@@ -167,7 +229,16 @@ export const useAuthStore = create<AuthState>()(
         const authUser = (await supabase.auth.getUser()).data.user;
         if (!authUser) throw new Error("You need to be signed in to set an avatar preset.");
 
-        set({ isLoading: true });
+        // Optimistic update - immediately update UI
+        set((state) => ({
+          user: state.user
+            ? {
+                ...state.user,
+                avatar_preset: presetId,
+                updated_at: new Date().toISOString(),
+              }
+            : null,
+        }));
 
         try {
           const { data, error } = await supabase.auth.updateUser({
@@ -179,21 +250,19 @@ export const useAuthStore = create<AuthState>()(
           if (error) throw error;
 
           if (data.user) {
-            set({ user: mapAuthUser(data.user), isAuthenticated: true });
-            return;
+            set({ user: mapAuthUser(data.user) });
           }
-
+        } catch (error) {
+          // Revert on error
           set((state) => ({
             user: state.user
               ? {
                   ...state.user,
-                  avatar_preset: presetId,
-                  updated_at: new Date().toISOString(),
+                  avatar_preset: authUser.user_metadata?.avatar_preset,
                 }
               : null,
           }));
-        } finally {
-          set({ isLoading: false });
+          throw error;
         }
       },
       uploadProfilePhoto: async (photoUri) => {
@@ -238,6 +307,37 @@ export const useAuthStore = create<AuthState>()(
               ? {
                   ...state.user,
                   profile_image_url: photoUrl,
+                  updated_at: new Date().toISOString(),
+                }
+              : null,
+          }));
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      updateProfile: async (updates) => {
+        const authUser = (await supabase.auth.getUser()).data.user;
+        if (!authUser) throw new Error("You need to be signed in to update your profile.");
+
+        set({ isLoading: true });
+
+        try {
+          const { data, error } = await supabase.auth.updateUser({
+            data: updates,
+          });
+
+          if (error) throw error;
+
+          if (data.user) {
+            set({ user: mapAuthUser(data.user), isAuthenticated: true });
+            return;
+          }
+
+          set((state) => ({
+            user: state.user
+              ? {
+                  ...state.user,
+                  ...updates,
                   updated_at: new Date().toISOString(),
                 }
               : null,

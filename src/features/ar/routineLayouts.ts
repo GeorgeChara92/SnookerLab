@@ -115,6 +115,33 @@ const layoutDefinitions: RoutineLayoutDefinition[] = [
     referenceImage: require("../../../assets/routines/fundamentals/head_postion.png"),
   },
   {
+    routineId: "routine-cue-ball-control-fundamentals-guide",
+    displayName: "Cue Ball Control Fundamentals",
+    category: "fundamentals",
+    anchorSystem: "black_pink",
+    spotMarkers: ["spot-blue"],
+    ballPlacements: [{ id: "cbc-cue", color: "white", x: 0.5, y: 0.56 }],
+    referenceImage: require("../../../assets/routines/fundamentals/cue_ball_control.png"),
+  },
+  {
+    routineId: "routine-pre-shot-system-fundamentals",
+    displayName: "Pre-Shot Routine Fundamentals",
+    category: "fundamentals",
+    anchorSystem: "black_pink",
+    spotMarkers: [],
+    ballPlacements: [],
+    referenceImage: require("../../../assets/routines/fundamentals/pre_shot.png"),
+  },
+  {
+    routineId: "routine-straight-cueing-fundamentals-guide",
+    displayName: "Straight Cueing Fundamentals",
+    category: "fundamentals",
+    anchorSystem: "black_pink",
+    spotMarkers: [],
+    ballPlacements: [],
+    referenceImage: require("../../../assets/routines/fundamentals/straight_cueing.png"),
+  },
+  {
     routineId: "routine-line-up",
     displayName: "The Snooker Line Up",
     category: "break-building",
@@ -371,4 +398,11 @@ export const isRoutineAREnabled = (routine: Routine | undefined): boolean => {
   if (!routine) return false;
   const definition = byRoutineId.get(routine.id);
   return Boolean(definition?.referenceImage);
+};
+
+export const isRoutineARBadgeVisible = (routine: Routine | undefined): boolean => {
+  if (!routine) return false;
+  const definition = byRoutineId.get(routine.id);
+  if (!definition?.referenceImage) return false;
+  return definition.category !== "fundamentals";
 };

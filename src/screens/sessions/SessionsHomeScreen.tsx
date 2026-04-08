@@ -5,12 +5,118 @@ import { useSessionsStore } from "../../store";
 import type { SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 
+type TemplateWithStats = {
+  id: string;
+  name: string;
+  notes?: string;
+  routine_ids: string[];
+  runs: number;
+  latest?: string;
+};
+
+const formatLastPractised = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return `${Math.floor(diffDays / 30)}mo ago`;
+};
+
+const PresetCard = ({
+  item,
+  colors,
+  onPress,
+  onStart,
+  onEdit,
+  onDelete,
+}: {
+  item: TemplateWithStats;
+  colors: ReturnType<typeof useAppTheme>["colors"];
+  onPress: () => void;
+  onStart: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) => {
+  return (
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Pressable
+        style={styles.cardBody}
+        onPress={onPress}
+        android_ripple={{ color: colors.primary + "10" }}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.titleRow}>
+            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.chevron}>›</Text>
+          </View>
+          <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+            {item.routine_ids.length} routine{item.routine_ids.length !== 1 ? "s" : ""}
+          </Text>
+        </View>
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statCol}>
+            <Text style={[styles.statValue, { color: colors.primary }]}>{item.runs}</Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Sessions</Text>
+          </View>
+          <View style={styles.statCol}>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {item.latest ? formatLastPractised(item.latest) : "—"}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Last practiced</Text>
+          </View>
+          {item.runs > 0 && (
+            <View style={styles.statCol}>
+              <View style={[styles.historyBadge, { backgroundColor: colors.primary + "15" }]}>
+                <Text style={[styles.historyBadgeText, { color: colors.primary }]}>View history</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {item.runs === 0 && (
+          <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+            No sessions yet. Tap to view details.
+          </Text>
+        )}
+      </Pressable>
+
+      <View style={[styles.cardActions, { borderTopColor: colors.border }]}>
+        <Pressable
+          style={[styles.actionBtn, styles.startBtn, { backgroundColor: colors.primary }]}
+          onPress={onStart}
+        >
+          <Text style={[styles.actionBtnText, { color: colors.onPrimary }]}>Start</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}
+          onPress={onEdit}
+        >
+          <Text style={[styles.actionBtnText, { color: colors.text }]}>Edit</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}
+          onPress={onDelete}
+        >
+          <Text style={[styles.actionBtnText, { color: colors.danger }]}>Delete</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+};
+
 export const SessionsHomeScreen = () => {
   const navigation = useNavigation<NavigationProp<SessionsStackParamList>>();
   const { templates, logs, deleteTemplate } = useSessionsStore();
   const { colors } = useAppTheme();
 
-  const templateStats = useMemo(
+  const templateStats = useMemo<TemplateWithStats[]>(
     () =>
       templates.map((template) => {
         const templateLogs = logs.filter((log) => log.template_id === template.id);
@@ -41,49 +147,46 @@ export const SessionsHomeScreen = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}> 
-      <Pressable style={[styles.newButton, { backgroundColor: colors.primary }]} onPress={() => navigation.navigate("SessionSetup") }>
-        <Text style={[styles.newButtonText, { color: colors.onPrimary }]}>+ Create Session Preset</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Pressable
+        style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+        onPress={() => navigation.navigate("GuidedSessionBuilder")}
+      >
+        <Text style={styles.primaryButtonIcon}>+</Text>
+        <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>New Practice Session</Text>
       </Pressable>
+
+      <Pressable
+        style={[styles.secondaryButton, { borderColor: colors.border }]}
+        onPress={() => navigation.navigate("SessionSetup")}
+      >
+        <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Custom Preset</Text>
+        <Text style={[styles.secondaryButtonHint, { color: colors.textMuted }]}>Build your own routine list</Text>
+      </Pressable>
+
+      <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Your Presets</Text>
 
       <FlatList
         data={templateStats}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <Text style={[styles.empty, { color: colors.textMuted }]}>Create a preset session with your favourite routines 🎯</Text>
+          <View style={styles.emptyContainer}>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No presets yet</Text>
+            <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+              Create a preset to quickly start practice sessions with your favourite routines.
+            </Text>
+          </View>
         }
         renderItem={({ item }) => (
-          <Pressable
-            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          <PresetCard
+            item={item}
+            colors={colors}
             onPress={() => navigation.navigate("SessionTemplateDetail", { templateId: item.id })}
-          >
-            <Text style={[styles.title, { color: colors.text }]}>🗓️ {item.name}</Text>
-            <Text style={[styles.meta, { color: colors.textMuted }]}>Routines: {item.routine_ids.length}</Text>
-            <Text style={[styles.meta, { color: colors.textMuted }]}>Sessions Logged: {item.runs}</Text>
-            <Text style={[styles.meta, { color: colors.textMuted }]}>Last Practiced: {item.latest ?? "Not yet"}</Text>
-
-            <View style={styles.actionsRow}>
-              <Pressable
-                style={[styles.actionButton, styles.startButton, { backgroundColor: colors.surfaceMuted }]}
-                onPress={() => navigation.navigate("ActiveSession", { templateId: item.id })}
-              >
-                <Text style={[styles.startButtonText, { color: colors.primaryStrong }]}>Start</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.actionButton, styles.editButton, { backgroundColor: colors.surfaceMuted }]}
-                onPress={() => navigation.navigate("SessionSetup", { templateId: item.id })}
-              >
-                <Text style={[styles.editButtonText, { color: colors.primary }]}>Edit</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.actionButton, styles.deleteButton, { backgroundColor: colors.surfaceMuted }]}
-                onPress={() => confirmDelete(item.id)}
-              >
-                <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Delete</Text>
-              </Pressable>
-            </View>
-          </Pressable>
+            onStart={() => navigation.navigate("ActiveSession", { templateId: item.id })}
+            onEdit={() => navigation.navigate("SessionSetup", { templateId: item.id })}
+            onDelete={() => confirmDelete(item.id)}
+          />
         )}
       />
     </View>
@@ -92,37 +195,120 @@ export const SessionsHomeScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  newButton: {
-    borderRadius: 12,
-    paddingVertical: 12,
+  primaryButton: {
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  primaryButtonIcon: {
+    fontSize: 20,
+    marginBottom: 4,
+    color: "#FFF",
+  },
+  primaryButtonText: { fontWeight: "700", fontSize: 15 },
+  secondaryButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  secondaryButtonText: { fontWeight: "600", fontSize: 14, textAlign: "center" },
+  secondaryButtonHint: { fontSize: 12, textAlign: "center", marginTop: 2 },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  list: { paddingBottom: 24 },
+  emptyContainer: {
+    paddingVertical: 32,
     alignItems: "center",
   },
-  newButtonText: { fontWeight: "700", fontSize: 15 },
-  list: { paddingTop: 14, paddingBottom: 20 },
+  emptyTitle: { fontSize: 16, fontWeight: "700", marginBottom: 6 },
+  emptyText: { fontSize: 13, textAlign: "center", lineHeight: 18, paddingHorizontal: 20 },
   card: {
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    padding: 12,
-    marginBottom: 10,
+    marginBottom: 12,
+    overflow: "hidden",
   },
-  title: { fontSize: 16, fontWeight: "700" },
-  meta: { marginTop: 4, fontSize: 13 },
-  actionsRow: {
-    marginTop: 10,
+  cardBody: {
+    padding: 14,
+  },
+  cardHeader: {
+    marginBottom: 12,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    flex: 1,
+    marginRight: 8,
+  },
+  chevron: {
+    fontSize: 20,
+    fontWeight: "300",
+    color: "#9CA3AF",
+  },
+  cardMeta: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  statCol: {
+    minWidth: 80,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  statLabel: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  historyBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  historyBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  emptyHint: {
+    fontSize: 12,
+    fontStyle: "italic",
+    marginTop: 8,
+  },
+  cardActions: {
     flexDirection: "row",
     gap: 8,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
   },
-  actionButton: {
+  actionBtn: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
     alignItems: "center",
   },
-  startButton: {},
-  startButtonText: { fontWeight: "700" },
-  editButton: {},
-  editButtonText: { fontWeight: "700" },
-  deleteButton: {},
-  deleteButtonText: { fontWeight: "700" },
-  empty: { textAlign: "center", marginTop: 24 },
+  startBtn: {},
+  actionBtnText: { fontWeight: "700", fontSize: 13 },
 });

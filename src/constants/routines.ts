@@ -145,14 +145,14 @@ export const DEFAULT_ROUTINES: Routine[] = [
     updated_at: now,
     ...withYouTube(
       {
-        id: "FEntZrOzjBM",
-        title: "SNOOKER CUEING - The Secret To Good Snooker",
-        channel: "BartonSnooker",
+        id: "b3so08CEOAo",
+        title: "Snooker Grip Fundamentals",
+        channel: "SnookerLab",
       },
       {
-        id: "JA-QGjD7WMA",
-        title: "How To Play Top Spin, Stun, & Screw",
-        channel: "Stephen Hendry's Cue Tips",
+        id: "9r4Tllvo8l8",
+        title: "Grip Alternative Guide",
+        channel: "SnookerLab",
       }
     ),
   },
@@ -267,9 +267,9 @@ export const DEFAULT_ROUTINES: Routine[] = [
         channel: "Barry Stark Snooker Coach",
       },
       {
-        id: "FEntZrOzjBM",
-        title: "SNOOKER CUEING - The Secret To Good Snooker",
-        channel: "BartonSnooker",
+        id: "ilS_YOUpf9s",
+        title: "Snooker Aiming Fundamentals",
+        channel: "SnookerLab",
       }
     ),
   },
@@ -306,9 +306,9 @@ export const DEFAULT_ROUTINES: Routine[] = [
         channel: "Barry Stark Snooker Coach",
       },
       {
-        id: "CjBAH5FV4EM",
-        title: "Snooker T Exercise - Discipline & Consistency",
-        channel: "BartonSnooker",
+        id: "1m1Xv-DX7z8",
+        title: "Snooker Head Position Alternative",
+        channel: "SnookerLab",
       }
     ),
   },
@@ -379,14 +379,14 @@ export const DEFAULT_ROUTINES: Routine[] = [
     updated_at: now,
     ...withYouTube(
       {
-        id: "JA-QGjD7WMA",
-        title: "How To Play Top Spin, Stun, & Screw",
-        channel: "Stephen Hendry's Cue Tips",
+        id: "FdiKPwMl_0M",
+        title: "Snooker Cue Ball Control Fundamentals",
+        channel: "SnookerLab",
       },
       {
-        id: "l6cTzXMuEzM",
-        title: "How To Generate MAXIMUM Top Spin!",
-        channel: "BartonSnooker",
+        id: "Zz6Afney-fo",
+        title: "Cue Ball Control Alternative Guide",
+        channel: "SnookerLab",
       }
     ),
   },
@@ -418,14 +418,14 @@ export const DEFAULT_ROUTINES: Routine[] = [
     updated_at: now,
     ...withYouTube(
       {
-        id: "olOV1TVMqtI",
-        title: "The Stance",
-        channel: "Shaun Murphy Snooker",
+        id: "_JpwKrzVcL4",
+        title: "Snooker Pre-Shot Routine Fundamentals",
+        channel: "SnookerLab",
       },
       {
-        id: "FEntZrOzjBM",
-        title: "SNOOKER CUEING - The Secret To Good Snooker",
-        channel: "BartonSnooker",
+        id: "fi8JnUlmhwA",
+        title: "Pre-Shot Routine Alternative Guide",
+        channel: "SnookerLab",
       }
     ),
   },

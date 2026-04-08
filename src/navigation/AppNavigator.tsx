@@ -17,6 +17,8 @@ import { ProfileNavigator } from "./ProfileNavigator";
 import { RootStackParamList } from "../types";
 import { useAppTheme } from "../hooks/useAppTheme";
 import { initBilling, isBillingConfigured } from "../services/billing";
+import { UnlockQueueProvider } from "../components/achievements/UnlockQueueProvider";
+import { AchievementWatcher } from "../components/achievements/AchievementWatcher";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -203,22 +205,26 @@ export const AppNavigator = () => {
     setUser,
   ]);
 
-  return (
-    <NavigationContainer theme={navigationTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isAuthenticated && !requiresPasswordReset ? (
-          <>
-            <Stack.Screen name="Main" component={MainTabNavigator} />
-            <Stack.Screen
-              name="ProfileModal"
-              component={ProfileNavigator}
-              options={{ presentation: "modal" }}
-            />
-          </>
-        ) : (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+return (
+    <UnlockQueueProvider>
+      <AchievementWatcher>
+        <NavigationContainer theme={navigationTheme}>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {isAuthenticated && !requiresPasswordReset ? (
+              <>
+                <Stack.Screen name="Main" component={MainTabNavigator} />
+                <Stack.Screen
+                  name="ProfileModal"
+                  component={ProfileNavigator}
+                  options={{ presentation: "modal" }}
+                />
+              </>
+            ) : (
+              <Stack.Screen name="Auth" component={AuthNavigator} />
+            )}
+          </Stack.Navigator>
+        </NavigationContainer>
+      </AchievementWatcher>
+    </UnlockQueueProvider>
   );
 };

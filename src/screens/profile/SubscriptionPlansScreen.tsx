@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Animated, Easing, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Animated, Dimensions, Easing, Linking, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { AppButton } from "../../components/ui/AppButton";
-import { AppCard } from "../../components/ui/AppCard";
 import { SUBSCRIPTION_LIMITS, TIER_LABELS } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useAuthStore } from "../../store";
 import {
   addBillingCustomerInfoListener,
@@ -26,28 +26,146 @@ import type { SubscriptionTier } from "../../types";
 
 type PaidTier = Exclude<SubscriptionTier, "free">;
 
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snooker-lab.vercel.app/privacy";
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snooker-lab.vercel.app/terms";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
 const tierRank: Record<SubscriptionTier, number> = {
   free: 0,
   half_century: 1,
   century: 2,
 };
 
+const isActivateOnceError = (error: unknown) => {
+  const message = String((error as any)?.message ?? "").toLowerCase();
+  const code = String((error as any)?.adaptyCode ?? "").toLowerCase();
+  const errorCode = String((error as any)?.code ?? "").toLowerCase();
+  return (
+    message.includes("activateonceerror") ||
+    message.includes("3005") ||
+    message.includes("3305") ||
+    code === "3005" ||
+    code === "3305" ||
+    errorCode === "3005" ||
+    errorCode === "3305"
+  );
+};
+
+const ValueProp = ({
+  icon,
+  title,
+  description,
+  colors,
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  title: string;
+  description: string;
+  colors: any;
+}) => (
+  <View style={styles.valueProp}>
+    <View style={[styles.valueIcon, { backgroundColor: colors.primary + "15" }]}>
+      <MaterialCommunityIcons name={icon} size={24} color={colors.primary} />
+    </View>
+    <View style={styles.valueContent}>
+      <Text style={[styles.valueTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.valueDesc, { color: colors.textMuted }]}>{description}</Text>
+    </View>
+  </View>
+);
+
+const PlanCard = ({
+  tier,
+  label,
+  price,
+  features,
+  isCurrent,
+  isRecommended,
+  isDowngrade,
+  onSelect,
+  loading,
+  colors,
+}: {
+  tier: SubscriptionTier;
+  label: string;
+  price: string;
+  features: string[];
+  isCurrent: boolean;
+  isRecommended?: boolean;
+  isDowngrade: boolean;
+  onSelect: () => void;
+  loading: boolean;
+  colors: any;
+}) => (
+  <Pressable
+    onPress={onSelect}
+    style={[
+      styles.planCard,
+      {
+        backgroundColor: colors.surface,
+        borderColor: isRecommended ? colors.primary : colors.border,
+        borderWidth: isRecommended ? 2 : 1,
+        transform: [{ scale: isRecommended ? 1 : 0.98 }],
+      },
+    ]}
+  >
+    {isRecommended && (
+      <View style={[styles.recommendedTag, { backgroundColor: colors.primary }]}>
+        <Text style={[styles.recommendedTagText, { color: colors.onPrimary }]}>MOST POPULAR</Text>
+      </View>
+    )}
+    <View style={styles.planHeader}>
+      <Text style={[styles.planName, { color: isRecommended ? colors.primary : colors.text }]}>{label}</Text>
+      {isCurrent && (
+        <View style={[styles.currentBadge, { backgroundColor: colors.primary + "15", borderColor: colors.primary }]}>
+          <Text style={[styles.currentBadgeText, { color: colors.primary }]}>CURRENT</Text>
+        </View>
+      )}
+    </View>
+    <View style={styles.planPriceRow}>
+      <Text style={[styles.planPrice, { color: colors.text }]}>{price}</Text>
+      {price !== "$0" && <Text style={[styles.planPerMonth, { color: colors.textMuted }]}>/month</Text>}
+    </View>
+    <View style={styles.planFeatures}>
+      {features.map((feature, i) => (
+        <View key={i} style={styles.featureRow}>
+          <MaterialCommunityIcons
+            name={tier === "free" ? "circle-outline" : "check-circle"}
+            size={16}
+            color={tier === "free" ? colors.textMuted : colors.primary}
+          />
+          <Text style={[styles.featureText, { color: tier === "free" ? colors.textMuted : colors.text }]}>{feature}</Text>
+        </View>
+      ))}
+    </View>
+    {!isCurrent && (
+      <AppButton
+        label={isDowngrade ? "Downgrade" : `Upgrade to ${label}`}
+        variant={isRecommended ? "primary" : "secondary"}
+        onPress={onSelect}
+        loading={loading}
+        disabled={loading}
+      />
+    )}
+  </Pressable>
+);
+
 export const SubscriptionPlansScreen = () => {
   const { colors } = useAppTheme();
   const { user, setUser } = useAuthStore();
+  const subscription = useSubscriptionAccess();
 
   const [offerings, setOfferings] = useState<any>(null);
   const [purchasingTier, setPurchasingTier] = useState<PaidTier | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [openingCustomerCenter, setOpeningCustomerCenter] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const sectionAnims = useMemo(() => Array.from({ length: 5 }, () => new Animated.Value(0)), []);
 
   const currentTier: SubscriptionTier =
     user?.subscription_tier === "half_century" || user?.subscription_tier === "century" ? user.subscription_tier : "free";
 
   const billingEnabled = isBillingConfigured();
   const usingTestKey = isUsingRevenueCatTestKey();
+
+  const fadeInAnims = useMemo(() => Array.from({ length: 5 }, () => new Animated.Value(0)), []);
 
   useEffect(() => {
     let mounted = true;
@@ -79,16 +197,18 @@ export const SubscriptionPlansScreen = () => {
   }, [billingEnabled, setUser, user?.id]);
 
   useEffect(() => {
-    const steps = sectionAnims.map((value) =>
-      Animated.timing(value, {
-        toValue: 1,
-        duration: 360,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      })
-    );
-    Animated.stagger(70, steps).start();
-  }, [sectionAnims]);
+    Animated.stagger(
+      80,
+      fadeInAnims.map((anim) =>
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        })
+      )
+    ).start();
+  }, [fadeInAnims]);
 
   useEffect(() => {
     if (!user?.id || !billingEnabled) return;
@@ -129,9 +249,24 @@ export const SubscriptionPlansScreen = () => {
       const resolvedTier = tierFromCustomerInfo(customerInfo);
       const updatedUser = await syncTierToSupabaseUser(resolvedTier);
       if (updatedUser) setUser(updatedUser);
-      Alert.alert("Subscription updated", `Active plan: ${TIER_LABELS[resolvedTier]}.`);
+      Alert.alert("Welcome to Pro!", `You're now on the ${TIER_LABELS[resolvedTier]} plan.`);
     } catch (error: any) {
-      if (!error?.userCancelled) {
+      if (isActivateOnceError(error)) {
+        try {
+          const activeOfferings = offerings ?? (await fetchCurrentOfferings());
+          setOfferings(activeOfferings);
+          const customerInfo = await purchaseTierMonthly(tier, activeOfferings);
+          const resolvedTier = tierFromCustomerInfo(customerInfo);
+          const updatedUser = await syncTierToSupabaseUser(resolvedTier);
+          if (updatedUser) setUser(updatedUser);
+          Alert.alert("Welcome to Pro!", `You're now on the ${TIER_LABELS[resolvedTier]} plan.`);
+          return;
+        } catch (retryError: any) {
+          if (!retryError?.userCancelled) {
+            Alert.alert("Purchase failed", typeof retryError?.message === "string" ? retryError.message : "Unable to complete purchase.");
+          }
+        }
+      } else if (!error?.userCancelled) {
         Alert.alert("Purchase failed", typeof error?.message === "string" ? error.message : "Unable to complete purchase.");
       }
     } finally {
@@ -180,7 +315,7 @@ export const SubscriptionPlansScreen = () => {
       const resolvedTier = tierFromCustomerInfo(customerInfo);
       const updatedUser = await syncTierToSupabaseUser(resolvedTier);
       if (updatedUser) setUser(updatedUser);
-      Alert.alert("Restore complete", `Active plan: ${TIER_LABELS[resolvedTier]}.`);
+      Alert.alert("Purchases restored", `Active plan: ${TIER_LABELS[resolvedTier]}.`);
     } catch (error: any) {
       Alert.alert("Restore failed", typeof error?.message === "string" ? error.message : "Could not restore purchases.");
     } finally {
@@ -195,7 +330,6 @@ export const SubscriptionPlansScreen = () => {
     }
 
     try {
-      setOpeningCustomerCenter(true);
       await presentCustomerCenter();
     } catch (error: any) {
       Alert.alert(
@@ -213,33 +347,8 @@ export const SubscriptionPlansScreen = () => {
           },
         ]
       );
-    } finally {
-      setOpeningCustomerCenter(false);
     }
   };
-
-  const refreshTierFromBilling = async () => {
-    if (!user?.id) return;
-    try {
-      setRefreshing(true);
-      await initBilling(user.id);
-      const info = await getBillingCustomerInfo();
-      const resolvedTier = tierFromCustomerInfo(info);
-      const updatedUser = await syncTierToSupabaseUser(resolvedTier);
-      if (updatedUser) setUser(updatedUser);
-      Alert.alert("Plan updated", `Current plan: ${TIER_LABELS[resolvedTier]}.`);
-    } catch (error: any) {
-      Alert.alert("Refresh failed", typeof error?.message === "string" ? error.message : "Could not refresh plan status.");
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const cycleLine = useMemo(() => {
-    if (!user?.subscription_anchor_date) return "Usage resets every month.";
-    const date = new Date(user.subscription_anchor_date);
-    return `Usage resets monthly from ${date.toLocaleDateString()}`;
-  }, [user?.subscription_anchor_date]);
 
   const freeLimits = SUBSCRIPTION_LIMITS.free;
   const halfLimits = SUBSCRIPTION_LIMITS.half_century;
@@ -248,26 +357,18 @@ export const SubscriptionPlansScreen = () => {
   const halfPriceText = getTierPriceText("half_century", offerings);
   const centuryPriceText = getTierPriceText("century", offerings);
 
-  const renderPlanTag = (tier: SubscriptionTier) => {
-    if (tier === currentTier) return "Current";
-    if (tier === "century") return "Best Value";
-    return null;
-  };
+  const matchesUsed = subscription.usage.matches;
+  const matchesLimit = subscription.limits.matchesPerPeriod;
+  const aiUsed = subscription.usage.aiAnalyses;
+  const aiLimit = subscription.limits.aiAnalysesPerPeriod;
 
-  const renderFeature = (label: string, muted = false) => (
-    <View style={styles.featureRow}>
-      <MaterialCommunityIcons name="check-circle" size={16} color={muted ? colors.textMuted : colors.primary} />
-      <Text style={[styles.featureText, { color: muted ? colors.textMuted : colors.text }]}>{label}</Text>
-    </View>
-  );
-
-  const motion = (index: number) => ({
-    opacity: sectionAnims[index],
+  const animStyle = (index: number) => ({
+    opacity: fadeInAnims[index],
     transform: [
       {
-        translateY: sectionAnims[index].interpolate({
+        translateY: fadeInAnims[index].interpolate({
           inputRange: [0, 1],
-          outputRange: [12, 0],
+          outputRange: [20, 0],
         }),
       },
     ],
@@ -275,202 +376,467 @@ export const SubscriptionPlansScreen = () => {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Animated.View style={motion(0)}>
-      <View style={[styles.heroShell, { backgroundColor: colors.primaryStrong }]}> 
-        <View style={styles.heroGlowA} />
-        <View style={styles.heroGlowB} />
-        <Text style={[styles.kicker, { color: "#BDE6D7" }]}>SNOOKERLAB PRO</Text>
-        <Text style={[styles.heroTitle, { color: "#FFFFFF" }]}>Choose your plan</Text>
-        <Text style={[styles.heroBody, { color: "#D5EFE6" }]}>Unlock coaching depth, higher usage limits, and a smoother training workflow.</Text>
-        <View style={styles.statRow}>
-          <View style={[styles.statBadge, { backgroundColor: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.18)" }]}> 
-            <Text style={[styles.statLabel, { color: "#D5EFE6" }]}>Current</Text>
-            <Text style={[styles.statValue, { color: "#FFFFFF" }]}>{TIER_LABELS[currentTier]}</Text>
-          </View>
-          <View style={[styles.statBadge, { backgroundColor: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.18)" }]}> 
-            <Text style={[styles.statLabel, { color: "#D5EFE6" }]}>AI Left</Text>
-            <Text style={[styles.statValue, { color: "#FFFFFF" }]}>{currentTier === "free" ? freeLimits.aiAnalysesPerPeriod : currentTier === "half_century" ? halfLimits.aiAnalysesPerPeriod : centuryLimits.aiAnalysesPerPeriod}</Text>
-          </View>
+      {/* Hero Section */}
+      <Animated.View style={[styles.heroSection, animStyle(0)]}>
+        <View style={[styles.heroGradient, { backgroundColor: colors.primaryStrong }]}>
+          <View style={styles.heroGlow1} />
+          <View style={styles.heroGlow2} />
+          <Text style={styles.heroKicker}>SNOOKERLAB PRO</Text>
+          <Text style={styles.heroTitle}>Take your game further</Text>
+          <Text style={styles.heroSubtitle}>AI coaching, advanced stats, and structured practice tools designed for serious players.</Text>
         </View>
-        <Text style={[styles.cycleLine, { color: "#D5EFE6" }]}>{cycleLine}</Text>
-      </View>
       </Animated.View>
 
-      <Animated.View style={motion(1)}>
-      <AppCard style={styles.planCard}>
-        <View style={styles.planHeadRow}>
-          <Text style={[styles.planTitle, { color: colors.text }]}>Free</Text>
-          {renderPlanTag("free") ? (
-            <View style={[styles.planTag, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}>
-              <Text style={[styles.planTagText, { color: colors.primary }]}>{renderPlanTag("free")}</Text>
+      {/* Usage Context - Show if on free and hitting limits */}
+      {currentTier === "free" && (
+        <Animated.View style={[styles.usageCard, { backgroundColor: colors.surface, borderColor: colors.border }, animStyle(1)]}>
+          <View style={styles.usageHeader}>
+            <MaterialCommunityIcons name="chart-arc" size={20} color={colors.primary} />
+            <Text style={[styles.usageTitle, { color: colors.text }]}>Your Usage This Month</Text>
+          </View>
+          <View style={styles.usageStats}>
+            <View style={styles.usageStat}>
+              <Text style={[styles.usageLabel, { color: colors.textMuted }]}>Matches</Text>
+              <Text style={[styles.usageValue, { color: colors.text }]}>
+                {matchesUsed} / {matchesLimit ?? "∞"}
+              </Text>
+              {matchesLimit && (
+                <View style={[styles.usageBar, { backgroundColor: colors.surfaceMuted }]}>
+                  <View
+                    style={[
+                      styles.usageBarFill,
+                      {
+                        backgroundColor: matchesUsed / matchesLimit > 0.8 ? colors.danger : colors.primary,
+                        width: `${Math.min(100, (matchesUsed / matchesLimit) * 100)}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              )}
             </View>
-          ) : null}
-        </View>
-        <Text style={[styles.priceLine, { color: colors.textMuted }]}>$0 forever</Text>
-        {renderFeature(`Matches: ${freeLimits.matchesPerPeriod} / month`, true)}
-        {renderFeature(`Tournaments: ${freeLimits.tournamentsPerPeriod} / month`, true)}
-        {renderFeature(`AI analyses: ${freeLimits.aiAnalysesPerPeriod} / month`, true)}
-      </AppCard>
-      </Animated.View>
-
-      <Animated.View style={motion(2)}>
-      <AppCard style={[styles.planCard, styles.highlightCard, { borderColor: colors.primary }]}> 
-        <View style={styles.planHeadRow}>
-          <Text style={[styles.planTitle, { color: colors.primary }]}>Half-Century</Text>
-          {renderPlanTag("half_century") ? (
-            <View style={[styles.planTag, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}>
-              <Text style={[styles.planTagText, { color: colors.primary }]}>{renderPlanTag("half_century")}</Text>
+            <View style={styles.usageStat}>
+              <Text style={[styles.usageLabel, { color: colors.textMuted }]}>AI Analyses</Text>
+              <Text style={[styles.usageValue, { color: colors.text }]}>
+                {aiUsed} / {aiLimit ?? "∞"}
+              </Text>
+              {aiLimit && (
+                <View style={[styles.usageBar, { backgroundColor: colors.surfaceMuted }]}>
+                  <View
+                    style={[
+                      styles.usageBarFill,
+                      {
+                        backgroundColor: aiUsed / aiLimit > 0.8 ? colors.danger : colors.primary,
+                        width: `${Math.min(100, (aiUsed / aiLimit) * 100)}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              )}
             </View>
-          ) : null}
-        </View>
-        <Text style={[styles.priceLine, { color: colors.text }]}>{halfPriceText ? `${halfPriceText} / month` : "Monthly"}</Text>
-        <Text style={[styles.planPitch, { color: colors.textMuted }]}>For regular players who want frequent AI check-ins.</Text>
-        {renderFeature(`Matches: ${halfLimits.matchesPerPeriod ?? "Unlimited"}${halfLimits.matchesPerPeriod ? " / month" : ""}`)}
-        {renderFeature(`Tournaments: ${halfLimits.tournamentsPerPeriod ?? "Unlimited"}${halfLimits.tournamentsPerPeriod ? " / month" : ""}`)}
-        {renderFeature(`AI analyses: ${halfLimits.aiAnalysesPerPeriod} / month`)}
-        <View style={styles.ctaWrap}>
-          <AppButton
-            label={currentTier === "half_century" ? "Current Plan" : "Choose Half-Century"}
-            onPress={() => {
-              void chooseTier("half_century");
-            }}
-            disabled={currentTier === "half_century"}
-            loading={purchasingTier === "half_century"}
-          />
-        </View>
-      </AppCard>
+          </View>
+          {(matchesLimit && matchesUsed >= matchesLimit) || (aiLimit && aiUsed >= aiLimit) ? (
+            <Text style={[styles.usageWarning, { color: colors.danger }]}>You've reached your limit. Upgrade to continue.</Text>
+          ) : (
+            <Text style={[styles.usageHint, { color: colors.textMuted }]}>Upgrade for unlimited access</Text>
+          )}
+        </Animated.View>
+      )}
+
+      {/* Value Propositions */}
+      <Animated.View style={[styles.valueSection, animStyle(2)]}>
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>WHY UPGRADE?</Text>
+        <ValueProp
+          icon="brain"
+          title="AI Coach Feedback"
+          description="Get personalized analysis on your technique and shot selection"
+          colors={colors}
+        />
+        <ValueProp
+          icon="chart-line-variant"
+          title="Advanced Performance Tracking"
+          description="Track your progress across sessions, matches, and routines"
+          colors={colors}
+        />
+        <ValueProp
+          icon="target"
+          title="Smart Practice Builder"
+          description="Get routines tailored to your weaknesses and goals"
+          colors={colors}
+        />
+        <ValueProp
+          icon="trophy"
+          title="Competitive Insights"
+          description="Understand your match performance and identify trends"
+          colors={colors}
+        />
       </Animated.View>
 
-      <Animated.View style={motion(3)}>
-      <AppCard style={[styles.planCard, styles.featuredCentury, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}> 
-        <View style={styles.centuryGlowLeft} />
-        <View style={styles.centuryGlowRight} />
-        <View style={styles.planHeadRow}>
-          <Text style={[styles.planTitle, { color: colors.primary }]}>Century</Text>
-          {renderPlanTag("century") ? (
-            <View style={[styles.planTag, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}>
-              <Text style={[styles.planTagText, { color: colors.primary }]}>{renderPlanTag("century")}</Text>
-            </View>
-          ) : null}
-        </View>
-        <Text style={[styles.priceLine, { color: colors.text }]}>{centuryPriceText ? `${centuryPriceText} / month` : "Monthly"}</Text>
-        <Text style={[styles.planPitch, { color: colors.textMuted }]}>For committed players who want full tracking freedom and top AI volume.</Text>
-        {renderFeature(`Matches: ${centuryLimits.matchesPerPeriod ?? "Unlimited"}`)}
-        {renderFeature(`Tournaments: ${centuryLimits.tournamentsPerPeriod ?? "Unlimited"}`)}
-        {renderFeature(`AI analyses: ${centuryLimits.aiAnalysesPerPeriod} / month`)}
-        <View style={styles.ctaWrap}>
-          <AppButton
-            label={currentTier === "century" ? "Current Plan" : "Choose Century"}
-            onPress={() => {
-              void chooseTier("century");
-            }}
-            disabled={currentTier === "century"}
-            loading={purchasingTier === "century"}
-          />
-        </View>
-      </AppCard>
+      {/* Plan Cards */}
+      <Animated.View style={animStyle(3)}>
+        <Text style={[styles.sectionTitle, { color: colors.textMuted, marginBottom: 12 }]}>CHOOSE YOUR PLAN</Text>
+
+        {/* Free Plan */}
+        <PlanCard
+          tier="free"
+          label="Free"
+          price="$0"
+          features={[`${freeLimits.matchesPerPeriod} matches/month`, `${freeLimits.aiAnalysesPerPeriod} AI analysis/month`, "Basic stats"]}
+          isCurrent={currentTier === "free"}
+          isDowngrade={false}
+          onSelect={() => {}}
+          loading={false}
+          colors={colors}
+        />
+
+        {/* Half-Century Plan */}
+        <View style={styles.planSpacer} />
+        <PlanCard
+          tier="half_century"
+          label="Half-Century"
+          price={halfPriceText ?? "$4.99"}
+          features={[
+            `${halfLimits.matchesPerPeriod ?? "Unlimited"} matches`,
+            `${halfLimits.aiAnalysesPerPeriod} AI analyses`,
+            "Advanced stats",
+            "Priority support",
+          ]}
+          isCurrent={currentTier === "half_century"}
+          isRecommended={currentTier === "free"}
+          isDowngrade={tierRank.half_century < tierRank[currentTier]}
+          onSelect={() => void chooseTier("half_century")}
+          loading={purchasingTier === "half_century"}
+          colors={colors}
+        />
+
+        {/* Century Plan */}
+        <View style={styles.planSpacer} />
+        <PlanCard
+          tier="century"
+          label="Century"
+          price={centuryPriceText ?? "$9.99"}
+          features={["Unlimited matches", `${centuryLimits.aiAnalysesPerPeriod} AI analyses`, "Full analytics suite", "Early access to features"]}
+          isCurrent={currentTier === "century"}
+          isDowngrade={tierRank.century < tierRank[currentTier]}
+          onSelect={() => void chooseTier("century")}
+          loading={purchasingTier === "century"}
+          colors={colors}
+        />
       </Animated.View>
 
-      <Animated.View style={motion(4)}>
-      <AppCard style={styles.supportCard}>
-        <Text style={[styles.supportTitle, { color: colors.text }]}>Manage Subscription</Text>
-        <Text style={[styles.supportBody, { color: colors.textMuted }]}>Cancel or downgrade in your App Store/Play subscriptions. Upgrades apply immediately; downgrades usually apply at next renewal. All limits are measured per month.</Text>
-        {usingTestKey ? (
-          <Text style={[styles.testKeyHint, { color: colors.danger }]}>This build is using a non-live Adapty key. Purchase flow may be test/sandbox only.</Text>
-        ) : null}
-        <View style={styles.supportActions}>
-          <View style={styles.supportActionItem}>
-            <AppButton label="Restore" variant="secondary" onPress={restore} loading={restoring} />
-          </View>
-          <View style={styles.supportActionItem}>
-            <AppButton label="Store Subscriptions" variant="secondary" onPress={openCustomerCenter} loading={openingCustomerCenter} />
-          </View>
+      {/* Trust & Terms */}
+      <Animated.View style={[styles.trustSection, animStyle(4)]}>
+        <View style={styles.trustRow}>
+          <MaterialCommunityIcons name="shield-check" size={16} color={colors.textMuted} />
+          <Text style={[styles.trustText, { color: colors.textMuted }]}>Secure payment via App Store</Text>
         </View>
-        <View style={styles.supportActions}>
-          <View style={styles.supportActionItem}>
-            <AppButton label="Refresh Plan Status" variant="secondary" onPress={refreshTierFromBilling} loading={refreshing} />
-          </View>
+        <View style={styles.trustRow}>
+          <MaterialCommunityIcons name="close-circle-outline" size={16} color={colors.textMuted} />
+          <Text style={[styles.trustText, { color: colors.textMuted }]}>Cancel anytime</Text>
         </View>
-      </AppCard>
+        <View style={styles.trustRow}>
+          <MaterialCommunityIcons name="refresh" size={16} color={colors.textMuted} />
+          <Text style={[styles.trustText, { color: colors.textMuted }]}>Restore purchases available</Text>
+        </View>
+
+        <View style={styles.actionRow}>
+          <Pressable onPress={restore} style={styles.actionLink}>
+            <Text style={[styles.actionLinkText, { color: colors.primary }]}>Restore Purchases</Text>
+          </Pressable>
+          <Text style={[styles.actionDot, { color: colors.textMuted }]}>·</Text>
+          <Pressable onPress={openCustomerCenter} style={styles.actionLink}>
+            <Text style={[styles.actionLinkText, { color: colors.primary }]}>Manage Subscription</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.termsRow}>
+          <Text style={[styles.termsLink, { color: colors.primary }]} onPress={() => Linking.openURL(PRIVACY_URL).catch(() => {})}>
+            Privacy Policy
+          </Text>
+          <Text style={[styles.termsDot, { color: colors.textMuted }]}> · </Text>
+          <Text style={[styles.termsLink, { color: colors.primary }]} onPress={() => Linking.openURL(TERMS_URL).catch(() => {})}>
+            Terms of Use
+          </Text>
+        </View>
       </Animated.View>
 
-      {!billingEnabled ? (
-        <Text style={[styles.warn, { color: colors.danger }]}>{getBillingUnavailableReason() ?? "Billing unavailable in this build."}</Text>
-      ) : null}
+      {usingTestKey && (
+        <Text style={[styles.testKeyWarning, { color: colors.danger }]}>
+          This build is using a test key. Purchases may be sandbox-only.
+        </Text>
+      )}
+
+      {!billingEnabled && (
+        <Text style={[styles.billingWarning, { color: colors.danger }]}>
+          {getBillingUnavailableReason() ?? "Billing unavailable in this build."}
+        </Text>
+      )}
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 30 },
-  heroShell: {
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 12,
+  content: { padding: 20, paddingBottom: 40 },
+
+  // Hero
+  heroSection: { marginBottom: 20 },
+  heroGradient: {
+    borderRadius: 24,
+    padding: 24,
     overflow: "hidden",
   },
-  heroGlowA: {
+  heroGlow1: {
     position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    top: -70,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    top: -60,
     right: -40,
   },
-  heroGlowB: {
+  heroGlow2: {
     position: "absolute",
-    width: 140,
-    height: 140,
-    borderRadius: 999,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
     backgroundColor: "rgba(255,255,255,0.08)",
-    bottom: -60,
+    bottom: -50,
     left: -30,
   },
-  kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 0.8 },
-  heroTitle: { marginTop: 6, fontSize: 30, fontWeight: "800", lineHeight: 36 },
-  heroBody: { marginTop: 8, fontSize: 13, lineHeight: 19, maxWidth: "90%" },
-  statRow: { marginTop: 12, flexDirection: "row", gap: 8 },
-  statBadge: { flex: 1, borderWidth: 1, borderRadius: 12, padding: 10 },
-  statLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
-  statValue: { marginTop: 4, fontSize: 17, fontWeight: "800" },
-  cycleLine: { marginTop: 8, fontSize: 12 },
-  planCard: { marginBottom: 10, borderRadius: 16 },
-  highlightCard: { borderWidth: 1 },
-  featuredCentury: { borderWidth: 1, overflow: "hidden" },
-  centuryGlowLeft: {
-    position: "absolute",
-    top: -18,
-    left: -8,
-    width: 68,
-    height: 68,
-    borderRadius: 999,
-    backgroundColor: "rgba(15,90,67,0.08)",
+  heroKicker: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    color: "#BDE6D7",
+    marginBottom: 8,
   },
-  centuryGlowRight: {
-    position: "absolute",
-    bottom: -28,
-    right: -12,
-    width: 84,
-    height: 84,
-    borderRadius: 999,
-    backgroundColor: "rgba(15,90,67,0.10)",
+  heroTitle: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginBottom: 8,
   },
-  planHeadRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  planTitle: { fontSize: 19, fontWeight: "800" },
-  planTag: { borderWidth: 1, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 8 },
-  planTagText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
-  priceLine: { marginTop: 6, fontSize: 16, fontWeight: "800" },
-  planPitch: { marginTop: 6, fontSize: 12, lineHeight: 16 },
-  featureRow: { marginTop: 6, flexDirection: "row", alignItems: "center", gap: 8 },
-  featureText: { fontSize: 12, lineHeight: 17 },
-  ctaWrap: { marginTop: 10 },
-  supportCard: { marginTop: 2 },
-  supportTitle: { fontSize: 16, fontWeight: "800" },
-  supportBody: { marginTop: 6, fontSize: 12, lineHeight: 17 },
-  testKeyHint: { marginTop: 8, fontSize: 11, lineHeight: 15, fontWeight: "700" },
-  supportActions: { marginTop: 10, flexDirection: "row", gap: 8 },
-  supportActionItem: { flex: 1 },
-  warn: { marginTop: 12, fontSize: 12, lineHeight: 16, fontWeight: "700" },
+  heroSubtitle: {
+    fontSize: 15,
+    color: "#D5EFE6",
+    lineHeight: 22,
+  },
+
+  // Usage Card
+  usageCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 20,
+  },
+  usageHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  usageTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  usageStats: {
+    flexDirection: "row",
+    gap: 20,
+  },
+  usageStat: {
+    flex: 1,
+  },
+  usageLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  usageValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  usageBar: {
+    height: 6,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  usageBarFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+  usageWarning: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 12,
+    textAlign: "center",
+  },
+  usageHint: {
+    fontSize: 13,
+    marginTop: 12,
+    textAlign: "center",
+  },
+
+  // Value Props
+  valueSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    marginBottom: 12,
+  },
+  valueProp: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+    marginBottom: 16,
+  },
+  valueIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  valueContent: {
+    flex: 1,
+  },
+  valueTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+  valueDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  // Plan Cards
+  planCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+    overflow: "hidden",
+  },
+  planSpacer: {
+    height: 12,
+  },
+  recommendedTag: {
+    position: "absolute",
+    top: 0,
+    left: 20,
+    right: 20,
+    paddingVertical: 6,
+    alignItems: "center",
+  },
+  recommendedTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  planHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  planName: {
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  currentBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  currentBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  planPriceRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginBottom: 16,
+  },
+  planPrice: {
+    fontSize: 28,
+    fontWeight: "800",
+  },
+  planPerMonth: {
+    fontSize: 14,
+    marginLeft: 4,
+  },
+  planFeatures: {
+    marginBottom: 16,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  featureText: {
+    fontSize: 14,
+  },
+
+  // Trust Section
+  trustSection: {
+    marginTop: 24,
+    alignItems: "center",
+  },
+  trustRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  trustText: {
+    fontSize: 13,
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  actionLink: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  actionLinkText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  actionDot: {
+    fontSize: 14,
+  },
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  termsLink: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  termsDot: {
+    fontSize: 13,
+  },
+
+  testKeyWarning: {
+    marginTop: 16,
+    fontSize: 12,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  billingWarning: {
+    marginTop: 16,
+    fontSize: 13,
+    textAlign: "center",
+    fontWeight: "600",
+  },
 });
