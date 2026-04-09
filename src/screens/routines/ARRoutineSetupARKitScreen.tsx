@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SnookerARKitView, type ARMode } from "../../features/arkit/SnookerARKitView";
@@ -103,13 +103,24 @@ export const ARRoutineSetupARKitScreen = () => {
             />
           </>
         ) : (
-          <ARBottomActionBar
-            left={{ label: "Reset", onPress: calibration.resetCalibration }}
-            primaryLabel={calibration.step === "confirm" ? "Confirm" : "Capture"}
-            onPrimaryPress={calibration.step === "confirm" ? calibration.confirmCalibration : calibration.captureReference}
-            primaryDisabled={calibration.step !== "confirm" && !calibration.crosshairPoint}
-            right={{ label: "Back", onPress: () => navigation.goBack() }}
-          />
+          <>
+            <ARBottomActionBar
+              left={{ label: "Reset", onPress: calibration.resetCalibration }}
+              primaryLabel={calibration.step === "confirm" ? "Confirm" : "Capture"}
+              onPrimaryPress={calibration.step === "confirm" ? calibration.confirmCalibration : calibration.captureReference}
+              primaryDisabled={calibration.step !== "confirm" && !calibration.crosshairPoint}
+              right={{ label: "Back", onPress: () => navigation.goBack() }}
+            />
+            {__DEV__ ? (
+              <Pressable
+                style={[styles.devPreviewButton, !calibration.cameraPose && styles.devPreviewButtonDisabled]}
+                onPress={calibration.startDevPreview}
+                disabled={!calibration.cameraPose}
+              >
+                <Text style={styles.devPreviewButtonText}>Dev Preview Routine</Text>
+              </Pressable>
+            ) : null}
+          </>
         )}
       </View>
     </View>
@@ -125,5 +136,23 @@ const styles = StyleSheet.create({
     right: 10,
     bottom: 0,
     gap: 10,
+  },
+  devPreviewButton: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.32)",
+    backgroundColor: "rgba(15,23,42,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  devPreviewButtonDisabled: {
+    opacity: 0.45,
+  },
+  devPreviewButtonText: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

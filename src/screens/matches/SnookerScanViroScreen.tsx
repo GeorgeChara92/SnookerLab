@@ -70,12 +70,13 @@ type CameraTransformEvent = {
   };
 };
 
-const TABLE_LENGTH_M = 3.569;
-const TABLE_WIDTH_M = 1.778;
-const BLACK_Y_NORM = 0.0908;
+const TABLE_LENGTH_M = 3.657;
+const TABLE_WIDTH_M = 1.829;
+const BLACK_Y_NORM = 0.324 / TABLE_LENGTH_M;
 const PINK_Y_NORM = 0.25;
 const BALL_DIAMETER_M = 0.0525;
-const BALL_RADIUS_M = BALL_DIAMETER_M / 2;
+const BALL_RENDER_SCALE = 0.94;
+const BALL_RADIUS_M = (BALL_DIAMETER_M / 2) * BALL_RENDER_SCALE;
 
 const BALL_COLORS: Array<{ color: SnookerBallColor }> = [
   { color: "white" },

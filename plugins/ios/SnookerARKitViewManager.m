@@ -25,6 +25,12 @@
 
 @end
 
+static const CGFloat kSnookerBallRadiusM = 0.02625;
+static const CGFloat kRenderedBallScale = 0.94;
+static const CGFloat kRenderedBallRadiusM = kSnookerBallRadiusM * kRenderedBallScale;
+static const CGFloat kSelectedMarkerScale = 1.16;
+static const CGFloat kBallLiftM = 0.012;
+
 @implementation SnookerARKitView {
   ARSCNView *_sceneView;
   BOOL _hasStarted;
@@ -88,6 +94,10 @@
   return SCNVector3Make([point[@"x"] floatValue], [point[@"y"] floatValue], [point[@"z"] floatValue]);
 }
 
+- (SCNVector3)vectorFromPointDict:(NSDictionary *)point liftedBy:(CGFloat)lift {
+  return SCNVector3Make([point[@"x"] floatValue], [point[@"y"] floatValue] + lift, [point[@"z"] floatValue]);
+}
+
 - (SCNNode *)makeSphereNodeWithRadius:(CGFloat)radius color:(UIColor *)color {
   SCNSphere *geometry = [SCNSphere sphereWithRadius:radius];
   geometry.segmentCount = 24;
@@ -118,11 +128,11 @@
   }
 
   if (!_reticleNode) {
-    _reticleNode = [self makeSphereNodeWithRadius:0.010 color:[UIColor colorWithRed:0.17 green:0.89 blue:0.78 alpha:0.95]];
+    _reticleNode = [self makeSphereNodeWithRadius:kRenderedBallRadiusM color:[UIColor colorWithRed:0.17 green:0.89 blue:0.78 alpha:0.4]];
     [_sceneView.scene.rootNode addChildNode:_reticleNode];
   }
 
-  _reticleNode.position = [self vectorFromPointDict:self.crosshairPoint];
+  _reticleNode.position = [self vectorFromPointDict:self.crosshairPoint liftedBy:kBallLiftM];
 }
 
 - (SCNNode *)updateAnchorPointNode:(SCNNode *)node point:(NSDictionary *)point color:(UIColor *)color radius:(CGFloat)radius {
@@ -156,11 +166,12 @@
     SCNNode *node = _markerNodes[markerId];
     if (!node) {
       UIColor *ballColor = [self colorForMarker:marker[@"color"] ?: @"red"];
-      node = [self makeSphereNodeWithRadius:isSelected ? 0.0305 : 0.02625 color:ballColor];
+      CGFloat radius = isSelected ? (kRenderedBallRadiusM * kSelectedMarkerScale) : kRenderedBallRadiusM;
+      node = [self makeSphereNodeWithRadius:radius color:ballColor];
       _markerNodes[markerId] = node;
       [_sceneView.scene.rootNode addChildNode:node];
     } else {
-      CGFloat radius = isSelected ? 0.0305 : 0.02625;
+      CGFloat radius = isSelected ? (kRenderedBallRadiusM * kSelectedMarkerScale) : kRenderedBallRadiusM;
       SCNSphere *geometry = [SCNSphere sphereWithRadius:radius];
       geometry.segmentCount = 24;
       geometry.firstMaterial.diffuse.contents = [self colorForMarker:marker[@"color"] ?: @"red"];
@@ -168,7 +179,7 @@
       node.geometry = geometry;
     }
 
-    node.position = [self vectorFromPointDict:marker];
+    node.position = [self vectorFromPointDict:marker liftedBy:kBallLiftM];
     node.opacity = isSelected ? 1.0 : 0.88;
   }
 
@@ -193,17 +204,26 @@
 
 - (void)setBlackPoint:(NSDictionary *)blackPoint {
   _blackPoint = blackPoint;
-  _blackNode = [self updateAnchorPointNode:_blackNode point:_blackPoint color:[UIColor colorWithWhite:0.08 alpha:1.0] radius:0.028];
+  _blackNode = [self updateAnchorPointNode:_blackNode point:_blackPoint color:[UIColor colorWithWhite:0.08 alpha:1.0] radius:kRenderedBallRadiusM];
+  if (_blackNode) {
+    _blackNode.position = [self vectorFromPointDict:_blackPoint liftedBy:kBallLiftM];
+  }
 }
 
 - (void)setPinkPoint:(NSDictionary *)pinkPoint {
   _pinkPoint = pinkPoint;
-  _pinkNode = [self updateAnchorPointNode:_pinkNode point:_pinkPoint color:[UIColor colorWithRed:0.96 green:0.50 blue:0.67 alpha:1.0] radius:0.028];
+  _pinkNode = [self updateAnchorPointNode:_pinkNode point:_pinkPoint color:[UIColor colorWithRed:0.96 green:0.50 blue:0.67 alpha:1.0] radius:kRenderedBallRadiusM];
+  if (_pinkNode) {
+    _pinkNode.position = [self vectorFromPointDict:_pinkPoint liftedBy:kBallLiftM];
+  }
 }
 
 - (void)setBluePoint:(NSDictionary *)bluePoint {
   _bluePoint = bluePoint;
-  _blueNode = [self updateAnchorPointNode:_blueNode point:_bluePoint color:[UIColor colorWithRed:0.19 green:0.45 blue:0.94 alpha:1.0] radius:0.028];
+  _blueNode = [self updateAnchorPointNode:_blueNode point:_bluePoint color:[UIColor colorWithRed:0.19 green:0.45 blue:0.94 alpha:1.0] radius:kRenderedBallRadiusM];
+  if (_blueNode) {
+    _blueNode.position = [self vectorFromPointDict:_bluePoint liftedBy:kBallLiftM];
+  }
 }
 
 - (void)setPositionedMarkers:(NSArray *)positionedMarkers {
@@ -241,7 +261,13 @@
 
   if (@available(iOS 13.0, *)) {
     CGPoint center = CGPointMake(CGRectGetMidX(_sceneView.bounds), CGRectGetMidY(_sceneView.bounds));
-    ARRaycastQuery *query = [_sceneView raycastQueryFromPoint:center allowingTarget:ARRaycastTargetEstimatedPlane alignment:ARRaycastTargetAlignmentHorizontal];
+    ARRaycastQuery *query = [_sceneView raycastQueryFromPoint:center allowingTarget:ARRaycastTargetExistingPlaneGeometry alignment:ARRaycastTargetAlignmentHorizontal];
+    if (!query) {
+      query = [_sceneView raycastQueryFromPoint:center allowingTarget:ARRaycastTargetExistingPlaneInfinite alignment:ARRaycastTargetAlignmentHorizontal];
+    }
+    if (!query) {
+      query = [_sceneView raycastQueryFromPoint:center allowingTarget:ARRaycastTargetEstimatedPlane alignment:ARRaycastTargetAlignmentHorizontal];
+    }
     if (!query) return;
     NSArray<ARRaycastResult *> *hits = [_sceneView.session raycast:query];
     ARRaycastResult *first = hits.firstObject;

@@ -15,6 +15,7 @@ type MarkerStore = {
 };
 
 const nudgeDistanceNorm = 0.004;
+const ballDiameterM = 0.0525;
 
 export const useSnookerMarkerPlacementController = (
   calibration: SnookerTableCalibration | null,
@@ -38,12 +39,35 @@ export const useSnookerMarkerPlacementController = (
 
   const selectedMarker = store.markers.find((marker) => marker.id === selectedMarkerId) ?? null;
 
+  const hasCollisionAtNorm = (
+    candidateNorm: { xNorm: number; yNorm: number },
+    ignoreMarkerId?: string
+  ) => {
+    if (!calibration) return false;
+    const candidateWorld = worldFromNorm(calibration, candidateNorm.xNorm, candidateNorm.yNorm);
+
+    for (const marker of store.markers) {
+      if (ignoreMarkerId && marker.id === ignoreMarkerId) continue;
+      const world = worldFromNorm(calibration, marker.xNorm, marker.yNorm);
+      const distance = Math.hypot(world.x - candidateWorld.x, world.z - candidateWorld.z);
+      if (distance < ballDiameterM) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   const placeMarker = () => {
     if (!calibration || !crosshairPoint) return { ok: false, reason: "No valid calibration point." } as const;
 
     const norm = clampNormPoint(normFromWorld(calibration, crosshairPoint));
     if (norm.xNorm < 0 || norm.xNorm > 1 || norm.yNorm < 0 || norm.yNorm > 1) {
       return { ok: false, reason: "Point is outside table bounds." } as const;
+    }
+
+    if (hasCollisionAtNorm(norm)) {
+      return { ok: false, reason: "Too close to another ball marker." } as const;
     }
 
     store.addMarker({
@@ -74,13 +98,21 @@ export const useSnookerMarkerPlacementController = (
   const moveSelectedToCrosshair = () => {
     if (!calibration || !crosshairPoint || !selectedMarkerId) return;
     const norm = clampNormPoint(normFromWorld(calibration, crosshairPoint));
+    if (hasCollisionAtNorm(norm, selectedMarkerId)) {
+      return { ok: false, reason: "Too close to another ball marker." } as const;
+    }
     store.updateMarker(selectedMarkerId, { xNorm: norm.xNorm, yNorm: norm.yNorm });
+    return { ok: true } as const;
   };
 
   const nudgeSelected = (dxNorm: number, dyNorm: number) => {
     if (!selectedMarker) return;
     const next = clampNormPoint({ xNorm: selectedMarker.xNorm + dxNorm, yNorm: selectedMarker.yNorm + dyNorm });
+    if (hasCollisionAtNorm(next, selectedMarker.id)) {
+      return { ok: false, reason: "Too close to another ball marker." } as const;
+    }
     store.updateMarker(selectedMarker.id, next);
+    return { ok: true } as const;
   };
 
   const nudgeSelectedUp = () => nudgeSelected(0, -nudgeDistanceNorm);

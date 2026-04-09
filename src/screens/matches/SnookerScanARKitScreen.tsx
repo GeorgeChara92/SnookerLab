@@ -80,7 +80,7 @@ export const SnookerScanARKitScreen = () => {
         style={StyleSheet.absoluteFill}
         arMode={arMode}
         showGrid={calibration.step === "confirm" || calibration.step === "ready"}
-        showReticle={calibration.step !== "ready"}
+        showReticle={true}
         showCalibrationMarkers={calibration.step !== "ready"}
         calibration={calibration.calibration}
         crosshairPoint={calibration.crosshairPoint}
@@ -94,7 +94,17 @@ export const SnookerScanARKitScreen = () => {
         onTrackingState={calibration.setTrackingState}
       />
 
-      <ARReticle visible={calibration.step !== "ready"} state={calibration.reticleState} label={calibration.reticleHint} />
+      <ARReticle
+        visible={true}
+        state={calibration.reticleState}
+        label={
+          calibration.step === "ready"
+            ? interactionMode === "place"
+              ? "Aim at ball center"
+              : "Aim at marker then move"
+            : calibration.reticleHint
+        }
+      />
 
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}> 
         <ARTopChrome
@@ -144,8 +154,8 @@ export const SnookerScanARKitScreen = () => {
                 <Pressable
                   style={styles.editButton}
                   onPress={() => {
-                    markerPlacement.moveSelectedToCrosshair();
-                    setMessage("Moved selected marker to reticle");
+                    const result = markerPlacement.moveSelectedToCrosshair();
+                    setMessage(result?.ok ? "Moved selected marker to reticle" : result?.reason ?? "Could not move marker");
                   }}
                   disabled={!markerPlacement.selectedMarker}
                 >

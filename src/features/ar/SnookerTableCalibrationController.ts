@@ -3,6 +3,7 @@ import type { ARTrackingState } from "./ARConfidenceState";
 import { buildARConfidenceStatus } from "./ARConfidenceState";
 import {
   applyAlignmentAdjustments,
+  buildVirtualCalibration,
   computeCalibrationFromBlackPinkBlue,
   getCalibrationGuidance,
   getCalibrationQualityBand,
@@ -10,7 +11,9 @@ import {
   type CameraPose,
   type GroundPoint,
   type SnookerTableCalibration,
+  worldFromNorm,
 } from "./snookerTableCalibration";
+import { SNOOKER_TABLE_GEOMETRY } from "./snookerTableGeometry";
 
 export type CalibrationStep = "scan_plane" | "align_black" | "align_pink" | "align_blue" | "confirm" | "ready";
 export type ReticleState = "searching" | "close" | "alignable" | "locked" | "low_confidence";
@@ -173,6 +176,28 @@ export const useSnookerTableCalibrationController = () => {
     setAdjustments({ offsetAlong: 0, offsetAcross: 0, rotationDeg: 0, scaleFactor: 1 });
   };
 
+  const startDevPreview = () => {
+    const preview = buildVirtualCalibration(cameraPose, 1);
+    if (!preview) {
+      setError("Move the camera first, then tap Dev Preview.");
+      return { ok: false } as const;
+    }
+
+    const black = worldFromNorm(preview, SNOOKER_TABLE_GEOMETRY.blackSpot.xNorm, SNOOKER_TABLE_GEOMETRY.blackSpot.yNorm);
+    const pink = worldFromNorm(preview, SNOOKER_TABLE_GEOMETRY.pinkSpot.xNorm, SNOOKER_TABLE_GEOMETRY.pinkSpot.yNorm);
+    const blue = worldFromNorm(preview, SNOOKER_TABLE_GEOMETRY.blueSpot.xNorm, SNOOKER_TABLE_GEOMETRY.blueSpot.yNorm);
+
+    setBlackPoint(black);
+    setPinkPoint(pink);
+    setBluePoint(blue);
+    setAdjustments({ offsetAlong: 0, offsetAcross: 0, rotationDeg: 0, scaleFactor: 1 });
+    setStep("ready");
+    setError(null);
+    pointWindowRef.current = [];
+
+    return { ok: true } as const;
+  };
+
   return {
     step,
     crosshairPoint,
@@ -199,6 +224,7 @@ export const useSnookerTableCalibrationController = () => {
     confirmCalibration,
     relockFromDrift,
     resetCalibration,
+    startDevPreview,
     setStep,
     setError,
   };

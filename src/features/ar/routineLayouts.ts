@@ -29,15 +29,54 @@ const TABLE_LENGTH_M = SNOOKER_TABLE_GEOMETRY.playingLengthM;
 const BALL_DIAMETER_M = 0.0525;
 const STEP_X = BALL_DIAMETER_M / TABLE_WIDTH_M;
 const STEP_Y = BALL_DIAMETER_M / TABLE_LENGTH_M;
-const D_OFFSET_X = 0.292 / TABLE_WIDTH_M;
+const BALL_DIAMETER_Y_NORM = BALL_DIAMETER_M / TABLE_LENGTH_M;
+const LINE_UP_ENDPOINT_CLEARANCE_BALL_WIDTHS = 1.5;
+const LINE_UP_BLACK_PINK_COUNT = 4;
+const LINE_UP_PINK_BLUE_COUNT = 7;
+const LINE_UP_ABOVE_BLACK_COUNT = 2;
+const LINE_UP_BLUE_BROWN_COUNT = 2;
+
+const interpolateLine = (start: number, end: number, count: number): number[] => {
+  if (count <= 0) return [];
+  if (count === 1) return [(start + end) / 2];
+  return Array.from({ length: count }, (_, i) => {
+    const t = i / (count - 1);
+    return start + t * (end - start);
+  });
+};
+
+const buildStandardLineUpPlacements = (): NormalizedBallPlacement[] => {
+  const clear = BALL_DIAMETER_Y_NORM * LINE_UP_ENDPOINT_CLEARANCE_BALL_WIDTHS;
+  const blackY = SNOOKER_TABLE_GEOMETRY.blackSpot.yNorm;
+  const pinkY = SNOOKER_TABLE_GEOMETRY.pinkSpot.yNorm;
+  const blueY = SNOOKER_TABLE_GEOMETRY.blueSpot.yNorm;
+  const brownY = SNOOKER_TABLE_GEOMETRY.spots.brown.yNorm;
+
+  const aboveBlack = interpolateLine(clear, blackY - clear, LINE_UP_ABOVE_BLACK_COUNT);
+  const blackToPink = interpolateLine(blackY + clear, pinkY - clear, LINE_UP_BLACK_PINK_COUNT);
+  const pinkToBlue = interpolateLine(pinkY + clear, blueY - clear, LINE_UP_PINK_BLUE_COUNT);
+
+  const blueBrownSpan = Math.max(0, brownY - blueY);
+  const blueBrownNearBlueEnd = blueY + blueBrownSpan * 0.22;
+  const blueToBrownNearBlue = interpolateLine(blueY + clear, blueBrownNearBlueEnd, LINE_UP_BLUE_BROWN_COUNT);
+
+  const positions = [...aboveBlack, ...blackToPink, ...pinkToBlue, ...blueToBrownNearBlue];
+
+  return positions.map((y, index) => ({
+    id: `line-red-15-${index + 1}`,
+    color: "red",
+    x: 0.5,
+    y,
+  }));
+};
 
 export const SPOT_COORDS: Record<SpotId, { x: number; y: number; color: BallColor; label: string }> = {
   "spot-black": { x: 0.5, y: SNOOKER_TABLE_GEOMETRY.blackSpot.yNorm, color: "black", label: "Black" },
   "spot-pink": { x: 0.5, y: SNOOKER_TABLE_GEOMETRY.pinkSpot.yNorm, color: "pink", label: "Pink" },
   "spot-blue": { x: 0.5, y: SNOOKER_TABLE_GEOMETRY.blueSpot.yNorm, color: "blue", label: "Blue" },
-  "spot-brown": { x: 0.5, y: 0.7935, color: "brown", label: "Brown" },
-  "spot-green": { x: 0.5 + D_OFFSET_X, y: 0.7935, color: "green", label: "Green" },
-  "spot-yellow": { x: 0.5 - D_OFFSET_X, y: 0.7935, color: "yellow", label: "Yellow" },
+  "spot-brown": { x: SNOOKER_TABLE_GEOMETRY.spots.brown.xNorm, y: SNOOKER_TABLE_GEOMETRY.spots.brown.yNorm, color: "brown", label: "Brown" },
+  "spot-green": { x: SNOOKER_TABLE_GEOMETRY.spots.green.xNorm, y: SNOOKER_TABLE_GEOMETRY.spots.green.yNorm, color: "green", label: "Green" },
+  "spot-yellow": { x: SNOOKER_TABLE_GEOMETRY.spots.yellow.xNorm, y: SNOOKER_TABLE_GEOMETRY.spots.yellow.yNorm, color: "yellow", label: "Yellow" },
 };
 
 const allSpots: SpotId[] = ["spot-black", "spot-pink", "spot-blue", "spot-brown", "spot-green", "spot-yellow"];
@@ -148,9 +187,9 @@ const layoutDefinitions: RoutineLayoutDefinition[] = [
     category: "break-building",
     anchorSystem: "black_pink",
     spotMarkers: ["spot-black", "spot-pink", "spot-blue", "spot-brown", "spot-green", "spot-yellow"],
-    ballPlacements: lineY("line-red", "red", 0.5, 0.11, 15),
+    ballPlacements: buildStandardLineUpPlacements(),
     referenceImage: require("../../../assets/routines/the-line-up.png"),
-    notes: "Single center line of 15 reds based on reference diagram.",
+    notes: "15 reds laid out to match the line-up reference image pattern.",
   },
   {
     routineId: "routine-t-routine",
