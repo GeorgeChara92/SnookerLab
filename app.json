@@ -4,7 +4,7 @@
     "slug": "SnookerApp",
     "scheme": "snookerlab",
     "version": "1.0.0",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -15,6 +15,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.georgechara.snookerlab",
+      "buildNumber": "2",
       "supportsTablet": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -38,7 +39,7 @@
     "plugins": [
       "expo-secure-store",
       "react-native-adapty",
-      "@reactvision/react-viro",
+      "./plugins/with-snooker-arkit",
       [
         "expo-camera",
         {

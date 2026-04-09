@@ -1,4 +1,5 @@
 import type { Routine } from "../../types";
+import { SNOOKER_TABLE_GEOMETRY } from "./snookerTableGeometry";
 
 export type SpotId = "spot-black" | "spot-pink" | "spot-blue" | "spot-brown" | "spot-green" | "spot-yellow";
 
@@ -23,17 +24,17 @@ export type RoutineLayoutDefinition = {
   notes?: string;
 };
 
-const TABLE_WIDTH_M = 1.778;
-const TABLE_LENGTH_M = 3.569;
+const TABLE_WIDTH_M = SNOOKER_TABLE_GEOMETRY.playingWidthM;
+const TABLE_LENGTH_M = SNOOKER_TABLE_GEOMETRY.playingLengthM;
 const BALL_DIAMETER_M = 0.0525;
 const STEP_X = BALL_DIAMETER_M / TABLE_WIDTH_M;
 const STEP_Y = BALL_DIAMETER_M / TABLE_LENGTH_M;
 const D_OFFSET_X = 0.292 / TABLE_WIDTH_M;
 
 export const SPOT_COORDS: Record<SpotId, { x: number; y: number; color: BallColor; label: string }> = {
-  "spot-black": { x: 0.5, y: 0.0908, color: "black", label: "Black" },
-  "spot-pink": { x: 0.5, y: 0.25, color: "pink", label: "Pink" },
-  "spot-blue": { x: 0.5, y: 0.5, color: "blue", label: "Blue" },
+  "spot-black": { x: 0.5, y: SNOOKER_TABLE_GEOMETRY.blackSpot.yNorm, color: "black", label: "Black" },
+  "spot-pink": { x: 0.5, y: SNOOKER_TABLE_GEOMETRY.pinkSpot.yNorm, color: "pink", label: "Pink" },
+  "spot-blue": { x: 0.5, y: SNOOKER_TABLE_GEOMETRY.blueSpot.yNorm, color: "blue", label: "Blue" },
   "spot-brown": { x: 0.5, y: 0.7935, color: "brown", label: "Brown" },
   "spot-green": { x: 0.5 + D_OFFSET_X, y: 0.7935, color: "green", label: "Green" },
   "spot-yellow": { x: 0.5 - D_OFFSET_X, y: 0.7935, color: "yellow", label: "Yellow" },

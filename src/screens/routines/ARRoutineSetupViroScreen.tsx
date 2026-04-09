@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -13,14 +13,21 @@ import {
   ViroTrackingStateConstants,
   type ViroCameraARHitTest,
 } from "@reactvision/react-viro";
-import Svg, { Circle as SvgCircle, Line as SvgLine, Rect as SvgRect, Text as SvgText } from "react-native-svg";
 import { useRoutinesStore } from "../../store";
 import type { PracticeStackParamList } from "../../types";
 import { getRoutineLayoutDefinition, SPOT_COORDS, type BallColor } from "../../features/ar/routineLayouts";
+import {
+  applyAlignmentAdjustments as applyTableAdjustments,
+  buildVirtualCalibration as buildTableVirtualCalibration,
+  computeCalibrationFromBlackPink,
+  getCalibrationGuidance,
+  getCalibrationQualityBand,
+  worldFromNorm,
+} from "../../features/ar/snookerTableCalibration";
 
 type CaptureStage = "black" | "pink" | "calibrated";
-type OverlayMode = "all" | "spots" | "routine";
 type ARMode = "live" | "virtual";
+type ReticleState = "searching" | "close" | "locked";
 
 type GroundPoint = { x: number; y: number; z: number };
 
@@ -360,22 +367,22 @@ export const ARRoutineSetupViroScreen = () => {
   const { getRoutineById } = useRoutinesStore();
   const routine = getRoutineById(route.params.routineId);
 
-  const [facing, setFacing] = useState<"front" | "back">("back");
   const [arMode, setArMode] = useState<ARMode>("live");
-  const [overlayMode, setOverlayMode] = useState<OverlayMode>("all");
   const [stage, setStage] = useState<CaptureStage>("black");
   const [crosshairPoint, setCrosshairPoint] = useState<GroundPoint | null>(null);
   const [cameraPose, setCameraPose] = useState<CameraPose | null>(null);
   const [blackPoint, setBlackPoint] = useState<GroundPoint | null>(null);
   const [pinkPoint, setPinkPoint] = useState<GroundPoint | null>(null);
+  const [pendingCalibration, setPendingCalibration] = useState<Calibration | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [offsetAlong, setOffsetAlong] = useState(0);
   const [offsetAcross, setOffsetAcross] = useState(0);
   const [rotationDeg, setRotationDeg] = useState(0);
   const [scaleFactor, setScaleFactor] = useState(1);
   const [virtualScale, setVirtualScale] = useState(0.45);
-  const [developerMode, setDeveloperMode] = useState(false);
-  const [showGrid, setShowGrid] = useState(false);
+  const [showGrid] = useState(false);
+  const [reticleState, setReticleState] = useState<ReticleState>("searching");
+  const [reticleHint, setReticleHint] = useState("Move over the table to detect the surface");
 
   const layoutDefinition = useMemo(() => getRoutineLayoutDefinition(routine), [routine]);
 
@@ -405,62 +412,74 @@ export const ARRoutineSetupViroScreen = () => {
     [layoutDefinition.spotMarkers]
   );
 
-  const visibleMarkers = useMemo(() => {
-    if (overlayMode === "spots") return spotMarkers;
-    if (overlayMode === "routine") return routineMarkers;
-    return [...spotMarkers, ...routineMarkers];
-  }, [overlayMode, spotMarkers, routineMarkers]);
+  const visibleMarkers = useMemo(() => [...spotMarkers, ...routineMarkers], [spotMarkers, routineMarkers]);
 
-  const liveCalibration = useMemo(() => computeCalibration(blackPoint, pinkPoint), [blackPoint, pinkPoint]);
-  const virtualCalibration = useMemo(() => buildVirtualCalibration(cameraPose, virtualScale), [cameraPose, virtualScale]);
+  const liveCalibration = useMemo(() => computeCalibrationFromBlackPink(blackPoint, pinkPoint), [blackPoint, pinkPoint]);
+  const virtualCalibration = useMemo(() => buildTableVirtualCalibration(cameraPose, virtualScale), [cameraPose, virtualScale]);
   const baseCalibration = arMode === "virtual" ? virtualCalibration : liveCalibration;
 
   const calibration = useMemo(() => {
     if (!baseCalibration) return null;
-    return applyAlignmentAdjustments(baseCalibration, {
+    return applyTableAdjustments(baseCalibration, {
       offsetAlong,
       offsetAcross,
       rotationDeg,
       scaleFactor,
     });
   }, [baseCalibration, offsetAcross, offsetAlong, rotationDeg, scaleFactor]);
+  const calibrationBand = getCalibrationQualityBand(baseCalibration?.scanQuality ?? 0);
+  const calibrationHint = getCalibrationGuidance(baseCalibration?.scanQuality ?? 0);
 
   const positionedMarkers = useMemo(() => {
     if (!calibration || stage !== "calibrated") return [] as PositionedMarker[];
     return visibleMarkers.map((marker) => {
-      const point = toWorldPoint(calibration, marker);
+      const point = worldFromNorm(calibration, marker.xNorm, marker.yNorm);
       return { ...marker, x: point.x, y: point.y, z: point.z };
     });
   }, [calibration, stage, visibleMarkers]);
 
+  useEffect(() => {
+    if (stage === "calibrated") {
+      setReticleState("locked");
+      setReticleHint("Locked. Walk around and place balls on the guides.");
+      return;
+    }
+
+    if (!crosshairPoint) {
+      setReticleState("searching");
+      setReticleHint("Move over the table to detect the surface");
+      return;
+    }
+
+    setReticleState("close");
+    setReticleHint(stage === "black" ? "Hold steady over the black spot" : "Hold steady over the pink spot");
+  }, [crosshairPoint, stage]);
+
+  const flowStep = useMemo(() => {
+    if (stage === "calibrated") return 4;
+    if (stage === "pink") return 3;
+    if (stage === "black" && crosshairPoint) return 2;
+    return 1;
+  }, [stage, crosshairPoint]);
+
+  const stepLabel = useMemo(() => {
+    if (flowStep === 1) return "Detect Table";
+    if (flowStep === 2) return "Align Black";
+    if (flowStep === 3) return "Confirm Pink";
+    return "Routine Ready";
+  }, [flowStep]);
+
   const resetAll = () => {
     setBlackPoint(null);
     setPinkPoint(null);
+    setPendingCalibration(null);
     setCrosshairPoint(null);
     setStage("black");
-    setOverlayMode("all");
     setScanError(null);
     setOffsetAlong(0);
     setOffsetAcross(0);
     setRotationDeg(0);
     setScaleFactor(1);
-  };
-
-  const toggleARMode = () => {
-    setArMode((prev) => {
-      const next = prev === "live" ? "virtual" : "live";
-      if (next === "virtual") {
-        setStage("calibrated");
-        setOverlayMode("all");
-      } else {
-        setStage("black");
-        setBlackPoint(null);
-        setPinkPoint(null);
-        setCrosshairPoint(null);
-      }
-      setScanError(null);
-      return next;
-    });
   };
 
   const capture = () => {
@@ -474,16 +493,30 @@ export const ARRoutineSetupViroScreen = () => {
     }
 
     if (stage === "pink") {
-      const solved = computeCalibration(blackPoint, crosshairPoint);
+      const solved = computeCalibrationFromBlackPink(blackPoint, crosshairPoint);
       if (!solved) {
         setScanError("Calibration failed. Re-scan Black and Pink with stable reticle lock.");
         return;
       }
+      const band = getCalibrationQualityBand(solved.scanQuality);
+      if (band === "poor") {
+        setPendingCalibration(solved as Calibration);
+        setScanError("Calibration quality is poor. Re-scan or continue with manual tune.");
+        return;
+      }
       setPinkPoint(crosshairPoint);
       setStage("calibrated");
-      setOverlayMode("all");
+      setPendingCalibration(null);
       setScanError(null);
     }
+  };
+
+  const acceptPendingCalibration = () => {
+    if (!pendingCalibration || !crosshairPoint) return;
+    setPinkPoint(crosshairPoint);
+    setStage("calibrated");
+    setPendingCalibration(null);
+    setScanError("Calibration accepted with manual tuning enabled.");
   };
 
   if (!routine) {
@@ -500,7 +533,7 @@ export const ARRoutineSetupViroScreen = () => {
         autofocus
         initialScene={{ scene: RoutineARScene as any }}
         worldAlignment="Gravity"
-        videoQuality={facing === "back" ? "High" : "Low"}
+        videoQuality="High"
         viroAppProps={{
           crosshairPoint,
           blackPoint,
@@ -516,38 +549,35 @@ export const ARRoutineSetupViroScreen = () => {
         style={StyleSheet.absoluteFill}
       />
 
+      <View style={styles.engineBadge} pointerEvents="none">
+        <Text style={styles.engineBadgeText}>AR Engine: ReactVision (Viro)</Text>
+      </View>
+
       {stage !== "calibrated" && arMode === "live" ? (
         <View pointerEvents="none" style={styles.reticleWrap}>
-          <View style={styles.reticleRing}>
+          <View
+            style={[
+              styles.reticleRing,
+              reticleState === "searching"
+                ? styles.reticleSearching
+                : reticleState === "close"
+                  ? styles.reticleClose
+                  : styles.reticleLocked,
+            ]}
+          >
             <View style={styles.reticleDot} />
             <View style={[styles.reticleLineHorizontal, !crosshairPoint && styles.reticleLineDim]} />
             <View style={[styles.reticleLineVertical, !crosshairPoint && styles.reticleLineDim]} />
           </View>
-          <Text style={styles.reticleLabel}>{crosshairPoint ? "Aim point" : "Move over table cloth"}</Text>
+          <Text style={styles.reticleLabel}>{reticleHint}</Text>
         </View>
       ) : null}
 
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}> 
-        <Text style={styles.title}>{routine.name}</Text>
-        <View style={styles.topButtons}>
-          <Pressable style={styles.topButton} onPress={() => setOverlayMode((prev) => (prev === "all" ? "spots" : prev === "spots" ? "routine" : "all"))}>
-            <Text style={styles.topButtonText}>{overlayMode.toUpperCase()}</Text>
-          </Pressable>
-          <Pressable style={styles.topButton} onPress={toggleARMode}>
-            <Text style={styles.topButtonText}>{arMode === "live" ? "VIRTUAL" : "LIVE"}</Text>
-          </Pressable>
-          <Pressable style={styles.topButton} onPress={() => setShowGrid((prev) => !prev)}>
-            <Text style={styles.topButtonText}>{showGrid ? "GRID OFF" : "GRID ON"}</Text>
-          </Pressable>
-          <Pressable style={styles.topButton} onPress={() => setDeveloperMode((prev) => !prev)}>
-            <Text style={styles.topButtonText}>{developerMode ? "DEBUG OFF" : "DEBUG"}</Text>
-          </Pressable>
-          <Pressable style={styles.topButton} onPress={() => setFacing((prev) => (prev === "back" ? "front" : "back"))}>
-            <Text style={styles.topButtonText}>FLIP</Text>
-          </Pressable>
-          <Pressable style={styles.topButton} onPress={resetAll}>
-            <Text style={styles.topButtonText}>RESET</Text>
-          </Pressable>
+        <Text style={styles.title}>AR Routine Setup</Text>
+        <Text style={styles.stepTitle}>Step {flowStep} of 4 · {stepLabel}</Text>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${(flowStep / 4) * 100}%` }]} />
         </View>
       </View>
 
@@ -555,10 +585,12 @@ export const ARRoutineSetupViroScreen = () => {
         <Text style={styles.instruction}>
           {arMode === "virtual"
             ? "Virtual bed mode: preview exact routine geometry away from a table."
-            : stage === "black"
-              ? "Center reticle on BLACK spot, then capture"
-              : stage === "pink"
-                ? "Center reticle on PINK spot, then capture"
+            : flowStep === 1
+              ? "Move your phone slowly above the table to detect the surface"
+              : stage === "black"
+                ? "Align with the black spot and hold steady"
+                : stage === "pink"
+                  ? "Now align with the pink spot and hold steady"
                 : "Calibrated. Place balls directly on projected markers."}
         </Text>
         <Text style={styles.metrics}>
@@ -568,16 +600,21 @@ export const ARRoutineSetupViroScreen = () => {
               ? `Scan quality ${baseCalibration?.scanQuality ?? 0}% • Markers ${positionedMarkers.length}`
               : "Aim at table cloth to lock reticle"}
         </Text>
-
-        {arMode === "virtual" ? (
-          <View style={styles.tuneRow}>
-            <Pressable style={styles.tuneButton} onPress={() => setVirtualScale((prev) => Math.max(0.25, Number((prev - 0.05).toFixed(2))))}>
-              <Text style={styles.tuneButtonText}>Bed Scale -</Text>
-            </Pressable>
-            <Pressable style={styles.tuneButton} onPress={() => setVirtualScale((prev) => Math.min(1, Number((prev + 0.05).toFixed(2))))}>
-              <Text style={styles.tuneButtonText}>Bed Scale +</Text>
-            </Pressable>
-          </View>
+        {arMode === "live" && baseCalibration ? (
+          <Text
+            style={[
+              styles.qualityPill,
+              calibrationBand === "locked"
+                ? styles.qualityLocked
+                : calibrationBand === "good"
+                  ? styles.qualityGood
+                  : calibrationBand === "usable"
+                    ? styles.qualityUsable
+                    : styles.qualityPoor,
+            ]}
+          >
+            {calibrationBand.toUpperCase()} · {calibrationHint}
+          </Text>
         ) : null}
 
         {stage === "calibrated" && arMode === "live" ? (
@@ -599,36 +636,21 @@ export const ARRoutineSetupViroScreen = () => {
           </View>
         ) : null}
 
-        {developerMode ? (
-          <View style={styles.debugPanel}>
-            <Text style={styles.debugTitle}>Validation Mode</Text>
-            {layoutDefinition.referenceImage ? <Image source={layoutDefinition.referenceImage} style={styles.debugImage} resizeMode="contain" /> : <Text style={styles.debugHint}>No reference image mapped for this routine.</Text>}
-            <Svg width={250} height={130}>
-              <SvgRect x={0} y={0} width={250} height={130} fill="#0F7A2C" stroke="#E5E7EB" strokeWidth={1} />
-              <SvgLine x1={125} y1={0} x2={125} y2={130} stroke="#FFFFFF66" strokeWidth={1} />
-              {spotMarkers.map((marker) => (
-                <SvgCircle key={`s-${marker.id}`} cx={marker.xNorm * 250} cy={marker.yNorm * 130} r={4} fill="#111827" stroke="#FFFFFF" strokeWidth={1} />
-              ))}
-              {routineMarkers.map((marker, idx) => {
-                const plottedX = marker.xNorm * 250;
-                const fillColor = marker.color === "white" ? "#F8FAFC" : marker.color === "red" ? "#DC2626" : marker.color === "blue" ? "#2563EB" : "#111827";
-                return (
-                  <React.Fragment key={`r-${marker.id}`}>
-                    <SvgCircle cx={plottedX} cy={marker.yNorm * 130} r={4} fill={fillColor} stroke="#111827" strokeWidth={0.8} />
-                    <SvgText x={plottedX + 5} y={marker.yNorm * 130 - 2} fill="#F8FAFC" fontSize={8}>{String(idx + 1)}</SvgText>
-                  </React.Fragment>
-                );
-              })}
-            </Svg>
-            <Text style={styles.debugHint}>{`Balls ${routineMarkers.length} • Spots ${spotMarkers.length} • Layout ${layoutDefinition.anchorSystem}`}</Text>
+        {scanError ? <Text style={styles.errorText}>{scanError}</Text> : null}
+        {pendingCalibration && stage === "pink" ? (
+          <View style={styles.pendingCalibrationRow}>
+            <Pressable style={styles.sideButton} onPress={resetAll}>
+              <Text style={styles.sideButtonText}>Re-scan</Text>
+            </Pressable>
+            <Pressable style={styles.sideButton} onPress={acceptPendingCalibration}>
+              <Text style={styles.sideButtonText}>Use & Tune</Text>
+            </Pressable>
           </View>
         ) : null}
 
-        {scanError ? <Text style={styles.errorText}>{scanError}</Text> : null}
-
         <View style={styles.captureRow}>
           <Pressable style={styles.sideButton} onPress={stage === "calibrated" ? resetAll : () => setStage("black")}>
-            <Text style={styles.sideButtonText}>{stage === "calibrated" ? "Restart" : "Re-scan"}</Text>
+            <Text style={styles.sideButtonText}>Re-scan</Text>
           </Pressable>
 
           <Pressable style={[styles.captureButton, !crosshairPoint && stage !== "calibrated" && styles.captureDisabled]} onPress={stage === "calibrated" ? undefined : capture}>
@@ -636,7 +658,7 @@ export const ARRoutineSetupViroScreen = () => {
           </Pressable>
 
           <View style={styles.sideButton}>
-            <Text style={styles.sideButtonText}>{stage.toUpperCase()}</Text>
+            <Text style={styles.sideButtonText}>{flowStep < 4 ? "Confirm" : "Ready"}</Text>
           </View>
         </View>
       </View>
@@ -646,32 +668,55 @@ export const ARRoutineSetupViroScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#04070E" },
+  engineBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    zIndex: 1000,
+    backgroundColor: "rgba(59,130,246,0.18)",
+    borderColor: "rgba(59,130,246,0.55)",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  engineBadgeText: {
+    color: "#93C5FD",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
   reticleWrap: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
-  reticleRing: { width: 62, height: 62, borderRadius: 999, borderWidth: 2, borderColor: "rgba(255,255,255,0.95)", backgroundColor: "rgba(255,255,255,0.05)", alignItems: "center", justifyContent: "center" },
+  reticleRing: { width: 62, height: 62, borderRadius: 999, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  reticleSearching: { borderColor: "rgba(255,255,255,0.7)", backgroundColor: "rgba(255,255,255,0.04)" },
+  reticleClose: { borderColor: "rgba(245,158,11,0.9)", backgroundColor: "rgba(245,158,11,0.1)" },
+  reticleLocked: { borderColor: "rgba(16,185,129,0.9)", backgroundColor: "rgba(16,185,129,0.12)" },
   reticleDot: { width: 6, height: 6, borderRadius: 999, backgroundColor: "#FFFFFF" },
   reticleLineHorizontal: { position: "absolute", width: 20, height: 2, backgroundColor: "#FFFFFF" },
   reticleLineVertical: { position: "absolute", height: 20, width: 2, backgroundColor: "#FFFFFF" },
   reticleLineDim: { opacity: 0.4 },
   reticleLabel: { marginTop: 8, color: "#E5E7EB", fontSize: 11, fontWeight: "700", letterSpacing: 0.3, backgroundColor: "rgba(2,6,13,0.65)", borderRadius: 8, overflow: "hidden", paddingHorizontal: 8, paddingVertical: 4 },
-  topBar: { position: "absolute", top: 0, left: 12, right: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
-  title: { color: "#FFFFFF", fontSize: 20, fontWeight: "800", maxWidth: 190 },
-  topButtons: { flexDirection: "row", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", flex: 1 },
-  topButton: { borderWidth: 1, borderColor: "rgba(255,255,255,0.35)", backgroundColor: "rgba(8,11,20,0.65)", borderRadius: 8, paddingVertical: 7, paddingHorizontal: 10 },
-  topButtonText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  topBar: { position: "absolute", top: 0, left: 12, right: 12, gap: 6, backgroundColor: "rgba(2,6,13,0.55)", borderRadius: 12, paddingHorizontal: 10, paddingBottom: 10 },
+  title: { color: "#FFFFFF", fontSize: 18, fontWeight: "800" },
+  stepTitle: { color: "#C5D2EA", fontSize: 12, fontWeight: "700" },
+  progressTrack: { height: 6, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.15)", overflow: "hidden" },
+  progressFill: { height: 6, borderRadius: 999, backgroundColor: "#6EE0B1" },
   bottomPanel: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 10, backgroundColor: "rgba(3,6,14,0.62)" },
   instruction: { color: "#FFFFFF", textAlign: "center", fontSize: 16, fontWeight: "800" },
   metrics: { marginTop: 4, color: "#D1D5DB", textAlign: "center", fontSize: 12 },
+  qualityPill: { marginTop: 6, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, textAlign: "center", fontSize: 11, fontWeight: "700" },
+  qualityPoor: { backgroundColor: "rgba(239,68,68,0.15)", color: "#FCA5A5" },
+  qualityUsable: { backgroundColor: "rgba(245,158,11,0.14)", color: "#FCD34D" },
+  qualityGood: { backgroundColor: "rgba(59,130,246,0.14)", color: "#93C5FD" },
+  qualityLocked: { backgroundColor: "rgba(16,185,129,0.16)", color: "#6EE7B7" },
   tunePanel: { marginTop: 10, gap: 6, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", padding: 8, backgroundColor: "rgba(10,14,24,0.7)" },
   tuneTitle: { color: "#E5E7EB", textAlign: "center", fontSize: 12, fontWeight: "700" },
   tuneRow: { flexDirection: "row", gap: 6, marginTop: 8 },
   tuneButton: { flex: 1, borderRadius: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.25)", backgroundColor: "rgba(24,31,49,0.8)", paddingVertical: 7, alignItems: "center" },
   tuneButtonText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
   tuneMetrics: { color: "#CBD5E1", textAlign: "center", fontSize: 11, marginTop: 2 },
-  debugPanel: { marginTop: 10, borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.24)", backgroundColor: "rgba(5,9,17,0.82)", padding: 8, alignItems: "center", gap: 6 },
-  debugTitle: { color: "#F8FAFC", fontSize: 12, fontWeight: "800" },
-  debugImage: { width: 250, height: 130, borderRadius: 6, backgroundColor: "#102514" },
-  debugHint: { color: "#CBD5E1", fontSize: 11, textAlign: "center" },
   errorText: { marginTop: 8, color: "#FCA5A5", textAlign: "center", fontSize: 12 },
+  pendingCalibrationRow: { marginTop: 8, flexDirection: "row", justifyContent: "center", gap: 10 },
   captureRow: { marginTop: 12, marginBottom: 2, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 14 },
   captureButton: { width: 80, height: 80, borderRadius: 999, borderWidth: 4, borderColor: "#FFFFFF", backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" },
   captureDisabled: { opacity: 0.45 },

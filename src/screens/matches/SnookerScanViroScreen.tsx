@@ -15,6 +15,15 @@ import {
 } from "@reactvision/react-viro";
 import { useSnookerScanStore, type SnookerBallColor, type SnookerCalibration } from "../../store/snookerScanStore";
 import type { MatchesStackParamList } from "../../types";
+import {
+  applyAlignmentAdjustments as applyTableAdjustments,
+  buildVirtualCalibration as buildTableVirtualCalibration,
+  computeCalibrationFromBlackPink,
+  getCalibrationGuidance,
+  getCalibrationQualityBand,
+  normFromWorld,
+  worldFromNorm,
+} from "../../features/ar/snookerTableCalibration";
 
 type CaptureStage = "black" | "pink" | "calibrated";
 type ARMode = "live" | "virtual";
@@ -319,8 +328,13 @@ export const SnookerScanViroScreen = () => {
   const [cameraPose, setCameraPose] = useState<CameraPose | null>(null);
   const [blackPoint, setBlackPoint] = useState<GroundPoint | null>(null);
   const [pinkPoint, setPinkPoint] = useState<GroundPoint | null>(null);
+  const [pendingCalibration, setPendingCalibration] = useState<SnookerCalibration | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [virtualScale, setVirtualScale] = useState(0.45);
+  const [offsetAlong, setOffsetAlong] = useState(0);
+  const [offsetAcross, setOffsetAcross] = useState(0);
+  const [rotationDeg, setRotationDeg] = useState(0);
+  const [scaleFactor, setScaleFactor] = useState(1);
   const [showGrid, setShowGrid] = useState(false);
   const [uiVisible, setUiVisible] = useState(true);
   const [hasPlacedMarker, setHasPlacedMarker] = useState(false);
@@ -369,14 +383,25 @@ export const SnookerScanViroScreen = () => {
     }
   }, [stage, crosshairPoint]);
 
-  const liveCalibration = useMemo(() => computeCalibration(blackPoint, pinkPoint), [blackPoint, pinkPoint]);
-  const virtualCalibration = useMemo(() => buildVirtualCalibration(cameraPose, virtualScale), [cameraPose, virtualScale]);
-  const calibration = arMode === "virtual" ? virtualCalibration : liveCalibration;
+  const liveCalibration = useMemo(() => computeCalibrationFromBlackPink(blackPoint, pinkPoint), [blackPoint, pinkPoint]);
+  const virtualCalibration = useMemo(() => buildTableVirtualCalibration(cameraPose, virtualScale), [cameraPose, virtualScale]);
+  const baseCalibration = arMode === "virtual" ? virtualCalibration : liveCalibration;
+  const calibration = useMemo(() => {
+    if (!baseCalibration) return null;
+    return applyTableAdjustments(baseCalibration, {
+      offsetAlong,
+      offsetAcross,
+      rotationDeg,
+      scaleFactor,
+    }) as SnookerCalibration;
+  }, [baseCalibration, offsetAlong, offsetAcross, rotationDeg, scaleFactor]);
+  const calibrationBand = getCalibrationQualityBand(baseCalibration?.scanQuality ?? 0);
+  const calibrationHint = getCalibrationGuidance(baseCalibration?.scanQuality ?? 0);
 
   const positionedMarkers = useMemo(() => {
     if (!calibration || stage !== "calibrated") return [];
     return store.markers.map((marker) => {
-      const point = toWorldPoint(calibration, marker.xNorm, marker.yNorm);
+      const point = worldFromNorm(calibration, marker.xNorm, marker.yNorm);
       return { ...marker, x: point.x, y: point.y, z: point.z };
     });
   }, [calibration, stage, store.markers]);
@@ -386,9 +411,14 @@ export const SnookerScanViroScreen = () => {
   const resetCalibration = useCallback(() => {
     setBlackPoint(null);
     setPinkPoint(null);
+    setPendingCalibration(null);
     setCrosshairPoint(null);
     setStage("black");
     setScanError(null);
+    setOffsetAlong(0);
+    setOffsetAcross(0);
+    setRotationDeg(0);
+    setScaleFactor(1);
   }, []);
 
   const toggleARMode = useCallback(() => {
@@ -400,8 +430,13 @@ export const SnookerScanViroScreen = () => {
         setStage("black");
         setBlackPoint(null);
         setPinkPoint(null);
+        setPendingCalibration(null);
         setCrosshairPoint(null);
       }
+      setOffsetAlong(0);
+      setOffsetAcross(0);
+      setRotationDeg(0);
+      setScaleFactor(1);
       setScanError(null);
       return next;
     });
@@ -418,14 +453,21 @@ export const SnookerScanViroScreen = () => {
     }
 
     if (stage === "pink") {
-      const solved = computeCalibration(blackPoint, crosshairPoint);
+      const solved = computeCalibrationFromBlackPink(blackPoint, crosshairPoint) as SnookerCalibration | null;
       if (!solved) {
         setScanError("Calibration failed. Re-scan Black and Pink with stable reticle lock.");
+        return;
+      }
+      const band = getCalibrationQualityBand(solved.scanQuality);
+      if (band === "poor") {
+        setPendingCalibration(solved);
+        setScanError("Calibration quality is poor. Re-scan, or use manual confirm to tune alignment.");
         return;
       }
       setPinkPoint(crosshairPoint);
       store.setCalibration(solved);
       setStage("calibrated");
+      setPendingCalibration(null);
       setScanError(null);
       return;
     }
@@ -434,19 +476,7 @@ export const SnookerScanViroScreen = () => {
   const placeMarkerAtCrosshair = useCallback(() => {
     if (!calibration || stage !== "calibrated" || !crosshairPoint) return;
 
-    const dx = crosshairPoint.x - calibration.topCenter.x;
-    const dz = crosshairPoint.z - calibration.topCenter.z;
-
-    const axisMag = Math.hypot(calibration.axis.x, calibration.axis.z);
-    const perpMag = Math.hypot(calibration.perpendicular.x, calibration.perpendicular.z);
-
-    if (axisMag < 0.001 || perpMag < 0.001) return;
-
-    const along = (dx * calibration.axis.x + dz * calibration.axis.z) / axisMag;
-    const across = (dx * calibration.perpendicular.x + dz * calibration.perpendicular.z) / perpMag;
-
-    const yNorm = along / calibration.tableLengthM;
-    const xNorm = (across / calibration.tableWidthM) + 0.5;
+    const { xNorm, yNorm } = normFromWorld(calibration, crosshairPoint);
 
     if (yNorm < -0.02 || yNorm > 1.02 || xNorm < -0.02 || xNorm > 1.02) {
       setScanError("Point is outside table bounds.");
@@ -471,6 +501,15 @@ export const SnookerScanViroScreen = () => {
     }
   }, [store]);
 
+  const acceptPendingCalibration = useCallback(() => {
+    if (!pendingCalibration || !crosshairPoint) return;
+    setPinkPoint(crosshairPoint);
+    store.setCalibration(pendingCalibration);
+    setStage("calibrated");
+    setPendingCalibration(null);
+    setScanError("Calibration accepted with manual tuning enabled.");
+  }, [pendingCalibration, crosshairPoint, store]);
+
   const endAndReturn = useCallback(() => {
     store.endScan();
     navigation.goBack();
@@ -484,6 +523,10 @@ export const SnookerScanViroScreen = () => {
 
   return (
     <View style={styles.container}>
+      <View style={styles.engineBadge} pointerEvents="none">
+        <Text style={styles.engineBadgeText}>AR Engine: ReactVision (Viro)</Text>
+      </View>
+
       <ViroARSceneNavigator
         autofocus
         initialScene={{ scene: SnookerScanARScene as any }}
@@ -636,6 +679,22 @@ export const SnookerScanViroScreen = () => {
             <Text style={styles.metricsText}>
               {arMode === "virtual" ? `Scale ${virtualScale.toFixed(2)}x` : calibration ? `Quality ${calibration.scanQuality}%` : crosshairPoint ? "Tap capture to mark" : "Aim at table surface"}
             </Text>
+            {arMode === "live" && baseCalibration ? (
+              <Text
+                style={[
+                  styles.qualityPill,
+                  calibrationBand === "locked"
+                    ? styles.qualityLocked
+                    : calibrationBand === "good"
+                      ? styles.qualityGood
+                      : calibrationBand === "usable"
+                        ? styles.qualityUsable
+                        : styles.qualityPoor,
+                ]}
+              >
+                {calibrationBand.toUpperCase()} · {calibrationHint}
+              </Text>
+            ) : null}
 
             {arMode === "virtual" && (
               <View style={styles.tuneRowCompact}>
@@ -650,6 +709,17 @@ export const SnookerScanViroScreen = () => {
             )}
 
             {scanError && <Text style={styles.errorText}>{scanError}</Text>}
+
+            {pendingCalibration && stage === "pink" && (
+              <View style={styles.pendingCalibrationRow}>
+                <Pressable style={styles.actionButtonSecondary} onPress={resetCalibration}>
+                  <Text style={styles.actionButtonSecondaryText}>Re-scan</Text>
+                </Pressable>
+                <Pressable style={styles.actionButtonPrimary} onPress={acceptPendingCalibration}>
+                  <Text style={styles.actionButtonPrimaryText}>Use & Tune</Text>
+                </Pressable>
+              </View>
+            )}
 
             <View style={styles.actionRow}>
               {arMode === "live" && (
@@ -673,6 +743,40 @@ export const SnookerScanViroScreen = () => {
 
         {stage === "calibrated" && (
           <>
+            {arMode === "live" && (
+              <View style={styles.tunePanel}>
+                <Text style={styles.tuneTitle}>Table alignment tuning</Text>
+                <View style={styles.tuneRowCompact}>
+                  <Pressable style={styles.tuneButtonSmall} onPress={() => setOffsetAlong((prev) => Number((prev - 0.03).toFixed(2)))}>
+                    <Text style={styles.tuneButtonTextSmall}>Back</Text>
+                  </Pressable>
+                  <Pressable style={styles.tuneButtonSmall} onPress={() => setOffsetAlong((prev) => Number((prev + 0.03).toFixed(2)))}>
+                    <Text style={styles.tuneButtonTextSmall}>Fwd</Text>
+                  </Pressable>
+                  <Pressable style={styles.tuneButtonSmall} onPress={() => setOffsetAcross((prev) => Number((prev - 0.03).toFixed(2)))}>
+                    <Text style={styles.tuneButtonTextSmall}>Left</Text>
+                  </Pressable>
+                  <Pressable style={styles.tuneButtonSmall} onPress={() => setOffsetAcross((prev) => Number((prev + 0.03).toFixed(2)))}>
+                    <Text style={styles.tuneButtonTextSmall}>Right</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.tuneRowCompact}>
+                  <Pressable style={styles.tuneButtonSmall} onPress={() => setRotationDeg((prev) => Math.max(-12, prev - 1))}>
+                    <Text style={styles.tuneButtonTextSmall}>Rot-</Text>
+                  </Pressable>
+                  <Pressable style={styles.tuneButtonSmall} onPress={() => setRotationDeg((prev) => Math.min(12, prev + 1))}>
+                    <Text style={styles.tuneButtonTextSmall}>Rot+</Text>
+                  </Pressable>
+                  <Pressable style={styles.tuneButtonSmall} onPress={() => setScaleFactor((prev) => Math.max(0.88, Number((prev - 0.01).toFixed(2))))}>
+                    <Text style={styles.tuneButtonTextSmall}>Scale-</Text>
+                  </Pressable>
+                  <Pressable style={styles.tuneButtonSmall} onPress={() => setScaleFactor((prev) => Math.min(1.12, Number((prev + 0.01).toFixed(2))))}>
+                    <Text style={styles.tuneButtonTextSmall}>Scale+</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
             <View style={styles.ballSelectorWrap}>
               <View style={[styles.ballSelectorRow, { width: ballSelectorWidth }]}>
                 {BALL_COLORS.map((item) => (
@@ -729,6 +833,24 @@ export const SnookerScanViroScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#04070E" },
+  engineBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    zIndex: 1000,
+    backgroundColor: "rgba(59,130,246,0.18)",
+    borderColor: "rgba(59,130,246,0.55)",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  engineBadgeText: {
+    color: "#93C5FD",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
 
   reticleWrap: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, alignItems: "center", justifyContent: "center" },
   reticleRing: { width: 56, height: 56, borderRadius: 999, borderWidth: 2, borderColor: "rgba(255,255,255,0.9)", backgroundColor: "rgba(255,255,255,0.03)", alignItems: "center", justifyContent: "center" },
@@ -752,6 +874,20 @@ const styles = StyleSheet.create({
   helperText: { color: "#6EE0B1", textAlign: "center", fontSize: 12, fontWeight: "600", marginBottom: 5 },
   helperTextSubtle: { color: "#9CA3AF", textAlign: "center", fontSize: 11, fontWeight: "600", marginBottom: 5 },
   errorText: { color: "#FCA5A5", textAlign: "center", fontSize: 11, marginTop: 5, marginBottom: 5 },
+  qualityPill: {
+    marginTop: 6,
+    marginBottom: 4,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  qualityPoor: { backgroundColor: "rgba(239,68,68,0.15)", color: "#FCA5A5" },
+  qualityUsable: { backgroundColor: "rgba(245,158,11,0.14)", color: "#FCD34D" },
+  qualityGood: { backgroundColor: "rgba(59,130,246,0.14)", color: "#93C5FD" },
+  qualityLocked: { backgroundColor: "rgba(16,185,129,0.16)", color: "#6EE7B7" },
 
   tuneRowCompact: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 8, marginBottom: 8 },
   tuneButtonSmall: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)" },
@@ -769,6 +905,7 @@ const styles = StyleSheet.create({
   clearAllText: { color: "#F87171", fontSize: 11, fontWeight: "700" },
 
   actionRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 },
+  pendingCalibrationRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 6 },
   actionButtonSecondary: { paddingHorizontal: 16, paddingVertical: 11, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
   actionButtonSecondaryText: { color: "#D1D5DB", fontSize: 13, fontWeight: "700" },
   actionButtonDisabled: { opacity: 0.4 },
@@ -784,6 +921,21 @@ const styles = StyleSheet.create({
   placeButtonInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12 },
   placeButtonDot: { width: 14, height: 14, borderRadius: 7 },
   placeButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800" },
+
+  tunePanel: {
+    marginBottom: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    padding: 8,
+    backgroundColor: "rgba(7,12,20,0.65)",
+  },
+  tuneTitle: {
+    color: "#E5E7EB",
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "700",
+  },
 
   minimalShowButton: { position: "absolute", left: 16, paddingHorizontal: 18, paddingVertical: 9, borderRadius: 10, backgroundColor: "rgba(8,12,20,0.85)", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
   minimalShowButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },

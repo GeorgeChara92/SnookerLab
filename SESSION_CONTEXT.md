@@ -1,6 +1,6 @@
 # SnookerApp Session Context (Handover)
 
-Last updated: 2026-04-04
+Last updated: 2026-04-09
 
 ## Product Direction
 
@@ -9,6 +9,51 @@ Last updated: 2026-04-04
 - Current release target is iOS first, with App Store review and TestFlight validation in progress.
 
 ## What Changed This Session
+
+### 0) iOS AR migration and precision platform rebuild (ARKit)
+
+- AR mode on iOS was migrated from Viro-first fallback behaviour to ARKit-native flow with Expo plugin wiring.
+- Added custom iOS native bridge manager and config plugin integration so `SnookerARKitView` is available in dev/prod iOS builds.
+- Implemented native SceneKit rendering for:
+  - crosshair reticle point
+  - black/pink/blue reference anchors
+  - placed routine/scan markers with selected-marker emphasis
+- Rebuilt AR feature architecture into shared layers used by both Routine AR and Scan Snooker AR:
+  - confidence model
+  - calibration controller
+  - anchor manager
+  - routine placement controller
+  - marker placement controller
+  - reusable AR UI shell components
+- Calibration is now multi-step and precision-oriented:
+  - detect plane
+  - align black
+  - align pink
+  - align blue (third reference for tighter fit)
+  - confirm lock
+- Added Measure-inspired shared AR UI system:
+  - minimal top chrome
+  - centre precision reticle with state animations
+  - contextual instruction label
+  - compact bottom action bar
+  - mode switcher and ball selector
+- Marker editing now supports selection + fine adjustment tools (move-to-reticle and directional nudge).
+- Drift/confidence handling is explicit and surfaced in UX.
+- Lock haptics were removed to avoid constant vibration during state jitter.
+- iOS shadow performance warning from reticle overlay was addressed by removing dynamic shadow usage on the reticle ring.
+
+Key files:
+- `plugins/with-snooker-arkit.js`
+- `plugins/ios/SnookerARKitViewManager.m`
+- `src/features/arkit/SnookerARKitView.ios.tsx`
+- `src/features/arkit/SnookerARKitView.tsx`
+- `src/features/ar/SnookerTableCalibrationController.ts`
+- `src/features/ar/snookerTableCalibration.ts`
+- `src/features/ar/SnookerMarkerPlacementController.ts`
+- `src/features/ar/RoutineARPlacementController.ts`
+- `src/features/ar/ui/ARReticle.tsx`
+- `src/screens/routines/ARRoutineSetupARKitScreen.tsx`
+- `src/screens/matches/SnookerScanARKitScreen.tsx`
 
 ### 1) Dashboard redesign (luxury editorial direction)
 
@@ -96,7 +141,7 @@ Key files:
 
 ## Git State Snapshot
 
-- Latest commit created and pushed to `master`:
+- Previous latest pushed commit before this AR session:
   - `ca33cca` - "Migrate billing to Adapty and refine premium app flow"
 
 ## Recommended Start Steps Next Session

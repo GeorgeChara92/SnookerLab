@@ -45,5 +45,14 @@
     "babel-preset-expo": "^54.0.10",
     "typescript": "~5.9.2"
   },
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "exclude": [
+          "@reactvision/react-viro"
+        ]
+      }
+    }
+  },
   "private": true
 }
