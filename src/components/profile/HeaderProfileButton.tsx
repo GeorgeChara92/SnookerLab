@@ -1,5 +1,5 @@
-import React, { useRef } from "react";
-import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import React from "react";
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore, useMatchesStore, useSessionsStore, useRoutineScoresStore } from "../../store";
@@ -32,38 +32,24 @@ export const HeaderProfileButton = () => {
   const sessions = useSessionsStore((state) => state.logs);
   const entries = useRoutineScoresStore((state) => state.entries);
   const subscription = useSubscriptionAccess();
-
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const { width } = useWindowDimensions();
 
   const stats = getPlayerStats(matches, sessions, entries);
   const xp = stats.matchesWon * 10 + stats.sessionsLogged * 5;
   const levelInfo = getPlayerLevel(xp);
 
   const handlePress = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.92,
-      friction: 4,
-      tension: 200,
-      useNativeDriver: true,
-    }).start();
-
-    setTimeout(() => {
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 4,
-        tension: 200,
-        useNativeDriver: true,
-      }).start();
-    }, 80);
-
     navigation.navigate("ProfileModal");
   };
 
   const xpProgress = levelInfo.xpToNext === Infinity ? 1 : Math.min(1, xp / (xp + levelInfo.xpToNext));
+  const showMeta = width >= 360;
+  const showName = width >= 420;
+  const xpLabel = `${xp} XP`;
 
   return (
-    <Pressable onPress={handlePress} style={styles.container}>
-      <Animated.View style={[styles.avatarWrapper, { transform: [{ scale: scaleAnim }] }]}>
+    <Pressable onPress={handlePress} style={({ pressed }) => [styles.container, pressed && styles.containerPressed]} hitSlop={8}>
+      <View style={styles.avatarWrapper}> 
         {/* XP Progress Ring */}
         <View style={styles.ringContainer}>
           <View
@@ -84,19 +70,31 @@ export const HeaderProfileButton = () => {
         </View>
 
         {/* Avatar */}
-        <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+        <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
           {user?.profile_image_url ? (
             <Image source={{ uri: user.profile_image_url }} style={styles.image} resizeMode="cover" />
           ) : (
-            <SnookerPresetAvatar presetId={user?.avatar_preset} size={36} />
+            <SnookerPresetAvatar presetId={user?.avatar_preset} size={22} />
           )}
         </View>
 
-        {/* Level Badge */}
-        <View style={[styles.levelBadge, { backgroundColor: colors.primary }]}>
+        <View style={[styles.levelBadge, { backgroundColor: colors.primary }]}> 
           <Text style={styles.levelText}>{levelInfo.level}</Text>
         </View>
-      </Animated.View>
+      </View>
+
+      {showMeta ? (
+        <View style={styles.metaBlock}>
+          {showName ? (
+            <Text style={[styles.nameText, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
+              {user?.username || "Player"}
+            </Text>
+          ) : null}
+          <Text style={[styles.xpText, { color: colors.textMuted }]} numberOfLines={1} ellipsizeMode="tail">
+            {xpLabel}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Plan Badge */}
       {subscription.tier !== "free" && (
@@ -118,48 +116,56 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingRight: 4,
+    justifyContent: "center",
+    gap: 7,
+    minHeight: 40,
+    maxWidth: 220,
+    paddingRight: 2,
+    overflow: "visible",
+  },
+  containerPressed: {
+    opacity: 0.92,
   },
   avatarWrapper: {
     position: "relative",
-    width: 44,
-    height: 44,
+    width: 34,
+    height: 34,
+    overflow: "visible",
   },
   ringContainer: {
     position: "absolute",
-    width: 44,
-    height: 44,
+    width: 34,
+    height: 34,
     alignItems: "center",
     justifyContent: "center",
   },
   progressRing: {
     position: "absolute",
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.25,
   },
   progressRingFill: {
     position: "absolute",
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.25,
     borderTopColor: "transparent",
     borderRightColor: "transparent",
   },
   avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
     position: "absolute",
-    top: 3,
-    left: 3,
+    top: 5,
+    left: 5,
   },
   image: {
     width: "100%",
@@ -167,32 +173,46 @@ const styles = StyleSheet.create({
   },
   levelBadge: {
     position: "absolute",
-    bottom: -2,
-    right: -2,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 6,
-    minWidth: 18,
+    bottom: 2,
+    right: 2,
+    minWidth: 10,
+    height: 10,
+    borderRadius: 5,
+    paddingHorizontal: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   levelText: {
-    fontSize: 9,
+    fontSize: 6,
     fontWeight: "800",
-    color: "#FFF",
+    color: "#FFFFFF",
+    lineHeight: 6,
+  },
+  metaBlock: {
+    minWidth: 0,
+    flexShrink: 1,
+    gap: 1,
+  },
+  nameText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  xpText: {
+    fontSize: 10,
+    fontWeight: "600",
   },
   planBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
     borderWidth: 1,
   },
   planBadgeText: {
-    fontSize: 9,
+    fontSize: 7,
     fontWeight: "700",
-    letterSpacing: 0.5,
+    letterSpacing: 0.35,
   },
 });

@@ -1,5 +1,5 @@
 import React from "react";
-import { Animated, Image, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -45,11 +45,14 @@ const PlayerIdentity: React.FC<{ compact?: boolean }> = ({ compact }) => {
   const sessions = useSessionsStore((state) => state.logs);
   const entries = useRoutineScoresStore((state) => state.entries);
   const subscription = useSubscriptionAccess();
+  const { width } = useWindowDimensions();
 
   const stats = getStats(matches, sessions, entries);
   const xp = stats.matchesWon * 10 + stats.sessionsLogged * 5;
   const levelInfo = getPlayerLevel(xp);
   const xpProgress = levelInfo.xpToNext === Infinity ? 1 : Math.min(1, xp / (xp + levelInfo.xpToNext));
+  const showName = compact ? width >= 390 : true;
+  const levelAndXp = `Level ${levelInfo.level} • ${xp} XP`;
 
   const handlePress = () => {
     navigation.navigate("ProfileModal");
@@ -68,24 +71,23 @@ const PlayerIdentity: React.FC<{ compact?: boolean }> = ({ compact }) => {
               ]}
             />
           </View>
-          <View style={[styles.avatarSmall, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+          <View style={[styles.avatarSmall, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
             {user?.profile_image_url ? (
               <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
             ) : (
-              <SnookerPresetAvatar presetId={user?.avatar_preset} size={28} />
+              <SnookerPresetAvatar presetId={user?.avatar_preset} size={30} />
             )}
-          </View>
-          <View style={[styles.levelBadgeSmall, { backgroundColor: colors.primary }]}>
-            <Text style={styles.levelTextSmall}>{levelInfo.level}</Text>
           </View>
         </View>
         <View style={styles.playerInfoCompact}>
-          <Text style={[styles.playerNameCompact, { color: colors.text }]} numberOfLines={1}>
-            {user?.username || "Player"}
-          </Text>
+          {showName ? (
+            <Text style={[styles.playerNameCompact, { color: colors.text }]} numberOfLines={1}>
+              {user?.username || "Player"}
+            </Text>
+          ) : null}
           <View style={styles.xpRowCompact}>
             <MaterialCommunityIcons name="star" size={10} color={colors.primary} />
-            <Text style={[styles.xpTextCompact, { color: colors.textMuted }]}>{xp} XP</Text>
+            <Text style={[styles.xpTextCompact, { color: colors.textMuted }]} numberOfLines={1}>{levelAndXp}</Text>
           </View>
         </View>
         {subscription.tier !== "free" && (
@@ -109,16 +111,23 @@ const PlayerIdentity: React.FC<{ compact?: boolean }> = ({ compact }) => {
           ]}
         />
       </View>
-      <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+      <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
         {user?.profile_image_url ? (
           <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
         ) : (
-          <SnookerPresetAvatar presetId={user?.avatar_preset} size={36} />
+          <SnookerPresetAvatar presetId={user?.avatar_preset} size={34} />
         )}
       </View>
-      <View style={[styles.levelBadge, { backgroundColor: colors.primary }]}>
-        <Text style={styles.levelText}>{levelInfo.level}</Text>
+      <View style={styles.playerInfoCompact}>
+        <Text style={[styles.playerNameCompact, { color: colors.text }]} numberOfLines={1}>
+          {user?.username || "Player"}
+        </Text>
+        <View style={styles.xpRowCompact}>
+          <MaterialCommunityIcons name="star" size={10} color={colors.primary} />
+          <Text style={[styles.xpTextCompact, { color: colors.textMuted }]} numberOfLines={1}>{levelAndXp}</Text>
+        </View>
       </View>
+      <PlanBadge />
     </Pressable>
   );
 };
@@ -336,64 +345,54 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   avatarContainer: {
-    width: 44,
-    height: 44,
+    maxWidth: 260,
+    minHeight: 44,
     position: "relative",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingLeft: 52,
   },
   ringContainer: {
     position: "absolute",
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
+    left: 0,
+    top: 0,
   },
   progressRing: {
     position: "absolute",
     width: 44,
     height: 44,
     borderRadius: 22,
-    borderWidth: 2,
+    borderWidth: 1.5,
   },
   progressRingFill: {
     position: "absolute",
     width: 44,
     height: 44,
     borderRadius: 22,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderTopColor: "transparent",
     borderRightColor: "transparent",
   },
   avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
     position: "absolute",
-    top: 3,
-    left: 3,
+    top: 5,
+    left: 5,
   },
   avatarImage: {
     width: "100%",
     height: "100%",
-  },
-  levelBadge: {
-    position: "absolute",
-    bottom: -2,
-    right: -2,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 6,
-    minWidth: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  levelText: {
-    fontSize: 9,
-    fontWeight: "800",
-    color: "#FFF",
   },
   planBadge: {
     flexDirection: "row",
@@ -416,79 +415,62 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   avatarSmallWrapper: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     position: "relative",
   },
   ringSmallContainer: {
     position: "absolute",
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
   },
   progressRingSmall: {
     position: "absolute",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 1.5,
   },
   progressRingFillSmall: {
     position: "absolute",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     borderWidth: 1.5,
     borderTopColor: "transparent",
     borderRightColor: "transparent",
   },
   avatarSmall: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
     position: "absolute",
-    top: 3,
-    left: 3,
-  },
-  levelBadgeSmall: {
-    position: "absolute",
-    bottom: -1,
-    right: -1,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-    borderRadius: 4,
-    minWidth: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  levelTextSmall: {
-    fontSize: 7,
-    fontWeight: "800",
-    color: "#FFF",
+    top: 5,
+    left: 5,
   },
   playerInfoCompact: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+    flexShrink: 1,
+    minWidth: 0,
+    gap: 2,
   },
   playerNameCompact: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   xpRowCompact: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
+    gap: 4,
   },
   xpTextCompact: {
     fontSize: 10,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   planBadgeCompact: {
     flexDirection: "row",

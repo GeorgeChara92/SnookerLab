@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useMemo } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
@@ -33,6 +33,10 @@ export const RoutinesListScreen = () => {
   const categoryContainsOnlyGuides = categoryRoutines.length > 0 && categoryRoutines.every((item) => item.content_type === "guide");
   const itemLabel = categoryContainsOnlyGuides ? "guide" : "routine";
   const iconName = getRoutineCategoryIconName(categoryId);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({ title: categoryContainsOnlyGuides ? "Guides" : "Routines" });
+  }, [navigation, categoryContainsOnlyGuides]);
 
   if (!category) {
     return (

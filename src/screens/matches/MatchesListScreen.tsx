@@ -19,6 +19,14 @@ type OpponentGroup = {
   recentForm: string[];
 };
 
+const getMatchRecordingMode = (match: Match): "live" | "manual" => {
+  if (match.recording_mode === "live" || match.recording_mode === "manual") {
+    return match.recording_mode;
+  }
+  if (match.target_frames === 1) return "manual";
+  return "live";
+};
+
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr);
   const now = new Date();
@@ -56,16 +64,14 @@ const overallStats = useMemo(() => {
     const total = matches.length;
     const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
 
-    // Count frames won/lost - use frames_played for manual entries, or 1 if single frame
+    // Count frames won/lost using explicit recording mode.
     let framesWon = 0;
     let framesLost = 0;
     let pointsFor = 0;
     let pointsAgainst = 0;
 
     matches.forEach((m) => {
-      // For manual entry (best of 1), frames_played is 1 and score is actual points
-      // For live scoring, user_score/opponent_score are frame counts
-      if (m.target_frames === 1 || m.frames_played === 1) {
+      if (getMatchRecordingMode(m) === "manual") {
         // Manual entry - count as 1 frame, winner determined by who had more points
         framesWon += m.result === "win" ? 1 : 0;
         framesLost += m.result === "loss" ? 1 : 0;
@@ -116,9 +122,7 @@ const overallStats = useMemo(() => {
 
       existing.matchesPlayed += 1;
       
-      // For manual entry (best of 1), frames are 1 each, scores are points
-      // For live scoring, user_score/opponent_score are frame wins
-      if (match.target_frames === 1 || match.frames_played === 1) {
+      if (getMatchRecordingMode(match) === "manual") {
         // Manual entry - 1 frame, result determines frame win/loss
         existing.framesFor += match.result === "win" ? 1 : match.result === "draw" ? 0.5 : 0;
         existing.framesAgainst += match.result === "loss" ? 1 : match.result === "draw" ? 0.5 : 0;
@@ -302,7 +306,7 @@ const overallStats = useMemo(() => {
         {recentMatches.map((match) => {
           const isWin = match.result === "win";
           const isLoss = match.result === "loss";
-          const isManualEntry = match.target_frames === 1 || match.frames_played === 1;
+          const isManualEntry = getMatchRecordingMode(match) === "manual";
           const bestOf = match.target_frames ?? match.frames_played;
 
           return (

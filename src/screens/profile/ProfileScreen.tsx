@@ -515,7 +515,7 @@ export const ProfileScreen = () => {
         <Pressable style={[styles.profileField, { borderColor: colors.border }]} onPress={() => navigation.navigate("EditProfileField", { field: "cue_preference" })}>
           <View style={styles.profileFieldLeft}>
             <MaterialCommunityIcons name="golf-tee" size={20} color={colors.textMuted} />
-            <Text style={[styles.profileFieldLabel, { color: colors.textMuted }]}>Cue Preference</Text>
+            <Text style={[styles.profileFieldLabel, { color: colors.textMuted }]}>Cue Setup</Text>
           </View>
           <View style={styles.profileFieldRight}>
             <Text style={[styles.profileFieldValue, { color: colors.text }]}>{getCuePreferenceLabel(user?.cue_preference)}</Text>

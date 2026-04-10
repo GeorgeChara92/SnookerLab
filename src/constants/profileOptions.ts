@@ -220,18 +220,82 @@ export const SKILL_LEVELS: { value: SkillLevel; label: string }[] = [
   { value: "professional", label: "Professional" },
 ];
 
-export const CUE_PREFERENCES: { value: string; label: string }[] = [
-  { value: "pool_cue", label: "Pool Cue" },
-  { value: "snooker_cue", label: "Snooker Cue" },
-  { value: "break_cue", label: "Break Cue" },
-  { value: "jump_cue", label: "Jump Cue" },
-  { value: "three_cushion", label: "Three Cushion Cue" },
-];
+export const CUE_LENGTH_OPTIONS = ["56.5", "57", "57.5", "58", "58.5"] as const;
+export const CUE_FERRULE_OPTIONS = ["brass", "titanium"] as const;
+export const CUE_TIP_OPTIONS = [
+  "7",
+  "7.25",
+  "7.5",
+  "7.75",
+  "8",
+  "8.25",
+  "8.5",
+  "8.75",
+  "9",
+  "9.25",
+  "9.5",
+  "9.75",
+  "10",
+  "10.25",
+  "10.5",
+  "10.75",
+  "11",
+] as const;
+export const CUE_WEIGHT_OPTIONS = ["17", "17.25", "17.5", "17.75", "18", "18.25", "18.5", "18.75", "19", "19.25", "19.5"] as const;
+
+export type CueSetupSelection = {
+  lengthIn: (typeof CUE_LENGTH_OPTIONS)[number];
+  ferrule: (typeof CUE_FERRULE_OPTIONS)[number];
+  tipMm: (typeof CUE_TIP_OPTIONS)[number];
+  weightOz: (typeof CUE_WEIGHT_OPTIONS)[number];
+};
+
+export const DEFAULT_CUE_SETUP: CueSetupSelection = {
+  lengthIn: "57.5",
+  ferrule: "titanium",
+  tipMm: "9.5",
+  weightOz: "18.5",
+};
+
+const encodeCueSetup = (setup: CueSetupSelection): string => {
+  return `len:${setup.lengthIn}|fer:${setup.ferrule}|tip:${setup.tipMm}|wt:${setup.weightOz}`;
+};
+
+const decodeCueSetup = (value: string | undefined): CueSetupSelection | null => {
+  if (!value || !value.includes("len:")) return null;
+  const pairs = value.split("|").map((entry) => entry.split(":"));
+  const map = Object.fromEntries(pairs) as Record<string, string>;
+
+  const lengthIn = CUE_LENGTH_OPTIONS.find((option) => option === map.len);
+  const ferrule = CUE_FERRULE_OPTIONS.find((option) => option === map.fer);
+  const tipMm = CUE_TIP_OPTIONS.find((option) => option === map.tip);
+  const weightOz = CUE_WEIGHT_OPTIONS.find((option) => option === map.wt);
+
+  if (!lengthIn || !ferrule || !tipMm || !weightOz) return null;
+  return { lengthIn, ferrule, tipMm, weightOz };
+};
+
+export const buildCuePreferenceValue = (setup: CueSetupSelection): string => encodeCueSetup(setup);
+export const parseCuePreferenceValue = (value: string | undefined): CueSetupSelection => decodeCueSetup(value) ?? DEFAULT_CUE_SETUP;
+
+const LEGACY_CUE_PREFERENCE_LABELS: Record<string, string> = {
+  pool_cue: "Pool cue (legacy)",
+  snooker_cue: "Snooker cue (legacy)",
+  break_cue: "Break cue (legacy)",
+  jump_cue: "Jump cue (legacy)",
+  three_cushion: "Three cushion cue (legacy)",
+};
 
 export const getSkillLabel = (value: SkillLevel | undefined): string => {
   return SKILL_LEVELS.find((s) => s.value === value)?.label ?? "Not set";
 };
 
 export const getCuePreferenceLabel = (value: string | undefined): string => {
-  return CUE_PREFERENCES.find((c) => c.value === value)?.label ?? value ?? "Not set";
+  if (!value) return "Not set";
+  const parsed = decodeCueSetup(value);
+  if (parsed) {
+    const ferruleLabel = parsed.ferrule === "brass" ? "Brass" : "Titanium";
+    return `${parsed.lengthIn} in • ${ferruleLabel} • ${parsed.tipMm} mm • ${parsed.weightOz} oz`;
+  }
+  return LEGACY_CUE_PREFERENCE_LABELS[value] ?? value;
 };

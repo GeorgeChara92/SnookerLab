@@ -119,6 +119,7 @@ export const NewMatchScreen = () => {
         user_score: 0,
         opponent_score: 0,
         result: "draw",
+        recording_mode: "live",
         sync_status: "pending",
       });
 
@@ -167,6 +168,7 @@ export const NewMatchScreen = () => {
         user_score: uScore,
         opponent_score: oScore,
         result: getResult(),
+        recording_mode: "manual",
         sync_status: "pending",
       });
       navigation.goBack();

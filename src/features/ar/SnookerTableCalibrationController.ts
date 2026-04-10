@@ -149,15 +149,18 @@ export const useSnookerTableCalibrationController = () => {
 
   const confirmCalibration = () => {
     if (!calibration) {
-      setError("Calibration is incomplete.");
-      return;
+      const reason = "Calibration is incomplete.";
+      setError(reason);
+      return { ok: false, reason } as const;
     }
     if (confidence.state === "poor" || confidence.state === "drift") {
-      setError("Calibration confidence is low. Re-lock references before entering placement mode.");
-      return;
+      const reason = "Calibration confidence is low. Re-lock references before entering placement mode.";
+      setError(reason);
+      return { ok: false, reason } as const;
     }
     setStep("ready");
     setError(null);
+    return { ok: true } as const;
   };
 
   const relockFromDrift = () => {

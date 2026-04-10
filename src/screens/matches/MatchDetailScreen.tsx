@@ -173,14 +173,12 @@ export const MatchDetailScreen = () => {
     try {
       setIsSaving(true);
       
-      const isManualEntry = frameRecords.length === 0;
-      
       await updateMatch(match.id, {
         opponent_name: opponentName.trim() || match.opponent_name,
         location: location.trim() || undefined,
         user_score: userScoreNum,
         opponent_score: opponentScoreNum,
-        frames_played: isManualEntry ? 1 : frameRecords.length,
+        frames_played: frameRecords.length > 0 ? frameRecords.length : match.frames_played,
         result: getResult(),
         notes: notes.trim() || undefined,
         sync_status: "pending",

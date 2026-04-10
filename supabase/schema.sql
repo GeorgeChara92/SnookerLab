@@ -67,6 +67,7 @@ create table if not exists public.matches (
   date date not null,
   match_type text,
   format text,
+  recording_mode text,
   user_score int not null,
   opponent_score int not null,
   result text not null,
@@ -92,6 +93,8 @@ create table if not exists public.match_frames (
   updated_at timestamptz not null default now(),
   unique (match_id, frame_number)
 );
+
+alter table if exists public.matches add column if not exists recording_mode text;
 
 create table if not exists public.tournaments (
   id uuid primary key default gen_random_uuid(),

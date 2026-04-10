@@ -52,7 +52,6 @@ export const SnookerScanARKitScreen = () => {
   );
 
   const arMode: ARMode = "live";
-
   useEffect(() => {
     if (calibration.confidence.state === "drift" && calibration.step === "ready") {
       calibration.relockFromDrift();
@@ -119,7 +118,12 @@ export const SnookerScanARKitScreen = () => {
       <View style={[styles.bottom, { paddingBottom: Math.max(12, insets.bottom) }]}> 
         <ARInstructionLabel
           text={calibration.step === "ready" ? (interactionMode === "place" ? "Aim at ball center and place marker" : "Select marker, then nudge or move") : stepInstruction(calibration.step)}
-          secondary={message ?? (calibration.step === "ready" ? calibration.confidence.guidance : calibration.calibrationHint)}
+          secondary={
+            message ??
+            (calibration.step === "ready"
+              ? calibration.confidence.guidance
+              : calibration.error ?? calibration.calibrationHint)
+          }
         />
 
         {calibration.step === "ready" ? (
@@ -207,7 +211,18 @@ export const SnookerScanARKitScreen = () => {
           <ARBottomActionBar
             left={{ label: "Reset", onPress: calibration.resetCalibration }}
             primaryLabel={calibration.step === "confirm" ? "Confirm" : "Capture"}
-            onPrimaryPress={calibration.step === "confirm" ? calibration.confirmCalibration : calibration.captureReference}
+            onPrimaryPress={() => {
+              if (calibration.step === "confirm") {
+                const result = calibration.confirmCalibration();
+                if (!result?.ok) {
+                  setMessage(result?.reason ?? "Calibration could not be confirmed yet.");
+                } else {
+                  setMessage("Calibration locked");
+                }
+                return;
+              }
+              calibration.captureReference();
+            }}
             primaryDisabled={calibration.step !== "confirm" && !calibration.crosshairPoint}
             right={{ label: "Back", onPress: () => navigation.goBack() }}
           />

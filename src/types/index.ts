@@ -6,6 +6,7 @@ export type SyncStatus = "synced" | "pending" | "error";
 export type MatchType = "casual" | "league" | "tournament" | "practice";
 export type MatchFormat = "best_of" | "first_to" | "timed";
 export type MatchResult = "win" | "loss" | "draw";
+export type MatchRecordingMode = "live" | "manual";
 export type TournamentType = "knockout" | "league";
 export type TournamentEntryMode = "singles" | "doubles";
 export type TournamentPairingMode = "random" | "manual";
@@ -122,6 +123,7 @@ export interface Match {
   opponent_score: number;
   result: MatchResult;
   notes?: string;
+  recording_mode?: MatchRecordingMode;
   sync_status: SyncStatus;
   created_at: string;
   updated_at: string;

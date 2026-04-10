@@ -236,6 +236,7 @@ const layoutDefinitions: RoutineLayoutDefinition[] = [
     anchorSystem: "black_pink",
     spotMarkers: allSpots,
     ballPlacements: lineY("3r", "red", 0.5, 0.34, 3),
+    referenceImage: require("../../../assets/routines/3-reds-colours-clearance.jpg"),
   },
   {
     routineId: "routine-break-building-foundations",
@@ -244,6 +245,7 @@ const layoutDefinitions: RoutineLayoutDefinition[] = [
     anchorSystem: "black_pink",
     spotMarkers: allSpots,
     ballPlacements: lineY("bbf", "red", 0.5, 0.28, 7),
+    referenceImage: require("../../../assets/routines/bread-building-foundations.jpg"),
   },
   {
     routineId: "routine-pink-ball-routine",
@@ -252,6 +254,7 @@ const layoutDefinitions: RoutineLayoutDefinition[] = [
     anchorSystem: "black_pink",
     spotMarkers: ["spot-pink", "spot-blue", "spot-brown"],
     ballPlacements: [{ id: "pink-cue", color: "white", x: 0.54, y: 0.58 }],
+    referenceImage: require("../../../assets/routines/shots-around-pink.jpg"),
   },
   {
     routineId: "routine-baulk-safety",

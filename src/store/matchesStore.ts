@@ -52,6 +52,7 @@ const mapDbMatch = (row: any): Match => ({
   opponent_score: row.opponent_score,
   result: row.result,
   notes: row.notes ?? undefined,
+  recording_mode: row.recording_mode ?? undefined,
   sync_status: "synced",
   created_at: row.created_at,
   updated_at: row.updated_at,
@@ -109,6 +110,7 @@ export const useMatchesStore = create<MatchesState>()(
           opponent_score: matchData.opponent_score,
           result: matchData.result,
           notes: matchData.notes ?? null,
+          recording_mode: matchData.recording_mode ?? null,
           created_at: now,
           updated_at: now,
         };
@@ -142,6 +144,7 @@ export const useMatchesStore = create<MatchesState>()(
           "opponent_score",
           "result",
           "notes",
+          "recording_mode",
         ];
 
         keys.forEach((key) => {
@@ -234,6 +237,7 @@ export const useMatchesStore = create<MatchesState>()(
             opponent_score: summary.opponent_score,
             frames_played: summary.frames_played,
             result: summary.result,
+            recording_mode: "live",
             updated_at: updatedAt,
           })
           .eq("id", matchId)
@@ -254,6 +258,7 @@ export const useMatchesStore = create<MatchesState>()(
                   opponent_score: summary.opponent_score,
                   frames_played: summary.frames_played,
                   result: summary.result,
+                  recording_mode: "live",
                   updated_at: updatedAt,
                 }
               : match

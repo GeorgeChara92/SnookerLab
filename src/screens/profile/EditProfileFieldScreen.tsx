@@ -1,12 +1,24 @@
-import React, { useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useLayoutEffect, useState } from "react";
+import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRoute, useNavigation, type RouteProp } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
 import { AppCard } from "../../components/ui/AppCard";
-import { COUNTRIES, getCountryByCode, SKILL_LEVELS, CUE_PREFERENCES } from "../../constants/profileOptions";
+import {
+  COUNTRIES,
+  getCountryByCode,
+  SKILL_LEVELS,
+  CUE_LENGTH_OPTIONS,
+  CUE_FERRULE_OPTIONS,
+  CUE_TIP_OPTIONS,
+  CUE_WEIGHT_OPTIONS,
+  buildCuePreferenceValue,
+  getCuePreferenceLabel,
+  parseCuePreferenceValue,
+  type CueSetupSelection,
+} from "../../constants/profileOptions";
 import type { ProfileStackParamList, SkillLevel } from "../../types";
 
 type FieldRoute = RouteProp<ProfileStackParamList, "EditProfileField">;
@@ -14,8 +26,10 @@ type FieldRoute = RouteProp<ProfileStackParamList, "EditProfileField">;
 const FIELD_CONFIG: Record<string, { label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; type: "skill" | "country" | "cue" }> = {
   skill_level: { label: "Skill Level", icon: "star-outline", type: "skill" },
   country_code: { label: "Country", icon: "flag-outline", type: "country" },
-  cue_preference: { label: "Cue Preference", icon: "golf-tee", type: "cue" },
+  cue_preference: { label: "Cue Setup", icon: "golf-tee", type: "cue" },
 };
+
+type CueFieldKey = keyof CueSetupSelection;
 
 export const EditProfileFieldScreen = () => {
   const route = useRoute<FieldRoute>();
@@ -26,10 +40,52 @@ export const EditProfileFieldScreen = () => {
   const field = route.params.field;
   const config = FIELD_CONFIG[field];
 
+  useLayoutEffect(() => {
+    if (field !== "cue_preference") return;
+    const rootNav = (navigation as any).getParent?.();
+    rootNav?.setOptions?.({
+      gestureEnabled: false,
+      fullScreenGestureEnabled: false,
+      presentation: "fullScreenModal",
+    });
+    return () => {
+      rootNav?.setOptions?.({
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+        presentation: "modal",
+      });
+    };
+  }, [field, navigation]);
+
   const currentValue = user?.[field as keyof typeof user] ?? "";
   const [selectedValue, setSelectedValue] = useState<string>(currentValue?.toString() ?? "");
+  const [cueSetup, setCueSetup] = useState<CueSetupSelection>(() => parseCuePreferenceValue(currentValue?.toString() ?? ""));
+  const [activeCueField, setActiveCueField] = useState<CueFieldKey | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  const cueFieldConfig: Record<CueFieldKey, { label: string; options: readonly string[]; format: (value: string) => string }> = {
+    lengthIn: {
+      label: "Length",
+      options: CUE_LENGTH_OPTIONS,
+      format: (value) => `${value} in`,
+    },
+    ferrule: {
+      label: "Ferrule",
+      options: CUE_FERRULE_OPTIONS,
+      format: (value) => (value === "brass" ? "Brass" : "Titanium"),
+    },
+    tipMm: {
+      label: "Tip",
+      options: CUE_TIP_OPTIONS,
+      format: (value) => `${value} mm`,
+    },
+    weightOz: {
+      label: "Weight",
+      options: CUE_WEIGHT_OPTIONS,
+      format: (value) => `${value} oz`,
+    },
+  };
 
   const filteredCountries = searchQuery
     ? COUNTRIES.filter(
@@ -50,7 +106,7 @@ export const EditProfileFieldScreen = () => {
       } else if (field === "country_code") {
         await updateProfile({ country_code: selectedValue });
       } else if (field === "cue_preference") {
-        await updateProfile({ cue_preference: selectedValue });
+        await updateProfile({ cue_preference: buildCuePreferenceValue(cueSetup) });
       }
       navigation.goBack();
     } catch (error: any) {
@@ -92,23 +148,93 @@ export const EditProfileFieldScreen = () => {
     }
 
     if (config.type === "cue") {
+      const cueSummary = getCuePreferenceLabel(buildCuePreferenceValue(cueSetup));
       return (
-        <View style={styles.optionsList}>
-          {CUE_PREFERENCES.map((option) => {
-            const isSelected = selectedValue === option.value;
-            return (
+        <View style={styles.cueBuilderWrap}>
+          <Text style={[styles.cueSummary, { color: colors.text }]}>{cueSummary}</Text>
+          <View style={styles.cueRow}>
+            <Pressable
+              style={[styles.cueFieldButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={() => setActiveCueField("lengthIn")}
+            >
+              <Text style={[styles.cueFieldLabel, { color: colors.textMuted }]}>Length</Text>
+              <View style={styles.cueFieldValueRow}>
+                <Text style={[styles.cueFieldValue, { color: colors.text }]}>{cueFieldConfig.lengthIn.format(cueSetup.lengthIn)}</Text>
+                <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textMuted} />
+              </View>
+            </Pressable>
+            <Pressable
+              style={[styles.cueFieldButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={() => setActiveCueField("ferrule")}
+            >
+              <Text style={[styles.cueFieldLabel, { color: colors.textMuted }]}>Ferrule</Text>
+              <View style={styles.cueFieldValueRow}>
+                <Text style={[styles.cueFieldValue, { color: colors.text }]}>{cueFieldConfig.ferrule.format(cueSetup.ferrule)}</Text>
+                <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textMuted} />
+              </View>
+            </Pressable>
+          </View>
+          <View style={styles.cueRow}>
+            <Pressable
+              style={[styles.cueFieldButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={() => setActiveCueField("tipMm")}
+            >
+              <Text style={[styles.cueFieldLabel, { color: colors.textMuted }]}>Tip</Text>
+              <View style={styles.cueFieldValueRow}>
+                <Text style={[styles.cueFieldValue, { color: colors.text }]}>{cueFieldConfig.tipMm.format(cueSetup.tipMm)}</Text>
+                <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textMuted} />
+              </View>
+            </Pressable>
+            <Pressable
+              style={[styles.cueFieldButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              onPress={() => setActiveCueField("weightOz")}
+            >
+              <Text style={[styles.cueFieldLabel, { color: colors.textMuted }]}>Weight</Text>
+              <View style={styles.cueFieldValueRow}>
+                <Text style={[styles.cueFieldValue, { color: colors.text }]}>{cueFieldConfig.weightOz.format(cueSetup.weightOz)}</Text>
+                <MaterialCommunityIcons name="chevron-down" size={16} color={colors.textMuted} />
+              </View>
+            </Pressable>
+          </View>
+
+          <Modal visible={activeCueField !== null} transparent animationType="fade" onRequestClose={() => setActiveCueField(null)}>
+            <Pressable style={styles.modalOverlay} onPress={() => setActiveCueField(null)}>
               <Pressable
-                key={option.value}
-                style={[styles.optionItem, { backgroundColor: isSelected ? colors.primary + "15" : colors.surface, borderColor: isSelected ? colors.primary : colors.border }]}
-                onPress={() => setSelectedValue(option.value)}
+                style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => null}
               >
-                <View style={styles.optionContent}>
-                  <Text style={[styles.optionLabel, { color: isSelected ? colors.primary : colors.text }]}>{option.label}</Text>
-                </View>
-                {isSelected && <MaterialCommunityIcons name="check-circle" size={22} color={colors.primary} />}
+                {activeCueField ? (
+                  <>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>{cueFieldConfig[activeCueField].label}</Text>
+                    <FlatList
+                      data={cueFieldConfig[activeCueField].options}
+                      keyExtractor={(item) => item}
+                      renderItem={({ item }) => {
+                        const isSelected = cueSetup[activeCueField] === item;
+                        return (
+                          <Pressable
+                            style={[
+                              styles.modalOption,
+                              { borderColor: colors.border, backgroundColor: isSelected ? colors.primary + "12" : colors.surfaceMuted },
+                            ]}
+                            onPress={() => {
+                              setCueSetup((prev) => ({ ...prev, [activeCueField]: item }));
+                              setActiveCueField(null);
+                            }}
+                          >
+                            <Text style={[styles.modalOptionText, { color: isSelected ? colors.primary : colors.text }]}>
+                              {cueFieldConfig[activeCueField].format(item)}
+                            </Text>
+                            {isSelected ? <MaterialCommunityIcons name="check" size={18} color={colors.primary} /> : null}
+                          </Pressable>
+                        );
+                      }}
+                    />
+                  </>
+                ) : null}
               </Pressable>
-            );
-          })}
+            </Pressable>
+          </Modal>
         </View>
       );
     }
@@ -169,7 +295,7 @@ export const EditProfileFieldScreen = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}> 
       <AppCard style={styles.headerCard}>
         <View style={styles.headerIcon}>
           <MaterialCommunityIcons name={config.icon} size={32} color={colors.primary} />
@@ -178,14 +304,14 @@ export const EditProfileFieldScreen = () => {
         <Text style={[styles.headerSubtitle, { color: colors.textMuted }]}>
           {field === "skill_level" && "Your skill level helps match you with similar players in global leaderboards."}
           {field === "country_code" && "Represent your country in worldwide rankings and challenges."}
-          {field === "cue_preference" && "Your preferred cue type for match recording and recommendations."}
+          {field === "cue_preference" && "Set your usual cue specs (length, ferrule, tip size, and weight)."}
         </Text>
       </AppCard>
 
       {renderContent()}
 
       <View style={styles.footer}>
-        <AppButton label={isSaving ? "Saving..." : "Save"} onPress={handleSave} disabled={isSaving || !selectedValue} />
+        <AppButton label={isSaving ? "Saving..." : "Save"} onPress={handleSave} disabled={isSaving || (config.type !== "cue" && !selectedValue)} />
       </View>
     </View>
   );
@@ -213,4 +339,72 @@ const styles = StyleSheet.create({
   countryItem: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 10, borderWidth: 1, gap: 10, marginBottom: 6 },
   countryEmoji: { fontSize: 24 },
   countryName: { flex: 1, fontSize: 15, fontWeight: "500" },
+  cueBuilderWrap: {
+    padding: 16,
+    gap: 12,
+  },
+  cueSummary: {
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 2,
+  },
+  cueRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  cueFieldButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 72,
+    justifyContent: "space-between",
+  },
+  cueFieldLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  cueFieldValue: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 10,
+  },
+  cueFieldValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(2,6,12,0.62)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    maxHeight: "72%",
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  modalOption: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  modalOptionText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
 });

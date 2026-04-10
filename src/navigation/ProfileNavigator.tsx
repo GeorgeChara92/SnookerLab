@@ -19,7 +19,14 @@ export const ProfileNavigator = () => {
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Account Settings" }} />
       <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} options={{ title: "Plans" }} />
       <Stack.Screen name="Achievements" component={AchievementsScreen} options={{ title: "Achievements" }} />
-      <Stack.Screen name="EditProfileField" component={EditProfileFieldScreen} options={{ title: "Edit Profile" }} />
+      <Stack.Screen
+        name="EditProfileField"
+        component={EditProfileFieldScreen}
+        options={({ route }) => ({
+          title: "Edit Profile",
+          gestureEnabled: route.params.field !== "cue_preference",
+        })}
+      />
     </Stack.Navigator>
   );
 };

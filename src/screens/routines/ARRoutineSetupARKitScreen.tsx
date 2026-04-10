@@ -32,7 +32,6 @@ export const ARRoutineSetupARKitScreen = () => {
 
   const calibration = useSnookerTableCalibrationController();
   const arMode: ARMode = "live";
-
   const layout = useMemo(() => getRoutineLayoutDefinition(routine), [routine]);
   const routinePlacement = useRoutineARPlacementController(layout, calibration.step === "ready" ? calibration.calibration : null);
 
@@ -82,7 +81,11 @@ export const ARRoutineSetupARKitScreen = () => {
       <View style={[styles.bottom, { paddingBottom: Math.max(12, insets.bottom) }]}> 
         <ARInstructionLabel
           text={calibration.step === "ready" ? placementSubtitle : stepInstruction(calibration.step)}
-          secondary={calibration.step === "ready" ? calibration.confidence.guidance : calibration.calibrationHint}
+          secondary={
+            calibration.step === "ready"
+              ? calibration.confidence.guidance
+              : calibration.error ?? calibration.calibrationHint
+          }
         />
 
         {calibration.step === "ready" ? (
@@ -107,7 +110,13 @@ export const ARRoutineSetupARKitScreen = () => {
             <ARBottomActionBar
               left={{ label: "Reset", onPress: calibration.resetCalibration }}
               primaryLabel={calibration.step === "confirm" ? "Confirm" : "Capture"}
-              onPrimaryPress={calibration.step === "confirm" ? calibration.confirmCalibration : calibration.captureReference}
+              onPrimaryPress={() => {
+                if (calibration.step === "confirm") {
+                  calibration.confirmCalibration();
+                  return;
+                }
+                calibration.captureReference();
+              }}
               primaryDisabled={calibration.step !== "confirm" && !calibration.crosshairPoint}
               right={{ label: "Back", onPress: () => navigation.goBack() }}
             />

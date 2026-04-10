@@ -31,6 +31,7 @@ export const useAppStackScreenOptions = (withProfileShortcut = true): NativeStac
     },
     headerTintColor: colors.text,
     headerShadowVisible: false,
+    headerBackButtonDisplayMode: "minimal",
     headerTitleStyle: {
       fontWeight: "800",
       fontSize: 17,
@@ -42,7 +43,14 @@ export const useAppStackScreenOptions = (withProfileShortcut = true): NativeStac
             : null
       : undefined,
     headerRight: withProfileShortcut
-      ? () => <HeaderProfileButton />
+      ? (props) =>
+          props.canGoBack
+            ? null
+            : (
+                <View style={styles.rightSlot}>
+                  <HeaderProfileButton />
+                </View>
+              )
       : undefined,
     contentStyle: { backgroundColor: colors.background },
   };
@@ -53,6 +61,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  rightSlot: {
+    paddingRight: 12,
+    minWidth: 100,
+    alignItems: "flex-end",
     justifyContent: "center",
   },
 });
