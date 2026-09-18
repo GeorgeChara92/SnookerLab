@@ -1,63 +1,94 @@
 import { Linking, Platform } from "react-native";
 import Constants from "expo-constants";
-import { adapty, type AdaptyPaywall, type AdaptyPaywallProduct, type AdaptyProfile } from "react-native-adapty";
+import Purchases, { LOG_LEVEL, type CustomerInfo, type PurchasesError, type PurchasesOfferings, type PurchasesPackage } from "react-native-purchases";
 import { supabase } from "../api/supabase";
 import type { SubscriptionTier } from "../types";
-const ADAPTY_PUBLIC_SDK_KEY = process.env.EXPO_PUBLIC_ADAPTY_PUBLIC_SDK_KEY ?? "";
-const ADAPTY_PLACEMENT_ID = process.env.EXPO_PUBLIC_ADAPTY_PLACEMENT_ID ?? "main_subscription";
+const RC_IOS_PUBLIC_SDK_KEY = process.env.EXPO_PUBLIC_RC_IOS_PUBLIC_SDK_KEY ?? process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? "";
+const RC_ANDROID_PUBLIC_SDK_KEY =
+  process.env.EXPO_PUBLIC_RC_ANDROID_PUBLIC_SDK_KEY ?? process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? "";
+const RC_OFFERING_ID = process.env.EXPO_PUBLIC_RC_OFFERING_ID ?? process.env.EXPO_PUBLIC_ADAPTY_PLACEMENT_ID ?? "default";
 
-const PRO_ACCESS_LEVEL_ID = process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_PRO ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_PRO ?? "SnookerLab Pro";
-const HALF_CENTURY_ACCESS_LEVEL_ID =
-  process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_HALF_CENTURY ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_HALF_CENTURY ?? "half_century";
-const CENTURY_ACCESS_LEVEL_ID =
-  process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_CENTURY ?? process.env.EXPO_PUBLIC_RC_ENTITLEMENT_CENTURY ?? "century";
+const PRO_ENTITLEMENT_ID = process.env.EXPO_PUBLIC_RC_ENTITLEMENT_PRO ?? process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_PRO ?? "SnookerLab Pro";
+const HALF_CENTURY_ENTITLEMENT_ID =
+  process.env.EXPO_PUBLIC_RC_ENTITLEMENT_HALF_CENTURY ?? process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_HALF_CENTURY ?? "half_century";
+const CENTURY_ENTITLEMENT_ID =
+  process.env.EXPO_PUBLIC_RC_ENTITLEMENT_CENTURY ?? process.env.EXPO_PUBLIC_ADAPTY_ACCESS_LEVEL_CENTURY ?? "century";
 
-const PRO_MONTHLY_PRODUCT_ID = process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_MONTHLY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_MONTHLY ?? "monthly";
+const PRO_MONTHLY_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_MONTHLY ?? process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_MONTHLY ?? "monthly";
 const HALF_CENTURY_PRODUCT_ID =
-  process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_HALF_CENTURY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_HALF_CENTURY ?? "half_century_monthly";
+  process.env.EXPO_PUBLIC_RC_PRODUCT_HALF_CENTURY ?? process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_HALF_CENTURY ?? "half_century_monthly";
 const CENTURY_PRODUCT_ID =
-  process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_CENTURY ?? process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY ?? "century_monthly";
+  process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY ?? process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_CENTURY ?? "century_monthly";
 
 const DEFAULT_HALF_CENTURY_PRICE = process.env.EXPO_PUBLIC_DEFAULT_PRICE_HALF_CENTURY ?? "$3.49";
 const DEFAULT_CENTURY_PRICE = process.env.EXPO_PUBLIC_DEFAULT_PRICE_CENTURY ?? "$5.00";
 type BillingOfferings = {
-  paywall: AdaptyPaywall;
-  products: AdaptyPaywallProduct[];
+  current: PurchasesOfferings["current"];
+  all: PurchasesOfferings["all"];
+  packages: PurchasesPackage[];
+};
+
+type PurchaseTierResult = {
+  customerInfo: CustomerInfo;
+  purchasedProductIdentifier: string;
+  selectedProductIdentifier: string;
 };
 
 let configuredForUserId: string | null = null;
-let isAdaptyActivated = false;
-let activationPromise: Promise<void> | null = null;
-let adaptyActivationCheck: Promise<boolean> | null = null;
-
-const isActivateOnceError = (error: unknown) => {
-  const message = String((error as any)?.message ?? "").toLowerCase();
-  const code = String((error as any)?.adaptyCode ?? "").toLowerCase();
-  const errorCode = String((error as any)?.code ?? "").toLowerCase();
-  return (
-    message.includes("activateonceerror") ||
-    message.includes("3005") ||
-    message.includes("3305") ||
-    code === "3005" ||
-    code === "3305"||
-    errorCode === "3005" ||
-    errorCode === "3305"
-  );
-};
+let isPurchasesConfigured = false;
+let configurePromise: Promise<void> | null = null;
 
 const IS_EXPO_GO = Constants.appOwnership === "expo";
 
-const getApiKey = () => ADAPTY_PUBLIC_SDK_KEY;
+const getApiKey = () => {
+  if (Platform.OS === "ios") return RC_IOS_PUBLIC_SDK_KEY;
+  if (Platform.OS === "android") return RC_ANDROID_PUBLIC_SDK_KEY;
+  return "";
+};
+
+const asPurchasesError = (error: unknown): PurchasesError | null => {
+  if (!error || typeof error !== "object") return null;
+  const maybeError = error as Partial<PurchasesError>;
+  if (typeof maybeError.code !== "string") return null;
+  return error as PurchasesError;
+};
+
+const isUserCancelledPurchaseError = (error: unknown) => {
+  const purchasesError = asPurchasesError(error);
+  if (!purchasesError) return false;
+  return purchasesError.code === Purchases.PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR;
+};
+
+const isPendingPurchaseError = (error: unknown) => {
+  const purchasesError = asPurchasesError(error);
+  if (!purchasesError) return false;
+  return purchasesError.code === Purchases.PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR;
+};
+
+const chooseOffering = (offerings: PurchasesOfferings) => {
+  if (RC_OFFERING_ID && offerings.all[RC_OFFERING_ID]) {
+    return offerings.all[RC_OFFERING_ID];
+  }
+  return offerings.current;
+};
 
 export const getBillingUnavailableReason = () => {
-  if (IS_EXPO_GO) return "Expo Go preview mode does not support native Adapty purchases.";
-  if (!getApiKey()) return "Adapty public SDK key is missing for this build.";
+  if (IS_EXPO_GO) return "Expo Go preview mode does not support native RevenueCat purchases.";
+  if (!getApiKey()) return "RevenueCat public SDK key is missing for this build.";
   return null;
 };
 
 export const isBillingConfigured = () => !getBillingUnavailableReason();
 
-export const isUsingRevenueCatTestKey = () => !getApiKey().startsWith("public_live_");
+export const isUsingRevenueCatTestKey = () => {
+  const apiKey = getApiKey();
+  if (!apiKey) return false;
+
+  if (Platform.OS === "ios") return !apiKey.startsWith("appl_");
+  if (Platform.OS === "android") return !apiKey.startsWith("goog_") && !apiKey.startsWith("amzn_");
+
+  return false;
+};
 
 export const initBilling = async (appUserId: string) => {
   const unavailableReason = getBillingUnavailableReason();
@@ -65,131 +96,130 @@ export const initBilling = async (appUserId: string) => {
     throw new Error(unavailableReason);
   }
 
-  if (activationPromise) {
-    await activationPromise;
+  if (configurePromise) {
+    await configurePromise;
   }
 
-  if (adaptyActivationCheck) {
-    await adaptyActivationCheck;
-  }
+  const sdkConfigured = isPurchasesConfigured || (await Purchases.isConfigured().catch(() => false));
+  isPurchasesConfigured = sdkConfigured;
 
-  if (!isAdaptyActivated) {
-    adaptyActivationCheck = (async () => {
-      try {
-        const activated = await adapty.isActivated();
-        return activated;
-      } catch {
-        return false;
-      }
+  if (!sdkConfigured) {
+    configurePromise = (async () => {
+      Purchases.configure({ apiKey: getApiKey(), appUserID: appUserId });
+      await Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.VERBOSE : LOG_LEVEL.INFO);
+      configuredForUserId = appUserId;
+      isPurchasesConfigured = true;
     })();
 
     try {
-      isAdaptyActivated = await adaptyActivationCheck;
+      await configurePromise;
     } finally {
-      adaptyActivationCheck = null;
+      configurePromise = null;
     }
-  }
-
-  if (isAdaptyActivated && configuredForUserId === appUserId) {
     return;
   }
 
-  if (!isAdaptyActivated) {
-    activationPromise = (async () => {
-      try {
-        await adapty.activate(getApiKey(), { customerUserId: appUserId });
-      } catch (error) {
-        if (isActivateOnceError(error)) {
-          isAdaptyActivated = true;
-          return;
-        }
-        throw error;
-      }
-    })();
-
-    try {
-      await activationPromise;
-    } finally {
-      activationPromise = null;
-    }
-
-    isAdaptyActivated = true;
-    configuredForUserId = appUserId;
-    return;
+  if (!configuredForUserId) {
+    configuredForUserId = await Purchases.getAppUserID().catch(() => null);
   }
 
   if (configuredForUserId !== appUserId) {
-    await adapty.identify(appUserId);
+    await Purchases.logIn(appUserId);
     configuredForUserId = appUserId;
   }
 };
 
 export const logoutBilling = async () => {
   configuredForUserId = null;
-  if (!isAdaptyActivated) return;
+  if (!isPurchasesConfigured) {
+    isPurchasesConfigured = await Purchases.isConfigured().catch(() => false);
+  }
+  if (!isPurchasesConfigured) return;
+
   try {
-    await adapty.logout();
+    await Purchases.logOut();
   } catch {
     // Ignore logout failures to avoid blocking sign-out.
   }
 };
 
 export const fetchCurrentOfferings = async (): Promise<BillingOfferings> => {
-  const paywall = await adapty.getPaywall(ADAPTY_PLACEMENT_ID);
-  const products = await adapty.getPaywallProducts(paywall);
-  return { paywall, products };
+  const offerings = await Purchases.getOfferings();
+  const current = chooseOffering(offerings);
+  return {
+    current,
+    all: offerings.all,
+    packages: current?.availablePackages ?? [],
+  };
 };
 
-export const getBillingCustomerInfo = async (): Promise<AdaptyProfile> => {
-  return adapty.getProfile();
+export const getBillingCustomerInfo = async (): Promise<CustomerInfo> => {
+  return Purchases.getCustomerInfo();
 };
 
-export const addBillingCustomerInfoListener = (listener: (profile: AdaptyProfile) => void) => {
-  const subscription = adapty.addEventListener("onLatestProfileLoad", listener);
+export const addBillingCustomerInfoListener = (listener: (profile: CustomerInfo) => void) => {
+  Purchases.addCustomerInfoUpdateListener(listener);
   return () => {
-    subscription.remove();
+    Purchases.removeCustomerInfoUpdateListener(listener);
   };
 };
 
 const findProductForTier = (tier: Exclude<SubscriptionTier, "free">, offerings: BillingOfferings) => {
-  const allProducts = offerings.products;
+  const allPackages = offerings.packages;
 
   const productHint =
     tier === "half_century" ? HALF_CENTURY_PRODUCT_ID : tier === "century" ? CENTURY_PRODUCT_ID : PRO_MONTHLY_PRODUCT_ID;
 
-  const explicit = allProducts.find((item) => item.vendorProductId === productHint);
+  const explicit = allPackages.find((item) => item.product.identifier === productHint || item.identifier === productHint);
   if (explicit) return explicit;
 
   const token = tier === "half_century" ? "half" : tier === "century" ? "century" : "monthly";
-  const fallbackByToken = allProducts.find((item) => item.vendorProductId.toLowerCase().includes(token));
+  const fallbackByToken = allPackages.find(
+    (item) => item.product.identifier.toLowerCase().includes(token) || item.identifier.toLowerCase().includes(token)
+  );
   if (fallbackByToken) return fallbackByToken;
 
   return null;
 };
 
-export const purchaseTierMonthly = async (tier: Exclude<SubscriptionTier, "free">, offerings: BillingOfferings) => {
+export const purchaseTierMonthly = async (
+  tier: Exclude<SubscriptionTier, "free">,
+  offerings: BillingOfferings
+): Promise<PurchaseTierResult> => {
   const product = findProductForTier(tier, offerings);
   if (!product) {
-    throw new Error(`No product found for tier: ${tier}. Check Adapty placement and product IDs.`);
+    throw new Error(`No product found for tier: ${tier}. Check RevenueCat offering/packages and product IDs.`);
   }
 
-  const result = await adapty.makePurchase(product);
+  try {
+    const result = await Purchases.purchasePackage(product);
+    const synced = await Purchases.syncPurchasesForResult().catch(() => null);
+    const latestCustomerInfo = synced?.customerInfo ?? (await Purchases.getCustomerInfo().catch(() => result.customerInfo));
+    return {
+      customerInfo: latestCustomerInfo,
+      purchasedProductIdentifier: result.productIdentifier,
+      selectedProductIdentifier: product.product.identifier,
+    };
+  } catch (error) {
+    if (isUserCancelledPurchaseError(error)) {
+      const cancelError = new Error("Purchase cancelled by user") as Error & { userCancelled?: boolean };
+      cancelError.userCancelled = true;
+      throw cancelError;
+    }
 
-  if (result.type === "success") return result.profile;
-  if (result.type === "user_cancelled") {
-    const cancelError = new Error("Purchase cancelled by user") as Error & { userCancelled?: boolean };
-    cancelError.userCancelled = true;
-    throw cancelError;
+    if (isPendingPurchaseError(error)) {
+      throw new Error("Purchase is pending. Please verify the subscription status in a moment.");
+    }
+
+    throw error;
   }
-
-  throw new Error("Purchase is pending. Please verify the subscription status in a moment.");
 };
 
 export const getTierPriceText = (tier: Exclude<SubscriptionTier, "free">, offerings: BillingOfferings | null) => {
   if (offerings) {
     const product = findProductForTier(tier, offerings);
-    if (product?.price?.localizedString) {
-      return product.price.localizedString;
+    if (product?.product?.priceString) {
+      return product.product.priceString;
     }
   }
   if (tier === "half_century") return DEFAULT_HALF_CENTURY_PRICE;
@@ -198,33 +228,78 @@ export const getTierPriceText = (tier: Exclude<SubscriptionTier, "free">, offeri
 };
 
 export const restoreBillingPurchases = async () => {
-  return adapty.restorePurchases();
+  return Purchases.restorePurchases();
 };
 
-export const hasProEntitlement = (profile: AdaptyProfile): boolean => {
+export const hasProEntitlement = (profile: CustomerInfo): boolean => {
   return tierFromCustomerInfo(profile) !== "free";
 };
 
-export const tierFromCustomerInfo = (profile: AdaptyProfile): SubscriptionTier => {
-  const activeAccessLevels = Object.values(profile.accessLevels ?? {}).filter((level) => level.isActive);
+export const tierFromCustomerInfo = (profile: CustomerInfo): SubscriptionTier => {
+  const activeProducts = (profile.activeSubscriptions ?? []).map((value) => value.toLowerCase());
 
-  if (profile.accessLevels?.[CENTURY_ACCESS_LEVEL_ID]?.isActive || profile.accessLevels?.[PRO_ACCESS_LEVEL_ID]?.isActive) {
+  const centuryProductTokens = [CENTURY_PRODUCT_ID, PRO_MONTHLY_PRODUCT_ID].map((value) => value.toLowerCase());
+  if (centuryProductTokens.some((value) => activeProducts.includes(value))) {
     return "century";
   }
-  if (profile.accessLevels?.[HALF_CENTURY_ACCESS_LEVEL_ID]?.isActive) {
+
+  const halfCenturyProductToken = HALF_CENTURY_PRODUCT_ID.toLowerCase();
+  if (activeProducts.includes(halfCenturyProductToken)) {
     return "half_century";
   }
 
-  const accessLevelTokens = activeAccessLevels.map((level) => `${level.id} ${level.vendorProductId}`.toLowerCase());
+  const activeEntitlements = profile.entitlements.active ?? {};
+  const activeEntitlementValues = Object.values(activeEntitlements);
 
-  if (accessLevelTokens.some((value) => value.includes("century") || value.includes("snookerlab") || value.includes("pro"))) {
+  if (activeEntitlements[CENTURY_ENTITLEMENT_ID] || activeEntitlements[PRO_ENTITLEMENT_ID]) {
     return "century";
   }
-  if (accessLevelTokens.some((value) => value.includes("half") || value.includes("fifty"))) {
+  if (activeEntitlements[HALF_CENTURY_ENTITLEMENT_ID]) {
+    return "half_century";
+  }
+
+  const entitlementTokens = activeEntitlementValues.map((item) => `${item.identifier} ${item.productIdentifier}`.toLowerCase());
+
+  if (entitlementTokens.some((value) => value.includes("century") || value.includes("snookerlab") || value.includes("pro"))) {
+    return "century";
+  }
+  if (entitlementTokens.some((value) => value.includes("half") || value.includes("fifty"))) {
     return "half_century";
   }
 
   return "free";
+};
+
+export const resolveTierFromPurchaseResult = (
+  result: PurchaseTierResult,
+  requestedTier: Exclude<SubscriptionTier, "free">
+): SubscriptionTier => {
+  if (requestedTier === "century") {
+    const centuryProducts = [CENTURY_PRODUCT_ID, PRO_MONTHLY_PRODUCT_ID].map((value) => value.toLowerCase());
+    const purchased = result.purchasedProductIdentifier.toLowerCase();
+    const selected = result.selectedProductIdentifier.toLowerCase();
+    if (centuryProducts.includes(purchased) || centuryProducts.includes(selected)) {
+      return "century";
+    }
+  }
+
+  const resolvedFromCustomer = tierFromCustomerInfo(result.customerInfo);
+  if (resolvedFromCustomer === "century") return "century";
+  if (resolvedFromCustomer === "half_century") {
+    if (result.purchasedProductIdentifier === CENTURY_PRODUCT_ID || result.purchasedProductIdentifier === PRO_MONTHLY_PRODUCT_ID) {
+      return "century";
+    }
+    return "half_century";
+  }
+
+  if (result.purchasedProductIdentifier === CENTURY_PRODUCT_ID || result.purchasedProductIdentifier === PRO_MONTHLY_PRODUCT_ID) {
+    return "century";
+  }
+  if (result.purchasedProductIdentifier === HALF_CENTURY_PRODUCT_ID) {
+    return "half_century";
+  }
+
+  return requestedTier;
 };
 
 export const syncTierToSupabaseUser = async (tier: SubscriptionTier) => {
@@ -240,11 +315,11 @@ export const syncTierToSupabaseUser = async (tier: SubscriptionTier) => {
 };
 
 export const presentProPaywallIfNeeded = async () => {
-  throw new Error("Adapty paywall UI is not wired yet in this build.");
+  throw new Error("RevenueCat paywall UI is not wired yet in this build.");
 };
 
 export const presentProPaywall = async () => {
-  throw new Error("Adapty paywall UI is not wired yet in this build.");
+  throw new Error("RevenueCat paywall UI is not wired yet in this build.");
 };
 
 export const presentCustomerCenter = async () => {

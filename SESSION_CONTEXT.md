@@ -1,6 +1,6 @@
 # SnookerApp Session Context (Handover)
 
-Last updated: 2026-04-09
+Last updated: 2026-04-28
 
 ## Product Direction
 
@@ -9,6 +9,66 @@ Last updated: 2026-04-09
 - Current release target is iOS first, with App Store review and TestFlight validation in progress.
 
 ## What Changed This Session
+
+### 0) 2026-04-28 update (achievements, scoring UX, table capture refactor)
+
+- Fixed achievement persistence behaviour so unlocked achievements remain unlocked even if source match/session data is later deleted.
+- Wired break-related achievement tracking to real frame data (`highest_break_user`) instead of hardcoded placeholders.
+  - `best_break` now tracks correctly.
+  - `centuries` achievement requirement now tracks correctly.
+- Updated profile/achievement XP and level handling to be achievement-driven (sum of unlocked `xpReward`) and aligned header level badges with current unlock state.
+- Fixed "recently unlocked" ordering to respect persisted unlock sequence (`seen_achievements`) rather than static achievement array order.
+
+Scoring and routine logging improvements:
+- Reworked routine/session score entry to be scoring-type aware (`points`, `count`, `percentage`, `time`) instead of generic score presets.
+- Added per-type input guidance, validation, placeholders, and quick score chips.
+- Added percentage dual entry modes (direct `%` and `made/attempts`) in routine logging.
+- Added max-score-aware clamping/caps and clearer scoring indicators on logging screens.
+- Updated break-building routine scoring model to mostly points-based as requested, keeping exceptions where required.
+- Corrected straight cueing routine max score inconsistencies and then converted requested routines to points with aligned success criteria copy.
+
+Routine and guide content quality pass:
+- Completed deep wording pass across routine and guide text to align terminology with snooker coaching language.
+- Removed/rewrote generic/non-snooker phrasing while preserving drill structure and intent.
+
+Table capture refactor status:
+- Replaced old AR-targeted scan entry from live scoring with new capture flow entrypoints and modular table-capture architecture.
+- Added initial manual capture modules, then adapted to current dependency constraints (Vision Camera/Skia were not available in this environment).
+- Added AR-first refactor scaffolding for full-screen `ARTableCaptureScreen`:
+  - world-corner capture step flow
+  - mm-based table geometry model (1778 x 3569)
+  - world-to-table and table-to-world conversion utilities
+  - snapshot storage in mm coordinates
+  - top-down restore map component using table scale
+  - YOLO integration placeholder converting detection intent into AR-plane workflow (no native inference yet)
+
+Key files touched this session:
+- Achievements/XP:
+  - `src/hooks/useAchievementUnlocker.ts`
+  - `src/hooks/useSeenAchievements.ts`
+  - `src/screens/profile/AchievementsScreen.tsx`
+  - `src/screens/profile/ProfileScreen.tsx`
+  - `src/components/header/GlobalHeader.tsx`
+  - `src/components/profile/HeaderProfileButton.tsx`
+- Scoring UX:
+  - `src/screens/routines/RecordRoutineScoreScreen.tsx`
+  - `src/screens/routines/RoutineDetailScreen.tsx`
+  - `src/screens/sessions/ActiveSessionScreen.tsx`
+  - `src/constants/routines.ts`
+  - `src/features/guides/guidePlaybooks.ts`
+- Table capture / AR refactor:
+  - `src/screens/matches/ARTableCaptureScreen.tsx`
+  - `src/screens/matches/TablePositionCaptureScreen.tsx`
+  - `src/components/tableCapture/*`
+  - `src/components/arTableCapture/ARTableTopDownView.tsx`
+  - `src/features/tableCapture/*`
+  - `src/features/arTableCapture/*`
+  - `src/navigation/MatchesNavigator.tsx`
+  - `src/screens/matches/LiveFrameScoringScreen.tsx`
+  - `src/types/index.ts`
+
+Platform note:
+- iOS AR native bridge cannot be generated/verified from Windows; iOS prebuild and native module linking must run on macOS.
 
 ### 0) iOS AR migration and precision platform rebuild (ARKit)
 

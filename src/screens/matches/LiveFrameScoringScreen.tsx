@@ -526,7 +526,7 @@ Alert.alert(
   const handleOpenSnookerScan = () => {
     if (!match) return;
     snookerScanStore.startScan(match.id, frame.frameNumber);
-    navigation.navigate("SnookerScan" as any, { matchId: match.id, frameNumber: frame.frameNumber });
+    navigation.navigate("ARTableCapture" as any, { matchId: match.id, frameNumber: frame.frameNumber });
   };
 
   useEffect(() => {

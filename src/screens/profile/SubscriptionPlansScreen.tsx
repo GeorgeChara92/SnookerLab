@@ -18,6 +18,7 @@ import {
   openNativeSubscriptionSettings,
   presentCustomerCenter,
   purchaseTierMonthly,
+  resolveTierFromPurchaseResult,
   restoreBillingPurchases,
   syncTierToSupabaseUser,
   tierFromCustomerInfo,
@@ -37,19 +38,8 @@ const tierRank: Record<SubscriptionTier, number> = {
   century: 2,
 };
 
-const isActivateOnceError = (error: unknown) => {
-  const message = String((error as any)?.message ?? "").toLowerCase();
-  const code = String((error as any)?.adaptyCode ?? "").toLowerCase();
-  const errorCode = String((error as any)?.code ?? "").toLowerCase();
-  return (
-    message.includes("activateonceerror") ||
-    message.includes("3005") ||
-    message.includes("3305") ||
-    code === "3005" ||
-    code === "3305" ||
-    errorCode === "3005" ||
-    errorCode === "3305"
-  );
+const maxTier = (a: SubscriptionTier, b: SubscriptionTier): SubscriptionTier => {
+  return tierRank[a] >= tierRank[b] ? a : b;
 };
 
 const ValueProp = ({
@@ -158,9 +148,12 @@ export const SubscriptionPlansScreen = () => {
   const [offerings, setOfferings] = useState<any>(null);
   const [purchasingTier, setPurchasingTier] = useState<PaidTier | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [billingTier, setBillingTier] = useState<SubscriptionTier | null>(null);
 
-  const currentTier: SubscriptionTier =
+  const metadataTier: SubscriptionTier =
     user?.subscription_tier === "half_century" || user?.subscription_tier === "century" ? user.subscription_tier : "free";
+
+  const currentTier: SubscriptionTier = billingTier ?? metadataTier;
 
   const billingEnabled = isBillingConfigured();
   const usingTestKey = isUsingRevenueCatTestKey();
@@ -179,13 +172,15 @@ export const SubscriptionPlansScreen = () => {
 
         const info = await getBillingCustomerInfo();
         const tier = tierFromCustomerInfo(info);
-        const updatedUser = await syncTierToSupabaseUser(tier);
+        const effectiveTier = maxTier(metadataTier, tier);
+        if (mounted) setBillingTier(effectiveTier);
+        const updatedUser = await syncTierToSupabaseUser(effectiveTier);
         if (mounted && updatedUser) setUser(updatedUser);
       } catch (error) {
         console.warn("Billing init failed:", {
           message: (error as any)?.message,
           detail: (error as any)?.detail,
-          adaptyCode: (error as any)?.adaptyCode,
+          code: (error as any)?.code,
         });
       }
     };
@@ -216,19 +211,22 @@ export const SubscriptionPlansScreen = () => {
     const unsubscribe = addBillingCustomerInfoListener(async (info) => {
       try {
         const tier = tierFromCustomerInfo(info);
-        const updatedUser = await syncTierToSupabaseUser(tier);
+        const currentKnownTier = billingTier ?? metadataTier;
+        const effectiveTier = maxTier(currentKnownTier, tier);
+        setBillingTier(effectiveTier);
+        const updatedUser = await syncTierToSupabaseUser(effectiveTier);
         if (updatedUser) setUser(updatedUser);
       } catch (error) {
         console.warn("Failed to sync billing listener state:", {
           message: (error as any)?.message,
           detail: (error as any)?.detail,
-          adaptyCode: (error as any)?.adaptyCode,
+          code: (error as any)?.code,
         });
       }
     });
 
     return unsubscribe;
-  }, [billingEnabled, setUser, user?.id]);
+  }, [billingEnabled, billingTier, metadataTier, setUser, user?.id]);
 
   const purchase = async (tier: PaidTier) => {
     if (!user?.id) {
@@ -245,28 +243,14 @@ export const SubscriptionPlansScreen = () => {
       await initBilling(user.id);
       const activeOfferings = offerings ?? (await fetchCurrentOfferings());
       setOfferings(activeOfferings);
-      const customerInfo = await purchaseTierMonthly(tier, activeOfferings);
-      const resolvedTier = tierFromCustomerInfo(customerInfo);
+      const purchaseResult = await purchaseTierMonthly(tier, activeOfferings);
+      const resolvedTier = resolveTierFromPurchaseResult(purchaseResult, tier);
+      setBillingTier(resolvedTier);
       const updatedUser = await syncTierToSupabaseUser(resolvedTier);
       if (updatedUser) setUser(updatedUser);
       Alert.alert("Welcome to Pro!", `You're now on the ${TIER_LABELS[resolvedTier]} plan.`);
     } catch (error: any) {
-      if (isActivateOnceError(error)) {
-        try {
-          const activeOfferings = offerings ?? (await fetchCurrentOfferings());
-          setOfferings(activeOfferings);
-          const customerInfo = await purchaseTierMonthly(tier, activeOfferings);
-          const resolvedTier = tierFromCustomerInfo(customerInfo);
-          const updatedUser = await syncTierToSupabaseUser(resolvedTier);
-          if (updatedUser) setUser(updatedUser);
-          Alert.alert("Welcome to Pro!", `You're now on the ${TIER_LABELS[resolvedTier]} plan.`);
-          return;
-        } catch (retryError: any) {
-          if (!retryError?.userCancelled) {
-            Alert.alert("Purchase failed", typeof retryError?.message === "string" ? retryError.message : "Unable to complete purchase.");
-          }
-        }
-      } else if (!error?.userCancelled) {
+      if (!error?.userCancelled) {
         Alert.alert("Purchase failed", typeof error?.message === "string" ? error.message : "Unable to complete purchase.");
       }
     } finally {
@@ -313,6 +297,7 @@ export const SubscriptionPlansScreen = () => {
       await initBilling(user.id);
       const customerInfo = await restoreBillingPurchases();
       const resolvedTier = tierFromCustomerInfo(customerInfo);
+      setBillingTier(resolvedTier);
       const updatedUser = await syncTierToSupabaseUser(resolvedTier);
       if (updatedUser) setUser(updatedUser);
       Alert.alert("Purchases restored", `Active plan: ${TIER_LABELS[resolvedTier]}.`);
@@ -561,7 +546,7 @@ export const SubscriptionPlansScreen = () => {
 
       {usingTestKey && (
         <Text style={[styles.testKeyWarning, { color: colors.danger }]}>
-          This build is using a test key. Purchases may be sandbox-only.
+          This build is using a non-standard RevenueCat API key for this platform.
         </Text>
       )}
 

@@ -313,6 +313,8 @@ export type MatchesStackParamList = {
   MatchDetail: { matchId: string };
   LiveFrameScoring: { matchId: string };
   SnookerScan: { matchId: string; frameNumber: number };
+  ARTableCapture: { matchId: string; frameNumber: number };
+  TablePositionCapture: { matchId: string; frameNumber: number };
   NewMatch: { opponentName?: string } | undefined;
   NewTournament:
     | {

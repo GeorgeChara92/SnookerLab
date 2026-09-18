@@ -19,15 +19,149 @@ import {
   type RouteProp,
 } from "@react-navigation/native";
 import { useRoutinesStore, useSessionsStore } from "../../store";
-import type { SessionsStackParamList } from "../../types";
+import type { ScoringType, SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 
-const QUICK_SCORES = [
-  { label: "0", value: "0" },
-  { label: "5/10", value: "5/10" },
-  { label: "7/10", value: "7/10" },
-  { label: "10/10", value: "10/10" },
-];
+const getQuickScores = (scoringType: ScoringType, maxScore?: number) => {
+  const scoreMax = maxScore && maxScore > 0 ? maxScore : undefined;
+
+  if (scoringType === "percentage") {
+    return [
+      { label: "0%", value: "0%" },
+      { label: "25%", value: "25%" },
+      { label: "50%", value: "50%" },
+      { label: "75%", value: "75%" },
+      { label: "100%", value: "100%" },
+    ];
+  }
+
+  if (scoringType === "points") {
+    if (scoreMax) {
+      const q1 = Math.round(scoreMax * 0.25);
+      const q2 = Math.round(scoreMax * 0.5);
+      const q3 = Math.round(scoreMax * 0.75);
+      return [
+        { label: `0/${scoreMax}`, value: "0" },
+        { label: `${q1} pts`, value: `${q1}` },
+        { label: `${q2} pts`, value: `${q2}` },
+        { label: `${q3} pts`, value: `${q3}` },
+        { label: `${scoreMax} pts`, value: `${scoreMax}` },
+      ];
+    }
+    return [
+      { label: "0", value: "0" },
+      { label: "25", value: "25" },
+      { label: "50", value: "50" },
+      { label: "20 pts", value: "20" },
+      { label: "75", value: "75" },
+      { label: "100", value: "100" },
+    ];
+  }
+
+  if (scoringType === "count") {
+    if (scoreMax) {
+      const q1 = Math.max(0, Math.round(scoreMax * 0.25));
+      const q2 = Math.max(0, Math.round(scoreMax * 0.5));
+      const q3 = Math.max(0, Math.round(scoreMax * 0.75));
+      return [
+        { label: `0/${scoreMax}`, value: `0/${scoreMax}` },
+        { label: `${q1}/${scoreMax}`, value: `${q1}/${scoreMax}` },
+        { label: `${q2}/${scoreMax}`, value: `${q2}/${scoreMax}` },
+        { label: `${q3}/${scoreMax}`, value: `${q3}/${scoreMax}` },
+        { label: `${scoreMax}/${scoreMax}`, value: `${scoreMax}/${scoreMax}` },
+      ];
+    }
+    return [
+      { label: "0/10", value: "0/10" },
+      { label: "3/10", value: "3/10" },
+      { label: "5/10", value: "5/10" },
+      { label: "8/10", value: "8/10" },
+      { label: "10/10", value: "10/10" },
+    ];
+  }
+
+  if (scoringType === "time") {
+    return [
+      { label: "05:00", value: "05:00" },
+      { label: "10:00", value: "10:00" },
+      { label: "15:00", value: "15:00" },
+      { label: "20:00", value: "20:00" },
+    ];
+  }
+
+  return [
+    { label: "0", value: "0" },
+    { label: "5", value: "5" },
+    { label: "10", value: "10" },
+    { label: "15", value: "15" },
+  ];
+};
+
+const getCustomPlaceholder = (scoringType: ScoringType) => {
+  switch (scoringType) {
+    case "points":
+      return "Enter points total";
+    case "percentage":
+      return "Enter % or made/attempts";
+    case "count":
+      return "Enter completed count";
+    case "time":
+      return "Enter time (mm:ss)";
+    default:
+      return "Enter score";
+  }
+};
+
+const getScoringIndicator = (scoringType: ScoringType, maxScore?: number) => {
+  const base =
+    scoringType === "points"
+      ? "Points"
+      : scoringType === "percentage"
+        ? "Percentage"
+        : scoringType === "count"
+          ? "Count"
+          : "Time";
+  return maxScore && maxScore > 0 ? `${base} (max ${maxScore})` : base;
+};
+
+const sanitizeScoreInput = (value: string, scoringType: ScoringType, maxScore?: number) => {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return "";
+
+  if (scoringType === "points" || scoringType === "count") {
+    if (scoringType === "count") {
+      const fractionMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+      if (fractionMatch) {
+        const made = Number(fractionMatch[1]);
+        let total = Number(fractionMatch[2]);
+        if (!Number.isFinite(made) || !Number.isFinite(total) || total <= 0) return value;
+        if (maxScore && maxScore > 0) total = maxScore;
+        const clampedMade = Math.max(0, Math.min(made, total));
+        return `${clampedMade}/${total}`;
+      }
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) return value;
+    if (maxScore && maxScore > 0) {
+      return `${Math.min(parsed, maxScore)}`;
+    }
+    return `${parsed}`;
+  }
+
+  if (scoringType === "percentage") {
+    const fractionMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+    if (fractionMatch) {
+      return `${fractionMatch[1]}/${fractionMatch[2]}`;
+    }
+    const numeric = Number(trimmed.replace("%", ""));
+    if (Number.isFinite(numeric)) {
+      return `${Math.max(0, Math.min(100, numeric))}%`;
+    }
+  }
+
+  return value;
+};
 
 export const ActiveSessionScreen = () => {
   const route = useRoute<RouteProp<SessionsStackParamList, "ActiveSession">>();
@@ -145,6 +279,8 @@ export const ActiveSessionScreen = () => {
 
         {activeResults.map((result, index) => {
           const routine = getRoutineById(result.routine_id);
+          const scoringType = (routine?.scoring_type ?? "count") as ScoringType;
+          const quickScores = getQuickScores(scoringType, routine?.max_score);
           const hasScore = result.score.trim().length > 0;
           const showNotes = expandedNotes[result.routine_id];
 
@@ -172,6 +308,9 @@ export const ActiveSessionScreen = () => {
                 </View>
                 <View style={styles.drillTitleWrap}>
                   <Text style={[styles.drillName, { color: colors.text }]}>{routine?.name ?? "Routine"}</Text>
+                  <Text style={[styles.drillMeta, { color: colors.textMuted }]}>
+                    {getScoringIndicator(scoringType, routine?.max_score)}
+                  </Text>
                   {hasScore && (
                     <Text style={[styles.drillScore, { color: colors.primary }]}>{result.score}</Text>
                   )}
@@ -179,7 +318,7 @@ export const ActiveSessionScreen = () => {
               </View>
 
               <View style={styles.quickScores}>
-                {QUICK_SCORES.map((qs) => {
+                {quickScores.map((qs) => {
                   const selected = result.score === qs.value;
                   return (
                     <Pressable
@@ -202,10 +341,15 @@ export const ActiveSessionScreen = () => {
               <View style={styles.customScoreRow}>
                 <TextInput
                   style={[styles.customScoreInput, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-                  placeholder="Or enter custom score"
+                  placeholder={getCustomPlaceholder(scoringType)}
                   placeholderTextColor={colors.textMuted}
                   value={result.score}
-                  onChangeText={(text) => updateActiveResult(result.routine_id, { score: text })}
+                  onChangeText={(text) =>
+                    updateActiveResult(result.routine_id, {
+                      score: sanitizeScoreInput(text, scoringType, routine?.max_score),
+                    })
+                  }
+                  keyboardType={scoringType === "time" ? "numbers-and-punctuation" : "default"}
                 />
               </View>
 
@@ -304,6 +448,7 @@ const styles = StyleSheet.create({
   drillNumberText: { fontSize: 13, fontWeight: "700" },
   drillTitleWrap: { flex: 1 },
   drillName: { fontSize: 15, fontWeight: "700" },
+  drillMeta: { fontSize: 12, marginTop: 2 },
   drillScore: { fontSize: 13, marginTop: 2 },
   quickScores: {
     flexDirection: "row",

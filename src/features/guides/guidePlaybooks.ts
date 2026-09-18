@@ -78,9 +78,9 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     stepByStep: [
       "Play 10 shots with light grip pressure and note cue freedom and line control.",
       "Play 10 shots with medium grip pressure and compare contact quality.",
-      "Play 10 shots with firmer pressure for committed shots; avoid clamping early.",
+      "Play 10 shots with firmer pressure on positive strokes; avoid clamping early.",
       "Track if grip tightens too soon in backswing (common cause of jabbed strike).",
-      "Track if grip is too loose at impact (common cause of cue wobble and weak transfer).",
+      "Track if grip is too loose at impact (a common cause of cue wobble and poor energy transfer).",
       "Review: choose the pressure that gives best balance of straight cue path and pace control.",
       "Lock in one default grip pressure for your next session and use it consistently.",
     ],
@@ -91,9 +91,9 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     ],
     commonTechniques: [
       "Neutral relaxed grip: cue rests mainly in fingers, with minimal palm squeeze until delivery.",
-      "Front loading (finger-forward feel): used by some players to reduce cue seesaw during backswing.",
-      "Rear loading (back-finger support): used by some players to avoid lifting the cue through impact.",
-      "Center loading: two-finger dominant support to balance both front and rear cue movement.",
+      "Finger-forward feel: used by some players to reduce cue seesaw during the backswing.",
+      "Back-finger support: used by some players to stop the cue lifting through impact.",
+      "Balanced-finger support: a two-finger dominant hold used by some players to steady the cue through the swing.",
       "Use these as experiments, not rules. Keep whichever gives straight cueing and best timing.",
     ],
     importance: [
@@ -103,7 +103,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     ],
     commonIssues: [
       "Gripping too tightly too early locks the wrist and often pulls the cue off line.",
-      "Holding too lightly on committed shots can make the cue unstable through contact.",
+      "Holding too lightly on positive strokes can make the cue unstable through contact.",
       "Changing grip pressure shot to shot causes inconsistent pace and spin outcomes.",
     ],
     adaptNotes: [
@@ -124,7 +124,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
   },
   "routine-bridge-fundamentals": {
     intro:
-      "A strong bridge gives the cue a reliable runway. Learn one stable base shape first, then adapt it for different table situations.",
+      "A strong bridge gives the cue a reliable line of travel. Learn one stable base shape first, then adapt it for different table situations.",
     whereToStart: [
       "Start with open bridge on one straight pot and one slight-angle pot.",
       "Focus on finger pads gripping cloth, stable hand base, and a clean cue channel.",
@@ -140,9 +140,9 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Rest/spider shots: keep same cueing rhythm as normal shots, even if bridge tool changes hand feel.",
     ],
     progression: [
-      "Phase 1: 10 open-bridge reps + 10 closed-bridge reps on same pot.",
-      "Phase 2: 10 rail-bridge reps down cushion and compare strike stability.",
-      "Phase 3: 6-8 over-ball or awkward-bridge reps with controlled tempo.",
+      "Phase 1: 10 open-bridge shots + 10 closed-bridge shots on the same pot.",
+      "Phase 2: 10 rail-bridge shots down the cushion and compare strike stability.",
+      "Phase 3: 6-8 over-ball or awkward-bridge shots with controlled tempo.",
     ],
     commonTechniques: [
       "Open bridge: most common baseline for visibility and touch shots.",
@@ -179,7 +179,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
   },
   "routine-rest-shot-fundamentals": {
     intro:
-      "Sighting links decision and execution. Choose the line early, step in cleanly, and commit to that decision through the cue action.",
+      "Sighting links decision and execution. Choose the shot line early, step in cleanly, and stay with that decision through the cue action.",
     whereToStart: [
       "Start with 3 shot types: straight, half-ball, and three-quarter-ball pots.",
       "Before every shot, call the contact thickness out loud.",
@@ -203,8 +203,8 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Center-of-face sighting: cue delivered along visual center line between eyes and cue.",
       "Dominant-eye bias setup: slight head offset to keep dominant eye naturally on cue line.",
       "Contact-point-first method: decide object-ball contact before getting down.",
-      "Ghost-ball style visualization: imagine full cue-ball path into object-ball contact zone.",
-      "Any method is valid if it is repeatable and reduces late steering.",
+      "Contact-picture visualization: imagine the exact object-ball contact needed before you get down.",
+      "Any method is useful if it is repeatable and reduces late steering.",
     ],
     importance: [
       "Clear aiming decisions reduce late corrections and improve cueing confidence.",
@@ -218,7 +218,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     ],
     adaptNotes: [
       "Dominant-eye alignment varies between players, so exact head position can differ.",
-      "Use the visual sequence that keeps you calm, clear, and committed.",
+      "Use the visual sequence that keeps you calm, clear, and decisive.",
       "Keep the principle constant: decide from standing, deliver without late changes.",
     ],
     sessionPlan: [
@@ -229,7 +229,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     checkpoints: [
       "I decide the shot line before I get down.",
       "My approach into stance is on-line, not corrected late.",
-      "I stay committed to one visual decision through delivery.",
+      "I stay with one visual decision through delivery.",
     ],
   },
   "routine-potting-fundamentals": {
@@ -256,7 +256,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     commonTechniques: [
       "Three-stage cueing model: rest position, backswing, follow-through.",
       "Pause-and-deliver model: brief pause at end of backswing to improve strike timing.",
-      "Longer follow-through model: emphasizes committed acceleration through the cue-ball.",
+      "Longer follow-through model: emphasizes positive acceleration through the cue-ball.",
       "Compact cueing model: shorter cue action for tight positional shots while preserving smoothness.",
     ],
     importance: [
@@ -272,12 +272,12 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     adaptNotes: [
       "Natural tempo differs between players, so do not copy cadence blindly.",
       "Use the rhythm that keeps you loose and repeatable under pressure.",
-      "Keep the principle constant: smooth acceleration, stable head, committed finish.",
+      "Keep the principle constant: smooth acceleration, stable head, and a held finish.",
     ],
     sessionPlan: [
       "Play plain-ball shots first until cue path and finish look consistent.",
       "Introduce gentle stun and screw while preserving the same timing pattern.",
-      "If quality drops, return to plain-ball reps before adding complexity again.",
+      "If quality drops, return to plain-ball practice shots before adding complexity again.",
     ],
     checkpoints: [
       "My final backswing has a clear pause before delivery.",
@@ -346,20 +346,20 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Track miss side instead of just counting misses.",
     ],
     stepByStep: [
-      "Align stance and bridge so cue has a clear straight lane.",
+      "Align stance and bridge so the cue can travel on a straight line.",
       "Feather with cue centered in bridge groove.",
       "Deliver through center-ball with no wrist flick.",
       "Hold finish and check whether cue ended on same line.",
       "Review patterns: repeated one-side misses suggest line bias.",
     ],
     progression: [
-      "Phase 1: short straight pots for pure cue path training.",
+      "Phase 1: short straight pots for pure cueing-line training.",
       "Phase 2: medium straight pots with controlled pace variation.",
       "Phase 3: slight angles while preserving same cue-line behavior.",
     ],
     commonTechniques: [
       "Line drill method: repeated straight setups from same marks.",
-      "Rail-return check: cue-ball to cushion and back for straightness feedback.",
+      "Cushion-return check: send the cue-ball to the cushion and back for straightness feedback.",
       "Rear-camera audit: verify cue path from behind line.",
     ],
     importance: [
@@ -410,7 +410,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     ],
     commonTechniques: [
       "Five-point strike map (top to bottom) for cue-ball behavior learning.",
-      "Landing-zone method: define target zones before each shot.",
+      "Landing-zone method: define cue-ball finishing zones before each shot.",
       "Same-speed comparison method: isolate strike point changes.",
     ],
     importance: [
@@ -441,17 +441,17 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
   },
   "routine-pre-shot-system-fundamentals": {
     intro:
-      "A pre-shot routine is a decision system. It keeps your mind and body in order so pressure does not disrupt fundamentals.",
+      "A pre-shot routine is a decision system. It keeps your mind and body in order so pressure does not disrupt your cueing.",
     whereToStart: [
       "Choose 4-6 easy pots and apply one routine sequence to every shot.",
       "Use verbal keywords to reinforce sequence order.",
       "Do not change routine because of previous result.",
     ],
     stepByStep: [
-      "Plan from standing: pot line, contact point, cue-ball intention.",
+      "Plan from standing: potting line, contact point, cue-ball intention.",
       "Walk in on line and set feet before lowering.",
       "Set bridge and cue, then run feathers and final check.",
-      "Commit and deliver without reopening decisions.",
+      "Deliver without reopening the decision once you are down on the shot.",
       "Post-shot: brief review, then reset for next ball.",
     ],
     progression: [
@@ -460,7 +460,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Phase 3: timed sets and pressure scoring with unchanged routine.",
     ],
     commonTechniques: [
-      "Keyword routine (e.g., plan, place, settle, commit).",
+      "Keyword routine (e.g., plan, place, settle, deliver).",
       "Breath-trigger routine for tempo control.",
       "Fixed-sequence routine with identical order each shot.",
     ],

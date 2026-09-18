@@ -3,6 +3,7 @@ import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View, Easing 
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMatchesStore, useSessionsStore, useRoutineScoresStore, useRoutinesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useSeenAchievements } from "../../hooks/useSeenAchievements";
 import { AppCard } from "../../components/ui/AppCard";
 import { ACHIEVEMENTS, getPlayerLevel, type Achievement, type AchievementCategory } from "../../constants/achievements";
 import type { Match, SessionLog, RoutineScoreEntry, Routine } from "../../types";
@@ -12,6 +13,7 @@ type AchievementStats = {
   matchesPlayed: number;
   sessionsLogged: number;
   bestBreak: number;
+  centuries: number;
   longestWinStreak: number;
   playerLevel: number;
 };
@@ -20,7 +22,8 @@ const getPlayerStats = (
   matches: Match[],
   sessions: SessionLog[],
   entries: RoutineScoreEntry[],
-  routines: Routine[]
+  routines: Routine[],
+  liveFramesByMatch: Record<string, { highest_break_user: number }[]>
 ): AchievementStats => {
   const matchesWon = matches.filter((m: Match) => m.result === "win").length;
   const matchesPlayed = matches.length;
@@ -38,6 +41,10 @@ const getPlayerStats = (
     }
   }
 
+  const allFrames = Object.values(liveFramesByMatch).flat();
+  const bestBreak = allFrames.reduce((max, frame) => Math.max(max, frame.highest_break_user ?? 0), 0);
+  const centuries = allFrames.filter((frame) => (frame.highest_break_user ?? 0) >= 100).length;
+
   const xp = matchesWon * 10 + sessionsLogged * 5;
   const playerLevel = getPlayerLevel(xp).level;
 
@@ -45,7 +52,8 @@ const getPlayerStats = (
     matchesWon,
     matchesPlayed,
     sessionsLogged,
-    bestBreak: 0,
+    bestBreak,
+    centuries,
     longestWinStreak: longestStreak,
     playerLevel,
   };
@@ -76,9 +84,17 @@ const TIER_GRADIENTS: Record<string, string[]> = {
 export const AchievementsScreen = () => {
   const { colors } = useAppTheme();
   const matches = useMatchesStore((state) => state.matches);
+  const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
   const sessions = useSessionsStore((state) => state.logs);
   const entries = useRoutineScoresStore((state) => state.entries);
   const routines = useRoutinesStore((state) => state.routines);
+  const totalFrames = useMemo(
+    () => Object.values(liveFramesByMatch).reduce((sum, frames) => sum + frames.length, 0),
+    [liveFramesByMatch]
+  );
+  const { seenAchievementIds, seenAchievementIdsOrdered } = useSeenAchievements(
+    `${matches.length}-${sessions.length}-${entries.length}-${totalFrames}`
+  );
 
   const [selectedCategory, setSelectedCategory] = React.useState<AchievementCategory | "all">("all");
   const [selectedAchievement, setSelectedAchievement] = React.useState<Achievement | null>(null);
@@ -112,15 +128,14 @@ export const AchievementsScreen = () => {
   }, []);
 
   const playerStats = useMemo(
-    () => getPlayerStats(matches, sessions, entries, routines),
-    [matches, sessions, entries, routines]
+    () => getPlayerStats(matches, sessions, entries, routines, liveFramesByMatch),
+    [matches, sessions, entries, routines, liveFramesByMatch]
   );
-
-  const xp = playerStats.matchesWon * 10 + playerStats.sessionsLogged * 5;
-  const levelInfo = getPlayerLevel(xp);
 
   const unlockedAchievements = useMemo(() => {
     return ACHIEVEMENTS.filter((a) => {
+      if (seenAchievementIds.has(a.id)) return true;
+
       switch (a.requirement.type) {
         case "matches_won":
           return playerStats.matchesWon >= a.requirement.value;
@@ -132,15 +147,23 @@ export const AchievementsScreen = () => {
           return playerStats.longestWinStreak >= a.requirement.value;
         case "best_break":
           return playerStats.bestBreak >= a.requirement.value;
+        case "centuries":
+          return playerStats.centuries >= a.requirement.value;
         default:
           return false;
       }
     });
-  }, [playerStats]);
+  }, [playerStats, seenAchievementIds]);
 
   const lockedAchievements = useMemo(() => {
     return ACHIEVEMENTS.filter((a) => !unlockedAchievements.some((u) => u.id === a.id));
   }, [unlockedAchievements]);
+
+  const xp = useMemo(
+    () => unlockedAchievements.reduce((sum, achievement) => sum + achievement.xpReward, 0),
+    [unlockedAchievements]
+  );
+  const levelInfo = getPlayerLevel(xp);
 
   const nextAchievement = useMemo(() => {
     const withProgress = lockedAchievements.map((a) => {
@@ -162,6 +185,9 @@ export const AchievementsScreen = () => {
         case "best_break":
           current = playerStats.bestBreak;
           break;
+        case "centuries":
+          current = playerStats.centuries;
+          break;
       }
       const progress = Math.min(1, current / req.value);
       const remaining = req.value - current;
@@ -176,8 +202,12 @@ export const AchievementsScreen = () => {
   }, [lockedAchievements, playerStats]);
 
   const recentUnlocks = useMemo(() => {
-    return unlockedAchievements.slice(-3).reverse();
-  }, [unlockedAchievements]);
+    return seenAchievementIdsOrdered
+      .map((id) => ACHIEVEMENTS.find((achievement) => achievement.id === id))
+      .filter((achievement): achievement is Achievement => !!achievement)
+      .slice(-3)
+      .reverse();
+  }, [seenAchievementIdsOrdered]);
 
   const filteredAchievements = selectedCategory === "all"
     ? ACHIEVEMENTS
@@ -198,6 +228,8 @@ export const AchievementsScreen = () => {
         return Math.min(100, (playerStats.longestWinStreak / req.value) * 100);
       case "best_break":
         return Math.min(100, (playerStats.bestBreak / req.value) * 100);
+      case "centuries":
+        return Math.min(100, (playerStats.centuries / req.value) * 100);
       default:
         return 0;
     }
@@ -216,6 +248,8 @@ export const AchievementsScreen = () => {
         return `${playerStats.longestWinStreak}/${req.value}`;
       case "best_break":
         return `${playerStats.bestBreak}/${req.value}`;
+      case "centuries":
+        return `${playerStats.centuries}/${req.value}`;
       default:
         return "0";
     }

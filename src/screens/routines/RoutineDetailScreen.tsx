@@ -7,11 +7,41 @@ import {
   type RouteProp,
 } from "@react-navigation/native";
 import { useRoutinesStore, useRoutineScoresStore } from "../../store";
-import type { PracticeStackParamList } from "../../types";
+import type { PracticeStackParamList, ScoringType } from "../../types";
 import { getYoutubeThumbnailUrl, getYoutubeWatchUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { getRoutineReferenceImageByRoutineId, isRoutineAREnabled } from "../../features/ar/routineLayouts";
 import { getGuidePlaybookByRoutineId } from "../../features/guides/guidePlaybooks";
+
+const scoringTypeLabel = (type: ScoringType): string => {
+  switch (type) {
+    case "points":
+      return "Points";
+    case "percentage":
+      return "Percentage";
+    case "count":
+      return "Count";
+    case "time":
+      return "Time";
+    default:
+      return "Score";
+  }
+};
+
+const scoringRecordingHint = (type: ScoringType): string => {
+  switch (type) {
+    case "points":
+      return "Log your total points scored in this session.";
+    case "percentage":
+      return "Log either a percentage (e.g. 72%) or made/attempts (e.g. 18/25).";
+    case "count":
+      return "Log your completed count for this session.";
+    case "time":
+      return "Log your completion time in mm:ss format.";
+    default:
+      return "Log the result value for this routine.";
+  }
+};
 
 export const RoutineDetailScreen = () => {
   const route = useRoute<RouteProp<PracticeStackParamList, "RoutineDetail">>();
@@ -302,7 +332,8 @@ export const RoutineDetailScreen = () => {
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Scoring & Success Criteria</Text>
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.success_criteria}</Text>
-            <Text style={[styles.statRow, { color: colors.textMuted }]}>📝 Scoring Type: {routine.scoring_type}</Text>
+            <Text style={[styles.statRow, { color: colors.textMuted }]}>📝 Scoring Type: {scoringTypeLabel(routine.scoring_type as ScoringType)}</Text>
+            <Text style={[styles.statRow, { color: colors.textMuted }]}>✅ {scoringRecordingHint(routine.scoring_type as ScoringType)}</Text>
             {routine.max_score ? <Text style={[styles.statRow, { color: colors.textMuted }]}>🏆 Session Cap: {routine.max_score}</Text> : null}
           </View>
 

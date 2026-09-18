@@ -12,13 +12,15 @@ type AchievementStats = {
   matchesPlayed: number;
   sessionsLogged: number;
   bestBreak: number;
+  centuries: number;
   longestWinStreak: number;
 };
 
 const getPlayerStats = (
   matches: { result: string; date: string }[],
   sessions: unknown[],
-  entries: unknown[]
+  entries: unknown[],
+  liveFramesByMatch: Record<string, { highest_break_user: number }[]>
 ): AchievementStats => {
   const matchesWon = matches.filter((m) => m.result === "win").length;
   const matchesPlayed = matches.length;
@@ -38,11 +40,16 @@ const getPlayerStats = (
     }
   }
 
+  const allFrames = Object.values(liveFramesByMatch).flat();
+  const bestBreak = allFrames.reduce((max, frame) => Math.max(max, frame.highest_break_user ?? 0), 0);
+  const centuries = allFrames.filter((frame) => (frame.highest_break_user ?? 0) >= 100).length;
+
   return {
     matchesWon,
     matchesPlayed,
     sessionsLogged,
-    bestBreak: 0,
+    bestBreak,
+    centuries,
     longestWinStreak: longestStreak,
   };
 };
@@ -60,6 +67,8 @@ const getUnlockedAchievements = (stats: AchievementStats): Achievement[] => {
         return stats.longestWinStreak >= a.requirement.value;
       case "best_break":
         return stats.bestBreak >= a.requirement.value;
+      case "centuries":
+        return stats.centuries >= a.requirement.value;
       default:
         return false;
     }
@@ -69,6 +78,7 @@ const getUnlockedAchievements = (stats: AchievementStats): Achievement[] => {
 export const useAchievementUnlocker = () => {
   const { showAchievementUnlock } = useUnlockQueue();
   const matches = useMatchesStore((state) => state.matches);
+  const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
   const sessions = useSessionsStore((state) => state.logs);
   const entries = useRoutineScoresStore((state) => state.entries);
   const seenAchievementsRef = useRef<Set<string>>(new Set());
@@ -83,7 +93,7 @@ export const useAchievementUnlocker = () => {
           AsyncStorage.getItem(INITIALIZED_KEY),
         ]);
 
-        const stats = getPlayerStats(matches, sessions, entries);
+        const stats = getPlayerStats(matches, sessions, entries, liveFramesByMatch);
         const currentlyUnlocked = getUnlockedAchievements(stats);
         const currentlyUnlockedIds = new Set(currentlyUnlocked.map(a => a.id));
 
@@ -113,13 +123,15 @@ export const useAchievementUnlocker = () => {
   useEffect(() => {
     if (!isInitializedRef.current) return;
 
-    const currentStats = getPlayerStats(matches, sessions, entries);
+    const currentStats = getPlayerStats(matches, sessions, entries, liveFramesByMatch);
     const prevStats = prevStatsRef.current;
 
     const hasStatsChanged = !prevStats || 
       currentStats.matchesWon !== prevStats.matchesWon ||
       currentStats.matchesPlayed !== prevStats.matchesPlayed ||
       currentStats.sessionsLogged !== prevStats.sessionsLogged ||
+      currentStats.bestBreak !== prevStats.bestBreak ||
+      currentStats.centuries !== prevStats.centuries ||
       currentStats.longestWinStreak !== prevStats.longestWinStreak;
 
     if (!hasStatsChanged) return;
@@ -142,5 +154,5 @@ export const useAchievementUnlocker = () => {
     } else {
       prevStatsRef.current = currentStats;
     }
-  }, [matches, sessions, entries, showAchievementUnlock]);
+  }, [matches, liveFramesByMatch, sessions, entries, showAchievementUnlock]);
 };

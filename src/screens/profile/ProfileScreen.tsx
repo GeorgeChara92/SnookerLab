@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore, useMatchesStore, useSessionsStore, useRoutineScoresStore, useRoutinesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { useSeenAchievements } from "../../hooks/useSeenAchievements";
 import { AppButton } from "../../components/ui/AppButton";
 import { AppCard } from "../../components/ui/AppCard";
 import { SNOOKER_PRESET_AVATARS, isAvatarUnlocked, type PresetAvatar } from "../../constants/profileAvatars";
@@ -18,6 +19,7 @@ type AchievementStats = {
   matchesPlayed: number;
   sessionsLogged: number;
   bestBreak: number;
+  centuries: number;
   longestWinStreak: number;
   playerLevel: number;
   winRate: number;
@@ -29,7 +31,8 @@ const getPlayerStats = (
   sessions: SessionLog[],
   entries: RoutineScoreEntry[],
   routines: Routine[],
-  userId: string
+  userId: string,
+  liveFramesByMatch: Record<string, { highest_break_user: number }[]>
 ): AchievementStats => {
   const matchesWon = matches.filter((m: Match) => m.result === "win").length;
   const matchesPlayed = matches.length;
@@ -64,6 +67,10 @@ const getPlayerStats = (
     }
   });
 
+  const allFrames = Object.values(liveFramesByMatch).flat();
+  const bestBreak = allFrames.reduce((max, frame) => Math.max(max, frame.highest_break_user ?? 0), 0);
+  const centuries = allFrames.filter((frame) => (frame.highest_break_user ?? 0) >= 100).length;
+
   const xp = matchesWon * 10 + sessionsLogged * 5;
   const playerLevel = getPlayerLevel(xp).level;
 
@@ -71,7 +78,8 @@ const getPlayerStats = (
     matchesWon,
     matchesPlayed,
     sessionsLogged,
-    bestBreak: 0,
+    bestBreak,
+    centuries,
     longestWinStreak: longestStreak,
     playerLevel,
     winRate,
@@ -99,22 +107,25 @@ export const ProfileScreen = () => {
   const { width } = useWindowDimensions();
 
   const matches = useMatchesStore((state) => state.matches);
+  const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
   const sessions = useSessionsStore((state) => state.logs);
   const entries = useRoutineScoresStore((state) => state.entries);
   const routines = useRoutinesStore((state) => state.routines);
   const categories = useRoutinesStore((state) => state.categories);
+  const totalFrames = useMemo(
+    () => Object.values(liveFramesByMatch).reduce((sum, frames) => sum + frames.length, 0),
+    [liveFramesByMatch]
+  );
+  const { seenAchievementIds } = useSeenAchievements(`${matches.length}-${sessions.length}-${entries.length}-${totalFrames}`);
 
   const [activeGalleryPage, setActiveGalleryPage] = useState(0);
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
   const [lockedAvatar, setLockedAvatar] = useState<PresetAvatar | null>(null);
 
   const playerStats = useMemo(
-    () => getPlayerStats(matches, sessions, entries, routines, user?.id ?? ""),
-    [matches, sessions, entries, routines, user?.id]
+    () => getPlayerStats(matches, sessions, entries, routines, user?.id ?? "", liveFramesByMatch),
+    [matches, sessions, entries, routines, user?.id, liveFramesByMatch]
   );
-
-  const xp = playerStats.matchesWon * 10 + playerStats.sessionsLogged * 5;
-  const levelInfo = getPlayerLevel(xp);
 
   const playerPresets = SNOOKER_PRESET_AVATARS.filter((preset) => preset.group === "player");
   const snookerPresets = SNOOKER_PRESET_AVATARS.filter((preset) => preset.group !== "player");
@@ -188,6 +199,8 @@ export const ProfileScreen = () => {
 
   const unlockedAchievements = useMemo(() => {
     return ACHIEVEMENTS.filter((a) => {
+      if (seenAchievementIds.has(a.id)) return true;
+
       switch (a.requirement.type) {
         case "matches_won":
           return playerStats.matchesWon >= a.requirement.value;
@@ -197,11 +210,21 @@ export const ProfileScreen = () => {
           return playerStats.sessionsLogged >= a.requirement.value;
         case "win_streak":
           return playerStats.longestWinStreak >= a.requirement.value;
+        case "best_break":
+          return playerStats.bestBreak >= a.requirement.value;
+        case "centuries":
+          return playerStats.centuries >= a.requirement.value;
         default:
           return false;
       }
     });
-  }, [playerStats]);
+  }, [playerStats, seenAchievementIds]);
+
+  const xp = useMemo(
+    () => unlockedAchievements.reduce((sum, achievement) => sum + achievement.xpReward, 0),
+    [unlockedAchievements]
+  );
+  const levelInfo = getPlayerLevel(xp);
 
   const renderProgressBar = (current: number, max: number | null, label: string, color?: string) => {
     const percentage = max ? Math.min(100, (current / max) * 100) : 100;

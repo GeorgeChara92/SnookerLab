@@ -8,6 +8,8 @@ import { NewTournamentScreen } from "../screens/matches/NewTournamentScreen";
 import { TournamentDetailScreen } from "../screens/matches/TournamentDetailScreen";
 import { LiveFrameScoringScreen } from "../screens/matches/LiveFrameScoringScreen";
 import { SnookerScanScreen } from "../screens/matches/SnookerScanScreen";
+import { TablePositionCaptureScreen } from "../screens/matches/TablePositionCaptureScreen";
+import { ARTableCaptureScreen } from "../screens/matches/ARTableCaptureScreen";
 import { MatchesStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 
@@ -23,6 +25,8 @@ export const MatchesNavigator = () => {
       <Stack.Screen name="MatchDetail" component={MatchDetailScreen} options={{ title: "Match Details" }} />
       <Stack.Screen name="LiveFrameScoring" component={LiveFrameScoringScreen} options={{ title: "Live Frame" }} />
       <Stack.Screen name="SnookerScan" component={SnookerScanScreen} options={{ title: "Snooker Scan" }} />
+      <Stack.Screen name="ARTableCapture" component={ARTableCaptureScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="TablePositionCapture" component={TablePositionCaptureScreen} options={{ title: "Table Position Capture" }} />
       <Stack.Screen name="NewMatch" component={NewMatchScreen} options={{ title: "New Match" }} />
       <Stack.Screen name="NewTournament" component={NewTournamentScreen} options={{ title: "New Tournament" }} />
       <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} options={{ title: "Tournament" }} />

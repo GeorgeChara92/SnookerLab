@@ -89,7 +89,7 @@ export const AppNavigator = () => {
           console.warn("Billing init failed:", {
             message: error?.message,
             detail: error?.detail,
-            adaptyCode: error?.adaptyCode,
+            code: error?.code,
           });
           });
         }
@@ -163,7 +163,7 @@ export const AppNavigator = () => {
             console.warn("Billing init failed:", {
               message: error?.message,
               detail: error?.detail,
-              adaptyCode: error?.adaptyCode,
+              code: error?.code,
             });
           });
         }

@@ -38,7 +38,6 @@
     },
     "plugins": [
       "expo-secure-store",
-      "react-native-adapty",
       "./plugins/with-snooker-arkit",
       [
         "expo-camera",

@@ -6,36 +6,58 @@ import { useAuthStore, useMatchesStore, useSessionsStore, useRoutineScoresStore 
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { SnookerPresetAvatar } from "./SnookerPresetAvatar";
-import { getPlayerLevel } from "../../constants/achievements";
-import type { Match, SessionLog, RoutineScoreEntry } from "../../types";
-
-type AchievementStats = {
-  matchesWon: number;
-  sessionsLogged: number;
-};
-
-const getPlayerStats = (
-  matches: Match[],
-  sessions: SessionLog[],
-  entries: RoutineScoreEntry[]
-): AchievementStats => {
-  const matchesWon = matches.filter((m: Match) => m.result === "win").length;
-  const sessionsLogged = sessions.length + entries.length;
-  return { matchesWon, sessionsLogged };
-};
+import { ACHIEVEMENTS, getPlayerLevel } from "../../constants/achievements";
+import { useSeenAchievements } from "../../hooks/useSeenAchievements";
 
 export const HeaderProfileButton = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const user = useAuthStore((state) => state.user);
   const matches = useMatchesStore((state) => state.matches);
+  const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
   const sessions = useSessionsStore((state) => state.logs);
   const entries = useRoutineScoresStore((state) => state.entries);
+  const { seenAchievementIds } = useSeenAchievements(`${matches.length}-${sessions.length}-${entries.length}`);
   const subscription = useSubscriptionAccess();
   const { width } = useWindowDimensions();
 
-  const stats = getPlayerStats(matches, sessions, entries);
-  const xp = stats.matchesWon * 10 + stats.sessionsLogged * 5;
+  const matchesWon = matches.filter((m) => m.result === "win").length;
+  const matchesPlayed = matches.length;
+  const sessionsLogged = sessions.length + entries.length;
+  const sortedMatches = [...matches].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  let longestWinStreak = 0;
+  let currentStreak = 0;
+  for (const match of sortedMatches) {
+    if (match.result === "win") {
+      currentStreak += 1;
+      longestWinStreak = Math.max(longestWinStreak, currentStreak);
+    } else {
+      currentStreak = 0;
+    }
+  }
+  const allFrames = Object.values(liveFramesByMatch).flat();
+  const bestBreak = allFrames.reduce((max, frame) => Math.max(max, frame.highest_break_user ?? 0), 0);
+  const centuries = allFrames.filter((frame) => (frame.highest_break_user ?? 0) >= 100).length;
+
+  const xp = ACHIEVEMENTS.filter((a) => {
+    if (seenAchievementIds.has(a.id)) return true;
+    switch (a.requirement.type) {
+      case "matches_won":
+        return matchesWon >= a.requirement.value;
+      case "matches_played":
+        return matchesPlayed >= a.requirement.value;
+      case "sessions_logged":
+        return sessionsLogged >= a.requirement.value;
+      case "win_streak":
+        return longestWinStreak >= a.requirement.value;
+      case "best_break":
+        return bestBreak >= a.requirement.value;
+      case "centuries":
+        return centuries >= a.requirement.value;
+      default:
+        return false;
+    }
+  }).reduce((sum, a) => sum + a.xpReward, 0);
   const levelInfo = getPlayerLevel(xp);
 
   const handlePress = () => {

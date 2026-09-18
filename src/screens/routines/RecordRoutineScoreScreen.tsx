@@ -20,6 +20,99 @@ import {
 import type { PracticeStackParamList } from "../../types";
 import { useRoutineScoresStore, useRoutinesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import type { ScoringType } from "../../types";
+
+type EntryMode = "direct" | "fraction";
+
+const getScoringUnitLabel = (scoringType: ScoringType): string => {
+  switch (scoringType) {
+    case "points":
+      return "points";
+    case "percentage":
+      return "%";
+    case "count":
+      return "count";
+    case "time":
+      return "time";
+    default:
+      return "score";
+  }
+};
+
+const getScoringHelpText = (scoringType: ScoringType, maxScore?: number): string => {
+  switch (scoringType) {
+    case "points":
+      return maxScore
+        ? `Record your session points total. Session cap: ${maxScore}.`
+        : "Record your session points total.";
+    case "percentage":
+      return "Record either a percentage (for example 72%) or a made/attempts result (for example 18/25).";
+    case "count":
+      return maxScore
+        ? `Record your completed count for the session. Session cap: ${maxScore}.`
+        : "Record your completed count for the session.";
+    case "time":
+      return "Record your completion time in mm:ss format.";
+    default:
+      return "Record the score value for this routine.";
+  }
+};
+
+const buildScoreFromInputs = (params: {
+  scoringType: ScoringType;
+  mode: EntryMode;
+  directValue: string;
+  made: string;
+  attempts: string;
+  maxScore?: number;
+}): { value?: string; error?: string } => {
+  const { scoringType, mode, directValue, made, attempts, maxScore } = params;
+  const cleanDirect = directValue.trim();
+
+  if (scoringType === "percentage" && mode === "fraction") {
+    const madeNum = Number(made.trim());
+    const attemptsNum = Number(attempts.trim());
+    if (!Number.isFinite(madeNum) || !Number.isFinite(attemptsNum)) {
+      return { error: "Enter valid numbers for made and attempts." };
+    }
+    if (attemptsNum <= 0 || madeNum < 0 || madeNum > attemptsNum) {
+      return { error: "Made/attempts must be valid (made <= attempts, attempts > 0)." };
+    }
+    return { value: `${madeNum}/${attemptsNum}` };
+  }
+
+  if (!cleanDirect) {
+    return { error: "Enter a score first." };
+  }
+
+  if (scoringType === "percentage") {
+    const parsed = Number(cleanDirect.replace("%", ""));
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      return { error: "Percentage must be between 0 and 100." };
+    }
+    return { value: `${parsed}%` };
+  }
+
+  if (scoringType === "points" || scoringType === "count") {
+    const parsed = Number(cleanDirect);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return { error: `Enter a valid ${scoringType} value.` };
+    }
+    if (maxScore !== undefined && maxScore > 0 && parsed > maxScore) {
+      return { error: `This routine has a session cap of ${maxScore}.` };
+    }
+    return { value: `${parsed}` };
+  }
+
+  if (scoringType === "time") {
+    if (!/^\d{1,2}:\d{2}$/.test(cleanDirect)) {
+      return { error: "Time must be in mm:ss format (for example 07:35)." };
+    }
+    return { value: cleanDirect };
+  }
+
+  return { value: cleanDirect };
+};
 
 export const RecordRoutineScoreScreen = () => {
   const route = useRoute<RouteProp<PracticeStackParamList, "RecordRoutineScore">>();
@@ -27,6 +120,9 @@ export const RecordRoutineScoreScreen = () => {
   const { routineId } = route.params;
 
   const [score, setScore] = useState("");
+  const [entryMode, setEntryMode] = useState<EntryMode>("direct");
+  const [made, setMade] = useState("");
+  const [attempts, setAttempts] = useState("");
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -35,6 +131,8 @@ export const RecordRoutineScoreScreen = () => {
   const { colors } = useAppTheme();
 
   const routine = useMemo(() => getRoutineById(routineId), [getRoutineById, routineId]);
+  const scoringType = (routine?.scoring_type ?? "count") as ScoringType;
+  const scoringHelp = getScoringHelpText(scoringType, routine?.max_score);
 
   const saveResult = async () => {
     if (!routine) {
@@ -42,19 +140,27 @@ export const RecordRoutineScoreScreen = () => {
       return;
     }
 
-    if (!score.trim()) {
-      Alert.alert("Missing score", "Enter a score or result first.");
+    const built = buildScoreFromInputs({
+      scoringType,
+      mode: entryMode,
+      directValue: score,
+      made,
+      attempts,
+      maxScore: routine.max_score,
+    });
+    if (!built.value) {
+      Alert.alert("Invalid score", built.error ?? "Enter a valid score first.");
       return;
     }
 
     try {
       setIsSaving(true);
-      await addEntry({
-        routine_id: routine.id,
-        routine_name: routine.name,
-        score: score.trim(),
-        notes: notes.trim() || undefined,
-      });
+        await addEntry({
+          routine_id: routine.id,
+          routine_name: routine.name,
+          score: built.value,
+          notes: notes.trim() || undefined,
+        });
 
       Alert.alert("Saved", "Your result has been recorded.", [
         {
@@ -83,15 +189,81 @@ export const RecordRoutineScoreScreen = () => {
         <Text style={[styles.heading, { color: colors.text }]}>📝 Record Score</Text>
         <Text style={[styles.routineName, { color: colors.text }]}>{routine?.name ?? "Routine"}</Text>
         <Text style={[styles.meta, { color: colors.textMuted }]}>Date: {new Date().toLocaleString()}</Text>
+        <Text style={[styles.helpText, { color: colors.textMuted }]}>{scoringHelp}</Text>
 
-        <Text style={[styles.label, { color: colors.text }]}>Score / Result</Text>
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
-          placeholder="e.g. 42, 8/10, 65%"
-          placeholderTextColor={colors.textMuted}
-          value={score}
-          onChangeText={setScore}
-        />
+        {scoringType === "percentage" ? (
+          <View style={styles.modeWrap}>
+            <View style={styles.modeRow}>
+              <Pressable
+                onPress={() => setEntryMode("direct")}
+                style={[
+                  styles.modeChip,
+                  {
+                    backgroundColor: entryMode === "direct" ? colors.primary : colors.surfaceMuted,
+                    borderColor: entryMode === "direct" ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text style={{ color: entryMode === "direct" ? colors.onPrimary : colors.text, fontWeight: "700" }}>Percent</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setEntryMode("fraction")}
+                style={[
+                  styles.modeChip,
+                  {
+                    backgroundColor: entryMode === "fraction" ? colors.primary : colors.surfaceMuted,
+                    borderColor: entryMode === "fraction" ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text style={{ color: entryMode === "fraction" ? colors.onPrimary : colors.text, fontWeight: "700" }}>Made/Attempts</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        {scoringType === "percentage" && entryMode === "fraction" ? (
+          <>
+            <Text style={[styles.label, { color: colors.text }]}>Made</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. 18"
+              placeholderTextColor={colors.textMuted}
+              value={made}
+              onChangeText={setMade}
+              keyboardType="numeric"
+            />
+            <Text style={[styles.label, { color: colors.text }]}>Attempts</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. 25"
+              placeholderTextColor={colors.textMuted}
+              value={attempts}
+              onChangeText={setAttempts}
+              keyboardType="numeric"
+            />
+          </>
+        ) : (
+          <>
+            <Text style={[styles.label, { color: colors.text }]}>Log {getScoringUnitLabel(scoringType)}</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
+              placeholder={
+                scoringType === "points"
+                  ? "e.g. 42"
+                  : scoringType === "count"
+                    ? "e.g. 8"
+                    : scoringType === "time"
+                      ? "e.g. 07:35"
+                      : "e.g. 72"
+              }
+              placeholderTextColor={colors.textMuted}
+              value={score}
+              onChangeText={setScore}
+              keyboardType={scoringType === "time" ? "numbers-and-punctuation" : "numeric"}
+            />
+          </>
+        )}
 
         <Text style={[styles.label, { color: colors.text }]}>Notes (optional)</Text>
         <TextInput
@@ -146,6 +318,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
     marginBottom: 16,
+  },
+  helpText: {
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  modeWrap: { marginBottom: 6 },
+  modeRow: { flexDirection: "row", gap: 8 },
+  modeChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   label: {
     fontSize: 13,
