@@ -37,6 +37,8 @@ export type LiveFrameState = {
   awaitingColorAfterRed: boolean;
   phase: LivePhase;
   nextColorIndex: number;
+  /** Scores were level after the final black, so the black has been re-spotted. */
+  respottedBlack?: boolean;
 };
 
 export const BALL_POINTS: Record<LiveBall, number> = {
@@ -51,24 +53,39 @@ export const BALL_POINTS: Record<LiveBall, number> = {
 
 export const COLOR_SEQUENCE: LiveBall[] = ["yellow", "green", "brown", "blue", "pink", "black"];
 
+const FINAL_BLACK_INDEX = COLOR_SEQUENCE.length - 1;
+
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const nowIso = () => new Date().toISOString();
+
+const otherSide = (side: LiveSide): LiveSide => (side === "user" ? "opponent" : "user");
 
 const appendEvent = (state: LiveFrameState, event: Omit<LiveFrameEvent, "id" | "timestamp">): LiveFrameState => ({
   ...state,
   events: [{ id: makeId(), timestamp: nowIso(), ...event }, ...state.events],
 });
 
+/**
+ * Banks the break in progress. If the visit ends while a colour is on after a red, the
+ * colour is no longer on; after the last red that means the clearance starts from yellow.
+ * Always returns a fresh object, so callers may mutate the result.
+ */
 const finalizeCurrentBreak = (
   state: LiveFrameState,
   endedBy: "visit_end" | "foul" | "switch" | "frame_end"
 ): LiveFrameState => {
-  const shouldResetAwaitingColor = endedBy !== "frame_end" && state.phase === "reds" && state.redsRemaining > 0;
+  const next: LiveFrameState = { ...state };
 
-  if (state.currentBreak <= 0) {
-    return shouldResetAwaitingColor ? { ...state, awaitingColorAfterRed: false } : state;
+  if (endedBy !== "frame_end" && next.phase === "reds" && next.awaitingColorAfterRed) {
+    next.awaitingColorAfterRed = false;
+    if (next.redsRemaining === 0) {
+      next.phase = "colors";
+      next.nextColorIndex = 0;
+    }
   }
+
+  if (state.currentBreak <= 0) return next;
 
   const entry: BreakEntry = {
     player: state.atTable,
@@ -77,19 +94,29 @@ const finalizeCurrentBreak = (
     timestamp: nowIso(),
   };
 
-  const highestBreakUser =
-    state.atTable === "user" ? Math.max(state.highestBreakUser, state.currentBreak) : state.highestBreakUser;
-  const highestBreakOpponent =
-    state.atTable === "opponent" ? Math.max(state.highestBreakOpponent, state.currentBreak) : state.highestBreakOpponent;
+  next.currentBreak = 0;
+  next.breakHistory = [entry, ...state.breakHistory];
+  if (state.atTable === "user") {
+    next.highestBreakUser = Math.max(state.highestBreakUser, state.currentBreak);
+  } else {
+    next.highestBreakOpponent = Math.max(state.highestBreakOpponent, state.currentBreak);
+  }
 
-  return {
-    ...state,
-    currentBreak: 0,
-    awaitingColorAfterRed: shouldResetAwaitingColor ? false : state.awaitingColorAfterRed,
-    highestBreakUser,
-    highestBreakOpponent,
-    breakHistory: [entry, ...state.breakHistory],
-  };
+  return next;
+};
+
+/** Once the final black is potted or fouled: level scores mean a re-spotted black, otherwise the frame ends. */
+const resolveFinalBlack = (state: LiveFrameState, endedBy: "visit_end" | "foul"): LiveFrameState => {
+  if (state.userScore === state.opponentScore) {
+    return {
+      ...finalizeCurrentBreak(state, endedBy),
+      phase: "colors",
+      nextColorIndex: FINAL_BLACK_INDEX,
+      respottedBlack: true,
+    };
+  }
+
+  return { ...finalizeCurrentBreak(state, "frame_end"), phase: "ended" };
 };
 
 export const createInitialLiveFrameState = (frameNumber: number, atTable: LiveSide = "user"): LiveFrameState => ({
@@ -106,7 +133,20 @@ export const createInitialLiveFrameState = (frameNumber: number, atTable: LiveSi
   awaitingColorAfterRed: false,
   phase: "reds",
   nextColorIndex: 0,
+  respottedBlack: false,
 });
+
+export const isBallOn = (state: LiveFrameState, ball: LiveBall): boolean => {
+  if (state.phase === "ended") return false;
+  if (state.phase === "reds") return state.awaitingColorAfterRed ? ball !== "red" : ball === "red";
+  return ball === COLOR_SEQUENCE[state.nextColorIndex];
+};
+
+/** Minimum foul penalty for the ball currently on (never less than 4). */
+export const getMinimumFoulValue = (state: LiveFrameState): 4 | 5 | 6 | 7 => {
+  if (state.phase !== "colors") return 4;
+  return Math.max(4, BALL_POINTS[COLOR_SEQUENCE[state.nextColorIndex]]) as 4 | 5 | 6 | 7;
+};
 
 export const getPointsRemaining = (state: LiveFrameState): number => {
   if (state.phase === "ended") return 0;
@@ -119,12 +159,14 @@ export const getPointsRemaining = (state: LiveFrameState): number => {
 export const getSnookersRequired = (state: LiveFrameState):
   | { player: LiveSide; count: number; scoreDiff: number; pointsRemaining: number }
   | undefined => {
+  if (state.phase === "ended") return undefined;
+
   const pointsRemaining = getPointsRemaining(state);
   const scoreDiff = Math.abs(state.userScore - state.opponentScore);
   if (scoreDiff <= pointsRemaining) return undefined;
 
   const trailing: LiveSide = state.userScore < state.opponentScore ? "user" : "opponent";
-  const snookers = Math.ceil((scoreDiff - pointsRemaining) / 4);
+  const snookers = Math.ceil((scoreDiff - pointsRemaining) / getMinimumFoulValue(state));
 
   return {
     player: trailing,
@@ -135,20 +177,7 @@ export const getSnookersRequired = (state: LiveFrameState):
 };
 
 export const potBall = (state: LiveFrameState, ball: LiveBall): LiveFrameState => {
-  if (state.phase === "ended") return state;
-
-  if (state.phase === "reds") {
-    if (state.awaitingColorAfterRed) {
-      if (ball === "red") return state;
-    } else if (ball !== "red") {
-      return state;
-    }
-  }
-
-  if (state.phase === "colors") {
-    const expected = COLOR_SEQUENCE[state.nextColorIndex];
-    if (ball !== expected) return state;
-  }
+  if (!isBallOn(state, ball)) return state;
 
   const points = BALL_POINTS[ball];
   const scoreField = state.atTable === "user" ? "userScore" : "opponentScore";
@@ -157,51 +186,41 @@ export const potBall = (state: LiveFrameState, ball: LiveBall): LiveFrameState =
     ...state,
     [scoreField]: state[scoreField] + points,
     currentBreak: state.currentBreak + points,
-  } as LiveFrameState;
+  };
 
-  if (ball === "red" && next.phase === "reds") {
-    next.redsRemaining = Math.max(0, next.redsRemaining - 1);
-    next.awaitingColorAfterRed = true;
-  }
-
-  if (next.phase === "reds" && ball !== "red" && next.awaitingColorAfterRed) {
-    next.awaitingColorAfterRed = false;
-    if (next.redsRemaining === 0) {
-      next.phase = "colors";
-      next.nextColorIndex = 0;
-    }
-  }
-
-  if (next.phase === "colors") {
-    const expected = COLOR_SEQUENCE[next.nextColorIndex];
-    if (ball === expected) {
-      next.nextColorIndex += 1;
-      if (next.nextColorIndex >= COLOR_SEQUENCE.length) {
-        next.phase = "ended";
-        next = finalizeCurrentBreak(next, "frame_end");
+  if (state.phase === "reds") {
+    if (ball === "red") {
+      next.redsRemaining = Math.max(0, next.redsRemaining - 1);
+      next.awaitingColorAfterRed = true;
+    } else {
+      // The colour after a red is re-spotted; after the last red the clearance starts from yellow.
+      next.awaitingColorAfterRed = false;
+      if (next.redsRemaining === 0) {
+        next.phase = "colors";
+        next.nextColorIndex = 0;
       }
     }
+  } else {
+    next.nextColorIndex += 1;
+    if (next.nextColorIndex > FINAL_BLACK_INDEX) {
+      next = resolveFinalBlack(next, "visit_end");
+    }
   }
 
-  next = appendEvent(next, { kind: "pot", player: state.atTable, ball, points });
-  return next;
+  return appendEvent(next, { kind: "pot", player: state.atTable, ball, points });
 };
 
 export const endVisit = (state: LiveFrameState): LiveFrameState => {
-  let next = finalizeCurrentBreak(state, "visit_end");
-  next = {
-    ...next,
-    atTable: next.atTable === "user" ? "opponent" : "user",
-  };
+  if (state.phase === "ended") return state;
+  const next = finalizeCurrentBreak(state, "visit_end");
+  next.atTable = otherSide(state.atTable);
   return appendEvent(next, { kind: "visit_end", player: state.atTable });
 };
 
 export const switchPlayer = (state: LiveFrameState): LiveFrameState => {
-  let next = finalizeCurrentBreak(state, "switch");
-  next = {
-    ...next,
-    atTable: next.atTable === "user" ? "opponent" : "user",
-  };
+  if (state.phase === "ended") return state;
+  const next = finalizeCurrentBreak(state, "switch");
+  next.atTable = otherSide(state.atTable);
   return appendEvent(next, { kind: "switch", player: state.atTable });
 };
 
@@ -211,24 +230,37 @@ export const recordFoul = (
   foulType: LiveFoulType,
   note?: string
 ): LiveFrameState => {
+  if (state.phase === "ended") return state;
+
+  const penalty = Math.max(foulValue, getMinimumFoulValue(state)) as 4 | 5 | 6 | 7;
   let next = finalizeCurrentBreak(state, "foul");
 
   if (state.atTable === "user") {
-    next.opponentScore += foulValue;
-    next.atTable = "opponent";
+    next.opponentScore += penalty;
   } else {
-    next.userScore += foulValue;
-    next.atTable = "user";
+    next.userScore += penalty;
+  }
+  next.atTable = otherSide(state.atTable);
+
+  // With only the black left, a foul ends the frame (or forces a re-spotted black if level).
+  if (state.phase === "colors" && state.nextColorIndex === FINAL_BLACK_INDEX) {
+    next = resolveFinalBlack(next, "foul");
   }
 
   return appendEvent(next, {
     kind: "foul",
     player: state.atTable,
-    foulValue,
+    foulValue: penalty,
     foulType,
     note,
-    points: foulValue,
+    points: penalty,
   });
+};
+
+/** Ends the frame where it stands (concession or abandonment), banking any break in progress. */
+export const concludeFrame = (state: LiveFrameState): LiveFrameState => {
+  if (state.phase === "ended") return state;
+  return { ...finalizeCurrentBreak(state, "frame_end"), phase: "ended" };
 };
 
 export const reRack = (state: LiveFrameState): LiveFrameState => {

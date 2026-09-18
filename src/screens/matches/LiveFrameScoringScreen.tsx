@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
-  AppState,
   Modal,
   Pressable,
   ScrollView,
@@ -22,9 +21,11 @@ import { AppButton } from "../../components/ui/AppButton";
 import {
   BALL_POINTS,
   COLOR_SEQUENCE,
+  concludeFrame,
   createInitialLiveFrameState,
   endVisit,
   getFrameWinner,
+  getMinimumFoulValue,
   getPointsRemaining,
   getSnookersRequired,
   potBall,
@@ -35,6 +36,7 @@ import {
   type LiveFoulType,
   type LiveFrameState,
 } from "../../features/matches/liveFrameEngine";
+import { clearLiveFrame, loadLiveFrame, saveLiveFrame } from "../../features/matches/liveFrameStorage";
 
 const BALL_META: Array<{ key: LiveBall; color: string; textColor: string }> = [
   { key: "red", color: "#C7343A", textColor: "#FFFFFF" },
@@ -119,6 +121,8 @@ export const LiveFrameScoringScreen = () => {
   const frameRecords = getFrameRecordsByMatchId(route.params.matchId);
   const frameNumber = useMemo(() => getNextFrameNumber(route.params.matchId), [getNextFrameNumber, route.params.matchId, frameRecords.length]);
   const [frame, setFrame] = useState<LiveFrameState>(() => createInitialLiveFrameState(frameNumber));
+  const frameRef = useRef(frame);
+  const hasRestoredFrameRef = useRef(false);
   const [undoStack, setUndoStack] = useState<LiveFrameState[]>([]);
   const [isFoulOpen, setIsFoulOpen] = useState(false);
   const [foulValue, setFoulValue] = useState<4 | 5 | 6 | 7>(4);
@@ -146,6 +150,7 @@ export const LiveFrameScoringScreen = () => {
   const pointsRemaining = getPointsRemaining(frame);
   const snookersRequired = getSnookersRequired(frame);
   const isFrameComplete = frame.phase === "ended";
+  const minimumFoulValue = getMinimumFoulValue(frame);
   const bestOfFrames = getBestOfFrames(match?.format ?? "", match?.target_frames) ?? 7;
   const firstToWins = getFirstToWins(bestOfFrames);
 
@@ -254,6 +259,35 @@ export const LiveFrameScoringScreen = () => {
           },
     [isDark]
   );
+
+  // Restore a frame in progress if the app was closed or killed mid-frame.
+  useEffect(() => {
+    const matchId = route.params.matchId;
+    let cancelled = false;
+    loadLiveFrame(matchId).then((saved) => {
+      if (cancelled) return;
+      hasRestoredFrameRef.current = true;
+      if (!saved) return;
+      if (saved.frameNumber !== frameNumber || frameRef.current.events.length > 0) {
+        if (saved.frameNumber < frameNumber) clearLiveFrame(matchId);
+        return;
+      }
+      frameRef.current = saved;
+      setFrame(saved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [frameNumber, route.params.matchId]);
+
+  useEffect(() => {
+    if (!hasRestoredFrameRef.current) return;
+    if (frame.events.length === 0) {
+      clearLiveFrame(route.params.matchId);
+      return;
+    }
+    saveLiveFrame(route.params.matchId, frame);
+  }, [frame, route.params.matchId]);
 
   useEffect(() => {
     if (!match) return;
@@ -371,16 +405,23 @@ export const LiveFrameScoringScreen = () => {
   };
 
   const applyFrameMutation = (mutator: (state: LiveFrameState) => LiveFrameState, options?: { scoreChange?: boolean }) => {
-    setFrame((current) => {
-      const next = mutator(current);
-      if (next === current) return current;
-      setUndoStack((stack) => [current, ...stack].slice(0, 180));
-      if (options?.scoreChange) {
-        animateScoreChange();
-        if (next.currentBreak > current.currentBreak) animateBreakPulse();
-      }
-      return next;
-    });
+    // Read from a ref so rapid taps always build on the latest state, and keep side effects
+    // out of the state updater (React may run updaters twice).
+    const current = frameRef.current;
+    const next = mutator(current);
+    if (next === current) return;
+
+    frameRef.current = next;
+    setFrame(next);
+    setUndoStack((stack) => [current, ...stack].slice(0, 180));
+
+    if (options?.scoreChange) {
+      animateScoreChange();
+      if (next.currentBreak > current.currentBreak) animateBreakPulse();
+    }
+    if (next.respottedBlack && !current.respottedBlack) {
+      showPotNotice("Scores level. Re-spotted black.");
+    }
   };
 
   const handlePot = (ball: LiveBall) => {
@@ -410,6 +451,7 @@ export const LiveFrameScoringScreen = () => {
   const handleUndo = () => {
     if (undoStack.length === 0) return;
     const [previous, ...rest] = undoStack;
+    frameRef.current = previous;
     setFrame(previous);
     setUndoStack(rest);
   };
@@ -422,16 +464,26 @@ export const LiveFrameScoringScreen = () => {
         style: "destructive",
         onPress: () => {
           setUndoStack([]);
-          setFrame((current) => reRack(current));
+          const reset = reRack(frameRef.current);
+          frameRef.current = reset;
+          setFrame(reset);
           snookerScanStore.endScan();
         },
       },
     ]);
   };
 
+  const openFoulSheet = () => {
+    setFoulValue(minimumFoulValue);
+    setFoulType("other");
+    setFoulNote("");
+    setIsFoulOpen(true);
+  };
+
   const applyFoul = () => {
+    const penalty = Math.max(foulValue, minimumFoulValue);
     applyFrameMutation((state) => recordFoul(state, foulValue, foulType, foulNote.trim() || undefined), { scoreChange: true });
-    showFoulBanner(`${FOUL_LABELS[foulType]} (+${foulValue})`);
+    showFoulBanner(`${FOUL_LABELS[foulType]} (+${penalty})`);
     setFoulNote("");
     setIsFoulOpen(false);
   };
@@ -448,21 +500,25 @@ export const LiveFrameScoringScreen = () => {
 
   const persistFrame = async (abandoned: boolean) => {
     if (!match) return;
+    // Bank any break still in progress (e.g. a concession mid-break) before saving.
+    const finalFrame = concludeFrame(frame);
+    // Abandoned frames are replayed, so they don't count towards either player.
+    const frameWinner = abandoned ? "draw" : getFrameWinner(finalFrame);
     try {
       setIsSaving(true);
       await saveFrameRecord(match.id, {
-        frame_number: frame.frameNumber,
-        user_score: frame.userScore,
-        opponent_score: frame.opponentScore,
-        winner: getFrameWinner(frame),
-        highest_break_user: frame.highestBreakUser,
-        highest_break_opponent: frame.highestBreakOpponent,
-        breaks: frame.breakHistory,
+        frame_number: finalFrame.frameNumber,
+        user_score: finalFrame.userScore,
+        opponent_score: finalFrame.opponentScore,
+        winner: frameWinner,
+        highest_break_user: finalFrame.highestBreakUser,
+        highest_break_opponent: finalFrame.highestBreakOpponent,
+        breaks: finalFrame.breakHistory,
         events: buildFrameRecordEvents(),
         abandoned,
       });
+      clearLiveFrame(match.id);
 
-      const frameWinner = getFrameWinner(frame);
       const projectedWins = {
         user: matchFrameWins.user + (frameWinner === "user" ? 1 : 0),
         opponent: matchFrameWins.opponent + (frameWinner === "opponent" ? 1 : 0),
@@ -487,8 +543,9 @@ Alert.alert(
             style: projectedMatchWinner ? "cancel" : "default",
             isPreferred: !projectedMatchWinner,
             onPress: () => {
-              const nextFrameNo = frame.frameNumber + 1;
-              setFrame(createInitialLiveFrameState(nextFrameNo, frame.atTable));
+              const nextFrame = createInitialLiveFrameState(frame.frameNumber + 1, frame.atTable);
+              frameRef.current = nextFrame;
+              setFrame(nextFrame);
               setUndoStack([]);
               snookerScanStore.endScan();
             },
@@ -525,7 +582,9 @@ Alert.alert(
 
   const handleOpenSnookerScan = () => {
     if (!match) return;
-    snookerScanStore.startScan(match.id, frame.frameNumber);
+    const scanInProgress =
+      snookerScanStore.isActive && snookerScanStore.matchId === match.id && snookerScanStore.frameNumber === frame.frameNumber;
+    if (!scanInProgress) snookerScanStore.startScan(match.id, frame.frameNumber);
     navigation.navigate("ARTableCapture" as any, { matchId: match.id, frameNumber: frame.frameNumber });
   };
 
@@ -566,28 +625,6 @@ Alert.alert(
 
     return unsubscribe;
   }, [deleteMatch, frame.events.length, frame.opponentScore, frame.userScore, frameRecords.length, isSaving, match, navigation]);
-
-  useEffect(() => {
-    if (!match) return;
-
-    const canAutoDiscardEmptyMatch =
-      frameRecords.length === 0 &&
-      frame.events.length === 0 &&
-      match.user_score === 0 &&
-      match.opponent_score === 0 &&
-      frame.userScore === 0 &&
-      frame.opponentScore === 0;
-
-    if (!canAutoDiscardEmptyMatch) return;
-
-    const subscription = AppState.addEventListener("change", (nextAppState) => {
-      if (nextAppState === "inactive" || nextAppState === "background") {
-        deleteMatch(match.id).catch(() => {});
-      }
-    });
-
-    return () => subscription.remove();
-  }, [deleteMatch, frame.events.length, frame.opponentScore, frame.userScore, frameRecords.length, match]);
 
   useEffect(() => {
     if (!match) {
@@ -883,7 +920,7 @@ Alert.alert(
             <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }, undoStack.length === 0 && styles.disabledPill]} onPress={handleUndo} disabled={undoStack.length === 0}>
               <Text style={[styles.actionPillText, { color: ui.text }]}>Undo</Text>
             </Pressable>
-            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => setIsFoulOpen(true)}>
+            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={openFoulSheet} disabled={isFrameComplete}>
               <Text style={[styles.actionPillText, { color: ui.text }]}>Foul</Text>
             </Pressable>
             <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => endVisit(state))}>
@@ -935,7 +972,12 @@ Alert.alert(
               {FOUL_OPTIONS.map((option) => (
                 <Pressable
                   key={option.value}
-                  style={[styles.optionPill, foulValue === option.value && { backgroundColor: colors.primary }]}
+                  disabled={option.value < minimumFoulValue}
+                  style={[
+                    styles.optionPill,
+                    foulValue === option.value && { backgroundColor: colors.primary },
+                    option.value < minimumFoulValue && styles.disabledPill,
+                  ]}
                   onPress={() => setFoulValue(option.value)}
                 >
                   <Text style={[styles.optionPillLabel, foulValue === option.value && { color: colors.onPrimary }]}>{option.label}</Text>
