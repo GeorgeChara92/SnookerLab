@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { safeStorage } from "../utils/storage";
 import { SessionLog, SessionLogResult, SessionTemplate } from "../types";
 import { supabase } from "../api/supabase";
+import { todayKey } from "../utils/date";
 
 interface SessionsState {
   ownerUserId: string | null;
@@ -40,7 +41,7 @@ export const useSessionsStore = create<SessionsState>()(
       templates: [],
       logs: [],
       activeTemplateId: null,
-      activeDate: new Date().toISOString().split("T")[0],
+      activeDate: todayKey(),
       activeResults: [],
 
       createTemplate: async ({ name, notes, routineIds }) => {
@@ -127,7 +128,7 @@ export const useSessionsStore = create<SessionsState>()(
 
         set({
           activeTemplateId: templateId,
-          activeDate: date ?? new Date().toISOString().split("T")[0],
+          activeDate: date ?? todayKey(),
           activeResults: seededResults,
         });
       },
@@ -212,7 +213,7 @@ export const useSessionsStore = create<SessionsState>()(
             templates: [],
             logs: [],
             activeTemplateId: null,
-            activeDate: new Date().toISOString().split("T")[0],
+            activeDate: todayKey(),
             activeResults: [],
           };
         });
@@ -272,7 +273,7 @@ export const useSessionsStore = create<SessionsState>()(
         templates: [],
         logs: [],
         activeTemplateId: null,
-        activeDate: new Date().toISOString().split("T")[0],
+        activeDate: todayKey(),
         activeResults: [],
       }),
     }

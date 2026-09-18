@@ -10,6 +10,9 @@ import {
   TournamentType,
 } from "../types";
 import { supabase } from "../api/supabase";
+import { buildKnockoutFixtures, isBye, recomputeKnockoutTree } from "../features/tournaments/knockout";
+import { computeLeagueStandings } from "../features/tournaments/leagueStandings";
+import { dateKeyFrom, todayKey } from "../utils/date";
 
 type CreateTournamentInput = {
   name: string;
@@ -43,159 +46,6 @@ interface TournamentsState {
 }
 
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-const isBye = (value: string) => value === "BYE" || /^BYE\b/i.test(value);
-const isRealName = (value: string) => !isBye(value) && value !== "TBD";
-
-const shuffled = (items: string[]) => {
-  const next = [...items];
-  for (let i = next.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [next[i], next[j]] = [next[j], next[i]];
-  }
-  return next;
-};
-
-const arrangeToAvoidByeVsBye = (items: string[]) => {
-  const real = items.filter((value) => !isBye(value));
-  const byes = items.filter((value) => isBye(value));
-  const arranged: string[] = [];
-
-  while (real.length || byes.length) {
-    if (real.length) arranged.push(real.shift() as string);
-    if (byes.length) arranged.push(byes.shift() as string);
-    if (real.length) arranged.push(real.shift() as string);
-  }
-
-  return arranged;
-};
-
-const nextPowerOfTwo = (value: number) => {
-  let p = 1;
-  while (p < value) p *= 2;
-  return p;
-};
-
-const recomputeKnockoutTree = (fixtures: TournamentFixture[]) => {
-  const next = fixtures
-    .map((fixture) => ({ ...fixture }))
-    .sort((a, b) => a.round_number - b.round_number || a.fixture_index - b.fixture_index);
-
-  const maxRound = Math.max(...next.map((fixture) => fixture.round_number), 1);
-  const byRoundAndIndex = (round: number, index: number) =>
-    next.find((fixture) => fixture.round_number === round && fixture.fixture_index === index);
-
-  const resolveBye = (fixture: TournamentFixture) => {
-    if (isBye(fixture.participant_a) && isRealName(fixture.participant_b)) {
-      fixture.status = "completed";
-      fixture.winner = fixture.participant_b;
-      fixture.score_a = 0;
-      fixture.score_b = 1;
-      fixture.frame_scores = [{ frame_number: 1, score_a: 0, score_b: 1, winner: "b" }];
-      return;
-    }
-
-    if (isBye(fixture.participant_b) && isRealName(fixture.participant_a)) {
-      fixture.status = "completed";
-      fixture.winner = fixture.participant_a;
-      fixture.score_a = 1;
-      fixture.score_b = 0;
-      fixture.frame_scores = [{ frame_number: 1, score_a: 1, score_b: 0, winner: "a" }];
-      return;
-    }
-
-    if (!isRealName(fixture.participant_a) || !isRealName(fixture.participant_b)) {
-      fixture.status = "pending";
-      fixture.winner = undefined;
-      fixture.score_a = undefined;
-      fixture.score_b = undefined;
-      fixture.frame_scores = undefined;
-    }
-  };
-
-  next.filter((fixture) => fixture.round_number === 1).forEach(resolveBye);
-
-  for (let round = 2; round <= maxRound; round += 1) {
-    const currentRoundFixtures = next
-      .filter((fixture) => fixture.round_number === round)
-      .sort((a, b) => a.fixture_index - b.fixture_index);
-
-    currentRoundFixtures.forEach((fixture) => {
-      const previousA = byRoundAndIndex(round - 1, fixture.fixture_index * 2);
-      const previousB = byRoundAndIndex(round - 1, fixture.fixture_index * 2 + 1);
-
-      const participantA = previousA?.status === "completed" && previousA.winner ? previousA.winner : "TBD";
-      const participantB = previousB?.status === "completed" && previousB.winner ? previousB.winner : "TBD";
-
-      const changed = fixture.participant_a !== participantA || fixture.participant_b !== participantB;
-      fixture.participant_a = participantA;
-      fixture.participant_b = participantB;
-
-      if (changed) {
-        fixture.status = "pending";
-        fixture.winner = undefined;
-        fixture.score_a = undefined;
-        fixture.score_b = undefined;
-        fixture.frame_scores = undefined;
-      }
-
-      resolveBye(fixture);
-    });
-  }
-
-  return next;
-};
-
-const buildKnockoutFixtures = (
-  tournamentId: string,
-  participants: string[],
-  bestOfFrames: number,
-  pairingMode: TournamentPairingMode,
-  manualFixtures?: Array<{ participantA: string; participantB: string }>
-) => {
-  const drawSize = nextPowerOfTwo(Math.max(2, participants.length));
-  let slots: string[];
-
-  if (manualFixtures?.length) {
-    slots = manualFixtures.flatMap((fixture) => [fixture.participantA, fixture.participantB]);
-  } else {
-    slots = shuffled(participants);
-  }
-
-  if (slots.length < drawSize) {
-    slots = [...slots, ...Array.from({ length: drawSize - slots.length }, () => "BYE")];
-  }
-
-  slots = arrangeToAvoidByeVsBye(slots);
-
-  const fixtures: TournamentFixture[] = [];
-  let matchesInRound = drawSize / 2;
-
-  for (let round = 1; matchesInRound >= 1; round += 1) {
-    for (let index = 0; index < matchesInRound; index += 1) {
-      const fixture: TournamentFixture = {
-        id: makeId(),
-        tournament_id: tournamentId,
-        round_number: round,
-        fixture_index: index,
-        participant_a: "TBD",
-        participant_b: "TBD",
-        best_of_frames: bestOfFrames,
-        status: "pending",
-      };
-
-      if (round === 1) {
-        fixture.participant_a = slots[index * 2] ?? "BYE";
-        fixture.participant_b = slots[index * 2 + 1] ?? "BYE";
-      }
-
-      fixtures.push(fixture);
-    }
-
-    matchesInRound = Math.floor(matchesInRound / 2);
-  }
-
-  return recomputeKnockoutTree(fixtures);
-};
 
 const buildLeagueFixtures = (tournamentId: string, participants: string[], bestOfFrames: number) => {
   const list = participants.filter((name) => !isBye(name));
@@ -228,26 +78,13 @@ const getTournamentChampion = (tournament: Tournament): string | null => {
     return finalFixture?.winner ?? null;
   }
 
-  const standings = new Map<string, { pts: number; diff: number }>();
-  tournament.participants.forEach((name) => standings.set(name, { pts: 0, diff: 0 }));
-  tournament.fixtures.forEach((fixture) => {
-    if (fixture.status !== "completed" || fixture.score_a === undefined || fixture.score_b === undefined) return;
-    const a = standings.get(fixture.participant_a);
-    const b = standings.get(fixture.participant_b);
-    if (!a || !b) return;
-    a.pts += fixture.score_a * 3;
-    b.pts += fixture.score_b * 3;
-    a.diff += fixture.score_a - fixture.score_b;
-    b.diff += fixture.score_b - fixture.score_a;
-  });
-
-  return Array.from(standings.entries()).sort((x, y) => y[1].pts - x[1].pts || y[1].diff - x[1].diff)[0]?.[0] ?? null;
+  return computeLeagueStandings(tournament.participants, tournament.fixtures)[0]?.name ?? null;
 };
 
 const mapTournamentRow = (row: any, fixtures: TournamentFixture[]): Tournament => ({
   id: row.id,
   name: row.name,
-  date: row.created_at?.split("T")[0] ?? new Date().toISOString().split("T")[0],
+  date: row.created_at ? dateKeyFrom(row.created_at) : todayKey(),
   tournament_type: row.tournament_type,
   entry_mode: row.entry_mode,
   pairing_mode: row.pairing_mode,

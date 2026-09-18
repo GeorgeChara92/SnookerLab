@@ -17,6 +17,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { TierPaywallModal } from "../../components/subscription";
 import { isSubscriptionLimitError } from "../../constants";
+import { todayKey } from "../../utils/date";
 
 type MatchMode = "live" | "manual";
 
@@ -110,7 +111,7 @@ export const NewMatchScreen = () => {
       const match = await addMatch({
         user_id: "",
         opponent_name: opponentName.trim(),
-        date: new Date().toISOString().split("T")[0],
+        date: todayKey(),
         location: location.trim() || undefined,
         match_type: "casual",
         format: "best_of",
@@ -159,7 +160,7 @@ export const NewMatchScreen = () => {
       await addMatch({
         user_id: "",
         opponent_name: opponentName.trim(),
-        date: new Date().toISOString().split("T")[0],
+        date: todayKey(),
         location: location.trim() || undefined,
         match_type: "casual",
         format: "best_of",

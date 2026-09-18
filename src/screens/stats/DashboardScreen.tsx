@@ -4,6 +4,7 @@ import { LineChart } from "react-native-chart-kit";
 import { useMatchesStore, useRoutineScoresStore, useRoutinesStore, useSessionsStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useNavigation } from "@react-navigation/native";
+import { addDays, countStreak, dateKeyFrom, parseDateValue, startOfWeekMonday, toLocalDateKey } from "../../utils/date";
 
 type SegmentKey = "overview" | "training" | "matches";
 
@@ -13,16 +14,7 @@ const SEGMENTS: { key: SegmentKey; label: string; description: string }[] = [
   { key: "matches", label: "Matches", description: "Competitive performance and results" },
 ];
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-const getWeekStart = (value: string) => {
-  const date = new Date(value);
-  const day = date.getDay();
-  const diffToMonday = (day + 6) % 7;
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() - diffToMonday);
-  return date;
-};
+const getWeekStart = (value: string) => startOfWeekMonday(parseDateValue(value));
 
 const formatWeekLabel = (date: Date) => `${date.getDate()}/${date.getMonth() + 1}`;
 
@@ -62,24 +54,22 @@ const parseScoreToPercent = (
 };
 
 const getWeeklySeries = (dates: string[], weekCount = 8) => {
-  const starts = Array.from({ length: weekCount }, (_, index) => {
-    const base = getWeekStart(new Date().toISOString());
-    base.setTime(base.getTime() - (weekCount - 1 - index) * WEEK_MS);
-    return base;
-  });
+  // Step back by calendar days (not fixed milliseconds) so weeks stay aligned across clock changes.
+  const thisWeek = startOfWeekMonday();
+  const starts = Array.from({ length: weekCount }, (_, index) => addDays(thisWeek, -7 * (weekCount - 1 - index)));
 
   const countsByWeek = new Map<string, number>();
-  starts.forEach((start) => countsByWeek.set(start.toISOString(), 0));
+  starts.forEach((start) => countsByWeek.set(toLocalDateKey(start), 0));
 
   dates.forEach((dateValue) => {
-    const start = getWeekStart(dateValue).toISOString();
+    const start = toLocalDateKey(getWeekStart(dateValue));
     if (!countsByWeek.has(start)) return;
     countsByWeek.set(start, (countsByWeek.get(start) ?? 0) + 1);
   });
 
   return {
     labels: starts.map((start) => formatWeekLabel(start)),
-    values: starts.map((start) => countsByWeek.get(start.toISOString()) ?? 0),
+    values: starts.map((start) => countsByWeek.get(toLocalDateKey(start)) ?? 0),
   };
 };
 
@@ -296,7 +286,7 @@ export const DashboardScreen = () => {
     const activeDayKeys = new Set<string>();
 
     logs.forEach((log) => activeDayKeys.add(log.date));
-    entries.forEach((entry) => activeDayKeys.add(entry.recorded_at.split("T")[0]));
+    entries.forEach((entry) => activeDayKeys.add(dateKeyFrom(entry.recorded_at)));
 
     const now = new Date();
     const previousPeriodStart = new Date(now.getTime() - 56 * 24 * 60 * 60 * 1000);
@@ -330,15 +320,7 @@ export const DashboardScreen = () => {
       return entryDate >= currentPeriodStart;
     });
 
-    let currentStreak = 0;
-    const cursor = new Date(now);
-
-    while (true) {
-      const key = cursor.toISOString().split("T")[0];
-      if (!activeDayKeys.has(key)) break;
-      currentStreak += 1;
-      cursor.setDate(cursor.getDate() - 1);
-    }
+    const currentStreak = countStreak(activeDayKeys, now);
 
     const sessionDates = logs.map((log) => log.date);
     const matchDates = matches.map((match) => match.date);

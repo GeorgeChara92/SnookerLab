@@ -8,6 +8,7 @@ import {
   useSessionsStore,
 } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { addDays, countStreak, dateKeyFrom, parseDateKey, startOfWeekMonday, toLocalDateKey, todayKey } from "../../utils/date";
 
 type RoutineRecommendation = {
   id: string;
@@ -18,39 +19,12 @@ type RoutineRecommendation = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const toDateKey = (date: string) => date.split("T")[0];
+const toDateKey = dateKeyFrom;
 
 const getDaysAgo = (dateKey: string) => {
-  const today = new Date();
-  const target = new Date(dateKey);
-
-  const utcToday = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const utcTarget = Date.UTC(target.getFullYear(), target.getMonth(), target.getDate());
-  return Math.max(0, Math.floor((utcToday - utcTarget) / DAY_MS));
-};
-
-const getStartOfWeekMonday = (value = new Date()) => {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  const weekday = date.getDay();
-  const daysFromMonday = (weekday + 6) % 7;
-  date.setDate(date.getDate() - daysFromMonday);
-  return date;
-};
-
-const buildCurrentStreak = (dateKeys: Set<string>) => {
-  let streak = 0;
-  const cursor = new Date();
-
-  while (true) {
-    const key = cursor.toISOString().split("T")[0];
-    if (!dateKeys.has(key)) break;
-
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  return streak;
+  const today = parseDateKey(todayKey());
+  const target = parseDateKey(dateKey);
+  return Math.max(0, Math.round((today.getTime() - target.getTime()) / DAY_MS));
 };
 
 export const DashboardHomeScreen = () => {
@@ -74,23 +48,13 @@ export const DashboardHomeScreen = () => {
       activeDateKeys.add(toDateKey(entry.recorded_at));
     });
 
-    const currentStreak = buildCurrentStreak(activeDateKeys);
+    const currentStreak = countStreak(activeDateKeys);
     const lastPracticeDate = logs[0]?.date ?? entries[0]?.recorded_at;
-    const currentWeekStart = getStartOfWeekMonday();
-    const previousWeekStart = new Date(currentWeekStart);
-    previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+    const currentWeekStart = startOfWeekMonday();
+    const previousWeekStart = addDays(currentWeekStart, -7);
 
-    const currentWeekKeys = Array.from({ length: 7 }, (_, index) => {
-      const day = new Date(currentWeekStart);
-      day.setDate(day.getDate() + index);
-      return day.toISOString().split("T")[0];
-    });
-
-    const previousWeekKeys = Array.from({ length: 7 }, (_, index) => {
-      const day = new Date(previousWeekStart);
-      day.setDate(day.getDate() + index);
-      return day.toISOString().split("T")[0];
-    });
+    const currentWeekKeys = Array.from({ length: 7 }, (_, index) => toLocalDateKey(addDays(currentWeekStart, index)));
+    const previousWeekKeys = Array.from({ length: 7 }, (_, index) => toLocalDateKey(addDays(previousWeekStart, index)));
 
     const currentWeekActiveDays = currentWeekKeys.reduce((sum, key) => sum + (activeDateKeys.has(key) ? 1 : 0), 0);
     const previousWeekActiveDays = previousWeekKeys.reduce((sum, key) => sum + (activeDateKeys.has(key) ? 1 : 0), 0);
@@ -111,7 +75,7 @@ export const DashboardHomeScreen = () => {
 
       return {
         key,
-        label: new Date(key).toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3),
+        label: parseDateKey(key).toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3),
         count: logCount + entryCount,
       };
     });
@@ -357,7 +321,7 @@ export const DashboardHomeScreen = () => {
                       </View>
                       <View style={styles.chartRow}>
                         {dashboard.weeklyLoad.map((day, index) => {
-                          const isToday = toDateKey(new Date().toISOString()) === day.key;
+                          const isToday = todayKey() === day.key;
                           return (
 <View key={day.key} style={styles.chartBarWrap}> 
                               <View style={[styles.chartTrack, { backgroundColor: colors.surface, borderWidth: 1, borderColor: isToday ? colors.primary : colors.border }]}> 

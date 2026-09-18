@@ -6,6 +6,7 @@ import * as Haptics from "expo-haptics";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, TournamentFixture, TournamentFrameScore } from "../../types";
+import { computeLeagueStandings } from "../../features/tournaments/leagueStandings";
 
 const triggerHaptic = async (type: "light" | "success") => {
   try {
@@ -301,41 +302,7 @@ export const TournamentDetailScreen = () => {
   const standings = useMemo(() => {
     if (!tournament || tournament.tournament_type !== "league") return [];
 
-    const table = new Map<string, { p: number; w: number; d: number; l: number; f: number; a: number; pts: number }>();
-    tournament.participants.forEach((name) => table.set(name, { p: 0, w: 0, d: 0, l: 0, f: 0, a: 0, pts: 0 }));
-
-    tournament.fixtures.forEach((fixture) => {
-      if (fixture.status !== "completed" || fixture.score_a === undefined || fixture.score_b === undefined) return;
-
-      const a = table.get(fixture.participant_a);
-      const b = table.get(fixture.participant_b);
-      if (!a || !b) return;
-
-      a.p += 1;
-      b.p += 1;
-      a.f += fixture.score_a;
-      a.a += fixture.score_b;
-      b.f += fixture.score_b;
-      b.a += fixture.score_a;
-
-      a.pts += fixture.score_a * 3;
-      b.pts += fixture.score_b * 3;
-
-      if (fixture.score_a > fixture.score_b) {
-        a.w += 1;
-        b.l += 1;
-      } else if (fixture.score_a < fixture.score_b) {
-        b.w += 1;
-        a.l += 1;
-      } else {
-        a.d += 1;
-        b.d += 1;
-      }
-    });
-
-    return Array.from(table.entries())
-      .map(([name, record]) => ({ name, ...record }))
-      .sort((x, y) => y.pts - x.pts || y.f - y.a - (x.f - x.a));
+    return computeLeagueStandings(tournament.participants, tournament.fixtures);
   }, [tournament]);
 
   const leagueFixtures = useMemo(() => {
