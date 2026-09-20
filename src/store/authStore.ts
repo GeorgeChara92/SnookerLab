@@ -15,15 +15,17 @@ const mapAuthUser = (authUser: any): User => ({
   bio: authUser.user_metadata?.bio,
   cue_preference: authUser.user_metadata?.cue_preference,
   skill_level: authUser.user_metadata?.skill_level,
-  subscription_tier: authUser.user_metadata?.subscription_tier,
-  subscription_anchor_date: authUser.user_metadata?.subscription_anchor_date,
+  // app_metadata is written only by the service role (the RevenueCat webhook and the
+  // sync-subscription function), so the tier cannot be forged from the client.
+  subscription_tier: authUser.app_metadata?.subscription_tier,
+  subscription_anchor_date: authUser.app_metadata?.subscription_anchor_date,
   created_at: authUser.created_at ?? new Date().toISOString(),
   updated_at: authUser.updated_at ?? new Date().toISOString(),
 });
 
 const normalizeUser = (user: any | null): User | null => {
   if (!user) return null;
-  if (user.user_metadata || !user.created_at) return mapAuthUser(user);
+  if (user.user_metadata || user.app_metadata || !user.created_at) return mapAuthUser(user);
   return user as User;
 };
 
@@ -93,7 +95,6 @@ export const useAuthStore = create<AuthState>()(
       signUp: async (email, password, username, skillLevel, countryCode) => {
         set({ isLoading: true });
         try {
-          const nowIso = new Date().toISOString();
           const { error } = await supabase.auth.signUp({
             email,
             password,
@@ -101,8 +102,6 @@ export const useAuthStore = create<AuthState>()(
               emailRedirectTo: AUTH_CONFIRM_REDIRECT_URL,
               data: {
                 username,
-                subscription_tier: "free",
-                subscription_anchor_date: nowIso,
                 ...(skillLevel && { skill_level: skillLevel }),
                 ...(countryCode && { country_code: countryCode }),
               },
@@ -193,8 +192,6 @@ export const useAuthStore = create<AuthState>()(
             ...authUser,
             user_metadata: {
               ...authUser.user_metadata,
-              subscription_tier: authUser.user_metadata?.subscription_tier,
-              subscription_anchor_date: authUser.user_metadata?.subscription_anchor_date,
               avatar_preset: undefined,
               skill_level: undefined,
               country_code: undefined,

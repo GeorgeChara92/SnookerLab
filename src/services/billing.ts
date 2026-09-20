@@ -302,15 +302,17 @@ export const resolveTierFromPurchaseResult = (
   return requestedTier;
 };
 
-export const syncTierToSupabaseUser = async (tier: SubscriptionTier) => {
-  const nowIso = new Date().toISOString();
-  const { data, error } = await supabase.auth.updateUser({
-    data: {
-      subscription_tier: tier,
-      subscription_anchor_date: nowIso,
-    },
-  });
+/**
+ * Asks the server to re-check this user's entitlements with RevenueCat and store the result.
+ * The tier lives in app_metadata, which the client cannot write, so this is the only way it
+ * changes. Returns the refreshed auth user (or null if the session has gone).
+ */
+export const syncSubscriptionWithServer = async () => {
+  const { error } = await supabase.functions.invoke("sync-subscription", { body: {} });
   if (error) throw error;
+
+  const { data, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
   return data.user;
 };
 

@@ -10,6 +10,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
+const MAX_USER_NOTES_CHARS = 1200;
 
 type AnalysisRow = {
   id: string;
@@ -223,18 +224,29 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Claim the row: pending -> processing in one statement. Re-running a finished or
+    // in-flight analysis would bill OpenAI again for the same clip, so it is refused here.
     const { data: analysis, error: analysisError } = await userClient
       .from("ai_analyses")
-      .select("id,user_id,video_path,analysis_type,context_tags,user_notes")
+      .update({ status: "processing", updated_at: new Date().toISOString() })
       .eq("id", analysisId)
       .eq("user_id", user.id)
-      .single<AnalysisRow>();
+      .eq("status", "pending")
+      .select("id,user_id,video_path,analysis_type,context_tags,user_notes")
+      .maybeSingle<AnalysisRow>();
 
-    if (analysisError || !analysis) {
-      return new Response(JSON.stringify({ ok: false, error: "Analysis not found" }), {
-        status: 404,
+    if (analysisError) throw analysisError;
+
+    if (!analysis) {
+      return new Response(JSON.stringify({ ok: false, error: "Analysis is not pending" }), {
+        status: 409,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Notes are free text from the client and go straight into the prompt.
+    if (typeof analysis.user_notes === "string" && analysis.user_notes.length > MAX_USER_NOTES_CHARS) {
+      analysis.user_notes = `${analysis.user_notes.slice(0, MAX_USER_NOTES_CHARS)}...`;
     }
 
     let signedVideoUrl: string | undefined;

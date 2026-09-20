@@ -1,5 +1,8 @@
--- Run in Supabase SQL editor (staging first, then production)
+-- Baseline schema. Run in the Supabase SQL editor (staging first, then production).
 -- Private-by-default data model for cross-device sync.
+--
+-- Incremental changes since this baseline live in supabase/migrations/ and must be applied
+-- in filename order. This file on its own is NOT the current state of the database.
 
 create extension if not exists pgcrypto;
 
@@ -64,9 +67,13 @@ create table if not exists public.matches (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   opponent_name text not null,
+  opponent_id uuid,
   date date not null,
+  location text,
   match_type text,
   format text,
+  target_frames int,
+  frames_played int,
   recording_mode text,
   user_score int not null,
   opponent_score int not null,
@@ -75,6 +82,12 @@ create table if not exists public.matches (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Columns added after the first release (already present in the live database).
+alter table if exists public.matches add column if not exists opponent_id uuid;
+alter table if exists public.matches add column if not exists location text;
+alter table if exists public.matches add column if not exists target_frames int;
+alter table if exists public.matches add column if not exists frames_played int;
 
 create table if not exists public.match_frames (
   id uuid primary key default gen_random_uuid(),

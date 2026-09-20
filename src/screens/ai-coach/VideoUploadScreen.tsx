@@ -37,11 +37,14 @@ const STORAGE_UPLOAD_TIMEOUT_BASE_MS = 60000;
 const STORAGE_UPLOAD_TIMEOUT_PER_MB_MS = 2000;
 const STORAGE_UPLOAD_TIMEOUT_MAX_MS = 180000;
 
+const VIDEO_CONTENT_TYPES = ["video/mp4", "video/quicktime", "video/x-m4v"];
+
+// The ai-videos bucket only accepts video types, so never fall back to octet-stream.
 const inferContentType = (ext: string, mimeType?: string) => {
-  if (mimeType) return mimeType;
+  if (mimeType && VIDEO_CONTENT_TYPES.includes(mimeType)) return mimeType;
   if (ext === "mov") return "video/quicktime";
-  if (ext === "mp4") return "video/mp4";
-  return "application/octet-stream";
+  if (ext === "m4v") return "video/x-m4v";
+  return "video/mp4";
 };
 
 const safeErrorMessage = (error: any) => {

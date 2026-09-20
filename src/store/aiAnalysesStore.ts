@@ -232,8 +232,18 @@ export const useAIAnalysesStore = create<AIAnalysesState>()(
         const authUser = (await supabase.auth.getUser()).data.user;
         if (!authUser) throw new Error("You need to be signed in to delete analyses.");
 
+        const analysis = get().analyses.find((item) => item.id === analysisId);
+
         const { error } = await supabase.from("ai_analyses").delete().eq("id", analysisId).eq("user_id", authUser.id);
         if (error) throw error;
+
+        // Storage is not covered by the row delete, so remove the clip too rather than
+        // leaving the user's video behind.
+        const videoPath = analysis?.video_url;
+        if (videoPath && !videoPath.startsWith("demo://")) {
+          const { error: storageError } = await supabase.storage.from("ai-videos").remove([videoPath]);
+          if (storageError) console.warn("Could not remove analysis video:", storageError.message);
+        }
 
         set((state) => ({
           analyses: state.analyses.filter((item) => item.id !== analysisId),

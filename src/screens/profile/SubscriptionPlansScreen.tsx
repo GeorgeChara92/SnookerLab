@@ -20,7 +20,7 @@ import {
   purchaseTierMonthly,
   resolveTierFromPurchaseResult,
   restoreBillingPurchases,
-  syncTierToSupabaseUser,
+  syncSubscriptionWithServer,
   tierFromCustomerInfo,
 } from "../../services/billing";
 import type { SubscriptionTier } from "../../types";
@@ -36,10 +36,6 @@ const tierRank: Record<SubscriptionTier, number> = {
   free: 0,
   half_century: 1,
   century: 2,
-};
-
-const maxTier = (a: SubscriptionTier, b: SubscriptionTier): SubscriptionTier => {
-  return tierRank[a] >= tierRank[b] ? a : b;
 };
 
 const ValueProp = ({
@@ -171,10 +167,8 @@ export const SubscriptionPlansScreen = () => {
         if (mounted) setOfferings(nextOfferings);
 
         const info = await getBillingCustomerInfo();
-        const tier = tierFromCustomerInfo(info);
-        const effectiveTier = maxTier(metadataTier, tier);
-        if (mounted) setBillingTier(effectiveTier);
-        const updatedUser = await syncTierToSupabaseUser(effectiveTier);
+        if (mounted) setBillingTier(tierFromCustomerInfo(info));
+        const updatedUser = await syncSubscriptionWithServer();
         if (mounted && updatedUser) setUser(updatedUser);
       } catch (error) {
         console.warn("Billing init failed:", {
@@ -210,11 +204,9 @@ export const SubscriptionPlansScreen = () => {
 
     const unsubscribe = addBillingCustomerInfoListener(async (info) => {
       try {
-        const tier = tierFromCustomerInfo(info);
-        const currentKnownTier = billingTier ?? metadataTier;
-        const effectiveTier = maxTier(currentKnownTier, tier);
-        setBillingTier(effectiveTier);
-        const updatedUser = await syncTierToSupabaseUser(effectiveTier);
+        // The store's entitlement is the truth, including when it lapses to free.
+        setBillingTier(tierFromCustomerInfo(info));
+        const updatedUser = await syncSubscriptionWithServer();
         if (updatedUser) setUser(updatedUser);
       } catch (error) {
         console.warn("Failed to sync billing listener state:", {
@@ -246,7 +238,7 @@ export const SubscriptionPlansScreen = () => {
       const purchaseResult = await purchaseTierMonthly(tier, activeOfferings);
       const resolvedTier = resolveTierFromPurchaseResult(purchaseResult, tier);
       setBillingTier(resolvedTier);
-      const updatedUser = await syncTierToSupabaseUser(resolvedTier);
+      const updatedUser = await syncSubscriptionWithServer();
       if (updatedUser) setUser(updatedUser);
       Alert.alert("Welcome to Pro!", `You're now on the ${TIER_LABELS[resolvedTier]} plan.`);
     } catch (error: any) {
@@ -298,7 +290,7 @@ export const SubscriptionPlansScreen = () => {
       const customerInfo = await restoreBillingPurchases();
       const resolvedTier = tierFromCustomerInfo(customerInfo);
       setBillingTier(resolvedTier);
-      const updatedUser = await syncTierToSupabaseUser(resolvedTier);
+      const updatedUser = await syncSubscriptionWithServer();
       if (updatedUser) setUser(updatedUser);
       Alert.alert("Purchases restored", `Active plan: ${TIER_LABELS[resolvedTier]}.`);
     } catch (error: any) {
