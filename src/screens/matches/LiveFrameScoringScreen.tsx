@@ -138,14 +138,17 @@ export const LiveFrameScoringScreen = () => {
   const breakPulse = useRef(new Animated.Value(1)).current;
   const foulBannerY = useRef(new Animated.Value(-70)).current;
   const noticeBannerY = useRef(new Animated.Value(-70)).current;
-  const userActiveAnim = useRef(new Animated.Value(frame.atTable === "user" ? 1 : 0)).current;
-  const opponentActiveAnim = useRef(new Animated.Value(frame.atTable === "opponent" ? 1 : 0)).current;
   const userScoreScale = useRef(new Animated.Value(1)).current;
   const opponentScoreScale = useRef(new Animated.Value(1)).current;
   const previousScoresRef = useRef({ user: frame.userScore, opponent: frame.opponentScore });
   const allowExitWithoutGuardRef = useRef(false);
 
   const pointsRemaining = getPointsRemaining(frame);
+  const ballOnLabel = (() => {
+    if (frame.phase === "ended") return "-";
+    if (frame.phase === "reds") return frame.awaitingColorAfterRed ? "Colour" : "Red";
+    return COLOR_SEQUENCE[frame.nextColorIndex]?.replace(/^./, (c) => c.toUpperCase()) ?? "-";
+  })();
   const snookersRequired = getSnookersRequired(frame);
   const isFrameComplete = frame.phase === "ended";
   const minimumFoulValue = getMinimumFoulValue(frame);
@@ -292,21 +295,6 @@ export const LiveFrameScoringScreen = () => {
     const currentBestOf = getBestOfFrames(match.format, match.target_frames) ?? 7;
     setRaceToInput(String(currentBestOf));
   }, [match?.format, match?.target_frames]);
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(userActiveAnim, {
-        toValue: frame.atTable === "user" ? 1 : 0,
-        duration: 220,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opponentActiveAnim, {
-        toValue: frame.atTable === "opponent" ? 1 : 0,
-        duration: 220,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [frame.atTable, opponentActiveAnim, userActiveAnim]);
 
   useEffect(() => {
     const previous = previousScoresRef.current;
@@ -556,23 +544,28 @@ Alert.alert(
     }
   };
 
-  const handleSaveFrame = () => {
-    if (snookersRequired) {
-      Alert.alert("End frame", "Trailing player requires snookers. End and save frame now?", [
-        { text: "Cancel", style: "cancel" },
-        { text: "End Frame", style: "destructive", onPress: () => persistFrame(false) },
-      ]);
-      return;
-    }
-
+  const handleEndFrame = () => {
     if (isFrameComplete) {
       persistFrame(false);
       return;
     }
 
-    Alert.alert("Save incomplete frame?", "Frame is not finished. Save it as an abandoned frame?", [
+    const leader = frame.userScore > frame.opponentScore ? userLabel : opponentLabel;
+    Alert.alert(
+      "End the frame here?",
+      `The frame is not finished. It will be saved at ${frame.userScore}-${frame.opponentScore}, so ${leader} takes it.`,
+      [
+        { text: "Keep playing", style: "cancel" },
+        { text: "End frame", onPress: () => persistFrame(false) },
+      ]
+    );
+  };
+
+  // An abandoned frame is replayed, so it counts for neither player.
+  const handleAbandonFrame = () => {
+    Alert.alert("Abandon this frame?", "It will be saved for your records but will not count for either player.", [
       { text: "Cancel", style: "cancel" },
-      { text: "Save Abandoned", onPress: () => persistFrame(true) },
+      { text: "Abandon frame", style: "destructive", onPress: () => persistFrame(true) },
     ]);
   };
 
@@ -647,21 +640,125 @@ Alert.alert(
       </Animated.View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 226 }]}> 
-        <View style={[styles.matchHeader, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
-          <Text style={[styles.matchTitle, { color: ui.text }]}>Frame {frame.frameNumber}</Text>
-          <Text style={[styles.matchFramescore, { color: ui.accent }]}>{matchFrameWins.user}-{matchFrameWins.opponent}</Text>
-          <Text style={[styles.matchContext, { color: ui.textMuted }]}> 
-            {userLabel} vs {opponentLabel}
-          </Text>
-          <Text style={[styles.matchContext, { color: ui.textMuted }]}> 
-            {scoreDiff === 0
-              ? "Frame level"
-              : `${frame.userScore > frame.opponentScore ? userLabel : opponentLabel} leads by ${scoreDiff}`}
-          </Text>
+        <View style={[styles.scoreboard, { backgroundColor: ui.panel, borderColor: ui.border }]}>
+          <View style={styles.scoreboardTop}>
+            <Text style={[styles.scoreboardFrame, { color: ui.textMuted }]}>FRAME {frame.frameNumber}</Text>
+            <Text style={[styles.scoreboardMatch, { color: ui.textMuted }]}>
+              MATCH {matchFrameWins.user}-{matchFrameWins.opponent}
+              {firstToWins ? ` · BEST OF ${bestOfFrames}` : ""}
+            </Text>
+          </View>
 
-          {firstToWins ? (
+          <View style={styles.scoreRow}>
+            {orderedPlayerCards.map((card, index) => {
+              const scoreAnim = card.key === "user" ? userScoreScale : opponentScoreScale;
+
+              return (
+                <React.Fragment key={card.key}>
+                  {index === 1 ? <View style={[styles.scoreDivider, { backgroundColor: ui.border }]} /> : null}
+                  <Pressable
+                    disabled={card.isActive || isFrameComplete}
+                    onPress={() => applyFrameMutation((state) => switchPlayer(state))}
+                    accessibilityRole="button"
+                    accessibilityLabel={card.isActive ? `${card.name}, at the table` : `Switch to ${card.name}`}
+                    style={styles.scoreColumn}
+                  >
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.scoreName, { color: card.isActive ? ui.text : ui.textMuted }]}
+                    >
+                      {card.name}
+                    </Text>
+                    <Animated.Text
+                      style={[
+                        styles.scoreValue,
+                        { color: card.isActive ? ui.text : ui.textMuted, transform: [{ scale: scoreAnim }] },
+                      ]}
+                    >
+                      {card.score}
+                    </Animated.Text>
+                    <View style={[styles.scoreUnderline, { backgroundColor: card.isActive ? colors.primary : "transparent" }]} />
+                    <Text style={[styles.scoreMeta, { color: ui.textMuted }]}>
+                      {card.isActive ? "At the table" : `High break ${card.highBreak}`}
+                    </Text>
+                  </Pressable>
+                </React.Fragment>
+              );
+            })}
+          </View>
+
+          <View style={[styles.liveStrip, { borderTopColor: ui.border }]}>
+            <View style={styles.liveStat}>
+              <Text style={[styles.liveStatLabel, { color: ui.textMuted }]}>BREAK</Text>
+              <Animated.Text style={[styles.liveStatValue, { color: ui.accent, transform: [{ scale: breakPulse }] }]}>
+                {frame.currentBreak}
+              </Animated.Text>
+            </View>
+            <View style={styles.liveStat}>
+              <Text style={[styles.liveStatLabel, { color: ui.textMuted }]}>REMAINING</Text>
+              <Text style={[styles.liveStatValue, { color: ui.text }]}>{pointsRemaining}</Text>
+            </View>
+            <View style={styles.liveStat}>
+              <Text style={[styles.liveStatLabel, { color: ui.textMuted }]}>REDS</Text>
+              <Text style={[styles.liveStatValue, { color: ui.text }]}>{frame.redsRemaining}</Text>
+            </View>
+            <View style={styles.liveStat}>
+              <Text style={[styles.liveStatLabel, { color: ui.textMuted }]}>ON</Text>
+              <Text style={[styles.liveStatValue, { color: ui.text }]}>{ballOnLabel}</Text>
+            </View>
+          </View>
+
+          {snookersRequired ? (
+            <View style={[styles.snookerBanner, { backgroundColor: ui.snookerBg, borderColor: ui.snookerBorder }]}>
+              <Text style={[styles.snookerBannerText, { color: ui.snookerText }]}>
+                {snookersRequired.player === "user" ? userLabel : opponentLabel} needs {snookersRequired.count}{" "}
+                {snookersRequired.count === 1 ? "snooker" : "snookers"} ({snookersRequired.scoreDiff} behind,{" "}
+                {snookersRequired.pointsRemaining} on the table)
+              </Text>
+            </View>
+          ) : null}
+
+          {frame.respottedBlack ? (
+            <View style={[styles.snookerBanner, { backgroundColor: ui.panelSoft, borderColor: ui.borderStrong }]}>
+              <Text style={[styles.snookerBannerText, { color: ui.text }]}>Scores level - black re-spotted</Text>
+            </View>
+          ) : null}
+
+          {isMatchComplete ? (
+            <Text style={[styles.matchCompleteText, { color: ui.accent }]}>
+              Match complete: {matchFrameWins.user > matchFrameWins.opponent ? userLabel : opponentLabel} won.
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.tabRow}>
+          {[
+            { key: "match", label: "Match" },
+            { key: "stats", label: "Stats" },
+            { key: "log", label: "Log" },
+          ].map((tab) => (
+            <Pressable
+              key={tab.key}
+              accessibilityRole="tab"
+              accessibilityLabel={`${tab.label} tab`}
+              style={[
+                styles.tabPill,
+                { borderColor: ui.borderStrong, backgroundColor: ui.panelSoft },
+                activeTab === tab.key && { backgroundColor: colors.primaryStrong, borderColor: colors.primary },
+              ]}
+              onPress={() => setActiveTab(tab.key as "match" | "stats" | "log")}
+            >
+              <Text style={[styles.tabPillText, { color: activeTab === tab.key ? colors.onPrimary : ui.textMuted }]}>{tab.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {activeTab === "match" ? (
+          <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}>
             <View style={styles.raceRow}>
-              <Text style={[styles.raceDescriptor, { color: ui.textMuted }]}>Best of {bestOfFrames} (first to {firstToWins})</Text>
+              <Text style={[styles.raceDescriptor, { color: ui.textMuted }]}>
+                {firstToWins ? `Best of ${bestOfFrames}, first to ${firstToWins}` : "Frame count"}
+              </Text>
               <TextInput
                 value={raceToInput}
                 onFocus={syncRaceInputFromMatch}
@@ -672,120 +769,15 @@ Alert.alert(
                 }}
                 keyboardType="numeric"
                 editable={!isUpdatingRace}
+                accessibilityLabel="Frames in this match"
                 style={[styles.raceInput, { borderColor: ui.borderStrong, backgroundColor: ui.panelSoft, color: ui.text }]}
                 placeholder="Best of"
                 placeholderTextColor={ui.textMuted}
               />
             </View>
-          ) : null}
-
-          {isUpdatingRace ? <Text style={[styles.matchContext, { color: ui.textMuted }]}>Updating match race...</Text> : null}
-
-          {isMatchComplete ? (
-            <Text style={[styles.matchCompleteText, { color: ui.accent }]}> 
-              Match complete: {matchFrameWins.user > matchFrameWins.opponent ? userLabel : opponentLabel} won.
-            </Text>
-          ) : null}
-
-          <View style={styles.tabRow}>
-            {[
-              { key: "match", label: "Match" },
-              { key: "stats", label: "Stats" },
-              { key: "log", label: "Log" },
-            ].map((tab) => (
-              <Pressable
-                key={tab.key}
-                style={[
-                  styles.tabPill,
-                  { borderColor: ui.borderStrong, backgroundColor: ui.panelSoft },
-                  activeTab === tab.key && { backgroundColor: colors.primaryStrong, borderColor: colors.primary },
-                ]}
-                onPress={() => setActiveTab(tab.key as "match" | "stats" | "log")}
-              >
-                <Text style={[styles.tabPillText, { color: activeTab === tab.key ? colors.onPrimary : ui.textMuted }]}>{tab.label}</Text>
-              </Pressable>
-            ))}
+            {isUpdatingRace ? <Text style={[styles.matchContext, { color: ui.textMuted }]}>Updating match length...</Text> : null}
           </View>
-        </View>
-
-        <Animated.View style={[styles.playerZone, { transform: [{ scale: scorePulse }] }]}> 
-          {orderedPlayerCards.map((card) => {
-            const activeAnim = card.key === "user" ? userActiveAnim : opponentActiveAnim;
-            const scoreAnim = card.key === "user" ? userScoreScale : opponentScoreScale;
-            const cardScale = activeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
-            const cardOpacity = activeAnim.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
-
-            return (
-              <Pressable
-                key={card.key}
-                disabled={card.isActive}
-                onPress={() => applyFrameMutation((state) => switchPlayer(state))}
-                style={styles.playerPressArea}
-              >
-                <Animated.View
-                  style={[
-                    styles.playerMatchCard,
-                    {
-                      backgroundColor: card.isActive ? ui.panel : ui.panelAlt,
-                      borderColor: card.isActive ? colors.primary : ui.border,
-                      opacity: cardOpacity,
-                      transform: [{ scale: cardScale }],
-                    },
-                    card.isActive && [styles.playerMatchCardActive, { shadowColor: colors.primary }],
-                  ]}
-                >
-                  <View style={styles.playerMatchCardTop}>
-                    <Text style={[styles.playerMatchName, { color: ui.text }]}>{card.name}</Text>
-                    <Text
-                      style={[
-                        styles.playerBadge,
-                        {
-                          backgroundColor: card.isActive ? colors.primaryStrong : ui.panelSoft,
-                          color: card.isActive ? colors.onPrimary : ui.textMuted,
-                          borderColor: card.isActive ? colors.primary : ui.borderStrong,
-                        },
-                      ]}
-                    >
-                      {card.isActive ? "AT TABLE" : "TAP TO SWITCH"}
-                    </Text>
-                  </View>
-
-                  <Animated.Text style={[styles.playerMatchScore, { color: ui.text, transform: [{ scale: scoreAnim }] }]}>{card.score}</Animated.Text>
-
-                  {card.isActive ? (
-                    <Animated.Text style={[styles.breakHighlight, { color: ui.accent, transform: [{ scale: breakPulse }] }]}>Break: {frame.currentBreak}</Animated.Text>
-                  ) : (
-                    <Text style={[styles.breakSupporting, { color: ui.textMuted }]}>High break {card.highBreak}</Text>
-                  )}
-
-                  {snookersRequired && snookersRequired.player === card.key ? (
-                    <Text style={[styles.breakSupporting, { color: ui.snookerText }]}>Needs snookers: {snookersRequired.count}</Text>
-                  ) : null}
-
-                  <View style={styles.recentBallRow}>
-                    {BALL_META.filter((item) => card.potCounts[item.key] > 0).length === 0 ? (
-                      <Text style={[styles.recentEmpty, { color: ui.textMuted }]}>No pots yet</Text>
-                    ) : (
-                      BALL_META.filter((item) => card.potCounts[item.key] > 0).map((meta) => {
-                        return (
-                          <View
-                            key={`${card.key}-${meta.key}`}
-                            style={[
-                              styles.recentBallCounter,
-                              { backgroundColor: meta.color, borderColor: "rgba(255,255,255,0.55)" },
-                            ]}
-                          >
-                            <Text style={[styles.recentBallCounterText, { color: meta.textColor }]}>{card.potCounts[meta.key]}</Text>
-                          </View>
-                        );
-                      })
-                    )}
-                  </View>
-                </Animated.View>
-              </Pressable>
-            );
-          })}
-        </Animated.View>
+        ) : null}
 
         {activeTab === "stats" ? (
           <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
@@ -938,14 +930,25 @@ Alert.alert(
             </Pressable>
           </View>
 
-          <View style={styles.secondaryControlsWrap}>
-            <Pressable style={[styles.reRackButton, { backgroundColor: isDark ? "#2F2A1E" : "#EFE8D2", borderColor: isDark ? "#625A44" : "#CDBD8F" }]} onPress={handleReRack}>
-              <Text style={[styles.reRackText, { color: isDark ? "#F2E7B5" : "#6F5A20" }]}>Re-rack</Text>
+          <Pressable
+            style={[styles.saveButton, { backgroundColor: colors.primaryStrong, borderColor: colors.primary }]}
+            onPress={handleEndFrame}
+            disabled={isSaving}
+            accessibilityRole="button"
+            accessibilityLabel={isFrameComplete ? "Save this frame" : "End this frame at the current score"}
+          >
+            <Text style={[styles.saveButtonText, { color: colors.onPrimary }]}>
+              {isSaving ? "Saving..." : isFrameComplete ? "Save frame" : "End frame"}
+            </Text>
+          </Pressable>
+
+          <View style={styles.quietRow}>
+            <Pressable onPress={handleReRack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Re-rack this frame">
+              <Text style={[styles.quietAction, { color: ui.textMuted }]}>Re-rack</Text>
             </Pressable>
-            <Pressable style={[styles.saveButton, { backgroundColor: colors.primaryStrong, borderColor: colors.primary }]} onPress={handleSaveFrame} disabled={isSaving}>
-              <Text style={[styles.saveButtonText, { color: colors.onPrimary }]}> 
-                {isSaving ? "Saving..." : snookersRequired ? "End Frame" : isFrameComplete ? "Save Frame" : "Save Abandoned"}
-              </Text>
+            <Text style={[styles.quietDot, { color: ui.textMuted }]}>·</Text>
+            <Pressable onPress={handleAbandonFrame} hitSlop={8} accessibilityRole="button" accessibilityLabel="Abandon this frame">
+              <Text style={[styles.quietAction, { color: ui.textMuted }]}>Abandon frame</Text>
             </Pressable>
           </View>
         </View>
@@ -1043,6 +1046,115 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 14,
+  },
+  scoreboard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingTop: 14,
+    paddingHorizontal: 14,
+    paddingBottom: 12,
+    marginBottom: 12,
+  },
+  scoreboardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  scoreboardFrame: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+  },
+  scoreboardMatch: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  scoreRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  scoreColumn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 4,
+    minHeight: 96,
+  },
+  scoreDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    marginHorizontal: 8,
+  },
+  scoreName: {
+    fontSize: 13,
+    fontWeight: "700",
+    maxWidth: "100%",
+  },
+  scoreValue: {
+    fontSize: 46,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+    letterSpacing: -1.5,
+    marginTop: 2,
+  },
+  scoreUnderline: {
+    height: 3,
+    width: 36,
+    borderRadius: 999,
+    marginTop: 6,
+  },
+  scoreMeta: {
+    fontSize: 11,
+    marginTop: 6,
+  },
+  liveStrip: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    marginTop: 12,
+    paddingTop: 10,
+  },
+  liveStat: {
+    flex: 1,
+    alignItems: "center",
+  },
+  liveStatLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  liveStatValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+    marginTop: 2,
+  },
+  snookerBanner: {
+    marginTop: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  snookerBannerText: {
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 16,
+    textAlign: "center",
+  },
+  quietRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 10,
+    minHeight: 44,
+  },
+  quietAction: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  quietDot: {
+    fontSize: 13,
   },
   matchHeader: {
     borderRadius: 16,
@@ -1376,20 +1488,6 @@ const styles = StyleSheet.create({
     color: "#EEFFF8",
     fontSize: 18,
     fontWeight: "800",
-  },
-  snookerBanner: {
-    marginTop: 10,
-    borderRadius: 12,
-    backgroundColor: "#4C1F1F",
-    borderWidth: 1,
-    borderColor: "#975050",
-    padding: 10,
-  },
-  snookerBannerText: {
-    color: "#FCD8D8",
-    fontSize: 13,
-    fontWeight: "700",
-    textAlign: "center",
   },
   ballGrid: {
     marginTop: 6,
