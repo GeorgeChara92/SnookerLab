@@ -1,16 +1,18 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
-  Keyboard,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   useNavigation,
   useRoute,
@@ -21,80 +23,40 @@ import { useRoutinesStore, useSessionsStore } from "../../store";
 import type { ScoringType, SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
+import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const getQuickScores = (scoringType: ScoringType, maxScore?: number) => {
   const scoreMax = maxScore && maxScore > 0 ? maxScore : undefined;
 
   if (scoringType === "percentage") {
-    return [
-      { label: "0%", value: "0%" },
-      { label: "25%", value: "25%" },
-      { label: "50%", value: "50%" },
-      { label: "75%", value: "75%" },
-      { label: "100%", value: "100%" },
-    ];
+    return ["0%", "25%", "50%", "75%", "100%"].map((value) => ({ label: value, value }));
   }
 
   if (scoringType === "points") {
     if (scoreMax) {
-      const q1 = Math.round(scoreMax * 0.25);
-      const q2 = Math.round(scoreMax * 0.5);
-      const q3 = Math.round(scoreMax * 0.75);
-      return [
-        { label: `0/${scoreMax}`, value: "0" },
-        { label: `${q1} pts`, value: `${q1}` },
-        { label: `${q2} pts`, value: `${q2}` },
-        { label: `${q3} pts`, value: `${q3}` },
-        { label: `${scoreMax} pts`, value: `${scoreMax}` },
-      ];
+      return [0, 0.25, 0.5, 0.75, 1]
+        .map((fraction) => Math.round(scoreMax * fraction))
+        .map((points) => ({ label: `${points}`, value: `${points}` }));
     }
-    return [
-      { label: "0", value: "0" },
-      { label: "25", value: "25" },
-      { label: "50", value: "50" },
-      { label: "20 pts", value: "20" },
-      { label: "75", value: "75" },
-      { label: "100", value: "100" },
-    ];
+    return [0, 25, 50, 75, 100].map((points) => ({ label: `${points}`, value: `${points}` }));
   }
 
   if (scoringType === "count") {
-    if (scoreMax) {
-      const q1 = Math.max(0, Math.round(scoreMax * 0.25));
-      const q2 = Math.max(0, Math.round(scoreMax * 0.5));
-      const q3 = Math.max(0, Math.round(scoreMax * 0.75));
-      return [
-        { label: `0/${scoreMax}`, value: `0/${scoreMax}` },
-        { label: `${q1}/${scoreMax}`, value: `${q1}/${scoreMax}` },
-        { label: `${q2}/${scoreMax}`, value: `${q2}/${scoreMax}` },
-        { label: `${q3}/${scoreMax}`, value: `${q3}/${scoreMax}` },
-        { label: `${scoreMax}/${scoreMax}`, value: `${scoreMax}/${scoreMax}` },
-      ];
-    }
-    return [
-      { label: "0/10", value: "0/10" },
-      { label: "3/10", value: "3/10" },
-      { label: "5/10", value: "5/10" },
-      { label: "8/10", value: "8/10" },
-      { label: "10/10", value: "10/10" },
-    ];
+    const total = scoreMax ?? 10;
+    return [0, 0.25, 0.5, 0.75, 1]
+      .map((fraction) => Math.max(0, Math.round(total * fraction)))
+      .map((made) => ({ label: `${made}`, value: `${made}/${total}` }));
   }
 
   if (scoringType === "time") {
-    return [
-      { label: "05:00", value: "05:00" },
-      { label: "10:00", value: "10:00" },
-      { label: "15:00", value: "15:00" },
-      { label: "20:00", value: "20:00" },
-    ];
+    return ["05:00", "10:00", "15:00", "20:00"].map((value) => ({ label: value, value }));
   }
 
-  return [
-    { label: "0", value: "0" },
-    { label: "5", value: "5" },
-    { label: "10", value: "10" },
-    { label: "15", value: "15" },
-  ];
+  return [0, 5, 10, 15].map((value) => ({ label: `${value}`, value: `${value}` }));
 };
 
 const getCustomPlaceholder = (scoringType: ScoringType) => {
@@ -112,16 +74,17 @@ const getCustomPlaceholder = (scoringType: ScoringType) => {
   }
 };
 
+/** What the quick buttons are counting, said plainly. */
 const getScoringIndicator = (scoringType: ScoringType, maxScore?: number) => {
   const base =
     scoringType === "points"
       ? "Points"
       : scoringType === "percentage"
-        ? "Percentage"
+        ? "Success rate"
         : scoringType === "count"
-          ? "Count"
+          ? "Pots made"
           : "Time";
-  return maxScore && maxScore > 0 ? `${base} (max ${maxScore})` : base;
+  return maxScore && maxScore > 0 ? `${base} out of ${maxScore}` : base;
 };
 
 const sanitizeScoreInput = (value: string, scoringType: ScoringType, maxScore?: number) => {
@@ -180,10 +143,12 @@ export const ActiveSessionScreen = () => {
   const { getRoutineById } = useRoutinesStore();
   const { colors } = useAppTheme();
   const dialog = useDialog();
+
   const [isSaving, setIsSaving] = useState(false);
-  const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
-  const scrollRef = useRef<ScrollView>(null);
-  const progressAnimations = useRef<Record<string, Animated.Value>>({}).current;
+  /** One drill is open at a time: the one being played. The rest sit as one-line rows. */
+  const [openDrillId, setOpenDrillId] = useState<string | null>(null);
+  const [showNotesFor, setShowNotesFor] = useState<Record<string, boolean>>({});
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   const template = getTemplateById(templateId);
 
@@ -193,32 +158,41 @@ export const ActiveSessionScreen = () => {
     }
   }, [templateId]);
 
-  const completedCount = activeResults.filter((r) => r.score.trim().length > 0).length;
+  const completedCount = activeResults.filter((result) => result.score.trim().length > 0).length;
   const totalRoutines = activeResults.length;
   const progress = totalRoutines > 0 ? completedCount / totalRoutines : 0;
 
+  // Open the first drill still to be scored, once the session has loaded.
+  useEffect(() => {
+    if (openDrillId || !activeResults.length) return;
+    const next = activeResults.find((result) => !result.score.trim().length) ?? activeResults[0];
+    setOpenDrillId(next.routine_id);
+  }, [activeResults, openDrillId]);
+
+  useEffect(() => {
+    Animated.timing(progressAnim, { toValue: progress, duration: 320, useNativeDriver: false }).start();
+  }, [progress, progressAnim]);
+
+  const openDrill = (routineId: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpenDrillId((current) => (current === routineId ? null : routineId));
+  };
+
   const handleScoreSelect = (routineId: string, score: string) => {
     updateActiveResult(routineId, { score });
-    
-    if (!progressAnimations[routineId]) {
-      progressAnimations[routineId] = new Animated.Value(0);
-    }
-    Animated.sequence([
-      Animated.timing(progressAnimations[routineId], {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(progressAnimations[routineId], {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
+
+    // Scoring a drill with one tap should hand you the next one, not leave you scrolling.
+    const remaining = activeResults.filter(
+      (result) => result.routine_id !== routineId && !result.score.trim().length
+    );
+
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpenDrillId(remaining.length ? remaining[0].routine_id : null);
   };
 
   const toggleNotes = (routineId: string) => {
-    setExpandedNotes((prev) => ({ ...prev, [routineId]: !prev[routineId] }));
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowNotesFor((prev) => ({ ...prev, [routineId]: !prev[routineId] }));
   };
 
   const handleComplete = async () => {
@@ -226,8 +200,11 @@ export const ActiveSessionScreen = () => {
       setIsSaving(true);
       await saveActiveSession();
       dialog.alert({
-        title: "Session complete",
-        message: "Your results have been saved to this session's history.",
+        title: "Session saved",
+        message:
+          completedCount === totalRoutines
+            ? "Every drill is in. It is on this session's history now."
+            : `${completedCount} of ${totalRoutines} drills scored. It is on this session's history now.`,
         tone: "success",
         icon: "check-circle-outline",
         confirmLabel: "Done",
@@ -246,10 +223,15 @@ export const ActiveSessionScreen = () => {
     }
   };
 
+  const sessionDate = useMemo(
+    () => new Date(activeDate).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }),
+    [activeDate]
+  );
+
   if (!template) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}> 
-        <Text style={[styles.emptyText, { color: colors.textMuted }]}>Session preset not found.</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.missing, { color: colors.textMuted }]}>Session preset not found.</Text>
       </View>
     );
   }
@@ -260,147 +242,220 @@ export const ActiveSessionScreen = () => {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       keyboardVerticalOffset={90}
     >
-      <View style={[styles.progressHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}> 
-        <View style={styles.progressInfo}>
-          <Text style={[styles.progressLabel, { color: colors.textMuted }]}>Progress</Text>
-          <Text style={[styles.progressValue, { color: colors.text }]}>
-            {completedCount} of {totalRoutines} drills
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View style={styles.headerTop}>
+          <View style={styles.headerText}>
+            <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+              {template.name}
+            </Text>
+            <Text style={[styles.headerDate, { color: colors.textMuted }]}>{sessionDate}</Text>
+          </View>
+          <Text style={[styles.headerCount, { color: completedCount ? colors.primary : colors.textMuted }]}>
+            {completedCount}/{totalRoutines}
           </Text>
         </View>
-        <View style={[styles.progressBar, { backgroundColor: colors.border }]}> 
-          <View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${progress * 100}%` }]} />
+
+        <View style={[styles.progressTrack, { backgroundColor: colors.surfaceMuted }]}>
+          <Animated.View
+            style={[
+              styles.progressFill,
+              {
+                backgroundColor: colors.primary,
+                width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
+              },
+            ]}
+          />
         </View>
       </View>
 
       <ScrollView
-        ref={scrollRef}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.sessionHeader, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.sessionTitle, { color: colors.text }]}>{template.name}</Text>
-          <Text style={[styles.sessionDate, { color: colors.textMuted }]}>
-            {new Date(activeDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-          </Text>
-        </View>
-
         {activeResults.map((result, index) => {
           const routine = getRoutineById(result.routine_id);
           const scoringType = (routine?.scoring_type ?? "count") as ScoringType;
           const quickScores = getQuickScores(scoringType, routine?.max_score);
           const hasScore = result.score.trim().length > 0;
-          const showNotes = expandedNotes[result.routine_id];
-
-          if (!progressAnimations[result.routine_id]) {
-            progressAnimations[result.routine_id] = new Animated.Value(0);
-          }
-          const scale = progressAnimations[result.routine_id].interpolate({
-            inputRange: [0, 1],
-            outputRange: [1, 1.02],
-          });
+          const isOpen = openDrillId === result.routine_id;
+          const notesOpen = showNotesFor[result.routine_id];
 
           return (
-            <Animated.View
+            <View
               key={result.routine_id}
               style={[
                 styles.drillCard,
-                { backgroundColor: colors.surface, borderColor: hasScore ? colors.primary : colors.border, transform: [{ scale }] },
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: isOpen ? colors.primary : colors.border,
+                },
               ]}
             >
-              <View style={styles.drillHeader}>
-                <View style={styles.drillNumber}>
-                  <Text style={[styles.drillNumberText, { color: hasScore ? colors.onPrimary : colors.textMuted }]}>
-                    {index + 1}
-                  </Text>
-                </View>
-                <View style={styles.drillTitleWrap}>
-                  <Text style={[styles.drillName, { color: colors.text }]}>{routine?.name ?? "Routine"}</Text>
-                  <Text style={[styles.drillMeta, { color: colors.textMuted }]}>
-                    {getScoringIndicator(scoringType, routine?.max_score)}
-                  </Text>
-                  {hasScore && (
-                    <Text style={[styles.drillScore, { color: colors.primary }]}>{result.score}</Text>
+              <Pressable
+                onPress={() => openDrill(result.routine_id)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isOpen }}
+                accessibilityLabel={`${routine?.name ?? "Routine"}, ${hasScore ? `scored ${result.score}` : "not scored yet"}`}
+                style={styles.drillHeader}
+              >
+                <View
+                  style={[
+                    styles.drillNumber,
+                    {
+                      backgroundColor: hasScore ? colors.primary : colors.surfaceMuted,
+                      borderColor: hasScore ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  {hasScore ? (
+                    <MaterialCommunityIcons name="check" size={16} color={colors.onPrimary} />
+                  ) : (
+                    <Text style={[styles.drillNumberText, { color: colors.textMuted }]}>{index + 1}</Text>
                   )}
                 </View>
-              </View>
 
-              <View style={styles.quickScores}>
-                {quickScores.map((qs) => {
-                  const selected = result.score === qs.value;
-                  return (
-                    <Pressable
-                      key={qs.value}
-                      style={[
-                        styles.quickScoreBtn,
-                        {
-                          borderColor: selected ? colors.primary : colors.border,
-                          backgroundColor: selected ? colors.primary + "15" : colors.surfaceMuted,
-                        },
-                      ]}
-                      onPress={() => handleScoreSelect(result.routine_id, qs.value)}
-                    >
-                      <Text style={[styles.quickScoreText, { color: selected ? colors.primary : colors.text }]}>{qs.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+                <View style={styles.drillTitleWrap}>
+                  <Text style={[styles.drillName, { color: colors.text }]} numberOfLines={1}>
+                    {routine?.name ?? "Routine"}
+                  </Text>
+                  <Text style={[styles.drillMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                    {getScoringIndicator(scoringType, routine?.max_score)}
+                  </Text>
+                </View>
 
-              <View style={styles.customScoreRow}>
-                <TextInput
-                  style={[styles.customScoreInput, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-                  placeholder={getCustomPlaceholder(scoringType)}
-                  placeholderTextColor={colors.textMuted}
-                  value={result.score}
-                  onChangeText={(text) =>
-                    updateActiveResult(result.routine_id, {
-                      score: sanitizeScoreInput(text, scoringType, routine?.max_score),
-                    })
-                  }
-                  keyboardType={scoringType === "time" ? "numbers-and-punctuation" : "default"}
+                {hasScore ? (
+                  <View style={[styles.scorePill, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                    <Text style={[styles.scorePillText, { color: colors.primary }]}>{result.score}</Text>
+                  </View>
+                ) : null}
+
+                <MaterialCommunityIcons
+                  name={isOpen ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={colors.textMuted}
                 />
-              </View>
-
-              <Pressable style={styles.notesToggle} onPress={() => toggleNotes(result.routine_id)}>
-                <Text style={[styles.notesToggleText, { color: colors.textMuted }]}>
-                  {showNotes ? "Hide notes" : "Add note"}
-                </Text>
               </Pressable>
 
-              {showNotes && (
-                <TextInput
-                  style={[styles.notesInput, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-                  placeholder="Optional notes..."
-                  placeholderTextColor={colors.textMuted}
-                  value={result.notes ?? ""}
-                  onChangeText={(text) => updateActiveResult(result.routine_id, { notes: text })}
-                  multiline
-                  textAlignVertical="top"
-                />
-              )}
-            </Animated.View>
+              {isOpen ? (
+                <View style={styles.drillBody}>
+                  <View style={styles.quickScores}>
+                    {quickScores.map((quick) => {
+                      const selected = result.score === quick.value;
+                      return (
+                        <Pressable
+                          key={quick.value}
+                          onPress={() => handleScoreSelect(result.routine_id, quick.value)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                          accessibilityLabel={`Score ${quick.value}`}
+                          style={[
+                            styles.quickScore,
+                            {
+                              borderColor: selected ? colors.primary : colors.border,
+                              backgroundColor: selected ? colors.primary : colors.surfaceMuted,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[styles.quickScoreText, { color: selected ? colors.onPrimary : colors.text }]}
+                          >
+                            {quick.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <View style={styles.entryRow}>
+                    <TextInput
+                      style={[
+                        styles.scoreInput,
+                        { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text },
+                      ]}
+                      placeholder={getCustomPlaceholder(scoringType)}
+                      placeholderTextColor={colors.textMuted}
+                      value={result.score}
+                      onChangeText={(text) =>
+                        updateActiveResult(result.routine_id, {
+                          score: sanitizeScoreInput(text, scoringType, routine?.max_score),
+                        })
+                      }
+                      keyboardType={scoringType === "time" ? "numbers-and-punctuation" : "default"}
+                      accessibilityLabel={`Score for ${routine?.name ?? "this drill"}`}
+                    />
+
+                    <Pressable
+                      onPress={() => toggleNotes(result.routine_id)}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: !!notesOpen }}
+                      accessibilityLabel={notesOpen ? "Hide the note" : "Add a note"}
+                      style={[
+                        styles.noteButton,
+                        {
+                          borderColor: notesOpen || result.notes ? colors.primary : colors.border,
+                          backgroundColor: colors.surfaceMuted,
+                        },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name="note-text-outline"
+                        size={18}
+                        color={notesOpen || result.notes ? colors.primary : colors.textMuted}
+                      />
+                    </Pressable>
+                  </View>
+
+                  {notesOpen ? (
+                    <TextInput
+                      style={[
+                        styles.notesInput,
+                        { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text },
+                      ]}
+                      placeholder="How did it feel? What went wrong?"
+                      placeholderTextColor={colors.textMuted}
+                      value={result.notes ?? ""}
+                      onChangeText={(text) => updateActiveResult(result.routine_id, { notes: text })}
+                      multiline
+                      textAlignVertical="top"
+                      accessibilityLabel={`Note for ${routine?.name ?? "this drill"}`}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
           );
         })}
       </ScrollView>
 
-      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border }]}> 
-        <View style={styles.actionSummary}>
-          <Text style={[styles.actionProgress, { color: colors.text }]}>
-            {completedCount}/{totalRoutines} drills completed
+      <View style={[styles.actionBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+        <View style={styles.actionInfo}>
+          <Text style={[styles.actionTitle, { color: colors.text }]}>
+            {completedCount === totalRoutines && totalRoutines > 0
+              ? "All drills scored"
+              : `${completedCount} of ${totalRoutines} scored`}
           </Text>
-          {completedCount < totalRoutines && (
-            <Text style={[styles.actionHint, { color: colors.textMuted }]}>
-              {totalRoutines - completedCount} remaining
-            </Text>
-          )}
+          <Text style={[styles.actionHint, { color: colors.textMuted }]}>
+            {completedCount === totalRoutines
+              ? "Save it to your history"
+              : "Unscored drills are saved as blank"}
+          </Text>
         </View>
+
         <Pressable
-          style={[styles.saveButton, { backgroundColor: colors.primary, opacity: isSaving ? 0.7 : 1 }]}
           onPress={handleComplete}
           disabled={isSaving}
+          accessibilityRole="button"
+          accessibilityLabel="Save this session"
+          accessibilityState={{ disabled: isSaving, busy: isSaving }}
+          style={({ pressed }) => [
+            styles.saveButton,
+            { backgroundColor: colors.primary, opacity: isSaving ? 0.7 : pressed ? 0.85 : 1 },
+          ]}
         >
-          <Text style={[styles.saveButtonText, { color: colors.onPrimary }]}>Save Session</Text>
+          <Text style={[styles.saveButtonText, { color: colors.onPrimary }]}>Save session</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -409,108 +464,135 @@ export const ActiveSessionScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  progressHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  missing: { textAlign: "center", marginTop: 40, fontSize: 14 },
+
+  header: {
     borderBottomWidth: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
   },
-  progressInfo: {
+  headerTop: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    gap: SPACING.md,
+    marginBottom: SPACING.sm,
   },
-  progressLabel: { fontSize: 12, fontWeight: "600", textTransform: "uppercase" },
-  progressValue: { fontSize: 14, fontWeight: "700" },
-  progressBar: { height: 4, borderRadius: 2, overflow: "hidden" },
+  headerText: { flex: 1 },
+  headerTitle: { fontSize: 16, fontWeight: "800" },
+  headerDate: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+  headerCount: {
+    fontSize: 16,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
+  progressTrack: { height: 4, borderRadius: 2, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 2 },
+
   scrollView: { flex: 1 },
-  content: { padding: 16, paddingBottom: 100 },
-  sessionHeader: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 12,
-  },
-  sessionTitle: { fontSize: 18, fontWeight: "800", marginBottom: 4 },
-  sessionDate: { fontSize: 13 },
+  content: { padding: SPACING.lg, paddingBottom: 120 },
+
   drillCard: {
-    borderRadius: 14,
-    borderWidth: 1.5,
-    padding: 14,
-    marginBottom: 10,
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.sm,
+    overflow: "hidden",
   },
   drillHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    gap: SPACING.md,
+    minHeight: 64,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
   },
   drillNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#0F5A43",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 10,
   },
-  drillNumberText: { fontSize: 13, fontWeight: "700" },
+  drillNumberText: { fontSize: 13, fontWeight: "800" },
   drillTitleWrap: { flex: 1 },
   drillName: { fontSize: 15, fontWeight: "700" },
-  drillMeta: { fontSize: 12, marginTop: 2 },
-  drillScore: { fontSize: 13, marginTop: 2 },
+  drillMeta: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+  scorePill: {
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+  },
+  scorePillText: { fontSize: 13, fontWeight: "800", fontVariant: ["tabular-nums"] },
+
+  drillBody: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
   quickScores: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 10,
+    gap: SPACING.xs,
   },
-  quickScoreBtn: {
+  quickScore: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
+    minHeight: HIT_TARGET,
     alignItems: "center",
-  },
-  quickScoreText: { fontSize: 13, fontWeight: "600" },
-  customScoreRow: { marginBottom: 8 },
-  customScoreInput: {
+    justifyContent: "center",
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 2,
   },
-  notesToggle: {
-    paddingVertical: 6,
+  quickScoreText: { fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] },
+
+  entryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
   },
-  notesToggleText: { fontSize: 12, fontWeight: "600" },
+  scoreInput: {
+    flex: 1,
+    minHeight: HIT_TARGET,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    fontSize: 15,
+  },
+  noteButton: {
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   notesInput: {
+    minHeight: 76,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     fontSize: 14,
-    minHeight: 60,
-    marginTop: 4,
   },
+
   actionBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: 16,
-    borderTopWidth: 1,
-  },
-  actionSummary: {
-    marginBottom: 10,
-  },
-  actionProgress: { fontSize: 14, fontWeight: "700" },
-  actionHint: { fontSize: 12, marginTop: 2 },
-  saveButton: {
-    borderRadius: 12,
-    paddingVertical: 14,
+    flexDirection: "row",
     alignItems: "center",
+    gap: SPACING.md,
+    borderTopWidth: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
   },
-  saveButtonText: { fontSize: 15, fontWeight: "700" },
-  emptyText: { fontSize: 16, padding: 20, textAlign: "center" },
+  actionInfo: { flex: 1 },
+  actionTitle: { fontSize: 15, fontWeight: "800" },
+  actionHint: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+  saveButton: {
+    minHeight: HIT_TARGET,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.xl,
+    borderRadius: RADIUS.md,
+  },
+  saveButtonText: { fontSize: 15, fontWeight: "800" },
 });

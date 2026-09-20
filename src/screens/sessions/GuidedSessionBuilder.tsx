@@ -1,63 +1,76 @@
-import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIManager, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useRoutinesStore, useSessionsStore } from "../../store";
-import type { SessionsStackParamList } from "../../types";
+import type { Routine, SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { AppButton } from "../../components/ui/AppButton";
+import { useDialog } from "../../components/ui/DialogProvider";
+import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type PracticeFocus = "potting" | "position" | "break-building" | "safety" | "technique";
 type SessionLength = "quick" | "standard" | "intensive";
 
-const PRACTICE_OPTIONS: { id: PracticeFocus; label: string; description: string; icon: string }[] = [
-  { id: "potting", label: "Potting", description: "Shot accuracy and consistency", icon: "target" },
-  { id: "position", label: "Position Play", description: "Cue ball control and positioning", icon: "circle-outline" },
-  { id: "break-building", label: "Break Building", description: "Scoring breaks and clearance", icon: "fire" },
-  { id: "safety", label: "Safety Play", description: "Defensive shots and escapes", icon: "shield-outline" },
-  { id: "technique", label: "Technique", description: "Stance, grip, and delivery", icon: "billiards" },
+const FALLBACK_MINUTES = 5;
+
+const PRACTICE_OPTIONS: {
+  id: PracticeFocus;
+  label: string;
+  description: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+}[] = [
+  { id: "potting", label: "Potting", description: "Accuracy and consistency", icon: "target" },
+  { id: "position", label: "Position", description: "Cue ball control", icon: "circle-outline" },
+  { id: "break-building", label: "Break building", description: "Scoring visits and clearances", icon: "fire" },
+  { id: "safety", label: "Safety", description: "Snookers and escapes", icon: "shield-outline" },
+  { id: "technique", label: "Technique", description: "Stance, grip and delivery", icon: "billiards" },
 ];
 
 const SESSION_LENGTHS: { id: SessionLength; label: string; duration: string; routineCount: number }[] = [
-  { id: "quick", label: "Quick", duration: "10-15 min", routineCount: 2 },
-  { id: "standard", label: "Standard", duration: "20-30 min", routineCount: 4 },
-  { id: "intensive", label: "Intensive", duration: "40+ min", routineCount: 6 },
+  { id: "quick", label: "Quick", duration: "10 to 15 min", routineCount: 2 },
+  { id: "standard", label: "Standard", duration: "20 to 30 min", routineCount: 4 },
+  { id: "intensive", label: "Long", duration: "40 min or more", routineCount: 6 },
 ];
 
-const FOCUS_TAGS: Record<PracticeFocus, { id: string; label: string }[]> = {
+/** The words a tag looks for in a routine, so picking one actually changes the session. */
+const FOCUS_TAGS: Record<PracticeFocus, { id: string; label: string; keywords: string[] }[]> = {
   potting: [
-    { id: "long-potting", label: "Long pots" },
-    { id: "mid-range", label: "Mid-range" },
-    { id: "straight-pots", label: "Straight pots" },
-    { id: "awkward-angles", label: "Awkward angles" },
+    { id: "long-potting", label: "Long pots", keywords: ["long", "distance", "baulk"] },
+    { id: "mid-range", label: "Mid-range", keywords: ["mid", "middle", "pot"] },
+    { id: "straight-pots", label: "Straight pots", keywords: ["straight", "line", "blue"] },
+    { id: "awkward-angles", label: "Awkward angles", keywords: ["angle", "cut", "thin"] },
   ],
   position: [
-    { id: "stun", label: "Stun" },
-    { id: "screw", label: "Screw back" },
-    { id: "follow", label: "Follow through" },
-    { id: "side-spin", label: "Side spin" },
+    { id: "stun", label: "Stun", keywords: ["stun", "control"] },
+    { id: "screw", label: "Screw back", keywords: ["screw", "back", "draw"] },
+    { id: "follow", label: "Follow through", keywords: ["follow", "top", "through"] },
+    { id: "side-spin", label: "Side", keywords: ["side", "spin", "english"] },
   ],
   "break-building": [
-    { id: "clearances", label: "Clearances" },
-    { id: "colours", label: "Colours" },
-    { id: "reds", label: "Reds" },
-    { id: "split", label: "Pack split" },
+    { id: "clearances", label: "Clearances", keywords: ["clearance", "clear"] },
+    { id: "colours", label: "Colours", keywords: ["colour", "black", "pink"] },
+    { id: "reds", label: "Reds", keywords: ["red", "pack"] },
+    { id: "split", label: "Splitting the pack", keywords: ["split", "pack", "develop"] },
   ],
   safety: [
-    { id: "escapes", label: "Escapes" },
-    { id: "baulk-safety", label: "Baulk safety" },
-    { id: "two-cushion", label: "Two cushion" },
-    { id: "three-cushion", label: "Three cushion" },
+    { id: "escapes", label: "Escapes", keywords: ["escape", "snooker"] },
+    { id: "baulk-safety", label: "Baulk safety", keywords: ["baulk", "safety"] },
+    { id: "two-cushion", label: "Two cushion", keywords: ["cushion", "two"] },
+    { id: "three-cushion", label: "Three cushion", keywords: ["cushion", "three"] },
   ],
   technique: [
-    { id: "stance", label: "Stance" },
-    { id: "grip", label: "Grip" },
-    { id: "cue-action", label: "Cue action" },
-    { id: "follow-through", label: "Follow through" },
+    { id: "stance", label: "Stance", keywords: ["stance", "alignment", "body"] },
+    { id: "grip", label: "Grip", keywords: ["grip", "hand"] },
+    { id: "cue-action", label: "Cue action", keywords: ["cue", "action", "delivery"] },
+    { id: "follow-through", label: "Follow through", keywords: ["follow", "through", "timing"] },
   ],
 };
 
-const CATEGORY_ROUTINE_MAP: Record<PracticeFocus, { categoryId: string; weight: number }[]> = {
+const CATEGORY_WEIGHTS: Record<PracticeFocus, { categoryId: string; weight: number }[]> = {
   potting: [
     { categoryId: "cat-long-potting", weight: 1 },
     { categoryId: "cat-straight-cueing", weight: 0.8 },
@@ -81,365 +94,498 @@ const CATEGORY_ROUTINE_MAP: Record<PracticeFocus, { categoryId: string; weight: 
   ],
 };
 
+const STEP_TITLES = ["Focus", "Length", "Detail", "Review"];
+
 export const GuidedSessionBuilder = () => {
   const navigation = useNavigation<NavigationProp<SessionsStackParamList>>();
   const { categories, routines } = useRoutinesStore();
   const { createTemplate } = useSessionsStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [practiceFocus, setPracticeFocus] = useState<PracticeFocus | null>(null);
   const [sessionLength, setSessionLength] = useState<SessionLength | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  /** Bumped by the shuffle button, so the picks only change when the player asks. */
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+
+  const goToStep = (next: 1 | 2 | 3 | 4) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setStep(next);
+  };
 
   const suggestedRoutines = useMemo(() => {
-    if (!practiceFocus || !sessionLength) return [];
+    if (!practiceFocus || !sessionLength) return [] as Routine[];
 
-    const lengthConfig = SESSION_LENGTHS.find((l) => l.id === sessionLength);
-    const targetCount = lengthConfig?.routineCount ?? 4;
+    const targetCount = SESSION_LENGTHS.find((option) => option.id === sessionLength)?.routineCount ?? 4;
+    const tagKeywords = (FOCUS_TAGS[practiceFocus] ?? [])
+      .filter((tag) => selectedTags.includes(tag.id))
+      .flatMap((tag) => tag.keywords);
 
-    const categoryWeights = CATEGORY_ROUTINE_MAP[practiceFocus];
-    const allRoutines: { routine: typeof routines[0]; weight: number }[] = [];
+    const scored = CATEGORY_WEIGHTS[practiceFocus]
+      .flatMap(({ categoryId, weight }) =>
+        routines
+          .filter((routine) => routine.category_id === categoryId && routine.content_type !== "guide")
+          .map((routine) => {
+            const haystack = [routine.name, routine.summary, routine.success_criteria, ...(routine.improves ?? [])]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
 
-    categoryWeights.forEach(({ categoryId, weight }) => {
-      const categoryRoutines = routines.filter(
-        (r) => r.category_id === categoryId && r.content_type !== "guide"
-      );
-      categoryRoutines.forEach((routine) => {
-        allRoutines.push({ routine, weight });
-      });
-    });
+            // A chosen detail lifts anything that mentions it, so step 3 changes the answer.
+            const matches = tagKeywords.filter((keyword) => haystack.includes(keyword)).length;
 
-    allRoutines.sort((a, b) => b.weight - a.weight);
+            return { routine, score: weight + matches * 0.5 + ((routine.id.charCodeAt(0) + shuffleSeed) % 7) * 0.01 };
+          })
+      )
+      .sort((a, b) => b.score - a.score);
 
-    const shuffled = allRoutines.sort(() => Math.random() - 0.5);
-    const selected = shuffled.slice(0, targetCount);
+    const seen = new Set<string>();
+    const picked: Routine[] = [];
 
-    return selected.map((item) => ({
-      ...item.routine,
-      categoryName: categories.find((c) => c.id === item.routine.category_id)?.name ?? "",
-    }));
-  }, [practiceFocus, sessionLength, routines, categories]);
+    for (const entry of scored) {
+      if (seen.has(entry.routine.id)) continue;
+      seen.add(entry.routine.id);
+      picked.push(entry.routine);
+      if (picked.length === targetCount) break;
+    }
+
+    return picked;
+  }, [practiceFocus, sessionLength, selectedTags, routines, shuffleSeed]);
+
+  const totalMinutes = useMemo(
+    () => suggestedRoutines.reduce((total, routine) => total + (routine.estimated_duration_minutes ?? FALLBACK_MINUTES), 0),
+    [suggestedRoutines]
+  );
+
+  const toggleTag = useCallback((tagId: string) => {
+    setSelectedTags((prev) => (prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]));
+  }, []);
 
   const handleSave = async () => {
-    if (!practiceFocus || !sessionLength) return;
+    if (!practiceFocus || !sessionLength || !suggestedRoutines.length) return;
 
-    setIsSaving(true);
+    const focusOption = PRACTICE_OPTIONS.find((option) => option.id === practiceFocus);
+    const lengthOption = SESSION_LENGTHS.find((option) => option.id === sessionLength);
+    const tagLabels = (FOCUS_TAGS[practiceFocus] ?? [])
+      .filter((tag) => selectedTags.includes(tag.id))
+      .map((tag) => tag.label);
+
     try {
-      const focusOption = PRACTICE_OPTIONS.find((o) => o.id === practiceFocus);
-      const lengthOption = SESSION_LENGTHS.find((l) => l.id === sessionLength);
-      const name = `${focusOption?.label} - ${lengthOption?.label}`;
-
-      const routineIds = suggestedRoutines.map((r) => r.id);
-
+      setIsSaving(true);
       const templateId = await createTemplate({
-        name,
-        notes: selectedTags.length > 0 ? `Focus: ${selectedTags.join(", ")}` : undefined,
-        routineIds,
+        name: `${focusOption?.label} · ${lengthOption?.label}`,
+        notes: tagLabels.length ? `Working on ${tagLabels.join(", ").toLowerCase()}.` : undefined,
+        routineIds: suggestedRoutines.map((routine) => routine.id),
       });
 
       navigation.navigate("SessionTemplateDetail", { templateId });
     } catch (error) {
-      console.error("Failed to create session:", error);
+      dialog.alert({
+        title: "Could not save this session",
+        message: "The session was not created. Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+        confirmLabel: "Try again",
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const toggleTag = (tagId: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]
-    );
+  const startOver = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setStep(1);
+    setPracticeFocus(null);
+    setSessionLength(null);
+    setSelectedTags([]);
   };
 
-  const renderStep1 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>What would you like to practise?</Text>
-      <Text style={[styles.stepSubtitle, { color: colors.textMuted }]}>Choose your main focus for this session.</Text>
+  const canContinue = step === 1 ? !!practiceFocus : step === 2 ? !!sessionLength : true;
 
-      <View style={styles.optionsGrid}>
-        {PRACTICE_OPTIONS.map((option) => {
-          const selected = practiceFocus === option.id;
-          return (
-            <Pressable
-              key={option.id}
-              style={[styles.optionCard, { backgroundColor: colors.surface, borderColor: selected ? colors.primary : colors.border }]}
-              onPress={() => {
-                setPracticeFocus(option.id);
-                setSelectedTags([]);
-              }}
-            >
-              <MaterialCommunityIcons name={option.icon as any} size={22} color={colors.primary} style={styles.optionIcon} />
-              <Text style={[styles.optionLabel, { color: selected ? colors.primary : colors.text }]}>{option.label}</Text>
-              <Text style={[styles.optionDescription, { color: colors.textMuted }]}>{option.description}</Text>
-              {selected && <View style={[styles.selectedBadge, { backgroundColor: colors.primary }]}><Text style={styles.selectedBadgeText}>✓</Text></View>}
-            </Pressable>
-          );
-        })}
+  const continueLabel = step === 3 ? "Build my session" : "Continue";
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.stepHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View style={styles.stepRow}>
+          {STEP_TITLES.map((title, index) => {
+            const number = index + 1;
+            const done = step > number;
+            const current = step === number;
+
+            return (
+              <View key={title} style={styles.stepItem}>
+                <View
+                  style={[
+                    styles.stepDot,
+                    {
+                      backgroundColor: done || current ? colors.primary : colors.surfaceMuted,
+                      borderColor: done || current ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  {done ? (
+                    <MaterialCommunityIcons name="check" size={12} color={colors.onPrimary} />
+                  ) : (
+                    <Text style={[styles.stepDotText, { color: current ? colors.onPrimary : colors.textMuted }]}>
+                      {number}
+                    </Text>
+                  )}
+                </View>
+                <Text
+                  style={[styles.stepLabel, { color: current ? colors.text : colors.textMuted }]}
+                  numberOfLines={1}
+                >
+                  {title}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
       </View>
 
-      <View style={styles.buttonContainer}>
-        <AppButton
-          label="Continue"
-          onPress={() => practiceFocus && setStep(2)}
-          disabled={!practiceFocus}
-        />
-      </View>
-    </View>
-  );
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {step === 1 ? (
+          <>
+            <Text style={[styles.title, { color: colors.text }]}>What are you working on?</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              Pick the part of your game this session is for.
+            </Text>
 
-  const renderStep2 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>How long do you have?</Text>
-      <Text style={[styles.stepSubtitle, { color: colors.textMuted }]}>Choose your session duration.</Text>
-
-      <View style={styles.lengthOptions}>
-        {SESSION_LENGTHS.map((option) => {
-          const selected = sessionLength === option.id;
-          return (
-            <Pressable
-              key={option.id}
-              style={[styles.lengthCard, { backgroundColor: colors.surface, borderColor: selected ? colors.primary : colors.border }]}
-              onPress={() => setSessionLength(option.id)}
-            >
-              <Text style={[styles.lengthLabel, { color: selected ? colors.primary : colors.text }]}>{option.label}</Text>
-              <Text style={[styles.lengthDuration, { color: colors.textMuted }]}>{option.duration}</Text>
-              <Text style={[styles.lengthRoutines, { color: colors.textMuted }]}>{option.routineCount} routines</Text>
-              {selected && <View style={[styles.selectedBadge, { backgroundColor: colors.primary }]}><Text style={styles.selectedBadgeText}>✓</Text></View>}
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={styles.buttonContainer}>
-        <AppButton
-          label="Continue"
-          onPress={() => sessionLength && setStep(3)}
-          disabled={!sessionLength}
-        />
-      </View>
-    </View>
-  );
-
-  const renderStep3 = () => {
-    const focusTags = practiceFocus ? FOCUS_TAGS[practiceFocus] : [];
-
-    return (
-      <View style={styles.stepContainer}>
-        <Text style={[styles.stepTitle, { color: colors.text }]}>Any specific focus?</Text>
-        <Text style={[styles.stepSubtitle, { color: colors.textMuted }]}>Optional · refine your session</Text>
-
-        {focusTags.length > 0 && (
-          <View style={styles.tagsGrid}>
-            {focusTags.map((tag) => {
-              const selected = selectedTags.includes(tag.id);
+            {PRACTICE_OPTIONS.map((option) => {
+              const selected = practiceFocus === option.id;
               return (
                 <Pressable
-                  key={tag.id}
-                  style={[styles.tag, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary + "15" : "transparent" }]}
-                  onPress={() => toggleTag(tag.id)}
+                  key={option.id}
+                  onPress={() => {
+                    setPracticeFocus(option.id);
+                    setSelectedTags([]);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${option.label}. ${option.description}`}
+                  style={({ pressed }) => [
+                    styles.optionRow,
+                    {
+                      backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+                      borderColor: selected ? colors.primary : colors.border,
+                    },
+                  ]}
                 >
-                  <Text style={[styles.tagText, { color: selected ? colors.primary : colors.textMuted }]}>{tag.label}</Text>
+                  <View
+                    style={[
+                      styles.optionIcon,
+                      {
+                        backgroundColor: selected ? colors.primary : colors.surfaceMuted,
+                        borderColor: selected ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={option.icon}
+                      size={20}
+                      color={selected ? colors.onPrimary : colors.textMuted}
+                    />
+                  </View>
+
+                  <View style={styles.optionText}>
+                    <Text style={[styles.optionLabel, { color: colors.text }]}>{option.label}</Text>
+                    <Text style={[styles.optionDescription, { color: colors.textMuted }]}>{option.description}</Text>
+                  </View>
+
+                  {selected ? <MaterialCommunityIcons name="check" size={20} color={colors.primary} /> : null}
                 </Pressable>
               );
             })}
-          </View>
-        )}
+          </>
+        ) : null}
 
-        <View style={styles.buttonContainer}>
-          <AppButton label="See Suggested Session" onPress={() => setStep(4)} />
-        </View>
-      </View>
-    );
-  };
+        {step === 2 ? (
+          <>
+            <Text style={[styles.title, { color: colors.text }]}>How long have you got?</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>This decides how many routines you get.</Text>
 
-  const renderStep4 = () => {
-    const focusOption = PRACTICE_OPTIONS.find((o) => o.id === practiceFocus);
-    const lengthOption = SESSION_LENGTHS.find((l) => l.id === sessionLength);
-    const totalDuration = suggestedRoutines.length * 5;
+            {SESSION_LENGTHS.map((option) => {
+              const selected = sessionLength === option.id;
+              return (
+                <Pressable
+                  key={option.id}
+                  onPress={() => setSessionLength(option.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${option.label}, ${option.duration}, ${option.routineCount} routines`}
+                  style={({ pressed }) => [
+                    styles.optionRow,
+                    {
+                      backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+                      borderColor: selected ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.optionText}>
+                    <Text style={[styles.optionLabel, { color: colors.text }]}>{option.label}</Text>
+                    <Text style={[styles.optionDescription, { color: colors.textMuted }]}>
+                      {option.duration} · {option.routineCount} routines
+                    </Text>
+                  </View>
 
-    return (
-      <View style={styles.stepContainer}>
-        <Text style={[styles.stepTitle, { color: colors.text }]}>Your Session</Text>
-        <Text style={[styles.stepSubtitle, { color: colors.textMuted }]}>Preview and save your practice plan.</Text>
+                  {selected ? <MaterialCommunityIcons name="check" size={20} color={colors.primary} /> : null}
+                </Pressable>
+              );
+            })}
+          </>
+        ) : null}
 
-        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <View style={styles.summaryHeader}>
-            <Text style={[styles.summaryTitle, { color: colors.text }]}>{focusOption?.label} Practice</Text>
-            <Text style={[styles.summaryDuration, { color: colors.primary }]}>{totalDuration}+ min</Text>
-          </View>
-          <Text style={[styles.summaryDetails, { color: colors.textMuted }]}>
-            {lengthOption?.routineCount} routines · {lengthOption?.duration}
-          </Text>
-        </View>
+        {step === 3 ? (
+          <>
+            <Text style={[styles.title, { color: colors.text }]}>Anything in particular?</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              Optional. What you pick here pulls matching routines to the front.
+            </Text>
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Routines</Text>
-        <View style={styles.routinesList}>
-          {suggestedRoutines.map((routine, index) => (
-            <View key={routine.id} style={[styles.routineItem, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-              <Text style={styles.routineNumber}>{index + 1}</Text>
-              <View style={styles.routineInfo}>
-                <Text style={[styles.routineName, { color: colors.text }]}>{routine.name}</Text>
-                <Text style={[styles.routineCategory, { color: colors.textMuted }]}>{routine.categoryName}</Text>
-              </View>
+            <View style={styles.tagGrid}>
+              {(practiceFocus ? FOCUS_TAGS[practiceFocus] : []).map((tag) => {
+                const selected = selectedTags.includes(tag.id);
+                return (
+                  <Pressable
+                    key={tag.id}
+                    onPress={() => toggleTag(tag.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={tag.label}
+                    style={[
+                      styles.tag,
+                      {
+                        borderColor: selected ? colors.primary : colors.border,
+                        backgroundColor: selected ? colors.primary : colors.surface,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.tagText, { color: selected ? colors.onPrimary : colors.text }]}>
+                      {tag.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
-          ))}
-        </View>
+          </>
+        ) : null}
 
-        <View style={styles.buttonContainer}>
-          <AppButton label="Save & Start Practising" onPress={handleSave} loading={isSaving} />
-          <View style={styles.buttonSpacer} />
-          <AppButton label="Start Over" variant="secondary" onPress={() => { setStep(1); setPracticeFocus(null); setSessionLength(null); setSelectedTags([]); }} />
-        </View>
+        {step === 4 ? (
+          <>
+            <Text style={[styles.title, { color: colors.text }]}>Your session</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              {suggestedRoutines.length} {suggestedRoutines.length === 1 ? "routine" : "routines"} · about{" "}
+              {totalMinutes} min
+            </Text>
+
+            {suggestedRoutines.map((routine, index) => (
+              <View
+                key={routine.id}
+                style={[styles.routineRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <View style={[styles.routineIndex, { backgroundColor: colors.surfaceMuted }]}>
+                  <Text style={[styles.routineIndexText, { color: colors.textMuted }]}>{index + 1}</Text>
+                </View>
+
+                <View style={styles.optionText}>
+                  <Text style={[styles.optionLabel, { color: colors.text }]} numberOfLines={1}>
+                    {routine.name}
+                  </Text>
+                  <Text style={[styles.optionDescription, { color: colors.textMuted }]} numberOfLines={1}>
+                    {categories.find((category) => category.id === routine.category_id)?.name ?? ""} · about{" "}
+                    {routine.estimated_duration_minutes ?? FALLBACK_MINUTES} min
+                  </Text>
+                </View>
+              </View>
+            ))}
+
+            <Pressable
+              onPress={() => setShuffleSeed((seed) => seed + 1)}
+              accessibilityRole="button"
+              accessibilityLabel="Suggest a different set of routines"
+              style={[styles.shuffleButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            >
+              <MaterialCommunityIcons name="shuffle-variant" size={18} color={colors.textMuted} />
+              <Text style={[styles.shuffleText, { color: colors.textMuted }]}>Suggest different routines</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={startOver}
+              accessibilityRole="button"
+              accessibilityLabel="Start the builder again"
+              style={styles.startOver}
+            >
+              <Text style={[styles.startOverText, { color: colors.textMuted }]}>Start again</Text>
+            </Pressable>
+          </>
+        ) : null}
+      </ScrollView>
+
+      <View style={[styles.actionBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+        {step > 1 ? (
+          <Pressable
+            onPress={() => goToStep((step - 1) as 1 | 2 | 3)}
+            accessibilityRole="button"
+            accessibilityLabel="Go back a step"
+            style={[styles.backButton, { borderColor: colors.border }]}
+          >
+            <MaterialCommunityIcons name="chevron-left" size={22} color={colors.text} />
+          </Pressable>
+        ) : null}
+
+        <Pressable
+          onPress={() => (step === 4 ? void handleSave() : goToStep((step + 1) as 2 | 3 | 4))}
+          disabled={!canContinue || isSaving || (step === 4 && !suggestedRoutines.length)}
+          accessibilityRole="button"
+          accessibilityLabel={step === 4 ? "Save this session" : continueLabel}
+          accessibilityState={{ disabled: !canContinue || isSaving }}
+          style={({ pressed }) => [
+            styles.continueButton,
+            {
+              backgroundColor: canContinue ? colors.primary : colors.surfaceMuted,
+              opacity: pressed && canContinue ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Text style={[styles.continueText, { color: canContinue ? colors.onPrimary : colors.textMuted }]}>
+            {step === 4 ? (isSaving ? "Saving..." : "Save session") : continueLabel}
+          </Text>
+        </Pressable>
       </View>
-    );
-  };
-
-  return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <View style={styles.progressContainer}>
-        {[1, 2, 3, 4].map((s) => (
-          <View key={s} style={styles.progressItem}>
-            <View style={[styles.progressDot, { backgroundColor: step >= s ? colors.primary : colors.border }]} />
-            {s < 4 && <View style={[styles.progressLine, { backgroundColor: step > s ? colors.primary : colors.border }]} />}
-          </View>
-        ))}
-      </View>
-
-      {step === 1 && renderStep1()}
-      {step === 2 && renderStep2()}
-      {step === 3 && renderStep3()}
-      {step === 4 && renderStep4()}
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32 },
-  progressContainer: {
-    flexDirection: "row",
+
+  stepHeader: {
+    borderBottomWidth: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+  },
+  stepRow: { flexDirection: "row", gap: SPACING.sm },
+  stepItem: { flex: 1, alignItems: "center", gap: 4 },
+  stepDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
   },
-  progressItem: {
+  stepDotText: { fontSize: 11, fontWeight: "800" },
+  stepLabel: { fontSize: 11, fontWeight: "700" },
+
+  scrollView: { flex: 1 },
+  content: { padding: SPACING.lg, paddingBottom: 120 },
+
+  title: { fontSize: 22, fontWeight: "800" },
+  subtitle: { fontSize: 14, lineHeight: 20, marginTop: 4, marginBottom: SPACING.lg },
+
+  optionRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: SPACING.md,
+    minHeight: 68,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
-  progressDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  progressLine: {
+  optionIcon: {
     width: 40,
-    height: 2,
-    marginHorizontal: 4,
-  },
-  stepContainer: {},
-  stepTitle: { fontSize: 24, fontWeight: "800", marginBottom: 4 },
-  stepSubtitle: { fontSize: 14, marginBottom: 20, lineHeight: 20 },
-  optionsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 24,
-  },
-  optionCard: {
-    width: "48%",
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1.5,
-    position: "relative",
-  },
-  optionIcon: { fontSize: 28, marginBottom: 8 },
-  optionLabel: { fontSize: 16, fontWeight: "700", marginBottom: 4 },
-  optionDescription: { fontSize: 12, lineHeight: 16 },
-  selectedBadge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    height: 40,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  selectedBadgeText: { color: "#FFF", fontSize: 12, fontWeight: "700" },
-  lengthOptions: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  lengthCard: {
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1.5,
-    position: "relative",
-  },
-  lengthLabel: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
-  lengthDuration: { fontSize: 14, marginBottom: 2 },
-  lengthRoutines: { fontSize: 12 },
-  tagsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 24,
-  },
+  optionText: { flex: 1 },
+  optionLabel: { fontSize: 15, fontWeight: "700" },
+  optionDescription: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+
+  tagGrid: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
   tag: {
+    minHeight: HIT_TARGET,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.lg,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: RADIUS.pill,
   },
-  tagText: { fontSize: 13, fontWeight: "600" },
-  buttonContainer: {
-    marginTop: 8,
-  },
-  buttonSpacer: {
-    height: 10,
-  },
-  summaryCard: {
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    marginBottom: 20,
-  },
-  summaryHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  summaryTitle: { fontSize: 18, fontWeight: "700" },
-  summaryDuration: { fontSize: 14, fontWeight: "600" },
-  summaryDetails: { fontSize: 13 },
-  sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
-  routinesList: {
-    gap: 8,
-    marginBottom: 24,
-  },
-  routineItem: {
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
+  tagText: { fontSize: 14, fontWeight: "700" },
+
+  routineRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: SPACING.md,
+    minHeight: 60,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
-  routineNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#0F5A43",
-    color: "#FFF",
-    textAlign: "center",
-    textAlignVertical: "center",
-    lineHeight: 28,
-    fontWeight: "700",
-    marginRight: 12,
+  routineIndex: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  routineInfo: { flex: 1 },
-  routineName: { fontSize: 15, fontWeight: "600", marginBottom: 2 },
-  routineCategory: { fontSize: 12 },
+  routineIndexText: { fontSize: 12, fontWeight: "800" },
+
+  shuffleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.sm,
+  },
+  shuffleText: { fontSize: 14, fontWeight: "700" },
+  startOver: {
+    minHeight: HIT_TARGET,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xs,
+  },
+  startOverText: { fontSize: 13, fontWeight: "600" },
+
+  actionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderTopWidth: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
+  },
+  backButton: {
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  continueButton: {
+    flex: 1,
+    minHeight: HIT_TARGET,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: RADIUS.md,
+  },
+  continueText: { fontSize: 15, fontWeight: "800" },
 });

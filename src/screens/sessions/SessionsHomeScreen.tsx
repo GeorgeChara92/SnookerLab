@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useSessionsStore } from "../../store";
 import type { SessionsStackParamList } from "../../types";
@@ -158,19 +159,37 @@ export const SessionsHomeScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Pressable
-        style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+        style={({ pressed }) => [
+          styles.primaryButton,
+          { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+        ]}
         onPress={() => navigation.navigate("GuidedSessionBuilder")}
+        accessibilityRole="button"
+        accessibilityLabel="Build a session by answering a few questions"
       >
-        <Text style={styles.primaryButtonIcon}>+</Text>
-        <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>New Practice Session</Text>
+        <MaterialCommunityIcons name="auto-fix" size={22} color={colors.onPrimary} />
+        <View style={styles.buttonText}>
+          <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>Build one for me</Text>
+          <Text style={[styles.primaryButtonHint, { color: colors.onPrimary }]}>
+            Three questions and you have a plan
+          </Text>
+        </View>
       </Pressable>
 
       <Pressable
-        style={[styles.secondaryButton, { borderColor: colors.border }]}
+        style={({ pressed }) => [
+          styles.secondaryButton,
+          { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : colors.surface },
+        ]}
         onPress={() => navigation.navigate("SessionSetup")}
+        accessibilityRole="button"
+        accessibilityLabel="Pick your own routines from the library"
       >
-        <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Custom Preset</Text>
-        <Text style={[styles.secondaryButtonHint, { color: colors.textMuted }]}>Build your own routine list</Text>
+        <MaterialCommunityIcons name="playlist-plus" size={22} color={colors.text} />
+        <View style={styles.buttonText}>
+          <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Pick my own routines</Text>
+          <Text style={[styles.secondaryButtonHint, { color: colors.textMuted }]}>Choose from the library</Text>
+        </View>
       </Pressable>
 
       <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Your Presets</Text>
@@ -204,28 +223,30 @@ export const SessionsHomeScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
+  buttonText: { flex: 1 },
   primaryButton: {
-    borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    gap: 12,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 10,
   },
-  primaryButtonIcon: {
-    fontSize: 20,
-    marginBottom: 4,
-    color: "#FFF",
-  },
-  primaryButtonText: { fontWeight: "700", fontSize: 15 },
+  primaryButtonText: { fontWeight: "800", fontSize: 16 },
+  primaryButtonHint: { fontSize: 12, fontWeight: "600", marginTop: 2, opacity: 0.85 },
   secondaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     borderRadius: 14,
     borderWidth: 1,
     paddingVertical: 14,
     paddingHorizontal: 16,
     marginBottom: 20,
   },
-  secondaryButtonText: { fontWeight: "600", fontSize: 14, textAlign: "center" },
-  secondaryButtonHint: { fontSize: 12, textAlign: "center", marginTop: 2 },
+  secondaryButtonText: { fontWeight: "700", fontSize: 15 },
+  secondaryButtonHint: { fontSize: 12, fontWeight: "600", marginTop: 2 },
   sectionTitle: {
     fontSize: 12,
     fontWeight: "700",

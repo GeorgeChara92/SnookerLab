@@ -1,7 +1,6 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Keyboard,
   KeyboardAvoidingView,
   LayoutAnimation,
@@ -15,6 +14,7 @@ import {
   UIManager,
   View,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   useNavigation,
   useRoute,
@@ -22,24 +22,32 @@ import {
   type RouteProp,
 } from "@react-navigation/native";
 import { useRoutinesStore, useSessionsStore } from "../../store";
-import type { SessionsStackParamList } from "../../types";
+import type { Routine, ScoringType, SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
-import { RADIUS, SCRIM, SPACING } from "../../constants";
+import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-type RoutineGroup = {
-  categoryId: string;
-  categoryName: string;
-  categoryIcon?: string;
-  categoryDescription?: string;
-  routines: ReturnType<typeof useRoutinesStore.getState>["routines"];
-};
+/** Used when a routine does not say how long it takes. */
+const FALLBACK_MINUTES = 5;
 
-const ESTIMATED_MINUTES_PER_ROUTINE = 5;
+const minutesFor = (routine?: Routine) => routine?.estimated_duration_minutes ?? FALLBACK_MINUTES;
+
+const scoringLabel = (scoringType: ScoringType, maxScore?: number) => {
+  const base =
+    scoringType === "points"
+      ? "Points"
+      : scoringType === "percentage"
+        ? "Success rate"
+        : scoringType === "count"
+          ? "Pots made"
+          : "Time";
+
+  return maxScore && maxScore > 0 ? `${base} out of ${maxScore}` : base;
+};
 
 export const SessionSetupScreen = () => {
   const route = useRoute<RouteProp<SessionsStackParamList, "SessionSetup">>();
@@ -62,79 +70,74 @@ export const SessionSetupScreen = () => {
   const [sessionName, setSessionName] = useState(existing?.name ?? "");
   const [sessionNotes, setSessionNotes] = useState(existing?.notes ?? "");
 
-  const itemAnimations = useRef<Record<string, Animated.Value>>({}).current;
-  const prevSelectedRef = useRef<string[]>(selectedRoutines);
-
-  useEffect(() => {
-    const prevSelected = prevSelectedRef.current;
-    const added = selectedRoutines.filter((id) => !prevSelected.includes(id));
-
-    added.forEach((id) => {
-      if (!itemAnimations[id]) {
-        itemAnimations[id] = new Animated.Value(0);
-        Animated.spring(itemAnimations[id], {
-          toValue: 1,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }).start();
-      }
-    });
-
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    prevSelectedRef.current = selectedRoutines;
-  }, [selectedRoutines]);
-
   const selectedDetails = useMemo(
-    () => selectedRoutines.map((id) => routines.find((routine) => routine.id === id)).filter(Boolean),
+    () =>
+      selectedRoutines
+        .map((id) => routines.find((routine) => routine.id === id))
+        .filter((routine): routine is Routine => Boolean(routine)),
     [selectedRoutines, routines]
   );
 
-  const estimatedDuration = selectedRoutines.length * ESTIMATED_MINUTES_PER_ROUTINE;
+  // Routines say how long they take, so the estimate is the sum rather than a flat guess.
+  const estimatedDuration = useMemo(
+    () => selectedDetails.reduce((total, routine) => total + minutesFor(routine), 0),
+    [selectedDetails]
+  );
 
-  const groupedRoutines = useMemo<RoutineGroup[]>(() => {
+  const groupedRoutines = useMemo(() => {
     const sortedCategories = [...categories].sort((a, b) => a.order_index - b.order_index);
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalisedQuery = query.trim().toLowerCase();
 
     return sortedCategories
-      .map((category) => {
-        const categoryRoutines = routines
+      .map((category) => ({
+        categoryId: category.id,
+        categoryName: category.name,
+        categoryIcon: category.icon,
+        categoryDescription: category.description,
+        routines: routines
           .filter((routine) => routine.category_id === category.id)
           .filter((routine) => routine.content_type !== "guide")
           .filter((routine) => {
-            if (!normalizedQuery) return true;
-            const haystack = [routine.name, routine.summary, category.name]
-              .filter(Boolean)
-              .join(" ")
-              .toLowerCase();
-            return haystack.includes(normalizedQuery);
+            if (!normalisedQuery) return true;
+            const haystack = [routine.name, routine.summary, category.name].filter(Boolean).join(" ").toLowerCase();
+            return haystack.includes(normalisedQuery);
           })
-          .sort((a, b) => a.name.localeCompare(b.name));
-
-        return {
-          categoryId: category.id,
-          categoryName: category.name,
-          categoryIcon: category.icon,
-          categoryDescription: category.description,
-          routines: categoryRoutines,
-        };
-      })
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      }))
       .filter((group) => group.routines.length > 0);
   }, [categories, routines, query]);
 
-  const filteredGroups = useMemo(() => {
-    if (!activeCategory) return groupedRoutines;
-    return groupedRoutines.filter((g) => g.categoryId === activeCategory);
-  }, [groupedRoutines, activeCategory]);
+  const filteredGroups = useMemo(
+    () => (activeCategory ? groupedRoutines.filter((group) => group.categoryId === activeCategory) : groupedRoutines),
+    [groupedRoutines, activeCategory]
+  );
 
   const toggleRoutine = useCallback((routineId: string) => {
-    setSelectedRoutines((prev) =>prev.includes(routineId) ? prev.filter((id) => id !== routineId) : [...prev, routineId]
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSelectedRoutines((prev) =>
+      prev.includes(routineId) ? prev.filter((id) => id !== routineId) : [...prev, routineId]
     );
   }, []);
 
   const removeRoutine = useCallback((routineId: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSelectedRoutines((prev) => prev.filter((id) => id !== routineId));
   }, []);
+
+  const clearSelection = () => {
+    dialog.confirm({
+      title: "Clear this session?",
+      message: "Every routine you have picked comes off the list. The library stays as it is.",
+      tone: "danger",
+      icon: "playlist-remove",
+      confirmLabel: "Clear them",
+      cancelLabel: "Keep them",
+      onConfirm: () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setSelectedRoutines([]);
+      },
+    });
+  };
 
   const handleSave = async () => {
     if (!sessionName.trim()) {
@@ -142,14 +145,6 @@ export const SessionSetupScreen = () => {
         title: "Name your session",
         message: "Give this session a name so you can find it again later.",
         icon: "pencil-outline",
-      });
-      return;
-    }
-    if (!selectedRoutines.length) {
-      dialog.alert({
-        title: "Add a routine first",
-        message: "Pick at least one routine from the library to build this session.",
-        icon: "playlist-plus",
       });
       return;
     }
@@ -163,7 +158,11 @@ export const SessionSetupScreen = () => {
         return;
       }
 
-      const newTemplateId = await createTemplate({ name: sessionName, notes: sessionNotes, routineIds: selectedRoutines });
+      const newTemplateId = await createTemplate({
+        name: sessionName,
+        notes: sessionNotes,
+        routineIds: selectedRoutines,
+      });
       setShowSaveModal(false);
       navigation.navigate("SessionTemplateDetail", { templateId: newTemplateId });
     } catch (error) {
@@ -180,30 +179,17 @@ export const SessionSetupScreen = () => {
   };
 
   const openSaveModal = () => {
-    if (!selectedRoutines.length) {
-      dialog.alert({
-        title: "Add a routine first",
-        message: "Pick at least one routine from the library to build this session.",
-        icon: "playlist-plus",
-      });
-      return;
-    }
+    if (!selectedRoutines.length) return;
+
     Keyboard.dismiss();
-    setSessionName(existing?.name ?? `Practice Session ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`);
+    setSessionName(
+      existing?.name ??
+        `Practice Session ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+    );
     setShowSaveModal(true);
   };
 
-  const getItemAnimatedStyle = (routineId: string) => {
-    const animation = itemAnimations[routineId];
-    if (!animation) return {};
-    return {
-      transform: [
-        { translateX: animation.interpolate({ inputRange: [0, 1], outputRange: [-50, 0] }) },
-        { scale: animation.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
-      ],
-      opacity: animation,
-    };
-  };
+  const hasSelection = selectedRoutines.length > 0;
 
   return (
     <KeyboardAvoidingView
@@ -211,18 +197,108 @@ export const SessionSetupScreen = () => {
       style={[styles.container, { backgroundColor: colors.background }]}
       keyboardVerticalOffset={90}
     >
-      <View style={[styles.progressHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <View style={styles.progressInfo}>
-          <Text style={[styles.progressLabel, { color: colors.textMuted }]}>Building Session</Text>
-          <Text style={[styles.progressValue, { color: colors.text }]}>
-            {selectedRoutines.length} routine{selectedRoutines.length !== 1 ? "s" : ""}
+      {/* Everything you need while picking stays put; only the library scrolls. */}
+      <View style={[styles.stickyTop, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <View style={styles.summaryRow}>
+          <Text style={[styles.summaryText, { color: hasSelection ? colors.text : colors.textMuted }]}>
+            {hasSelection
+              ? `${selectedRoutines.length} ${selectedRoutines.length === 1 ? "routine" : "routines"} · about ${estimatedDuration} min`
+              : "Tap routines to build your session"}
           </Text>
+
+          {hasSelection ? (
+            <Pressable
+              onPress={clearSelection}
+              accessibilityRole="button"
+              accessibilityLabel="Clear every routine you have picked"
+              hitSlop={8}
+              style={styles.clearButton}
+            >
+              <Text style={[styles.clearText, { color: colors.textMuted }]}>Clear</Text>
+            </Pressable>
+          ) : null}
         </View>
-        {selectedRoutines.length > 0 && (
-          <View style={[styles.durationBadge, { backgroundColor: colors.primary + "20" }]}>
-            <Text style={[styles.durationText, { color: colors.primary }]}>~{estimatedDuration} min</Text>
-          </View>
-        )}
+
+        {hasSelection ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pickedRow}
+            keyboardShouldPersistTaps="handled"
+          >
+            {selectedDetails.map((routine, index) => (
+              <View
+                key={routine.id}
+                style={[styles.pickedChip, { backgroundColor: colors.surfaceMuted, borderColor: colors.primary }]}
+              >
+                <Text style={[styles.pickedIndex, { color: colors.primary }]}>{index + 1}</Text>
+                <Text style={[styles.pickedName, { color: colors.text }]} numberOfLines={1}>
+                  {routine.name}
+                </Text>
+                <Pressable
+                  onPress={() => removeRoutine(routine.id)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Take ${routine.name} out of this session`}
+                >
+                  <MaterialCommunityIcons name="close" size={14} color={colors.textMuted} />
+                </Pressable>
+              </View>
+            ))}
+          </ScrollView>
+        ) : null}
+
+        <View style={[styles.searchWrap, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+          <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search routines"
+            placeholderTextColor={colors.textMuted}
+            value={query}
+            onChangeText={setQuery}
+            accessibilityLabel="Search routines"
+            returnKeyType="search"
+          />
+          {query.length ? (
+            <Pressable onPress={() => setQuery("")} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear the search">
+              <MaterialCommunityIcons name="close-circle" size={16} color={colors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryRow}
+          keyboardShouldPersistTaps="handled"
+        >
+          {[{ id: null as string | null, name: "All", icon: undefined as string | undefined }, ...groupedRoutines.map((group) => ({ id: group.categoryId, name: group.categoryName, icon: group.categoryIcon }))].map(
+            (category) => {
+              const selected = activeCategory === category.id;
+              return (
+                <Pressable
+                  key={category.id ?? "all"}
+                  onPress={() => setActiveCategory(category.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={category.id ? `Show ${category.name} routines` : "Show every routine"}
+                  style={[
+                    styles.categoryChip,
+                    {
+                      backgroundColor: selected ? colors.primary : colors.surfaceMuted,
+                      borderColor: selected ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  {category.icon ? <Text style={styles.categoryIcon}>{category.icon}</Text> : null}
+                  <Text style={[styles.categoryText, { color: selected ? colors.onPrimary : colors.text }]}>
+                    {category.name}
+                  </Text>
+                </Pressable>
+              );
+            }
+          )}
+        </ScrollView>
       </View>
 
       <ScrollView
@@ -232,194 +308,106 @@ export const SessionSetupScreen = () => {
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
-        <View
-          style={[
-            styles.selectedSection,
-            {
-              backgroundColor: colors.surface,
-              borderColor: selectedRoutines.length > 0 ? colors.primary : colors.border,
-            },
-          ]}
-        >
-          <View style={styles.selectedHeader}>
-            <Text style={[styles.selectedTitle, { color: colors.text }]}>Your Session</Text>
-            {selectedRoutines.length > 0 && (
-              <Text style={[styles.selectedCount, { color: colors.primary }]}>
-                {selectedRoutines.length} selected
-              </Text>
-            )}
+        {filteredGroups.length === 0 ? (
+          <View style={styles.noResults}>
+            <MaterialCommunityIcons name="magnify-close" size={28} color={colors.textMuted} />
+            <Text style={[styles.noResultsText, { color: colors.textMuted }]}>
+              Nothing matches "{query.trim()}". Try a different word, or clear the search.
+            </Text>
           </View>
+        ) : (
+          filteredGroups.map((group) => (
+            <View key={group.categoryId} style={styles.categoryBlock}>
+              {/* With a category chosen the heading would only repeat the chip above. */}
+              {activeCategory ? null : (
+                <Text style={[styles.categoryHeading, { color: colors.textMuted }]}>
+                  {group.categoryIcon ? `${group.categoryIcon} ` : ""}
+                  {group.categoryName.toUpperCase()}
+                </Text>
+              )}
 
-          {selectedRoutines.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={[styles.emptyIconWrap, { backgroundColor: colors.surfaceMuted }]}>
-                <Text style={styles.emptyIcon}>📋</Text>
-              </View>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>Start building your session</Text>
-              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                Tap routines below to add them to your practice plan.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.selectedList}>
-              {selectedDetails.map((routine, index) => {
-                const routineData = routine as NonNullable<typeof routine>;
+              {group.routines.map((routine) => {
+                const selected = selectedRoutines.includes(routine.id);
+                const position = selectedRoutines.indexOf(routine.id) + 1;
+
                 return (
-                  <Animated.View
-                    key={routineData.id}
-                    style={[
-                      styles.selectedItem,
-                      { backgroundColor: colors.surfaceMuted, borderColor: colors.border },
-                      getItemAnimatedStyle(routineData.id),
+                  <Pressable
+                    key={routine.id}
+                    onPress={() => toggleRoutine(routine.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${routine.name}. ${selected ? "Tap to take out of the session" : "Tap to add to the session"}`}
+                    style={({ pressed }) => [
+                      styles.routineRow,
+                      {
+                        backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+                        borderColor: selected ? colors.primary : colors.border,
+                      },
                     ]}
                   >
-                    <View style={styles.selectedMain}>
-                      <View style={[styles.selectedNumber, { backgroundColor: colors.primary }]}>
-                        <Text style={styles.selectedNumberText}>{index + 1}</Text>
-                      </View>
-                      <View style={styles.selectedInfo}>
-                        <Text style={[styles.selectedName, { color: colors.text }]}>{routineData.name}</Text>
-                        <Text style={[styles.selectedCategory, { color: colors.textMuted }]} numberOfLines={1}>
-                          {categories.find((c) => c.id === routineData.category_id)?.name ?? ""}
-                        </Text>
-                      </View>
- </View>
-                    <Pressable style={styles.removeBtn} onPress={() => removeRoutine(routineData.id)} hitSlop={8}>
-                      <Text style={[styles.removeBtnIcon, { color: colors.textMuted }]}>×</Text>
-                    </Pressable>
-                  </Animated.View>
+                    <View style={[styles.routineIconTile, { backgroundColor: colors.surfaceMuted }]}>
+                      <Text style={styles.routineIcon}>{routine.icon ?? "🎱"}</Text>
+                    </View>
+
+                    <View style={styles.routineTextWrap}>
+                      <Text style={[styles.routineName, { color: colors.text }]} numberOfLines={1}>
+                        {routine.name}
+                      </Text>
+                      <Text style={[styles.routineMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                        {scoringLabel(routine.scoring_type, routine.max_score)} · about {minutesFor(routine)} min
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.addButton,
+                        {
+                          backgroundColor: selected ? colors.primary : "transparent",
+                          borderColor: selected ? colors.primary : colors.border,
+                        },
+                      ]}
+                    >
+                      {selected ? (
+                        <Text style={[styles.addButtonIndex, { color: colors.onPrimary }]}>{position}</Text>
+                      ) : (
+                        <MaterialCommunityIcons name="plus" size={18} color={colors.textMuted} />
+                      )}
+                    </View>
+                  </Pressable>
                 );
               })}
             </View>
-          )}
-        </View>
-
-        <View style={styles.librarySection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Routine Library</Text>
-
-          <TextInput
-            style={[styles.searchInput, { borderColor: colors.border, backgroundColor: colors.surface, color: colors.text }]}
-            placeholder="Search routines..."
-            placeholderTextColor={colors.textMuted}
-            value={query}
-            onChangeText={setQuery}
-          />
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoryFilters}
-            contentContainerStyle={styles.categoryFiltersContent}
-          >
-            <Pressable
-              style={[
-                styles.categoryChip,
-                {
-                  backgroundColor: !activeCategory ? colors.primary : colors.surfaceMuted,
-                  borderColor: !activeCategory ? colors.primary : colors.border,
-                },
-              ]}
-              onPress={() => setActiveCategory(null)}
-            >
-              <Text style={[styles.categoryChipText, { color: !activeCategory ? colors.onPrimary : colors.text }]}>
-                All
-              </Text>
-            </Pressable>
-            {groupedRoutines.map((group) => (
-              <Pressable
-                key={group.categoryId}
-                style={[
-                  styles.categoryChip,
-                  {
-                    backgroundColor: activeCategory === group.categoryId ? colors.primary : colors.surfaceMuted,
-                    borderColor: activeCategory === group.categoryId ? colors.primary : colors.border,
-                  },
-                ]}
-                onPress={() => setActiveCategory(group.categoryId)}
-              >
-                {group.categoryIcon && <Text style={styles.categoryChipIcon}>{group.categoryIcon}</Text>}
-                <Text style={[styles.categoryChipText, { color: activeCategory === group.categoryId ? colors.onPrimary : colors.text }]}>
-                  {group.categoryName}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-
-          {filteredGroups.length === 0 ? (
-            <View style={styles.noResultsWrap}>
-              <Text style={[styles.noResults, { color: colors.textMuted }]}>No routines match your search.</Text>
-            </View>
-          ) : (
-            filteredGroups.map((group) => (
-              <View key={group.categoryId} style={styles.categoryBlock}>
-                <Text style={[styles.categoryTitle, { color: colors.text }]}>
-                  {group.categoryIcon ? `${group.categoryIcon} ` : ""}
-                  {group.categoryName}
-                </Text>
-                {group.categoryDescription && (
-                  <Text style={[styles.categoryDesc, { color: colors.textMuted }]}>{group.categoryDescription}</Text>
-                )}
-
-                {group.routines.map((routine) => {
-                  const selected = selectedRoutines.includes(routine.id);
-
-                  return (
-                    <Pressable
-                      key={routine.id}
-                      style={[
-                        styles.routineCard,
-                        {
-                          borderColor: selected ? colors.primary : colors.border,
-                          backgroundColor: selected ? colors.primary + "12" : colors.surface,
-                        },
-                      ]}
-                      onPress={() => toggleRoutine(routine.id)}
-                    >
-                      <View style={styles.routineContent}>
-                        <Text style={styles.routineIcon}>{routine.icon ?? "🎱"}</Text>
-                        <View style={styles.routineTextWrap}>
-                          <Text style={[styles.routineName, { color: colors.text }]}>{routine.name}</Text>
-                          <Text style={[styles.routineSummary, { color: colors.textMuted }]} numberOfLines={1}>
-                            {routine.summary ?? "Structured routine"}
-                          </Text>
-                        </View>
-                      </View>
-                      <View
-                        style={[
-                          styles.checkCircle,
-                          {
-                            borderColor: selected ? colors.primary : colors.border,
-                            backgroundColor: selected ? colors.primary : "transparent",
-                          },
-                        ]}
-                      >
-                        {selected && <Text style={styles.checkMark}>✓</Text>}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ))
-          )}
-        </View>
+          ))
+        )}
       </ScrollView>
 
-      <View style={[styles.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
+      <View style={[styles.actionBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <View style={styles.actionInfo}>
           <Text style={[styles.actionCount, { color: colors.text }]}>
-            {selectedRoutines.length} routine{selectedRoutines.length !== 1 ? "s" : ""}
+            {selectedRoutines.length} {selectedRoutines.length === 1 ? "routine" : "routines"}
           </Text>
-          {selectedRoutines.length > 0 && (
-            <Text style={[styles.actionDuration, { color: colors.primary }]}>~{estimatedDuration} min</Text>
-          )}
+          <Text style={[styles.actionHint, { color: colors.textMuted }]}>
+            {hasSelection ? `About ${estimatedDuration} min` : "Pick at least one"}
+          </Text>
         </View>
+
         <Pressable
-          style={[styles.saveButton, { backgroundColor: selectedRoutines.length > 0 ? colors.primary : colors.border }]}
           onPress={openSaveModal}
-          disabled={selectedRoutines.length === 0}
+          disabled={!hasSelection}
+          accessibilityRole="button"
+          accessibilityLabel={templateId ? "Save the changes to this session" : "Name and save this session"}
+          accessibilityState={{ disabled: !hasSelection }}
+          style={({ pressed }) => [
+            styles.saveButton,
+            {
+              backgroundColor: hasSelection ? colors.primary : colors.surfaceMuted,
+              borderColor: hasSelection ? colors.primary : colors.border,
+              opacity: pressed && hasSelection ? 0.85 : 1,
+            },
+          ]}
         >
-          <Text style={[styles.saveButtonText, { color: selectedRoutines.length > 0 ? colors.onPrimary : colors.textMuted }]}>
-            {templateId ? "Update" : "Save Session"}
+          <Text style={[styles.saveButtonText, { color: hasSelection ? colors.onPrimary : colors.textMuted }]}>
+            {templateId ? "Save changes" : "Name and save"}
           </Text>
         </Pressable>
       </View>
@@ -435,61 +423,62 @@ export const SessionSetupScreen = () => {
               <View style={[styles.modalAccentBar, { backgroundColor: colors.primary }]} />
 
               <View style={styles.modalBody}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Save this session</Text>
-              <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
-                {selectedRoutines.length} routine{selectedRoutines.length !== 1 ? "s" : ""} · about {estimatedDuration} min
-              </Text>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Save this session</Text>
+                <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
+                  {selectedRoutines.length} routine{selectedRoutines.length !== 1 ? "s" : ""} · about {estimatedDuration}{" "}
+                  min
+                </Text>
 
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Session name</Text>
-              <TextInput
-                style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-                value={sessionName}
-                onChangeText={setSessionName}
-                placeholder="e.g. Morning Practice"
-                placeholderTextColor={colors.textMuted}
-                autoFocus
-              />
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Session name</Text>
+                <TextInput
+                  style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
+                  value={sessionName}
+                  onChangeText={setSessionName}
+                  placeholder="e.g. Morning Practice"
+                  placeholderTextColor={colors.textMuted}
+                  autoFocus
+                />
 
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Notes (optional)</Text>
-              <TextInput
-                style={[styles.input, styles.notesInput, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-                value={sessionNotes}
-                onChangeText={setSessionNotes}
-                placeholder="Focus areas, goals..."
-                placeholderTextColor={colors.textMuted}
-                multiline
-                textAlignVertical="top"
-              />
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Notes (optional)</Text>
+                <TextInput
+                  style={[styles.input, styles.notesInput, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
+                  value={sessionNotes}
+                  onChangeText={setSessionNotes}
+                  placeholder="Focus areas, goals..."
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                  textAlignVertical="top"
+                />
 
-              <Pressable
-                onPress={handleSave}
-                disabled={isSaving}
-                accessibilityRole="button"
-                accessibilityLabel={templateId ? "Update the session" : "Save the session"}
-                accessibilityState={{ disabled: isSaving, busy: isSaving }}
-                style={({ pressed }) => [
-                  styles.modalConfirm,
-                  { backgroundColor: colors.primary, opacity: isSaving ? 0.65 : pressed ? 0.85 : 1 },
-                ]}
-              >
-                {isSaving ? (
-                  <ActivityIndicator size="small" color={colors.onPrimary} />
-                ) : (
-                  <Text style={[styles.modalConfirmText, { color: colors.onPrimary }]}>
-                    {templateId ? "Update session" : "Save session"}
-                  </Text>
-                )}
-              </Pressable>
+                <Pressable
+                  onPress={handleSave}
+                  disabled={isSaving}
+                  accessibilityRole="button"
+                  accessibilityLabel={templateId ? "Update the session" : "Save the session"}
+                  accessibilityState={{ disabled: isSaving, busy: isSaving }}
+                  style={({ pressed }) => [
+                    styles.modalConfirm,
+                    { backgroundColor: colors.primary, opacity: isSaving ? 0.65 : pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color={colors.onPrimary} />
+                  ) : (
+                    <Text style={[styles.modalConfirmText, { color: colors.onPrimary }]}>
+                      {templateId ? "Update session" : "Save session"}
+                    </Text>
+                  )}
+                </Pressable>
 
-              <Pressable
-                onPress={() => setShowSaveModal(false)}
-                disabled={isSaving}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel"
-                style={[styles.modalCancel, { opacity: isSaving ? 0.5 : 1 }]}
-              >
-                <Text style={[styles.modalCancelText, { color: colors.textMuted }]}>Cancel</Text>
-              </Pressable>
+                <Pressable
+                  onPress={() => setShowSaveModal(false)}
+                  disabled={isSaving}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel"
+                  style={[styles.modalCancel, { opacity: isSaving ? 0.5 : 1 }]}
+                >
+                  <Text style={[styles.modalCancelText, { color: colors.textMuted }]}>Cancel</Text>
+                </Pressable>
               </View>
             </Pressable>
           </KeyboardAvoidingView>
@@ -501,126 +490,169 @@ export const SessionSetupScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  progressHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+
+  stickyTop: {
     borderBottomWidth: 1,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.sm,
   },
-  progressInfo: { flex: 1 },
-  progressLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5, fontWeight: "600" },
-  progressValue: { fontSize: 20, fontWeight: "800", marginTop: 2 },
-  durationBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  durationText: { fontSize: 14, fontWeight: "700" },
-  scrollView: { flex: 1 },
-  content: { padding: 16, paddingBottom: 100 },
-  selectedSection: {
-    borderRadius: 16,
-    borderWidth: 2,
-    padding: 16,
-    marginBottom: 20,
-  },
-  selectedHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  selectedTitle: { fontSize: 17, fontWeight: "800" },
-  selectedCount: { fontSize: 12, fontWeight: "600" },
-  emptyState: { alignItems: "center", paddingVertical: 24 },
-  emptyIconWrap: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", marginBottom: 12 },
-  emptyIcon: { fontSize: 28 },
-  emptyTitle: { fontSize: 16, fontWeight: "700", marginBottom: 6 },
-  emptyText: { fontSize: 13, textAlign: "center", lineHeight: 18, paddingHorizontal: 16 },
-  selectedList: { gap: 8 },
-  selectedItem: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 12,
+  summaryRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    paddingHorizontal: SPACING.lg,
+    minHeight: 28,
   },
-  selectedMain: { flexDirection: "row", alignItems: "center", flex: 1 },
-  selectedNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
+  summaryText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  clearButton: {
+    minHeight: 28,
     justifyContent: "center",
-    marginRight: 10,
+    paddingHorizontal: SPACING.xs,
   },
-  selectedNumberText: { color: "#FFF", fontSize: 13, fontWeight: "700" },
-  selectedInfo: { flex: 1 },
-  selectedName: { fontSize: 14, fontWeight: "600" },
-  selectedCategory: { fontSize: 11, marginTop: 2 },
-  removeBtn: { paddingHorizontal: 8, paddingVertical: 4 },
-  removeBtnIcon: { fontSize: 22, fontWeight: "400" },
-  librarySection: {},
-  sectionTitle: { fontSize: 17, fontWeight: "800", marginBottom: 12 },
+  clearText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  pickedRow: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  pickedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.xs,
+    maxWidth: 200,
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
+    paddingLeft: SPACING.sm,
+    paddingRight: SPACING.sm,
+    paddingVertical: 6,
+  },
+  pickedIndex: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  pickedName: {
+    flexShrink: 1,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    minHeight: HIT_TARGET,
+  },
   searchInput: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    flex: 1,
     fontSize: 15,
-    marginBottom: 12,
+    paddingVertical: 0,
   },
-  categoryFilters: { marginBottom: 12 },
-  categoryFiltersContent: { paddingRight: 16 },
+
+  categoryRow: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    gap: SPACING.sm,
+  },
   categoryChip: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    marginRight: 8,
+    gap: 6,
+    minHeight: 36,
+    paddingHorizontal: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
   },
-  categoryChipIcon: { fontSize: 14, marginRight: 4 },
-  categoryChipText: { fontSize: 13, fontWeight: "600" },
-  noResultsWrap: { paddingVertical: 32, alignItems: "center" },
-  noResults: { fontSize: 14, textAlign: "center" },
-  categoryBlock: { marginTop: 8, marginBottom: 8 },
-  categoryTitle: { fontSize: 15, fontWeight: "800", marginBottom: 8 },
-  categoryDesc: { fontSize: 12, marginBottom: 10, lineHeight: 17 },
-  routineCard: {
-    borderWidth: 2,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 8,
+  categoryIcon: { fontSize: 13 },
+  categoryText: { fontSize: 13, fontWeight: "700" },
+
+  scrollView: { flex: 1 },
+  content: { padding: SPACING.lg, paddingBottom: 120 },
+
+  categoryBlock: { marginBottom: SPACING.lg },
+  categoryHeading: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: SPACING.sm,
+  },
+
+  routineRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: SPACING.md,
+    minHeight: 64,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
-  routineContent: { flexDirection: "row", alignItems: "center", flex: 1 },
-  routineIcon: { fontSize: 22, marginRight: 12 },
-  routineTextWrap: { flex: 1 },
-  routineName: { fontSize: 15, fontWeight: "600" },
-  routineSummary: { fontSize: 12, marginTop: 2 },
-  checkCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
+  routineIconTile: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.sm,
     alignItems: "center",
     justifyContent: "center",
   },
-  checkMark: { color: "#FFF", fontSize: 14, fontWeight: "700" },
+  routineIcon: { fontSize: 20 },
+  routineTextWrap: { flex: 1 },
+  routineName: { fontSize: 15, fontWeight: "700" },
+  routineMeta: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addButtonIndex: { fontSize: 13, fontWeight: "800" },
+
+  noResults: {
+    alignItems: "center",
+    gap: SPACING.sm,
+    paddingVertical: SPACING.xxl,
+  },
+  noResultsText: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    paddingHorizontal: SPACING.xl,
+  },
+
   actionBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    gap: SPACING.md,
     borderTopWidth: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
   },
   actionInfo: { flex: 1 },
-  actionCount: { fontSize: 16, fontWeight: "700" },
-  actionDuration: { fontSize: 13, marginTop: 2, fontWeight: "600" },
-  saveButton: { borderRadius: 12, paddingHorizontal: 24, paddingVertical: 14 },
-  saveButtonText: { fontSize: 16, fontWeight: "700" },
+  actionCount: { fontSize: 15, fontWeight: "800" },
+  actionHint: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+  saveButton: {
+    minHeight: HIT_TARGET,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.xl,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+  },
+  saveButtonText: { fontSize: 15, fontWeight: "800" },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: SCRIM,
@@ -643,8 +675,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: SPACING.md,
   },
-  notesInput: { minHeight: 80, textAlignVertical: "top" },
+  notesInput: { minHeight: 84 },
   modalConfirm: {
+    alignSelf: "stretch",
     minHeight: 48,
     borderRadius: RADIUS.md,
     alignItems: "center",
