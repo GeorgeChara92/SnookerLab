@@ -51,10 +51,23 @@ const loadCustomerState = async (customerId: string) => {
   return { entitlements: entitlements?.items ?? [], subscriptions: subscriptions?.items ?? [] };
 };
 
+/** RevenueCat sends timestamps as epoch milliseconds, but accept ISO strings too. */
+const toMillis = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return null;
+};
+
+const LIVE_STATUSES = ["active", "trialing", "in_trial", "in_grace_period", "grace_period", "paused"];
+
 const isLive = (subscription: any, now: number) => {
   if (subscription?.gives_access === true) return true;
-  const ends = subscription?.current_period_ends_at;
-  return typeof ends === "number" ? ends > now : false;
+  if (typeof subscription?.status === "string" && LIVE_STATUSES.includes(subscription.status.toLowerCase())) return true;
+  const ends = toMillis(subscription?.current_period_ends_at ?? subscription?.expires_at);
+  return ends === null ? false : ends > now;
 };
 
 const tierFromCustomerState = (state: any, now = Date.now()) => {
@@ -62,12 +75,22 @@ const tierFromCustomerState = (state: any, now = Date.now()) => {
 
   const tokens: string[] = [];
   for (const entitlement of state.entitlements) {
-    const expires = entitlement?.expires_at;
-    const live = expires === null || expires === undefined || (typeof expires === "number" && expires > now);
+    const expires = toMillis(entitlement?.expires_at);
+    // A null expiry means lifetime access, not expired.
+    const live = entitlement?.expires_at === null || entitlement?.expires_at === undefined || (expires !== null && expires > now);
     if (live && entitlement?.entitlement_id) tokens.push(String(entitlement.entitlement_id));
   }
   for (const subscription of state.subscriptions) {
-    if (isLive(subscription, now) && subscription?.product_id) tokens.push(String(subscription.product_id));
+    if (!isLive(subscription, now)) continue;
+    if (subscription?.product_id) tokens.push(String(subscription.product_id));
+    // Subscriptions can carry their entitlements inline depending on the expand used.
+    const inline = subscription?.entitlements?.items ?? subscription?.entitlements ?? [];
+    if (Array.isArray(inline)) {
+      for (const item of inline) {
+        const id = typeof item === "string" ? item : item?.entitlement_id ?? item?.id;
+        if (id) tokens.push(String(id));
+      }
+    }
   }
 
   const lower = tokens.map((token) => token.toLowerCase());
@@ -124,7 +147,23 @@ Deno.serve(async (request) => {
 
   try {
     const state = await loadCustomerState(caller.user.id);
+    console.log("sync-subscription state", {
+      found: state !== null,
+      entitlements: (state?.entitlements ?? []).map((item: any) => ({
+        id: item?.entitlement_id,
+        expires_at: item?.expires_at,
+      })),
+      subscriptions: (state?.subscriptions ?? []).map((item: any) => ({
+        product_id: item?.product_id,
+        status: item?.status,
+        gives_access: item?.gives_access,
+        ends: item?.current_period_ends_at,
+        store: item?.store,
+      })),
+    });
+
     const tier = await applyTier(admin, caller.user.id, state);
+    console.log("sync-subscription result", { tier });
     return json({ tier });
   } catch (error) {
     console.error("sync-subscription failed", { message: (error as any)?.message });
