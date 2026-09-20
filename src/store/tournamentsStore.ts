@@ -246,8 +246,14 @@ export const useTournamentsStore = create<TournamentsState>()(
         const tournament = get().tournaments.find((item) => item.id === tournamentId);
         if (!tournament) return;
 
+        const previousFixtures = tournament.fixtures;
+        const previousStatus = tournament.status;
+        const previousUpdatedAt = tournament.updated_at;
+
         const updated = tournament.fixtures.map((fixture) => {
-          if (fixture.id !== fixtureId) return { ...fixture };
+          // Untouched ties keep their identity, so the rows on screen do not rebuild their
+          // frame inputs every time someone else's result is saved.
+          if (fixture.id !== fixtureId) return fixture;
           const aWins = result.frameScores.filter((frame) => frame.winner === "a").length;
           const bWins = result.frameScores.filter((frame) => frame.winner === "b").length;
           const requiredWins = Math.floor(fixture.best_of_frames / 2) + 1;
@@ -269,59 +275,110 @@ export const useTournamentsStore = create<TournamentsState>()(
         const finalFixture = fixtures.find((fixture) => fixture.round_number === finalRound);
         const hasKnockoutChampion = tournament.tournament_type === "knockout" && !!finalFixture?.winner;
         const status = allComplete || hasKnockoutChampion ? "completed" : "active";
+        const updatedAt = new Date().toISOString();
 
-        const fixtureUpdates = fixtures.map((fixture) =>
-          supabase
-            .from("tournament_fixtures")
-            .update({
-              participant_a: fixture.participant_a,
-              participant_b: fixture.participant_b,
-              score_a: fixture.score_a ?? null,
-              score_b: fixture.score_b ?? null,
-              winner: fixture.winner ?? null,
-              status: fixture.status,
-            })
-            .eq("id", fixture.id)
-        );
-
-        await Promise.all(fixtureUpdates);
-
-        const frameDeleteUpdates = fixtures.map((fixture) =>
-          supabase.from("tournament_fixture_frames").delete().eq("fixture_id", fixture.id)
-        );
-        await Promise.all(frameDeleteUpdates);
-
-        const framePayload = fixtures.flatMap((fixture) =>
-          (fixture.frame_scores ?? []).map((frame) => ({
-            fixture_id: fixture.id,
-            frame_number: frame.frame_number,
-            score_a: frame.score_a,
-            score_b: frame.score_b,
-            winner: frame.winner,
-          }))
-        );
-        if (framePayload.length) {
-          const { error } = await supabase.from("tournament_fixture_frames").insert(framePayload);
-          if (error) throw error;
-        }
-
-        await supabase
-          .from("tournaments")
-          .update({ status, updated_at: new Date().toISOString() })
-          .eq("id", tournamentId);
-
+        // The screen reads from here, so it updates now rather than after the network settles.
+        // If any of the writes below fail the whole thing is put back.
         set((state) => ({
           tournaments: state.tournaments.map((item) =>
-            item.id === tournamentId
-              ? {
-                  ...item,
-                  fixtures,
-                  status,
-                  updated_at: new Date().toISOString(),
-                }
-              : item
+            item.id === tournamentId ? { ...item, fixtures, status, updated_at: updatedAt } : item
           ),
         }));
+
+        // Saving one scoreline used to rewrite every fixture and every frame in the tournament,
+        // which is ninety round trips in a decent sized league. Only send what actually moved:
+        // the tie that was edited, plus whatever the knockout recompute carried forward.
+        const before = new Map(previousFixtures.map((fixture) => [fixture.id, fixture]));
+        const framesOf = (fixture?: TournamentFixture) =>
+          (fixture?.frame_scores ?? [])
+            .map((frame) => `${frame.frame_number}:${frame.score_a}:${frame.score_b}:${frame.winner}`)
+            .join("|");
+
+        const changed = fixtures.filter((fixture) => {
+          const prior = before.get(fixture.id);
+          if (!prior) return true;
+          return (
+            prior.participant_a !== fixture.participant_a ||
+            prior.participant_b !== fixture.participant_b ||
+            prior.score_a !== fixture.score_a ||
+            prior.score_b !== fixture.score_b ||
+            prior.winner !== fixture.winner ||
+            prior.status !== fixture.status ||
+            framesOf(prior) !== framesOf(fixture)
+          );
+        });
+
+        try {
+          const results = await Promise.all(
+            changed.map((fixture) =>
+              supabase
+                .from("tournament_fixtures")
+                .update({
+                  participant_a: fixture.participant_a,
+                  participant_b: fixture.participant_b,
+                  score_a: fixture.score_a ?? null,
+                  score_b: fixture.score_b ?? null,
+                  winner: fixture.winner ?? null,
+                  status: fixture.status,
+                })
+                .eq("id", fixture.id)
+            )
+          );
+
+          const failed = results.find((item) => item.error);
+          if (failed?.error) throw failed.error;
+
+          const reframed = changed.filter((fixture) => framesOf(before.get(fixture.id)) !== framesOf(fixture));
+
+          if (reframed.length) {
+            const deletions = await Promise.all(
+              reframed.map((fixture) =>
+                supabase.from("tournament_fixture_frames").delete().eq("fixture_id", fixture.id)
+              )
+            );
+            const failedDelete = deletions.find((item) => item.error);
+            if (failedDelete?.error) throw failedDelete.error;
+
+            const framePayload = reframed.flatMap((fixture) =>
+              (fixture.frame_scores ?? []).map((frame) => ({
+                fixture_id: fixture.id,
+                frame_number: frame.frame_number,
+                score_a: frame.score_a,
+                score_b: frame.score_b,
+                winner: frame.winner,
+              }))
+            );
+
+            if (framePayload.length) {
+              const { error } = await supabase.from("tournament_fixture_frames").insert(framePayload);
+              if (error) throw error;
+            }
+          }
+
+          const { error: tournamentError } = await supabase
+            .from("tournaments")
+            .update({ status, updated_at: updatedAt })
+            .eq("id", tournamentId);
+          if (tournamentError) throw tournamentError;
+        } catch (error) {
+          // Put back only what this save touched, so a result saved alongside it survives.
+          const reverting = new Set(changed.map((fixture) => fixture.id));
+          set((state) => ({
+            tournaments: state.tournaments.map((item) =>
+              item.id === tournamentId
+                ? {
+                    ...item,
+                    fixtures: item.fixtures.map((fixture) =>
+                      reverting.has(fixture.id) ? before.get(fixture.id) ?? fixture : fixture
+                    ),
+                    status: previousStatus,
+                    updated_at: previousUpdatedAt,
+                  }
+                : item
+            ),
+          }));
+          throw error;
+        }
       },
 
       deleteTournament: async (tournamentId) => {

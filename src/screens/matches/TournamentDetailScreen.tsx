@@ -509,6 +509,22 @@ export const TournamentDetailScreen = () => {
     });
   };
 
+  /**
+   * The store updates the screen straight away and puts it back if the write fails, so the
+   * only thing left to do here is say something when it does.
+   */
+  const saveFixtureResult = (fixtureId: string, frameScores: TournamentFrameScore[]) => {
+    updateFixtureResult(tournament.id, fixtureId, { frameScores }).catch(() => {
+      dialog.alert({
+        title: "Could not save that result",
+        message: "The scoreline has been put back. Check your connection and enter it again.",
+        tone: "danger",
+        icon: "wifi-off",
+        confirmLabel: "Try again",
+      });
+    });
+  };
+
   const handleDeleteTournament = () => {
     dialog.confirm({
       title: "Delete this tournament?",
@@ -895,7 +911,7 @@ export const TournamentDetailScreen = () => {
                             colors={colors}
                             collapsible
                             initialExpanded={false}
-                            onSave={(fixtureId, frameScores) => updateFixtureResult(tournament.id, fixtureId, { frameScores })}
+                            onSave={saveFixtureResult}
                           />
                         ))}
                       </View>
@@ -937,7 +953,7 @@ export const TournamentDetailScreen = () => {
                         fixture={fixture}
                         delay={60 * (fixtureIndex + 1 + roundIndex)}
                         colors={colors}
-                        onSave={(fixtureId, frameScores) => updateFixtureResult(tournament.id, fixtureId, { frameScores })}
+                        onSave={saveFixtureResult}
                       />
                     ))
                 )
