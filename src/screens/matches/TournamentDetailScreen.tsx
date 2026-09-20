@@ -9,6 +9,7 @@ import { useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, TournamentFixture, TournamentFrameScore } from "../../types";
 import { computeLeagueStandings } from "../../features/tournaments/leagueStandings";
 import { buildBracketRounds } from "../../features/tournaments/knockout";
+import { RADIUS, SPACING } from "../../constants";
 
 const triggerHaptic = async (type: "light" | "success") => {
   try {
@@ -128,7 +129,7 @@ const FixtureRow = ({
       ]}
     >
       <View style={styles.fixtureHeadRow}>
-        <Text style={[styles.bestOfBadge, { color: colors.textMuted }]}>Best of {fixture.best_of_frames}</Text>
+        <Text style={[styles.bestOfBadge, { color: colors.textMuted }]}>BEST OF {fixture.best_of_frames}</Text>
         <View
           style={[
             styles.statusPill,
@@ -143,43 +144,52 @@ const FixtureRow = ({
         </View>
       </View>
 
-      <View style={styles.fixturePlayersRow}>
-        <View style={styles.playerCell}>
-          <Text
-            style={[
-              styles.fixtureName,
-              { color: fixture.winner === fixture.participant_a ? colors.primary : colors.text, fontWeight: fixture.winner === fixture.participant_a ? "800" : "700" },
-            ]}
-          >
-            {fixture.participant_a}
-          </Text>
-          <Text style={[styles.playerSubMeta, { color: colors.textMuted }]}>{fixture.score_a ?? "-"}</Text>
-        </View>
-
-        <Text style={[styles.vsText, { color: colors.textMuted }]}>vs</Text>
-
-        <View style={styles.playerCell}>
-          <Text
-            style={[
-              styles.fixtureName,
-              { color: fixture.winner === fixture.participant_b ? colors.primary : colors.text, fontWeight: fixture.winner === fixture.participant_b ? "800" : "700" },
-            ]}
-          >
-            {fixture.participant_b}
-          </Text>
-          <Text style={[styles.playerSubMeta, { color: colors.textMuted }]}>{fixture.score_b ?? "-"}</Text>
-        </View>
+      <View style={[styles.tie, { borderColor: colors.border }]}>
+        {[
+          { name: fixture.participant_a, score: fixture.score_a, isBye: isByeA },
+          { name: fixture.participant_b, score: fixture.score_b, isBye: isByeB },
+        ].map((player, index) => {
+          const isWinner = fixture.winner === player.name && !player.isBye;
+          return (
+            <View
+              key={`${fixture.id}-seat-${index}`}
+              style={[styles.tieSeat, index === 0 ? { borderBottomWidth: 1, borderBottomColor: colors.border } : null]}
+            >
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.tieName,
+                  {
+                    color: player.isBye || player.name === "TBD" ? colors.textMuted : colors.text,
+                    fontWeight: isWinner ? "800" : "600",
+                  },
+                ]}
+              >
+                {player.isBye ? "Bye" : player.name === "TBD" ? "To be decided" : player.name}
+              </Text>
+              {isWinner ? <MaterialCommunityIcons name="check" size={16} color={colors.primary} /> : null}
+              <Text style={[styles.tieScore, { color: isWinner ? colors.primary : colors.textMuted }]}>
+                {typeof player.score === "number" ? player.score : "-"}
+              </Text>
+            </View>
+          );
+        })}
       </View>
 
       {collapsible ? (
-        <Pressable style={styles.expandRow} onPress={() => setIsExpanded((prev) => !prev)}>
-          <Text style={[styles.expandLabel, { color: colors.textMuted }]}>{isExpanded ? "Hide Frames" : "Edit Frames"}</Text>
-          <Text style={[styles.expandLabel, { color: colors.primary }]}>{isExpanded ? "▲" : "▼"}</Text>
+        <Pressable
+          style={styles.expandRow}
+          onPress={() => setIsExpanded((prev) => !prev)}
+          accessibilityRole="button"
+          accessibilityLabel={isExpanded ? "Hide the frame scores" : "Edit the frame scores"}
+        >
+          <Text style={[styles.expandLabel, { color: colors.textMuted }]}>{isExpanded ? "Hide frames" : "Edit frames"}</Text>
+          <MaterialCommunityIcons name={isExpanded ? "chevron-up" : "chevron-down"} size={18} color={colors.primary} />
         </Pressable>
       ) : null}
 
       {isAutoAdvanced ? (
-        <Text style={[styles.matchScoreText, { color: colors.textMuted }]}>Auto-advanced via BYE</Text>
+        <Text style={[styles.matchScoreText, { color: colors.textMuted }]}>Bye - through to the next round</Text>
       ) : isExpanded ? (
         <>
           <View style={styles.resultRow}>
@@ -456,6 +466,8 @@ export const TournamentDetailScreen = () => {
     });
   };
 
+  const realPlayerCount = tournament.participants.filter((item) => !/^BYE\b/i.test(item)).length;
+
   const openHeroActions = () => {
     setShowActionsModal(true);
   };
@@ -463,60 +475,74 @@ export const TournamentDetailScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}> 
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={[styles.hero, { backgroundColor: isDark ? "#1A3A31" : colors.primaryStrong, borderColor: isDark ? "#3E7A66" : colors.primary }]}> 
-        <View style={styles.heroAmbientGlow} />
-        <View style={styles.heroTopActions}>
-          <Pressable
-            style={[styles.heroNameRow]}
-          >
-            <Text style={[styles.heroTitle, { color: "#F2FFF9" }]} numberOfLines={1}>{heroDisplayName}</Text>
-          </Pressable>
+      <View style={[styles.hero, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.heroTopRow}>
+          <View style={styles.heroTitleWrap}>
+            <Text style={[styles.heroKicker, { color: colors.textMuted }]}>
+              {tournament.tournament_type === "knockout" ? "KNOCKOUT" : "LEAGUE"} · {tournament.entry_mode.toUpperCase()}
+            </Text>
+            <Text style={[styles.heroTitle, { color: colors.text }]} numberOfLines={2}>
+              {heroDisplayName}
+            </Text>
+          </View>
 
           <Pressable
-            style={[styles.iconAction, { backgroundColor: "rgba(255,255,255,0.16)" }]}
+            style={[styles.iconAction, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
             onPress={openHeroActions}
+            accessibilityRole="button"
+            accessibilityLabel="Tournament options"
           >
-            <MaterialCommunityIcons name="dots-horizontal" size={18} color={colors.onPrimary} />
+            <MaterialCommunityIcons name="dots-horizontal" size={20} color={colors.text} />
           </Pressable>
         </View>
 
-        <View style={styles.heroChipRow}>
-          <View style={[styles.heroChip, { backgroundColor: "rgba(52,211,153,0.30)", borderColor: "rgba(52,211,153,0.55)" }]}><Text style={[styles.heroChipText, { color: "#F6FFFB" }]}>{tournament.tournament_type.toUpperCase()}</Text></View>
-          <View style={[styles.heroChip, { backgroundColor: "rgba(56,189,248,0.30)", borderColor: "rgba(56,189,248,0.55)" }]}><Text style={[styles.heroChipText, { color: "#F6FFFB" }]}>{tournament.entry_mode.toUpperCase()}</Text></View>
-          <View style={[styles.heroChip, { backgroundColor: "rgba(250,204,21,0.30)", borderColor: "rgba(250,204,21,0.55)" }]}><Text style={[styles.heroChipText, { color: "#172012" }]}>Best of {tournament.best_of_frames}</Text></View>
-          <View style={[styles.heroChip, { backgroundColor: "rgba(168,85,247,0.34)", borderColor: "rgba(168,85,247,0.58)" }]}><Text style={[styles.heroChipText, { color: "#F6FFFB" }]}>{tournament.participants.filter((item) => !/^BYE\b/i.test(item)).length} players</Text></View>
-        </View>
-
-        <View style={styles.heroStatusRow}>
-          <Text style={[styles.heroMeta, { color: "#D3EDE2", marginTop: 0 }]}>{tournament.participants.filter((item) => !/^BYE\b/i.test(item)).length} Players · {stageLabel}</Text>
-          <View style={[styles.heroBadge, { borderColor: "rgba(255,255,255,0.34)", backgroundColor: "rgba(255,255,255,0.14)" }]}>
-            <Text style={[styles.heroBadgeText, { color: colors.onPrimary }]}>{completion.completed ? "Completed" : "In Progress"}</Text>
+        <View style={styles.heroFactsRow}>
+          <View style={styles.heroFact}>
+            <Text style={[styles.heroFactValue, { color: colors.text }]}>{realPlayerCount}</Text>
+            <Text style={[styles.heroFactLabel, { color: colors.textMuted }]}>Players</Text>
+          </View>
+          <View style={[styles.heroFactDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.heroFact}>
+            <Text style={[styles.heroFactValue, { color: colors.text }]}>{tournament.best_of_frames}</Text>
+            <Text style={[styles.heroFactLabel, { color: colors.textMuted }]}>Best of</Text>
+          </View>
+          <View style={[styles.heroFactDivider, { backgroundColor: colors.border }]} />
+          <View style={styles.heroFact}>
+            <Text style={[styles.heroFactValue, { color: colors.text }]} numberOfLines={1}>{stageLabel}</Text>
+            <Text style={[styles.heroFactLabel, { color: colors.textMuted }]}>Stage</Text>
           </View>
         </View>
 
-        <Text style={[styles.heroProgressLabel, { color: "#DDF5EB" }]}>Progress</Text>
         <View style={styles.heroProgressRow}>
-          <View style={[styles.heroProgressTrack, { backgroundColor: "rgba(255,255,255,0.24)" }]}>
+          <View style={[styles.heroProgressTrack, { backgroundColor: colors.surfaceMuted }]}>
             <Animated.View
               style={[
                 styles.heroProgressFill,
                 {
                   width: heroProgressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
-                  backgroundColor: "#E6FFF4",
+                  backgroundColor: completion.completed ? colors.accent : colors.primary,
                 },
               ]}
             />
           </View>
+          <Text style={[styles.heroProgressText, { color: colors.textMuted }]}>
+            {completion.done} of {completion.total} played
+          </Text>
         </View>
-        <View style={styles.heroProgressMetaRow}>
-          <Text style={[styles.heroMeta, { color: "#C7E1D7", marginTop: 0 }]}>{completion.done} of {completion.total} matches completed</Text>
-          <Text style={[styles.heroProgressText, { color: colors.onPrimary }]}>{Math.round(progressRatio * 100)}%</Text>
-        </View>
+
         {completion.champion ? (
-          <Text style={[styles.championText, { color: colors.onPrimary }]}>Champion: {completion.champion}</Text>
+          <View style={[styles.championBanner, { backgroundColor: colors.accentWash, borderColor: colors.accent }]}>
+            <MaterialCommunityIcons name="trophy" size={18} color={colors.accent} />
+            <Text style={[styles.championBannerText, { color: colors.text }]}>
+              {completion.champion} wins {tournament.name}
+            </Text>
+          </View>
         ) : null}
+
         {tournament.previous_champion ? (
-          <Text style={[styles.heroMeta, { color: "#C7E1D7" }]}>Previous champion: {tournament.previous_champion}</Text>
+          <Text style={[styles.heroFootnote, { color: colors.textMuted }]}>
+            Previous champion: {tournament.previous_champion}
+          </Text>
         ) : null}
       </View>
 
@@ -537,21 +563,6 @@ export const TournamentDetailScreen = () => {
                           style={[styles.bracketTie, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, opacity: 0.5 }]}
                         >
                           <Text style={[styles.bracketEmpty, { color: colors.textMuted }]}>No tie</Text>
-                        </View>
-                      );
-                    }
-
-                    if (tie.isWalkover) {
-                      const through = tie.a.name ?? tie.b.name ?? "";
-                      return (
-                        <View
-                          key={tie.id}
-                          style={[styles.bracketTie, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-                        >
-                          <Text style={[styles.bracketSeatName, { color: colors.text }]} numberOfLines={1}>
-                            {through}
-                          </Text>
-                          <Text style={[styles.bracketWalkover, { color: colors.textMuted }]}>Walkover</Text>
                         </View>
                       );
                     }
@@ -772,23 +783,62 @@ export const TournamentDetailScreen = () => {
 
     </ScrollView>
 
-    <Modal visible={showActionsModal} transparent animationType="fade" onRequestClose={() => setShowActionsModal(false)}>
-      <View style={styles.actionsOverlay}>
-        <View style={[styles.actionsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.actionsTitle, { color: colors.text }]}>Tournament Actions</Text>
-          <Pressable style={[styles.actionsItem, { borderColor: colors.border }]} onPress={() => { setShowActionsModal(false); handleFreshStart(); }}>
-            <MaterialCommunityIcons name="restart" size={16} color={colors.text} />
-            <Text style={[styles.actionsItemText, { color: colors.text }]}>Fresh Start</Text>
+    <Modal visible={showActionsModal} transparent animationType="slide" onRequestClose={() => setShowActionsModal(false)}>
+      <Pressable style={styles.sheetBackdrop} onPress={() => setShowActionsModal(false)} accessibilityLabel="Close options">
+        <Pressable
+          style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => null}
+          accessibilityViewIsModal
+        >
+          <View style={[styles.sheetGrabber, { backgroundColor: colors.border }]} />
+          <Text style={[styles.sheetTitle, { color: colors.text }]}>{tournament.name}</Text>
+          <Text style={[styles.sheetSubtitle, { color: colors.textMuted }]}>
+            {realPlayerCount} players · {completion.done} of {completion.total} played
+          </Text>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.sheetItem,
+              { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
+            ]}
+            onPress={() => {
+              setShowActionsModal(false);
+              handleFreshStart();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Start the same field again"
+          >
+            <MaterialCommunityIcons name="restart" size={20} color={colors.text} />
+            <View style={styles.sheetItemText}>
+              <Text style={[styles.sheetItemTitle, { color: colors.text }]}>Start again</Text>
+              <Text style={[styles.sheetItemMeta, { color: colors.textMuted }]}>Same players, a fresh draw</Text>
+            </View>
           </Pressable>
-          <Pressable style={[styles.actionsItem, { borderColor: colors.border }]} onPress={() => { setShowActionsModal(false); handleDeleteTournament(); }}>
-            <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.danger} />
-            <Text style={[styles.actionsItemText, { color: colors.danger }]}>Delete Tournament</Text>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.sheetItem,
+              { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
+            ]}
+            onPress={() => {
+              setShowActionsModal(false);
+              handleDeleteTournament();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Delete this tournament"
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.danger} />
+            <View style={styles.sheetItemText}>
+              <Text style={[styles.sheetItemTitle, { color: colors.danger }]}>Delete tournament</Text>
+              <Text style={[styles.sheetItemMeta, { color: colors.textMuted }]}>The bracket and every result go with it</Text>
+            </View>
           </Pressable>
-          <Pressable style={[styles.actionsCancel, { borderColor: colors.border }]} onPress={() => setShowActionsModal(false)}>
-            <Text style={[styles.actionsCancelText, { color: colors.textMuted }]}>Cancel</Text>
+
+          <Pressable onPress={() => setShowActionsModal(false)} style={styles.sheetCancel} accessibilityRole="button">
+            <Text style={[styles.sheetCancelText, { color: colors.textMuted }]}>Close</Text>
           </Pressable>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
 
     <Modal visible={showChampionModal && !!completion.champion} transparent animationType="fade" onRequestClose={() => setShowChampionModal(false)}>
@@ -907,6 +957,123 @@ const styles = StyleSheet.create({
   },
   iconActionText: { fontSize: 12, fontWeight: "700" },
   heroTitle: { fontSize: 24, fontWeight: "800" },
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: SPACING.md,
+  },
+  heroKicker: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+    marginBottom: 4,
+  },
+  heroFactsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: SPACING.lg,
+  },
+  heroFact: {
+    flex: 1,
+    alignItems: "center",
+  },
+  heroFactValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
+  heroFactLabel: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  heroFactDivider: {
+    width: 1,
+    height: 28,
+  },
+  heroProgressText: {
+    fontSize: 12,
+    marginTop: SPACING.sm,
+  },
+  championBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginTop: SPACING.lg,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+  },
+  championBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  heroFootnote: {
+    fontSize: 12,
+    marginTop: SPACING.md,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(4, 10, 8, 0.72)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xxl,
+  },
+  sheetGrabber: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: RADIUS.pill,
+    marginBottom: SPACING.lg,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+    marginBottom: SPACING.lg,
+  },
+  sheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.sm,
+    minHeight: 56,
+  },
+  sheetItemText: {
+    flex: 1,
+  },
+  sheetItemTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  sheetItemMeta: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  sheetCancel: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xs,
+  },
+  sheetCancelText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
   heroMeta: { marginTop: 6, fontSize: 13, fontWeight: "600" },
   heroChipRow: {
     flexDirection: "row",
@@ -953,10 +1120,6 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 999,
   },
-  heroProgressText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
   heroProgressMetaRow: {
     marginTop: 6,
     flexDirection: "row",
@@ -971,6 +1134,31 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionTitle: { fontSize: 16, fontWeight: "800", marginBottom: 8 },
+  tie: {
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    overflow: "hidden",
+    marginTop: SPACING.md,
+  },
+  tieSeat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    minHeight: 48,
+  },
+  tieName: {
+    flex: 1,
+    fontSize: 15,
+  },
+  tieScore: {
+    fontSize: 16,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+    minWidth: 20,
+    textAlign: "right",
+  },
   fixtureHeadRow: {
     flexDirection: "row",
     justifyContent: "space-between",
