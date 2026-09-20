@@ -5,7 +5,6 @@ import { Routine } from "../../types";
 import { getYoutubeThumbnailUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { getRoutineReferenceImageByRoutineId, isRoutineARBadgeVisible } from "../../features/ar/routineLayouts";
-import { TableDiagram } from "./TableDiagram";
 
 interface RoutineCardProps {
   routine: Routine;
@@ -43,11 +42,7 @@ export const RoutineCard = ({ routine, categoryName, categoryColor, onPress }: R
       ) : null}
       <View style={styles.topRow}>
         <View style={styles.leftMeta}>
-          {routine.diagram && !isGuide ? (
-            <TableDiagram diagram={routine.diagram} width={40} showCaption={false} />
-          ) : (
-            <Text style={styles.icon}>{routine.icon ?? "🎱"}</Text>
-          )}
+          <Text style={styles.icon}>{routine.icon ?? "🎱"}</Text>
           <View style={styles.titleWrap}>
             <Text style={[styles.title, { color: colors.text }]}>{routine.name}</Text>
             <Text style={[styles.category, { color: categoryColor ?? "#0F766E" }]}>{categoryName}</Text>

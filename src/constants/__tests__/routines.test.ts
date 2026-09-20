@@ -169,6 +169,22 @@ describe("routine library", () => {
     expect(adrift).toEqual([]);
   });
 
+  it("keeps a video on most drills", () => {
+    const drills = DEFAULT_ROUTINES.filter((routine) => routine.content_type !== "guide");
+    const withVideo = drills.filter((routine) => routine.youtube_video_id).length;
+
+    // Pinned so it only goes up. Every id was checked against YouTube before being added.
+    expect(withVideo).toBeGreaterThanOrEqual(45);
+  });
+
+  it("never half-fills a video", () => {
+    const broken = DEFAULT_ROUTINES.filter(
+      (routine) => routine.youtube_video_id && (!routine.youtube_url || !routine.youtube_title)
+    );
+
+    expect(broken.map((routine) => routine.id)).toEqual([]);
+  });
+
   it("draws a table for every drill", () => {
     const drillsWithoutDiagrams = DEFAULT_ROUTINES.filter(
       (routine) => routine.content_type !== "guide" && !routine.diagram

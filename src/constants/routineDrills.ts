@@ -241,6 +241,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "TxjTAmP-9B4", title: "41. Practice Straight Cueing - It will improve your potting", channel: "Barry Stark Snooker Coach" },
+      { id: "h6H4sSf4vZ0", title: "43. Long Potting - Practice for success", channel: "Barry Stark Snooker Coach" }
+    ),
     id: "routine-long-straight-reds",
     category_id: "cat-long-potting",
     name: "Long Straight Reds",
@@ -278,6 +282,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "h6H4sSf4vZ0", title: "43. Long Potting - Practice for success", channel: "Barry Stark Snooker Coach" }
+    ),
     id: "routine-shoot-out-blues",
     category_id: "cat-long-potting",
     name: "Blues from the D",
@@ -313,6 +320,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "KpYvbEkXsLk", title: "Snooker Practice Exercise - Long Potting & Safety", channel: "BartonSnooker" }
+    ),
     id: "routine-topspin-long-pots",
     category_id: "cat-long-potting",
     name: "Top Spin Long Pots",
@@ -353,6 +363,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   // ---------------------------------------------------------------- break building
   {
     ...base,
+    ...withVideo(
+      { id: "yiY51CVSh7E", title: "Snooker Practice Routines - Guide on How To Clear The Line Up", channel: "CueBald Snooker" },
+      { id: "qMFj7_LJkSY", title: "Mix Up Your Practice - Snooker Line-Up & Routines", channel: "BartonSnooker" }
+    ),
     id: "routine-half-line-up",
     category_id: "cat-break-building",
     name: "The Half Line Up",
@@ -382,6 +396,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "I5nkzi55xbs", title: "Snooker Practice - 3 Reds Break Building - Snooker Lesson", channel: "BartonSnooker" }
+    ),
     id: "routine-six-reds-six-blues",
     category_id: "cat-break-building",
     name: "Six Reds, Six Blues",
@@ -559,6 +576,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "I5nkzi55xbs", title: "Snooker Practice - 3 Reds Break Building - Snooker Lesson", channel: "BartonSnooker" }
+    ),
     id: "routine-mini-step-ladder",
     category_id: "cat-break-building",
     name: "Six Reds and Blacks",
@@ -592,6 +612,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "6S0Ai_cMUAY", title: "Snooker Break Building - T line up exercise, Part 1", channel: "Snooker Pro Club" }
+    ),
     id: "routine-the-v",
     category_id: "cat-break-building",
     name: "The V",
@@ -632,6 +655,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "W7SjvuEmI00", title: "Snooker Practice Routines - Zig-Zag Line Up Drill", channel: "CueBald Snooker" }
+    ),
     id: "routine-alternate-reds",
     category_id: "cat-break-building",
     name: "Alternate Reds",
@@ -696,6 +722,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   // ---------------------------------------------------------------- cue ball control
   {
     ...base,
+    ...withVideo(
+      { id: "t-vvICLpv4A", title: "Snooker practice routine for beginners - Potting blues", channel: "CuePal" }
+    ),
     id: "routine-ten-blues",
     category_id: "cat-cue-ball-control",
     name: "Ten Blues",
@@ -731,6 +760,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "HZv0MGi9pfk", title: "Blue, pink and black practice routine", channel: "Michael Holt Snooker Coaching" }
+    ),
     id: "routine-pink-blacks",
     category_id: "cat-cue-ball-control",
     name: "Pink and Blacks",
@@ -800,6 +832,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "n3IBvWCM87Y", title: "58. Clearing the Colours - Practice from their spots", channel: "Barry Stark Snooker Coach" },
+      { id: "BnLJ2znIFh4", title: "Snooker Clearing The Colours - Key Shots - Tutorial", channel: "BartonSnooker" }
+    ),
     id: "routine-colours-stun",
     category_id: "cat-cue-ball-control",
     name: "Colours in Order, Stun Only",
@@ -909,6 +945,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "KpYvbEkXsLk", title: "Snooker Practice Exercise - Long Potting & Safety", channel: "BartonSnooker" }
+    ),
     id: "routine-figure-of-eight-safety",
     category_id: "cat-safety",
     name: "Figure of Eight Safety",
@@ -1363,6 +1402,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "BnLJ2znIFh4", title: "Snooker Clearing The Colours - Key Shots - Tutorial", channel: "BartonSnooker" },
+      { id: "6cAsmAO7Pwo", title: "Snooker Colours Clearance - Beginners Guide", channel: "BartonSnooker" }
+    ),
     id: "routine-105-challenge",
     category_id: "cat-challenges",
     name: "The 105 Challenge",
@@ -1495,6 +1538,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "n3IBvWCM87Y", title: "58. Clearing the Colours - Practice from their spots", channel: "Barry Stark Snooker Coach" },
+      { id: "6cAsmAO7Pwo", title: "Snooker Colours Clearance - Beginners Guide", channel: "BartonSnooker" }
+    ),
     id: "routine-colours-100",
     category_id: "cat-challenges",
     name: "A Hundred off the Colours",
