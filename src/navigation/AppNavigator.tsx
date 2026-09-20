@@ -11,6 +11,7 @@ import {
   useTournamentsStore,
 } from "../store";
 import { supabase } from "../api/supabase";
+import { startSync, stopSync } from "../sync";
 import { MainTabNavigator } from "./MainTabNavigator";
 import { AuthNavigator } from "./AuthNavigator";
 import { ProfileNavigator } from "./ProfileNavigator";
@@ -103,7 +104,9 @@ export const AppNavigator = () => {
       void hydrateTournamentsForUser(session.user.id);
       setAIOwner(session.user.id);
       void hydrateAIForUser(session.user.id);
+      startSync(session.user.id);
     } else {
+      stopSync();
       setSessionsOwner(null);
       setMatchesOwner(null);
       setRoutineScoresOwner(null);
@@ -177,11 +180,13 @@ export const AppNavigator = () => {
         void hydrateTournamentsForUser(nextSession.user.id);
         setAIOwner(nextSession.user.id);
         void hydrateAIForUser(nextSession.user.id);
+        startSync(nextSession.user.id);
         return;
       }
 
       setUser(null);
       setRequiresPasswordReset(false);
+      stopSync();
       setSessionsOwner(null);
       setMatchesOwner(null);
       setRoutineScoresOwner(null);

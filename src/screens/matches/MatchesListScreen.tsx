@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SyncBanner } from "../../components/ui/SyncBanner";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useMatchesStore, useTournamentsStore } from "../../store";
@@ -541,6 +542,10 @@ const overallStats = useMemo(() => {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.syncBannerWrap}>
+        <SyncBanner scope="matches" noun="score" />
+      </View>
+
       <View style={styles.actionsRow}>
         <Pressable
           style={[
@@ -609,6 +614,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+  },
+  syncBannerWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
   },
   actionsRow: {
     flexDirection: "row",

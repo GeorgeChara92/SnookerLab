@@ -10,6 +10,7 @@ import type { MatchesStackParamList, TournamentFixture, TournamentFrameScore } f
 import { computeLeagueStandings } from "../../features/tournaments/leagueStandings";
 import { buildBracketRounds } from "../../features/tournaments/knockout";
 import { RADIUS, SCRIM, SPACING } from "../../constants";
+import { SyncBanner } from "../../components/ui/SyncBanner";
 
 const triggerHaptic = async (type: "light" | "success") => {
   try {
@@ -510,19 +511,11 @@ export const TournamentDetailScreen = () => {
   };
 
   /**
-   * The store updates the screen straight away and puts it back if the write fails, so the
-   * only thing left to do here is say something when it does.
+   * The store puts the result on screen at once and, if it cannot reach Supabase, parks it in
+   * the outbox. The banner below the hero is what tells the player it is still waiting.
    */
   const saveFixtureResult = (fixtureId: string, frameScores: TournamentFrameScore[]) => {
-    updateFixtureResult(tournament.id, fixtureId, { frameScores }).catch(() => {
-      dialog.alert({
-        title: "Could not save that result",
-        message: "The scoreline has been put back. Check your connection and enter it again.",
-        tone: "danger",
-        icon: "wifi-off",
-        confirmLabel: "Try again",
-      });
-    });
+    void updateFixtureResult(tournament.id, fixtureId, { frameScores });
   };
 
   const handleDeleteTournament = () => {
@@ -613,6 +606,10 @@ export const TournamentDetailScreen = () => {
           <Text style={[styles.heroProgressText, { color: colors.textMuted }]}>
             {completion.done} of {completion.total} played
           </Text>
+        </View>
+
+        <View style={styles.syncBannerWrap}>
+          <SyncBanner scope="tournaments" noun="result" />
         </View>
 
         {completion.champion ? (
@@ -1614,6 +1611,9 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 12,
     fontWeight: "700",
+  },
+  syncBannerWrap: {
+    marginTop: SPACING.md,
   },
   championOverlay: {
     flex: 1,

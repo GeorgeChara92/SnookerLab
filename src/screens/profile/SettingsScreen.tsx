@@ -14,12 +14,27 @@ import { useAuthStore } from "../../store";
 import type { ProfileStackParamList, RootStackParamList } from "../../types";
 import { isBillingConfigured, openNativeSubscriptionSettings, presentCustomerCenter } from "../../services/billing";
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
+import { flushOutbox, refreshEverything, useOutboxStore } from "../../sync";
 
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snooker-lab.vercel.app/privacy";
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snooker-lab.vercel.app/terms";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookerlab.app";
 
 const createChallenge = () => Math.random().toString(36).toUpperCase().slice(2, 8);
+
+/** "3 minutes ago", near enough for a status line. */
+const sinceLabel = (iso: string | null) => {
+  if (!iso) return "Not yet";
+  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes === 1) return "1 minute ago";
+  if (minutes < 60) return `${minutes} minutes ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return "1 hour ago";
+  if (hours < 24) return `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "Yesterday" : `${days} days ago`;
+};
 
 type SettingsRowProps = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -60,6 +75,45 @@ export const SettingsScreen = () => {
   const navigation = useNavigation<NavigationProp<ProfileStackParamList & RootStackParamList>>();
   const { colors } = useAppTheme();
   const dialog = useDialog();
+  const waiting = useOutboxStore((state) => state.jobs);
+  const lastSyncedAt = useOutboxStore((state) => state.lastSyncedAt);
+  const isSyncing = useOutboxStore((state) => state.isFlushing);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const syncNow = async () => {
+    setIsRefreshing(true);
+    try {
+      // Send what is waiting first, so a refresh cannot pull the old numbers back over it.
+      const { sent, stalled } = await flushOutbox({ force: true });
+      await refreshEverything();
+
+      if (stalled) {
+        const blocked = useOutboxStore.getState().jobs[0];
+        dialog.alert({
+          title: "Still waiting to sync",
+          message: blocked?.lastError
+            ? `${blocked.description} could not be sent. The app will keep trying whenever it has a connection.`
+            : "The server could not be reached. The app will keep trying whenever it has a connection.",
+          tone: "danger",
+          icon: "cloud-off-outline",
+          confirmLabel: "Got it",
+        });
+        return;
+      }
+
+      dialog.alert({
+        title: sent ? "Everything is synced" : "Up to date",
+        message: sent
+          ? `${sent} ${sent === 1 ? "change" : "changes"} sent, and this device has the latest from your other ones.`
+          : "Nothing was waiting, and this device now has the latest from your other ones.",
+        tone: "success",
+        icon: "cloud-check-outline",
+        confirmLabel: "Done",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   const subscription = useSubscriptionAccess();
   const { user, resetPassword, resendEmailVerification, deleteAccount, resetProfile, isLoading } = useAuthStore();
   
@@ -365,6 +419,39 @@ export const SettingsScreen = () => {
           />
         </SettingsSection>
 
+        {/* Sync Section */}
+        <SettingsSection title="SYNC" colors={colors}>
+          <SettingsRow
+            icon={waiting.length ? "cloud-upload-outline" : "cloud-check-outline"}
+            label={
+              waiting.length
+                ? `${waiting.length} ${waiting.length === 1 ? "change" : "changes"} waiting`
+                : "Everything is synced"
+            }
+            value={isSyncing || isRefreshing ? "Syncing..." : sinceLabel(lastSyncedAt)}
+            onPress={() => void syncNow()}
+            colors={colors}
+          />
+          {waiting.length ? (
+            <>
+              <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.syncDetail}>
+                {waiting.slice(0, 3).map((job) => (
+                  <Text key={job.id} style={[styles.syncDetailText, { color: colors.textMuted }]} numberOfLines={1}>
+                    {job.description}
+                    {job.attempts ? ` - tried ${job.attempts} ${job.attempts === 1 ? "time" : "times"}` : ""}
+                  </Text>
+                ))}
+                {waiting.length > 3 ? (
+                  <Text style={[styles.syncDetailText, { color: colors.textMuted }]}>
+                    and {waiting.length - 3} more
+                  </Text>
+                ) : null}
+              </View>
+            </>
+          ) : null}
+        </SettingsSection>
+
         {/* Support Section */}
         <SettingsSection title="SUPPORT & POLICIES" colors={colors}>
           <SettingsRow
@@ -501,6 +588,15 @@ const styles = StyleSheet.create({
 
   // Settings Sections
   section: { marginBottom: 20 },
+  syncDetail: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 4,
+  },
+  syncDetailText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
   sectionTitle: { fontSize: 11, fontWeight: "700", letterSpacing: 1, marginBottom: 8, marginLeft: 4 },
   sectionContent: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
 

@@ -55,6 +55,8 @@ jest.mock("../../utils/storage", () => ({
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { useTournamentsStore } = require("../tournamentsStore");
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { useOutboxStore, flushOutbox } = require("../../sync/outbox");
 
 const fixture = (over: Partial<TournamentFixture> & { id: string }): TournamentFixture => ({
   tournament_id: "t1",
@@ -99,6 +101,7 @@ beforeEach(() => {
   recorded.length = 0;
   failTable = null;
   useTournamentsStore.setState({ tournaments: [tournament()], ownerUserId: "u1" });
+  useOutboxStore.setState({ jobs: [], isFlushing: false, lastSyncedAt: null });
 });
 
 describe("saving a league result", () => {
@@ -214,32 +217,75 @@ describe("saving a knockout result", () => {
   });
 });
 
-describe("when Supabase refuses the write", () => {
-  it("puts the scoreline back and says so", async () => {
+describe("when Supabase cannot be reached", () => {
+  it("keeps the result on screen and parks it in the outbox", async () => {
     failTable = "tournament_fixtures";
 
-    await expect(
-      useTournamentsStore.getState().updateFixtureResult("t1", "f1", { frameScores: twoNil })
-    ).rejects.toBeDefined();
+    const outcome = await useTournamentsStore
+      .getState()
+      .updateFixtureResult("t1", "f1", { frameScores: twoNil });
 
-    const reverted = useTournamentsStore
+    expect(outcome).toBe("queued");
+
+    const kept = useTournamentsStore
       .getState()
       .tournaments[0].fixtures.find((item: TournamentFixture) => item.id === "f1");
-    expect(reverted?.status).toBe("pending");
-    expect(reverted?.score_a).toBeUndefined();
-    expect(useTournamentsStore.getState().tournaments[0].status).toBe("active");
+    expect(kept).toMatchObject({ score_a: 2, score_b: 0, winner: "Alice", status: "completed" });
+
+    const jobs = useOutboxStore.getState().jobs;
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({ kind: "tournament.fixtures", scope: "tournaments" });
+    expect(jobs[0].description).toContain("Club League");
   });
 
-  it("puts it back when the frames are the part that fails", async () => {
+  it("parks it when the frames are the part that fails", async () => {
     failTable = "tournament_fixture_frames";
 
+    await useTournamentsStore.getState().updateFixtureResult("t1", "f1", { frameScores: twoNil });
+
+    expect(useOutboxStore.getState().jobs).toHaveLength(1);
+  });
+
+  it("sends the same rows once the connection is back", async () => {
+    failTable = "tournament_fixtures";
+    await useTournamentsStore.getState().updateFixtureResult("t1", "f1", { frameScores: twoNil });
+
+    recorded.length = 0;
+    failTable = null;
+
+    const { sent, stalled } = await flushOutbox();
+
+    expect({ sent, stalled }).toEqual({ sent: 1, stalled: false });
+    expect(useOutboxStore.getState().jobs).toHaveLength(0);
+
+    const fixtureWrites = writes("tournament_fixtures", "update");
+    expect(fixtureWrites).toHaveLength(1);
+    expect(fixtureWrites[0].match).toEqual(["id", "f1"]);
+    expect(fixtureWrites[0].payload).toMatchObject({ score_a: 2, score_b: 0, winner: "Alice" });
+    expect(writes("tournament_fixture_frames", "insert")[0].payload).toHaveLength(2);
+    expect(writes("tournaments", "update")).toHaveLength(1);
+  });
+
+  it("holds the queue in order when a later try fails again", async () => {
+    failTable = "tournament_fixtures";
+    await useTournamentsStore.getState().updateFixtureResult("t1", "f1", { frameScores: twoNil });
+    await useTournamentsStore.getState().updateFixtureResult("t1", "f2", { frameScores: twoNil });
+
+    expect(useOutboxStore.getState().jobs).toHaveLength(2);
+
+    const { sent, stalled } = await flushOutbox();
+
+    expect(sent).toBe(0);
+    expect(stalled).toBe(true);
+    expect(useOutboxStore.getState().jobs).toHaveLength(2);
+    expect(useOutboxStore.getState().jobs[0].attempts).toBe(1);
+    // The second job must not have gone ahead of the first.
+    expect(useOutboxStore.getState().jobs[1].attempts).toBe(0);
+  });
+
+  it("reports where the result went", async () => {
     await expect(
       useTournamentsStore.getState().updateFixtureResult("t1", "f1", { frameScores: twoNil })
-    ).rejects.toBeDefined();
-
-    const reverted = useTournamentsStore
-      .getState()
-      .tournaments[0].fixtures.find((item: TournamentFixture) => item.id === "f1");
-    expect(reverted?.status).toBe("pending");
+    ).resolves.toBe("saved");
   });
 });

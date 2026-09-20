@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { safeStorage } from "../utils/storage";
 import { LiveFrameRecord, Match } from "../types";
 import { supabase } from "../api/supabase";
+import { flushOutbox, queueWrite, registerSyncHandler } from "../sync/outbox";
 
 interface MatchesState {
   ownerUserId: string | null;
@@ -81,7 +82,75 @@ const groupFramesByMatch = (frames: LiveFrameRecord[]): Record<string, LiveFrame
   }, {});
 };
 
+/**
+ * The signed-in player's id, read from the session already on the phone. getUser() asks the
+ * server, which is exactly what a write cannot rely on when there is no signal.
+ */
+const currentUserId = async () => {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id ?? null;
+};
+
 const isMissingTableError = (error: any) => error?.code === "42P01";
+
+/**
+ * The writes behind a saved frame, an edited match and a deleted one, each in a shape that can
+ * be written to disk and sent later. The store runs these directly; the outbox runs the same
+ * ones when the phone could not reach Supabase at the time.
+ */
+type FrameSync = {
+  matchId: string;
+  frame: Record<string, any>;
+  summary: { user_score: number; opponent_score: number; frames_played: number; result: Match["result"] };
+  updatedAt: string;
+  userId: string;
+};
+
+const pushFrameSync = async (job: FrameSync) => {
+  const { error: frameError } = await supabase
+    .from("match_frames")
+    .upsert(job.frame, { onConflict: "match_id,frame_number" });
+
+  if (frameError) {
+    if (isMissingTableError(frameError)) {
+      throw new Error("Live frame table missing. Run supabase/schema.sql to create public.match_frames.");
+    }
+    throw frameError;
+  }
+
+  const { error } = await supabase
+    .from("matches")
+    .update({
+      user_score: job.summary.user_score,
+      opponent_score: job.summary.opponent_score,
+      frames_played: job.summary.frames_played,
+      result: job.summary.result,
+      recording_mode: "live",
+      updated_at: job.updatedAt,
+    })
+    .eq("id", job.matchId)
+    .eq("user_id", job.userId);
+
+  if (error) throw error;
+};
+
+const pushMatchUpdate = async (job: { matchId: string; payload: Record<string, any>; userId: string }) => {
+  const { error } = await supabase
+    .from("matches")
+    .update(job.payload)
+    .eq("id", job.matchId)
+    .eq("user_id", job.userId);
+  if (error) throw error;
+};
+
+const pushMatchDelete = async (job: { matchId: string; userId: string }) => {
+  const { error } = await supabase.from("matches").delete().eq("id", job.matchId).eq("user_id", job.userId);
+  if (error) throw error;
+};
+
+registerSyncHandler("match.frame", pushFrameSync);
+registerSyncHandler("match.update", pushMatchUpdate);
+registerSyncHandler("match.delete", pushMatchDelete);
 
 export const useMatchesStore = create<MatchesState>()(
   persist(
@@ -124,12 +193,11 @@ export const useMatchesStore = create<MatchesState>()(
       },
 
       updateMatch: async (id, updates) => {
-        const authUser = (await supabase.auth.getUser()).data.user;
-        if (!authUser) throw new Error("You need to be signed in to update a match.");
+        const userId = await currentUserId();
+        if (!userId) throw new Error("You need to be signed in to update a match.");
 
-        const payload: Record<string, any> = {
-          updated_at: new Date().toISOString(),
-        };
+        const updatedAt = new Date().toISOString();
+        const payload: Record<string, any> = { updated_at: updatedAt };
 
         const keys: (keyof Match)[] = [
           "opponent_name",
@@ -153,38 +221,59 @@ export const useMatchesStore = create<MatchesState>()(
           }
         });
 
-        const { data, error } = await supabase
-          .from("matches")
-          .update(payload)
-          .eq("id", id)
-          .eq("user_id", authUser.id)
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        const updated = mapDbMatch(data);
         set((state) => ({
-          matches: state.matches.map((m) => (m.id === id ? updated : m)),
+          matches: state.matches.map((match) =>
+            match.id === id ? { ...match, ...updates, updated_at: updatedAt } : match
+          ),
         }));
+
+        const job = { matchId: id, payload, userId };
+
+        try {
+          await pushMatchUpdate(job);
+          void flushOutbox();
+        } catch (error) {
+          const match = get().matches.find((item) => item.id === id);
+          queueWrite({
+            kind: "match.update",
+            scope: "matches",
+            payload: job,
+            description: match ? `Changes to the match with ${match.opponent_name}` : "Changes to a match",
+          });
+        }
       },
 
       deleteMatch: async (id) => {
-        const authUser = (await supabase.auth.getUser()).data.user;
-        if (!authUser) throw new Error("You need to be signed in to delete a match.");
+        const userId = await currentUserId();
+        if (!userId) throw new Error("You need to be signed in to delete a match.");
 
-        const { error } = await supabase.from("matches").delete().eq("id", id).eq("user_id", authUser.id);
-        if (error) throw error;
+        const match = get().matches.find((item) => item.id === id);
 
         set((state) => ({
           matches: state.matches.filter((m) => m.id !== id),
-          liveFramesByMatch: Object.fromEntries(Object.entries(state.liveFramesByMatch).filter(([matchId]) => matchId !== id)),
+          liveFramesByMatch: Object.fromEntries(
+            Object.entries(state.liveFramesByMatch).filter(([matchId]) => matchId !== id)
+          ),
         }));
+
+        const job = { matchId: id, userId };
+
+        try {
+          await pushMatchDelete(job);
+          void flushOutbox();
+        } catch (error) {
+          queueWrite({
+            kind: "match.delete",
+            scope: "matches",
+            payload: job,
+            description: match ? `Deleting the match with ${match.opponent_name}` : "Deleting a match",
+          });
+        }
       },
 
       saveFrameRecord: async (matchId, frameData) => {
-        const authUser = (await supabase.auth.getUser()).data.user;
-        if (!authUser) throw new Error("You need to be signed in to save a frame.");
+        const userId = await currentUserId();
+        if (!userId) throw new Error("You need to be signed in to save a frame.");
 
         const nowIso = new Date().toISOString();
         const nextFrame: LiveFrameRecord = {
@@ -195,7 +284,7 @@ export const useMatchesStore = create<MatchesState>()(
         };
 
         const framePayload = {
-          user_id: authUser.id,
+          user_id: userId,
           match_id: matchId,
           frame_number: frameData.frame_number,
           user_score: frameData.user_score,
@@ -209,41 +298,12 @@ export const useMatchesStore = create<MatchesState>()(
           updated_at: nowIso,
         };
 
-        const { data: upsertedFrame, error: frameError } = await supabase
-          .from("match_frames")
-          .upsert(framePayload, { onConflict: "match_id,frame_number" })
-          .select("*")
-          .single();
-
-        if (frameError) {
-          if (isMissingTableError(frameError)) {
-            throw new Error("Live frame table missing. Run supabase/schema.sql to create public.match_frames.");
-          }
-          throw frameError;
-        }
-
-        const persistedFrame = mapDbFrame(upsertedFrame);
+        // The frame the player just played is built here rather than read back from the
+        // server, so the scoreboard moves on the tap and the write can follow at its leisure.
         const current = get().liveFramesByMatch[matchId] ?? [];
-        const withoutCurrent = current.filter((frame) => frame.frame_number !== persistedFrame.frame_number);
-        const mergedFrames = [...withoutCurrent, persistedFrame].sort((a, b) => a.frame_number - b.frame_number);
-
+        const withoutCurrent = current.filter((frame) => frame.frame_number !== nextFrame.frame_number);
+        const mergedFrames = [...withoutCurrent, nextFrame].sort((a, b) => a.frame_number - b.frame_number);
         const summary = deriveMatchSummaryFromFrames(mergedFrames);
-        const updatedAt = nowIso;
-
-        const { error } = await supabase
-          .from("matches")
-          .update({
-            user_score: summary.user_score,
-            opponent_score: summary.opponent_score,
-            frames_played: summary.frames_played,
-            result: summary.result,
-            recording_mode: "live",
-            updated_at: updatedAt,
-          })
-          .eq("id", matchId)
-          .eq("user_id", authUser.id);
-
-        if (error) throw error;
 
         set((state) => ({
           liveFramesByMatch: {
@@ -259,11 +319,40 @@ export const useMatchesStore = create<MatchesState>()(
                   frames_played: summary.frames_played,
                   result: summary.result,
                   recording_mode: "live",
-                  updated_at: updatedAt,
+                  updated_at: nowIso,
                 }
               : match
           ),
         }));
+
+        const job: FrameSync = {
+          matchId,
+          frame: framePayload,
+          summary,
+          updatedAt: nowIso,
+          userId,
+        };
+
+        try {
+          await pushFrameSync(job);
+          void flushOutbox();
+        } catch (error: any) {
+          // A missing table is a setup problem, not a bad connection, and queueing it would
+          // only hide it.
+          if (typeof error?.message === "string" && error.message.includes("Live frame table missing")) {
+            throw error;
+          }
+
+          const match = get().matches.find((item) => item.id === matchId);
+          queueWrite({
+            kind: "match.frame",
+            scope: "matches",
+            payload: job,
+            description: match
+              ? `Frame ${frameData.frame_number} against ${match.opponent_name}`
+              : `Frame ${frameData.frame_number}`,
+          });
+        }
       },
 
       getFrameRecordsByMatchId: (matchId) => get().liveFramesByMatch[matchId] ?? [],

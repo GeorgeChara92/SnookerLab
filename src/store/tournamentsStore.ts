@@ -14,6 +14,7 @@ import { buildKnockoutFixtures, isBye, recomputeKnockoutTree } from "../features
 import { computeLeagueStandings } from "../features/tournaments/leagueStandings";
 import { buildLeagueSchedule } from "../features/tournaments/leagueSchedule";
 import { dateKeyFrom, todayKey } from "../utils/date";
+import { flushOutbox, queueWrite, registerSyncHandler } from "../sync/outbox";
 
 type CreateTournamentInput = {
   name: string;
@@ -37,11 +38,12 @@ interface TournamentsState {
     tournamentId: string,
     options?: { pairingMode?: TournamentPairingMode; preserveManualPairs?: boolean }
   ) => Promise<string | null>;
+  /** Resolves with where the result ended up: straight to Supabase, or the outbox. */
   updateFixtureResult: (
     tournamentId: string,
     fixtureId: string,
     result: { frameScores: TournamentFrameScore[] }
-  ) => Promise<void>;
+  ) => Promise<"saved" | "queued">;
   deleteTournament: (tournamentId: string) => Promise<void>;
   getTournamentById: (tournamentId: string) => Tournament | undefined;
   setOwnerUserId: (userId: string | null) => void;
@@ -49,6 +51,63 @@ interface TournamentsState {
 }
 
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+/**
+ * Everything a saved scoreline has to put in the database, in a shape that survives being
+ * written to disk and sent later. The store runs this directly when it can; the outbox runs
+ * the very same thing when it could not.
+ */
+type FixtureSync = {
+  tournamentId: string;
+  status: "active" | "completed";
+  updatedAt: string;
+  fixtures: Array<{
+    id: string;
+    participant_a: string;
+    participant_b: string;
+    score_a: number | null;
+    score_b: number | null;
+    winner: string | null;
+    status: TournamentFixture["status"];
+  }>;
+  /** Fixtures whose frames changed, with the rows that should replace them. */
+  reframed: Array<{
+    fixtureId: string;
+    rows: Array<{ fixture_id: string; frame_number: number; score_a: number; score_b: number; winner: string }>;
+  }>;
+};
+
+const pushFixtureSync = async (job: FixtureSync) => {
+  const results = await Promise.all(
+    job.fixtures.map(({ id, ...payload }) => supabase.from("tournament_fixtures").update(payload).eq("id", id))
+  );
+  const failed = results.find((item) => item.error);
+  if (failed?.error) throw failed.error;
+
+  if (job.reframed.length) {
+    const deletions = await Promise.all(
+      job.reframed.map((entry) =>
+        supabase.from("tournament_fixture_frames").delete().eq("fixture_id", entry.fixtureId)
+      )
+    );
+    const failedDelete = deletions.find((item) => item.error);
+    if (failedDelete?.error) throw failedDelete.error;
+
+    const rows = job.reframed.flatMap((entry) => entry.rows);
+    if (rows.length) {
+      const { error } = await supabase.from("tournament_fixture_frames").insert(rows);
+      if (error) throw error;
+    }
+  }
+
+  const { error: tournamentError } = await supabase
+    .from("tournaments")
+    .update({ status: job.status, updated_at: job.updatedAt })
+    .eq("id", job.tournamentId);
+  if (tournamentError) throw tournamentError;
+};
+
+registerSyncHandler("tournament.fixtures", pushFixtureSync);
 
 const buildLeagueFixtures = (
   tournamentId: string,
@@ -244,7 +303,7 @@ export const useTournamentsStore = create<TournamentsState>()(
 
       updateFixtureResult: async (tournamentId, fixtureId, result) => {
         const tournament = get().tournaments.find((item) => item.id === tournamentId);
-        if (!tournament) return;
+        if (!tournament) return "saved";
 
         const previousFixtures = tournament.fixtures;
         const previousStatus = tournament.status;
@@ -308,76 +367,47 @@ export const useTournamentsStore = create<TournamentsState>()(
           );
         });
 
-        try {
-          const results = await Promise.all(
-            changed.map((fixture) =>
-              supabase
-                .from("tournament_fixtures")
-                .update({
-                  participant_a: fixture.participant_a,
-                  participant_b: fixture.participant_b,
-                  score_a: fixture.score_a ?? null,
-                  score_b: fixture.score_b ?? null,
-                  winner: fixture.winner ?? null,
-                  status: fixture.status,
-                })
-                .eq("id", fixture.id)
-            )
-          );
-
-          const failed = results.find((item) => item.error);
-          if (failed?.error) throw failed.error;
-
-          const reframed = changed.filter((fixture) => framesOf(before.get(fixture.id)) !== framesOf(fixture));
-
-          if (reframed.length) {
-            const deletions = await Promise.all(
-              reframed.map((fixture) =>
-                supabase.from("tournament_fixture_frames").delete().eq("fixture_id", fixture.id)
-              )
-            );
-            const failedDelete = deletions.find((item) => item.error);
-            if (failedDelete?.error) throw failedDelete.error;
-
-            const framePayload = reframed.flatMap((fixture) =>
-              (fixture.frame_scores ?? []).map((frame) => ({
+        const job: FixtureSync = {
+          tournamentId,
+          status,
+          updatedAt,
+          fixtures: changed.map((fixture) => ({
+            id: fixture.id,
+            participant_a: fixture.participant_a,
+            participant_b: fixture.participant_b,
+            score_a: fixture.score_a ?? null,
+            score_b: fixture.score_b ?? null,
+            winner: fixture.winner ?? null,
+            status: fixture.status,
+          })),
+          reframed: changed
+            .filter((fixture) => framesOf(before.get(fixture.id)) !== framesOf(fixture))
+            .map((fixture) => ({
+              fixtureId: fixture.id,
+              rows: (fixture.frame_scores ?? []).map((frame) => ({
                 fixture_id: fixture.id,
                 frame_number: frame.frame_number,
                 score_a: frame.score_a,
                 score_b: frame.score_b,
                 winner: frame.winner,
-              }))
-            );
+              })),
+            })),
+        };
 
-            if (framePayload.length) {
-              const { error } = await supabase.from("tournament_fixture_frames").insert(framePayload);
-              if (error) throw error;
-            }
-          }
-
-          const { error: tournamentError } = await supabase
-            .from("tournaments")
-            .update({ status, updated_at: updatedAt })
-            .eq("id", tournamentId);
-          if (tournamentError) throw tournamentError;
+        try {
+          await pushFixtureSync(job);
+          // A write got through, so anything else waiting can probably go now too.
+          void flushOutbox();
+          return "saved";
         } catch (error) {
-          // Put back only what this save touched, so a result saved alongside it survives.
-          const reverting = new Set(changed.map((fixture) => fixture.id));
-          set((state) => ({
-            tournaments: state.tournaments.map((item) =>
-              item.id === tournamentId
-                ? {
-                    ...item,
-                    fixtures: item.fixtures.map((fixture) =>
-                      reverting.has(fixture.id) ? before.get(fixture.id) ?? fixture : fixture
-                    ),
-                    status: previousStatus,
-                    updated_at: previousUpdatedAt,
-                  }
-                : item
-            ),
-          }));
-          throw error;
+          // The result stays on the screen and on the phone. It goes to Supabase when it can.
+          queueWrite({
+            kind: "tournament.fixtures",
+            scope: "tournaments",
+            payload: job,
+            description: `Result in ${tournament.name}`,
+          });
+          return "queued";
         }
       },
 
