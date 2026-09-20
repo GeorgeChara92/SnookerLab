@@ -248,14 +248,19 @@ export const SubscriptionPlansScreen = () => {
     }
   };
 
+  const currentOffer = currentTier === "free" ? null : getTierOffer(currentTier as PaidTier, offerings);
+
   const statusLine = useMemo(() => {
     if (currentTier === "free") return "You're on the Free plan.";
+
     const endsOn = formatDate(billingState?.expiresAt ?? null);
     if (billingState && !billingState.willRenew) {
       return endsOn ? `Cancelled. Active until ${endsOn}.` : "Cancelled. Active until the end of this period.";
     }
-    return endsOn ? `Renews on ${endsOn}.` : "Active.";
-  }, [billingState, currentTier]);
+
+    const cadence = currentOffer?.periodLabel ?? "monthly";
+    return endsOn ? `Billed ${cadence}. Renews on ${endsOn}.` : `Billed ${cadence}.`;
+  }, [billingState, currentOffer, currentTier]);
 
   const usageRows = useMemo(
     () => [
@@ -344,7 +349,9 @@ export const SubscriptionPlansScreen = () => {
                   {plan.tier === "free" ? "Free" : offer?.priceText ?? "—"}
                 </Text>
                 {plan.tier !== "free" && offer ? (
-                  <Text style={[styles.planPeriod, { color: colors.textMuted }]}>per month</Text>
+                  <Text style={[styles.planPeriod, { color: colors.textMuted }]}>
+                    {offer.periodLabel === "monthly" ? "per month" : offer.periodLabel ?? "per month"}
+                  </Text>
                 ) : null}
               </View>
             </View>

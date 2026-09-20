@@ -218,6 +218,26 @@ export type TierOffer = {
   productId: string;
   /** Localised price straight from the store, e.g. "£5.00". */
   priceText: string;
+  /** How often it bills, from the store's own period, e.g. "monthly". */
+  periodLabel: string | null;
+};
+
+/** ISO 8601 subscription periods as the stores report them ("P1M"). */
+const periodLabelFrom = (period?: string | null) => {
+  switch (period) {
+    case "P1W":
+      return "weekly";
+    case "P1M":
+      return "monthly";
+    case "P3M":
+      return "quarterly";
+    case "P6M":
+      return "every six months";
+    case "P1Y":
+      return "yearly";
+    default:
+      return null;
+  }
 };
 
 /**
@@ -234,7 +254,12 @@ export const getTierOffer = (
   const priceText = item?.product?.priceString;
   if (!item || !priceText) return null;
 
-  return { tier, productId: item.product.identifier, priceText };
+  return {
+    tier,
+    productId: item.product.identifier,
+    priceText,
+    periodLabel: periodLabelFrom((item.product as any)?.subscriptionPeriod),
+  };
 };
 
 export const restoreBillingPurchases = async () => {
