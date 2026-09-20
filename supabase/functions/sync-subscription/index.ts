@@ -18,8 +18,8 @@ const parseIds = (raw: string | undefined, fallback: string) =>
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
 
-const CENTURY_IDS = parseIds(Deno.env.get("RC_CENTURY_IDS"), "century,century_monthly,monthly,snookerlab pro");
-const HALF_CENTURY_IDS = parseIds(Deno.env.get("RC_HALF_CENTURY_IDS"), "half_century,half_century_monthly");
+const CENTURY_IDS = parseIds(Deno.env.get("RC_CENTURY_IDS"), "century,century_monthly,monthly_12");
+const HALF_CENTURY_IDS = parseIds(Deno.env.get("RC_HALF_CENTURY_IDS"), "half_century,half_century_monthly,monthly_3_46");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
