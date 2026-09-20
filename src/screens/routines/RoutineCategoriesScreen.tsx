@@ -111,7 +111,6 @@ export const RoutineCategoriesScreen = () => {
       contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
       ListHeaderComponent={
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Practice Categories</Text>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>Pick a category to browse routines and guides.</Text>
         </View>
       }

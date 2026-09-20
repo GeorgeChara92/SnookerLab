@@ -186,7 +186,7 @@ export const RecordRoutineScoreScreen = () => {
         <Text style={[styles.dismissKeyboardText, { color: colors.text }]}>Done Editing</Text>
       </Pressable>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-        <Text style={[styles.heading, { color: colors.text }]}>📝 Record Score</Text>
+        <Text style={[styles.heading, { color: colors.text }]}>Record Score</Text>
         <Text style={[styles.routineName, { color: colors.text }]}>{routine?.name ?? "Routine"}</Text>
         <Text style={[styles.meta, { color: colors.textMuted }]}>Date: {new Date().toLocaleString()}</Text>
         <Text style={[styles.helpText, { color: colors.textMuted }]}>{scoringHelp}</Text>

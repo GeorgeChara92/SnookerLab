@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useMatchesStore, useTournamentsStore } from "../../store";
 import type { Match, MatchesStackParamList } from "../../types";
@@ -288,7 +289,7 @@ const overallStats = useMemo(() => {
 
     return (
       <View style={[styles.insightCard, { backgroundColor: colors.surfaceMuted, borderColor: colors.primary + "40" }]}>
-        <Text style={styles.insightIcon}>💡</Text>
+        <MaterialCommunityIcons name="chart-box-outline" size={20} color={colors.primary} style={styles.insightIcon} />
         <View style={styles.insightContent}>
           <Text style={[styles.insightTitle, { color: colors.text }]}>Performance Insight</Text>
           <Text style={[styles.insightText, { color: colors.textMuted }]}>{insights[0]}</Text>
@@ -424,7 +425,7 @@ const overallStats = useMemo(() => {
                 {tournament.name}
               </Text>
               <Text style={[styles.tournamentChampion, { color: colors.primary }]}>
-                🏆 {getChampionLabel(tournament)}
+                {getChampionLabel(tournament)}
               </Text>
             </View>
             <Text style={[styles.tournamentMeta, { color: colors.textMuted }]}>

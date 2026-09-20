@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useMatchesStore } from "../../store";
 import { MatchResult } from "../../types";
@@ -205,7 +206,12 @@ export const NewMatchScreen = () => {
               ]}
               onPress={() => setMode("live")}
             >
-              <Text style={styles.modeIcon}>🎯</Text>
+              <MaterialCommunityIcons
+                name="play-circle-outline"
+                size={24}
+                color={mode === "live" ? colors.onPrimary : colors.primary}
+                style={styles.modeIcon}
+              />
               <Text style={[styles.modeLabel, { color: mode === "live" ? colors.onPrimary : colors.text }]}>Live Match</Text>
               <Text style={[styles.modeHint, { color: mode === "live" ? colors.onPrimary : colors.textMuted }]}>Track frame by frame</Text>
             </Pressable>
@@ -219,7 +225,12 @@ export const NewMatchScreen = () => {
               ]}
               onPress={() => setMode("manual")}
             >
-              <Text style={styles.modeIcon}>📝</Text>
+              <MaterialCommunityIcons
+                name="playlist-edit"
+                size={24}
+                color={mode === "manual" ? colors.onPrimary : colors.primary}
+                style={styles.modeIcon}
+              />
               <Text style={[styles.modeLabel, { color: mode === "manual" ? colors.onPrimary : colors.text }]}>Manual Entry</Text>
               <Text style={[styles.modeHint, { color: mode === "manual" ? colors.onPrimary : colors.textMuted }]}>Log a past result</Text>
             </Pressable>

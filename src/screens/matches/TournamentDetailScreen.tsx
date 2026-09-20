@@ -756,7 +756,7 @@ export const TournamentDetailScreen = () => {
     <Modal visible={showChampionModal && !!completion.champion} transparent animationType="fade" onRequestClose={() => setShowChampionModal(false)}>
       <View style={styles.championOverlay}>
         <View style={[styles.championCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.championTitle, { color: colors.primary }]}>Champion 🏆</Text>
+          <Text style={[styles.championTitle, { color: colors.primary }]}>Champion</Text>
           <Text style={[styles.championName, { color: colors.text }]}>{completion.champion}</Text>
           <Text style={[styles.championSubtitle, { color: colors.textMuted }]}>Tournament complete with {completion.done} fixtures recorded.</Text>
 

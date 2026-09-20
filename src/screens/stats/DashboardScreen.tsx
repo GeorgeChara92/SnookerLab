@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
 import { useMatchesStore, useRoutineScoresStore, useRoutinesStore, useSessionsStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -520,7 +521,7 @@ export const DashboardScreen = () => {
   const renderInsightCard = () => (
     <Animated.View style={[styles.insightCard, { backgroundColor: colors.surfaceMuted, borderColor: colors.primary }, { opacity: insightsOpacity }]}>
       <View style={styles.insightHeader}>
-        <Text style={styles.insightIcon}>💡</Text>
+        <MaterialCommunityIcons name="chart-box-outline" size={20} color={colors.primary} style={styles.insightIcon} />
         <Text style={[styles.insightTitle, { color: colors.text }]}>Performance Insight</Text>
       </View>
       {analytics.insights.map((insight, idx) => (

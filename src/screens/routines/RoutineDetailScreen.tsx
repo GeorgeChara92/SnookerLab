@@ -299,7 +299,7 @@ export const RoutineDetailScreen = () => {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>What You'll Build</Text>
             {(routine.improves ?? []).map((tip, index) => (
               <Text key={`${routine.id}-tip-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
-                🎯 {tip}
+                {tip}
               </Text>
             ))}
           </View>
@@ -332,16 +332,16 @@ export const RoutineDetailScreen = () => {
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Scoring & Success Criteria</Text>
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.success_criteria}</Text>
-            <Text style={[styles.statRow, { color: colors.textMuted }]}>📝 Scoring Type: {scoringTypeLabel(routine.scoring_type as ScoringType)}</Text>
-            <Text style={[styles.statRow, { color: colors.textMuted }]}>✅ {scoringRecordingHint(routine.scoring_type as ScoringType)}</Text>
-            {routine.max_score ? <Text style={[styles.statRow, { color: colors.textMuted }]}>🏆 Session Cap: {routine.max_score}</Text> : null}
+            <Text style={[styles.statRow, { color: colors.textMuted }]}>Scoring: {scoringTypeLabel(routine.scoring_type as ScoringType)}</Text>
+            <Text style={[styles.statRow, { color: colors.textMuted }]}>{scoringRecordingHint(routine.scoring_type as ScoringType)}</Text>
+            {routine.max_score ? <Text style={[styles.statRow, { color: colors.textMuted }]}>Session cap: {routine.max_score}</Text> : null}
           </View>
 
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>What This Improves</Text>
             {(routine.improves ?? []).map((tip, index) => (
               <Text key={`${routine.id}-tip-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
-                🎯 {tip}
+                {tip}
               </Text>
             ))}
           </View>
@@ -357,7 +357,7 @@ export const RoutineDetailScreen = () => {
                       <Text style={[styles.entryScore, { color: colors.text }]}>📈 {entry.score}</Text>
                       <Text style={[styles.entryDate, { color: colors.textMuted }]}>{new Date(entry.recorded_at).toLocaleString()}</Text>
                     </View>
-                    {entry.notes ? <Text style={[styles.entryNotes, { color: colors.textMuted }]}>📝 {entry.notes}</Text> : null}
+                    {entry.notes ? <Text style={[styles.entryNotes, { color: colors.textMuted }]}>{entry.notes}</Text> : null}
                   </View>
                 ))
             )}

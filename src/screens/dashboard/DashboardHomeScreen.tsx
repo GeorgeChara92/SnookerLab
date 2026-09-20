@@ -227,19 +227,14 @@ export const DashboardHomeScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}> 
       <View style={styles.content}>
-        <View style={styles.topShell}>
-          <Text style={[styles.headerCaption, { color: colors.textMuted }]}>Elite Training Hub</Text>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Dashboard</Text>
-        </View>
-
         <View style={[styles.focusHero, { backgroundColor: colors.primaryStrong }]}> 
           <View style={styles.focusGlow} />
           <Text style={[styles.focusKicker, { color: colors.onPrimary }]}>TODAY'S FOCUS</Text>
           <Text style={[styles.focusTitle, { color: colors.onPrimary }]}>{lastTemplate ? "Your Next Session" : "Set Your Next Session"}</Text>
           <Text style={[styles.focusDescription, { color: colors.onPrimary }]}> 
             {lastTemplate
-              ? `${lastTemplate.name} is ready. Keep your routine sharp and build match rhythm.`
-              : "Build a high-quality session plan and start with one decisive action."}
+              ? `${lastTemplate.name} - ${lastTemplate.routine_ids.length} ${lastTemplate.routine_ids.length === 1 ? "routine" : "routines"}`
+              : "Pick the routines you want to work on and save them as a session you can repeat."}
           </Text>
           <View style={styles.focusActionsRow}>
             <Pressable style={[styles.focusPrimaryButton, { backgroundColor: colors.onPrimary }]} onPress={startPrimarySession}>
@@ -319,6 +314,25 @@ export const DashboardHomeScreen = () => {
                         <Text style={[styles.pageTitle, { color: colors.text }]}>Performance Overview</Text>
                         <Text style={[styles.weekDeltaTag, { color: weekDelta >= 0 ? colors.primary : colors.textMuted }]}>{weekDeltaLabel}</Text>
                       </View>
+                      {dashboard.weeklyTotal === 0 ? (
+                        <View style={styles.chartEmpty}>
+                          <Text style={[styles.chartEmptyTitle, { color: colors.text }]}>No practice logged this week</Text>
+                          <Text style={[styles.chartEmptyBody, { color: colors.textMuted }]}>
+                            Log a routine score or a session and your week fills in here.
+                          </Text>
+                          <Pressable
+                            onPress={startPrimarySession}
+                            accessibilityRole="button"
+                            accessibilityLabel="Start a practice session"
+                            style={({ pressed }) => [
+                              styles.chartEmptyAction,
+                              { borderColor: colors.primary, opacity: pressed ? 0.7 : 1 },
+                            ]}
+                          >
+                            <Text style={[styles.chartEmptyActionText, { color: colors.primary }]}>Start a session</Text>
+                          </Pressable>
+                        </View>
+                      ) : (
                       <View style={styles.chartRow}>
                         {dashboard.weeklyLoad.map((day, index) => {
                           const isToday = todayKey() === day.key;
@@ -344,6 +358,7 @@ export const DashboardHomeScreen = () => {
                           );
                         })}
                       </View>
+                      )}
                     </View>
 
                     <View style={styles.statsStrip}>
@@ -668,6 +683,34 @@ const styles = StyleSheet.create({
   },
   listTitle: { fontSize: 13, fontWeight: "700" },
   listMeta: { fontSize: 11, marginTop: 2 },
+  chartEmpty: {
+    height: 196,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    gap: 6,
+  },
+  chartEmptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  chartEmptyBody: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  chartEmptyAction: {
+    marginTop: 8,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  chartEmptyActionText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
   chartRow: {
     marginTop: 4,
     flexDirection: "row",

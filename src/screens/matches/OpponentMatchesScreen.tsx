@@ -116,7 +116,7 @@ export const OpponentMatchesScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}> 
       <View style={[styles.summaryCard, { backgroundColor: colors.primaryStrong }]}> 
-        <Text style={[styles.title, { color: colors.onPrimary }]}>🎱 {opponentName}</Text>
+        <Text style={[styles.title, { color: colors.onPrimary }]}>{opponentName}</Text>
         <Text style={[styles.summaryLine, { color: "#C8DED5" }]}> 
           Record: {summary.wins}W - {summary.losses}L - {summary.draws}D
         </Text>

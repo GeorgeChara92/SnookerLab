@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   useNavigation,
   useRoute,
@@ -53,19 +54,19 @@ const BALL_POINTS: Record<string, number> = {
 const getEventIcon = (event: LiveFrameEvent): string => {
   switch (event.kind) {
     case "pot":
-      return event.ball === "red" ? "🔴" : event.ball ? "🎯" : "◃";
+      return "circle";
     case "foul":
-      return "⚠️";
+      return "alert-outline";
     case "visit_end":
-      return "⏸";
+      return "pause";
     case "switch":
-      return "↔";
+      return "swap-horizontal";
     case "frame_saved":
-      return "✅";
+      return "check";
     case "re_rack":
-      return "🔄";
+      return "restart";
     default:
-      return "•";
+      return "circle-small";
   }
 };
 
@@ -228,7 +229,7 @@ export const MatchDetailScreen = () => {
         </Pressable>
 
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.title, { color: colors.text }]}>🏆 Edit Match</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Edit Match</Text>
           <Text style={[styles.meta, { color: colors.textMuted }]}>Played on {new Date(match.date).toLocaleDateString()}</Text>
 
           <Text style={[styles.label, { color: colors.text }]}>Opponent</Text>
@@ -400,7 +401,15 @@ export const MatchDetailScreen = () => {
                                   },
                                 ]}
                               >
-                                <Text style={styles.timelineDotIcon}>{getEventIcon(event)}</Text>
+                                <MaterialCommunityIcons
+                                  name={getEventIcon(event) as any}
+                                  size={event.kind === "pot" ? 12 : 14}
+                                  color={
+                                    event.kind === "pot" && event.ball
+                                      ? colors.balls[event.ball].base
+                                      : colors.text
+                                  }
+                                />
                               </View>
                             </View>
                             <View style={[styles.timelineContent, { backgroundColor: colors.background }]}>

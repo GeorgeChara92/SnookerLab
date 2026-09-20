@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useRoutinesStore, useSessionsStore } from "../../store";
 import type { SessionsStackParamList } from "../../types";
@@ -10,11 +11,11 @@ type PracticeFocus = "potting" | "position" | "break-building" | "safety" | "tec
 type SessionLength = "quick" | "standard" | "intensive";
 
 const PRACTICE_OPTIONS: { id: PracticeFocus; label: string; description: string; icon: string }[] = [
-  { id: "potting", label: "Potting", description: "Shot accuracy and consistency", icon: "🎯" },
-  { id: "position", label: "Position Play", description: "Cue ball control and positioning", icon: "⚪" },
-  { id: "break-building", label: "Break Building", description: "Scoring breaks and clearance", icon: "🔥" },
-  { id: "safety", label: "Safety Play", description: "Defensive shots and escapes", icon: "🛡️" },
-  { id: "technique", label: "Technique", description: "Stance, grip, and delivery", icon: "🎱" },
+  { id: "potting", label: "Potting", description: "Shot accuracy and consistency", icon: "target" },
+  { id: "position", label: "Position Play", description: "Cue ball control and positioning", icon: "circle-outline" },
+  { id: "break-building", label: "Break Building", description: "Scoring breaks and clearance", icon: "fire" },
+  { id: "safety", label: "Safety Play", description: "Defensive shots and escapes", icon: "shield-outline" },
+  { id: "technique", label: "Technique", description: "Stance, grip, and delivery", icon: "billiards" },
 ];
 
 const SESSION_LENGTHS: { id: SessionLength; label: string; duration: string; routineCount: number }[] = [
@@ -169,7 +170,7 @@ export const GuidedSessionBuilder = () => {
                 setSelectedTags([]);
               }}
             >
-              <Text style={styles.optionIcon}>{option.icon}</Text>
+              <MaterialCommunityIcons name={option.icon as any} size={22} color={colors.primary} style={styles.optionIcon} />
               <Text style={[styles.optionLabel, { color: selected ? colors.primary : colors.text }]}>{option.label}</Text>
               <Text style={[styles.optionDescription, { color: colors.textMuted }]}>{option.description}</Text>
               {selected && <View style={[styles.selectedBadge, { backgroundColor: colors.primary }]}><Text style={styles.selectedBadgeText}>✓</Text></View>}
