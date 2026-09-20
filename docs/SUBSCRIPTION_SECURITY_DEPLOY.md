@@ -42,7 +42,7 @@ Dashboard → Edge Functions → Secrets. Add:
 
 | Secret | Where it comes from |
 | --- | --- |
-| `REVENUECAT_SECRET_API_KEY` | RevenueCat → Project Settings → API keys → **secret** key (starts `sk_`). Never the public key, and never in a `EXPO_PUBLIC_` variable. |
+| `REVENUECAT_SECRET_API_KEY` | RevenueCat → API keys → **secret** key, **API version V2**, scoped to *Customer information: read only* with everything else on no access. Never the public SDK key, and never in a `EXPO_PUBLIC_` variable. |
 | `REVENUECAT_WEBHOOK_SECRET` | Any long random string you generate; you paste the same value into RevenueCat in step 4. |
 | `REVENUECAT_PROJECT_ID` | Optional. The `projects/<id>` segment of the RevenueCat dashboard URL. Defaults to `2c1d0f01`, so only set it if the project changes. |
 
