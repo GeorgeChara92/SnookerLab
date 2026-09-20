@@ -12,6 +12,7 @@ import {
 import { supabase } from "../api/supabase";
 import { buildKnockoutFixtures, isBye, recomputeKnockoutTree } from "../features/tournaments/knockout";
 import { computeLeagueStandings } from "../features/tournaments/leagueStandings";
+import { buildLeagueSchedule } from "../features/tournaments/leagueSchedule";
 import { dateKeyFrom, todayKey } from "../utils/date";
 
 type CreateTournamentInput = {
@@ -20,6 +21,8 @@ type CreateTournamentInput = {
   entryMode: TournamentEntryMode;
   pairingMode: TournamentPairingMode;
   bestOfFrames: number;
+  /** League only: how many times each pair plays each other. */
+  meetings?: number;
   participants: string[];
   previousChampion?: string;
   notes?: string;
@@ -47,28 +50,30 @@ interface TournamentsState {
 
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const buildLeagueFixtures = (tournamentId: string, participants: string[], bestOfFrames: number) => {
+const buildLeagueFixtures = (
+  tournamentId: string,
+  participants: string[],
+  bestOfFrames: number,
+  meetings = 1
+) => {
   const list = participants.filter((name) => !isBye(name));
-  const fixtures: TournamentFixture[] = [];
-  let fixtureIndex = 0;
+  const indexInRound = new Map<number, number>();
 
-  for (let i = 0; i < list.length; i += 1) {
-    for (let j = i + 1; j < list.length; j += 1) {
-      fixtures.push({
-        id: makeId(),
-        tournament_id: tournamentId,
-        round_number: 1,
-        fixture_index: fixtureIndex,
-        participant_a: list[i],
-        participant_b: list[j],
-        best_of_frames: Math.max(1, bestOfFrames),
-        status: "pending",
-      });
-      fixtureIndex += 1;
-    }
-  }
+  return buildLeagueSchedule(list, meetings).map((tie) => {
+    const position = indexInRound.get(tie.round) ?? 0;
+    indexInRound.set(tie.round, position + 1);
 
-  return fixtures;
+    return {
+      id: makeId(),
+      tournament_id: tournamentId,
+      round_number: tie.round,
+      fixture_index: position,
+      participant_a: tie.home,
+      participant_b: tie.away,
+      best_of_frames: Math.max(1, bestOfFrames),
+      status: "pending",
+    } as TournamentFixture;
+  });
 };
 
 const getTournamentChampion = (tournament: Tournament): string | null => {
@@ -115,7 +120,7 @@ export const useTournamentsStore = create<TournamentsState>()(
         const localFixtures =
           input.tournamentType === "knockout"
             ? buildKnockoutFixtures(makeId(), participants, input.bestOfFrames, input.pairingMode, input.manualFixtures)
-            : buildLeagueFixtures(makeId(), participants, input.bestOfFrames);
+            : buildLeagueFixtures(makeId(), participants, input.bestOfFrames, input.meetings ?? 1);
 
         const status = localFixtures.every((fixture) => fixture.status === "completed") ? "completed" : "active";
 

@@ -15,6 +15,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { AppButton } from "../../components/ui/AppButton";
 import { useDialog } from "../../components/ui/DialogProvider";
+import { leagueRoundCount, leagueTieCount } from "../../features/tournaments/leagueSchedule";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useTournamentsStore } from "../../store";
@@ -187,6 +188,8 @@ export const NewTournamentScreen = () => {
   const [entryMode, setEntryMode] = useState<TournamentEntryMode>(prefill?.entryMode ?? "singles");
   const [pairingMode, setPairingMode] = useState<TournamentPairingMode>(prefill?.pairingMode ?? "random");
   const [bestOfFrames, setBestOfFrames] = useState(prefill?.bestOfFrames ?? 5);
+  /** League only: how many times each pair meets. */
+  const [meetings, setMeetings] = useState(1);
   const [drawModalVisible, setDrawModalVisible] = useState(false);
   const [drawParticipants, setDrawParticipants] = useState<string[]>([]);
   const [drawPreviewPairs, setDrawPreviewPairs] = useState<Array<{ a: string; b: string }>>([]);
@@ -219,6 +222,8 @@ export const NewTournamentScreen = () => {
   const byeCount = participants.length - realEntries.length;
   const hasEnoughParticipants = realEntries.length >= 2;
   const framesToWin = Math.floor(bestOfFrames / 2) + 1;
+  const leagueTies = leagueTieCount(realEntries.length, meetings);
+  const leagueRounds = leagueRoundCount(realEntries.length, meetings);
   const step = creationSteps[currentStep];
   const isLastStep = currentStep === creationSteps.length - 1;
 
@@ -585,6 +590,7 @@ export const NewTournamentScreen = () => {
         entryMode,
         pairingMode,
         bestOfFrames,
+        meetings: tournamentType === "league" ? meetings : undefined,
         participants: sourceParticipants,
         manualFixtures: manualFixturesOverride ?? (pairingMode === "manual" ? manualPairs : undefined),
       });
@@ -805,6 +811,47 @@ export const NewTournamentScreen = () => {
               { value: "manual" as TournamentPairingMode, label: "Manual" },
             ]}
           />
+        </Section>
+      ) : null}
+
+      {tournamentType === "league" ? (
+        <Section
+          title="How often does everyone play each other?"
+          hint={
+            realEntries.length >= 2
+              ? `${leagueTies} ${leagueTies === 1 ? "match" : "matches"} in total, over ${leagueRounds} ${
+                  leagueRounds === 1 ? "round" : "rounds"
+                }.`
+              : "Add players to see how long the league will run."
+          }
+        >
+          <View style={styles.chipRow}>
+            {[1, 2, 3, 4].map((option) => {
+              const selected = meetings === option;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => setMeetings(option)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={
+                    option === 1 ? "Play everyone once" : `Play everyone ${option} times`
+                  }
+                  style={[
+                    styles.meetingChip,
+                    {
+                      borderColor: selected ? colors.primary : colors.border,
+                      backgroundColor: selected ? colors.surface : colors.surfaceMuted,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.meetingLabel, { color: selected ? colors.primary : colors.text }]}>
+                    {option === 1 ? "Once" : option === 2 ? "Twice" : `${option} times`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </Section>
       ) : null}
 
@@ -1067,6 +1114,14 @@ export const NewTournamentScreen = () => {
             : "Fixtures built automatically",
       },
       { label: "Match length", value: `Best of ${bestOfFrames}, first to ${framesToWin}` },
+      ...(tournamentType === "league"
+        ? [
+            {
+              label: "Fixtures",
+              value: `Everyone plays each other ${meetings === 1 ? "once" : meetings === 2 ? "twice" : `${meetings} times`}, ${leagueTies} matches`,
+            },
+          ]
+        : []),
       {
         label: "Entries",
         value: `${realEntries.length} ${entryNoun(realEntries.length)}${
@@ -1498,6 +1553,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   iconGlyph: { fontSize: 20 },
+  meetingChip: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  meetingLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
   frameChip: {
     minWidth: HIT_TARGET,
     minHeight: HIT_TARGET,

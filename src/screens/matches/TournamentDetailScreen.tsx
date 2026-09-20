@@ -257,7 +257,8 @@ export const TournamentDetailScreen = () => {
   const [showChampionModal, setShowChampionModal] = useState(false);
   const [showActionsModal, setShowActionsModal] = useState(false);
   const [collapsedKnockoutRounds, setCollapsedKnockoutRounds] = useState<Record<number, boolean>>({});
-  const [collapsedLeagueMatchdays, setCollapsedLeagueMatchdays] = useState<Record<number, boolean>>({});
+  const [collapsedLeagueRounds, setCollapsedLeagueRounds] = useState<Record<number, boolean>>({});
+  const [leagueStatusFilter, setLeagueStatusFilter] = useState<"all" | "to play" | "played">("all");
   const heroProgressAnim = useRef(new Animated.Value(0)).current;
   const previousCompletedRef = useRef(tournament?.status === "completed");
 
@@ -292,33 +293,43 @@ export const TournamentDetailScreen = () => {
     return computeLeagueStandings(tournament.participants, tournament.fixtures);
   }, [tournament]);
 
-  const leagueFixtures = useMemo(() => {
-    if (!tournament || tournament.tournament_type !== "league") return [];
-    return tournament.fixtures
-      .filter((fixture) =>
-        selectedLeaguePlayer === "All"
-          ? true
-          : fixture.participant_a === selectedLeaguePlayer || fixture.participant_b === selectedLeaguePlayer
-      )
-      .sort((a, b) => a.fixture_index - b.fixture_index);
-  }, [selectedLeaguePlayer, tournament]);
+  /** Every round in the league, whatever the current filter is. */
+  const leagueRounds = useMemo(() => {
+    if (!tournament || tournament.tournament_type !== "league") return [] as Array<{ round: number; fixtures: TournamentFixture[] }>;
 
-  const groupedLeagueFixtures = useMemo(() => {
-    if (!tournament || tournament.tournament_type !== "league") return [] as Array<{ day: number; fixtures: TournamentFixture[] }>;
-    const activeParticipants = tournament.participants.filter((name) => !/^BYE\b/i.test(name));
-    const matchesPerDay = Math.max(1, Math.floor(activeParticipants.length / 2));
     const groups = new Map<number, TournamentFixture[]>();
-
-    leagueFixtures.forEach((fixture, index) => {
-      const day = Math.floor(index / matchesPerDay) + 1;
-      const existing = groups.get(day) ?? [];
-      groups.set(day, [...existing, fixture]);
+    tournament.fixtures.forEach((fixture) => {
+      groups.set(fixture.round_number, [...(groups.get(fixture.round_number) ?? []), fixture]);
     });
 
     return Array.from(groups.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([day, fixtures]) => ({ day, fixtures }));
-  }, [leagueFixtures, tournament]);
+      .sort(([a], [b]) => a - b)
+      .map(([round, fixtures]) => ({
+        round,
+        fixtures: [...fixtures].sort((x, y) => x.fixture_index - y.fixture_index),
+      }));
+  }, [tournament]);
+
+  /** The same rounds, narrowed by the player and status filters. */
+  const filteredLeagueRounds = useMemo(
+    () =>
+      leagueRounds
+        .map((group) => ({
+          round: group.round,
+          fixtures: group.fixtures.filter((fixture) => {
+            const matchesPlayer =
+              selectedLeaguePlayer === "All" ||
+              fixture.participant_a === selectedLeaguePlayer ||
+              fixture.participant_b === selectedLeaguePlayer;
+            const matchesStatus =
+              leagueStatusFilter === "all" ||
+              (leagueStatusFilter === "played" ? fixture.status === "completed" : fixture.status !== "completed");
+            return matchesPlayer && matchesStatus;
+          }),
+        }))
+        .filter((group) => group.fixtures.length > 0),
+    [leagueRounds, leagueStatusFilter, selectedLeaguePlayer]
+  );
 
   const completion = useMemo(() => {
     if (!tournament) return { completed: false, champion: null as string | null, done: 0, total: 0 };
@@ -342,17 +353,24 @@ export const TournamentDetailScreen = () => {
 
   const stageLabel = useMemo(() => {
     if (!tournament) return "";
-    if (completion.completed) return "Completed";
+    if (completion.completed) return "Complete";
 
     if (tournament.tournament_type === "knockout") {
       const nextRound = rounds.find((round) => round.fixtures.some((fixture) => fixture.status !== "completed"));
-      return nextRound ? roundLabel(nextRound.round, rounds.length) : "Opening Round";
+      if (!nextRound) return "Round 1";
+
+      // Short forms, because the hero gives this one line and "Quarter-finals" was clipped.
+      const remaining = rounds.length - rounds.indexOf(nextRound);
+      if (remaining === 1) return "Final";
+      if (remaining === 2) return "Semis";
+      if (remaining === 3) return "Quarters";
+      return `Round ${nextRound.round}`;
     }
 
-    const firstPendingIndex = groupedLeagueFixtures.findIndex((group) => group.fixtures.some((fixture) => fixture.status !== "completed"));
-    if (firstPendingIndex >= 0) return `Matchday ${groupedLeagueFixtures[firstPendingIndex].day}`;
-    return groupedLeagueFixtures.length ? `Matchday ${groupedLeagueFixtures[groupedLeagueFixtures.length - 1].day}` : "Matchday 1";
-  }, [completion.completed, groupedLeagueFixtures, rounds, tournament]);
+    const pending = leagueRounds.find((round) => round.fixtures.some((fixture) => fixture.status !== "completed"));
+    const current = pending ?? leagueRounds[leagueRounds.length - 1];
+    return current ? `Round ${current.round} of ${leagueRounds.length}` : "Round 1";
+  }, [completion.completed, leagueRounds, rounds, tournament]);
 
   const heroDisplayName = useMemo(() => {
     const trimmed = tournament?.name?.trim() ?? "";
@@ -673,23 +691,57 @@ export const TournamentDetailScreen = () => {
             ) : (
               <>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>League Fixtures</Text>
+            <View style={styles.filterBar}>
+              {(["all", "to play", "played"] as const).map((option) => {
+                const selected = leagueStatusFilter === option;
+                return (
+                  <Pressable
+                    key={option}
+                    onPress={() => setLeagueStatusFilter(option)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    style={[
+                      styles.filterChip,
+                      {
+                        backgroundColor: selected ? colors.primary : colors.surfaceMuted,
+                        borderColor: selected ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.filterChipText, { color: selected ? colors.onPrimary : colors.text }]}>
+                      {option === "all" ? "All" : option === "to play" ? "To play" : "Played"}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
             <View style={styles.dropdownWrap}>
               <Pressable
                 onPress={() => setIsFilterOpen((prev) => !prev)}
+                accessibilityRole="button"
+                accessibilityLabel={selectedLeaguePlayer === "All" ? "Filter by player" : `Showing ${selectedLeaguePlayer}`}
                 style={[styles.dropdownTrigger, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
               >
-                <Text style={[styles.dropdownLabel, { color: colors.text }]}>{selectedLeaguePlayer === "All" ? "All Players" : selectedLeaguePlayer}</Text>
-                <Text style={[styles.dropdownCaret, { color: colors.primary }]}>{isFilterOpen ? "▲" : "▼"}</Text>
+                <Text style={[styles.dropdownLabel, { color: colors.text }]}>
+                  {selectedLeaguePlayer === "All" ? "Everyone" : selectedLeaguePlayer}
+                </Text>
+                <MaterialCommunityIcons
+                  name={isFilterOpen ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={colors.primary}
+                />
               </Pressable>
               {isFilterOpen ? (
                 <View style={[styles.dropdownMenu, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-                  {["All", ...tournament.participants].map((name) => (
+                  {["All", ...tournament.participants.filter((name) => !/^BYE\b/i.test(name))].map((name) => (
                     <Pressable
                       key={name}
                       onPress={() => {
                         setSelectedLeaguePlayer(name);
                         setIsFilterOpen(false);
                       }}
+                      accessibilityRole="button"
                       style={styles.dropdownItem}
                     >
                       <Text
@@ -698,7 +750,7 @@ export const TournamentDetailScreen = () => {
                           { color: selectedLeaguePlayer === name ? colors.primary : colors.text },
                         ]}
                       >
-                        {name === "All" ? "All Players" : name}
+                        {name === "All" ? "Everyone" : name}
                       </Text>
                     </Pressable>
                   ))}
@@ -706,39 +758,53 @@ export const TournamentDetailScreen = () => {
               ) : null}
             </View>
 
-                {groupedLeagueFixtures.length === 0 ? (
-                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>No fixtures available for this filter.</Text>
-                ) : (
-                  groupedLeagueFixtures.map((group) => (
-                    <View key={`day-${group.day}`} style={styles.matchdayBlock}>
-                      <Pressable
-                        style={[styles.fixtureCollapseHeader, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-                        onPress={() =>
-                          setCollapsedLeagueMatchdays((prev) => ({
-                            ...prev,
-                            [group.day]: !prev[group.day],
-                          }))
-                        }
-                      >
-                        <Text style={[styles.matchdayTitle, { color: colors.textMuted }]}>Matchday {group.day}</Text>
-                        <Text style={[styles.matchdayCaret, { color: colors.textMuted }]}>{collapsedLeagueMatchdays[group.day] ? "▼" : "▲"}</Text>
-                      </Pressable>
-                      {!collapsedLeagueMatchdays[group.day]
-                        ? group.fixtures.map((fixture, fixtureIndex) => (
-                            <FixtureRow
-                              key={fixture.id}
-                              fixture={fixture}
-                              delay={40 * (fixtureIndex + 1)}
-                              colors={colors}
-                              collapsible
-                              initialExpanded={false}
-                              onSave={(fixtureId, frameScores) => updateFixtureResult(tournament.id, fixtureId, { frameScores })}
-                            />
-                          ))
-                        : null}
-                    </View>
-                  ))
-                )}
+            {filteredLeagueRounds.length === 0 ? (
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                {leagueStatusFilter === "played" ? "No results yet." : "Nothing left to play here."}
+              </Text>
+            ) : (
+              filteredLeagueRounds.map((group) => {
+                const played = group.fixtures.filter((fixture) => fixture.status === "completed").length;
+                const isCollapsed = collapsedLeagueRounds[group.round] ?? played === group.fixtures.length;
+
+                return (
+                  <View key={`round-${group.round}`} style={styles.matchdayBlock}>
+                    <Pressable
+                      style={[styles.fixtureCollapseHeader, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+                      onPress={() =>
+                        setCollapsedLeagueRounds((prev) => ({ ...prev, [group.round]: !isCollapsed }))
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`Round ${group.round}, ${played} of ${group.fixtures.length} played`}
+                    >
+                      <Text style={[styles.matchdayTitle, { color: colors.text }]}>Round {group.round}</Text>
+                      <Text style={[styles.matchdayMeta, { color: colors.textMuted }]}>
+                        {played}/{group.fixtures.length}
+                      </Text>
+                      <MaterialCommunityIcons
+                        name={isCollapsed ? "chevron-down" : "chevron-up"}
+                        size={18}
+                        color={colors.textMuted}
+                      />
+                    </Pressable>
+
+                    {!isCollapsed
+                      ? group.fixtures.map((fixture, fixtureIndex) => (
+                          <FixtureRow
+                            key={fixture.id}
+                            fixture={fixture}
+                            delay={30 * (fixtureIndex + 1)}
+                            colors={colors}
+                            collapsible
+                            initialExpanded={false}
+                            onSave={(fixtureId, frameScores) => updateFixtureResult(tournament.id, fixtureId, { frameScores })}
+                          />
+                        ))
+                      : null}
+                  </View>
+                );
+              })
+            )}
               </>
             )}
           </View>
@@ -1292,6 +1358,29 @@ const styles = StyleSheet.create({
   tableCell: { width: 26, textAlign: "center", fontSize: 12, fontWeight: "700" },
   tableCellWide: { width: 34, textAlign: "center", fontSize: 12, fontWeight: "700" },
   tablePts: { width: 32, textAlign: "center", fontSize: 12, fontWeight: "800" },
+  filterBar: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  filterChip: {
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  matchdayMeta: {
+    fontSize: 12,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+    marginLeft: "auto",
+    marginRight: SPACING.sm,
+  },
   matchdayBlock: {
     marginBottom: 10,
   },
