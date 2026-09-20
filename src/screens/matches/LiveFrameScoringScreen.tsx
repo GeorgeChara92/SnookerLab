@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -45,11 +46,6 @@ const BALL_META: Array<{ key: LiveBall; color: string; textColor: string }> = [
   { key: "blue", color: "#2B76C6", textColor: "#FFFFFF" },
   { key: "pink", color: "#E764A1", textColor: "#FFFFFF" },
   { key: "black", color: "#1E1E1E", textColor: "#FFFFFF" },
-];
-
-const BALL_ROWS: LiveBall[][] = [
-  ["red", "yellow", "green", "brown"],
-  ["blue", "pink", "black"],
 ];
 
 const FOUL_OPTIONS: Array<{ value: 4 | 5 | 6 | 7; label: string }> = [
@@ -111,6 +107,7 @@ export const LiveFrameScoringScreen = () => {
   const route = useRoute<RouteProp<MatchesStackParamList, "LiveFrameScoring">>();
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const { colors, isDark } = useAppTheme();
   const { user } = useAuthStore();
   const { getMatchById, getFrameRecordsByMatchId, getNextFrameNumber, saveFrameRecord, updateMatch, deleteMatch } = useMatchesStore();
@@ -143,6 +140,8 @@ export const LiveFrameScoringScreen = () => {
   const previousScoresRef = useRef({ user: frame.userScore, opponent: frame.opponentScore });
   const allowExitWithoutGuardRef = useRef(false);
 
+  // Seven balls across one row, sized to the screen and never below the 44pt touch target.
+  const ballSize = Math.max(44, Math.min(58, Math.floor((screenWidth - 28 - 6 * 6) / 7)));
   const pointsRemaining = getPointsRemaining(frame);
   const ballOnLabel = (() => {
     if (frame.phase === "ended") return "-";
@@ -639,7 +638,7 @@ Alert.alert(
         <Text style={styles.noticeBannerText}>{potNotice ?? ""}</Text>
       </Animated.View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 226 }]}> 
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 12, paddingBottom: insets.bottom + 188 }]}> 
         <View style={[styles.scoreboard, { backgroundColor: ui.panel, borderColor: ui.border }]}>
           <View style={styles.scoreboardTop}>
             <Text style={[styles.scoreboardFrame, { color: ui.textMuted }]}>FRAME {frame.frameNumber}</Text>
@@ -753,7 +752,7 @@ Alert.alert(
           ))}
         </View>
 
-        {activeTab === "match" ? (
+        {activeTab === "stats" ? (
           <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}>
             <View style={styles.raceRow}>
               <Text style={[styles.raceDescriptor, { color: ui.textMuted }]}>
@@ -871,33 +870,28 @@ Alert.alert(
 
       <View style={styles.stickyInputWrap}> 
         <View style={[styles.inputPanel, { backgroundColor: ui.panelAlt, borderColor: "transparent" }]}> 
-          <View style={styles.ballGrid}>
-            {BALL_ROWS.map((row, rowIndex) => (
-              <View key={`ball-row-${rowIndex}`} style={styles.ballRow}>
-                {row.map((ballKey) => {
-                  const ballMeta = BALL_META.find((item) => item.key === ballKey)!;
-                  return (
-                    <Pressable
-                      key={ballMeta.key}
-                      onPress={() => handlePot(ballMeta.key)}
-                      style={({ pressed }) => [
-                        styles.ballButton,
-                        { transform: [{ scale: pressed ? 0.93 : 1 }] },
-                      ]}
-                    >
-                      <LinearGradient
-                        colors={getBallGradient(ballMeta.key)}
-                        start={{ x: 0.2, y: 0.12 }}
-                        end={{ x: 0.8, y: 1 }}
-                        style={styles.ballSurface}
-                      >
-                        <View style={styles.ballHighlight} />
-                        <Text style={[styles.ballPoints, { color: ballMeta.textColor }]}>{BALL_POINTS[ballMeta.key]}</Text>
-                      </LinearGradient>
-                    </Pressable>
-                  );
-                })}
-              </View>
+          <View style={styles.ballRow}>
+            {BALL_META.map((ballMeta) => (
+              <Pressable
+                key={ballMeta.key}
+                onPress={() => handlePot(ballMeta.key)}
+                accessibilityRole="button"
+                accessibilityLabel={`Pot the ${ballMeta.key}, ${BALL_POINTS[ballMeta.key]} points`}
+                style={({ pressed }) => [
+                  styles.ballButton,
+                  { width: ballSize, height: ballSize, transform: [{ scale: pressed ? 0.92 : 1 }] },
+                ]}
+              >
+                <LinearGradient
+                  colors={getBallGradient(ballMeta.key)}
+                  start={{ x: 0.2, y: 0.12 }}
+                  end={{ x: 0.8, y: 1 }}
+                  style={styles.ballSurface}
+                >
+                  <View style={[styles.ballHighlight, { width: ballSize * 0.3, height: ballSize * 0.19 }]} />
+                  <Text style={[styles.ballPoints, { color: ballMeta.textColor }]}>{BALL_POINTS[ballMeta.key]}</Text>
+                </LinearGradient>
+              </Pressable>
             ))}
           </View>
 
@@ -1146,8 +1140,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    marginTop: 10,
-    minHeight: 44,
+    minHeight: 40,
   },
   quietAction: {
     fontSize: 13,
@@ -1489,18 +1482,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
   },
-  ballGrid: {
-    marginTop: 6,
-    gap: 6,
-  },
   ballRow: {
     flexDirection: "row",
     gap: 6,
     justifyContent: "center",
+    marginTop: 4,
   },
   ballButton: {
-    width: 48,
-    height: 48,
     borderRadius: 999,
     shadowColor: "#000000",
     shadowOpacity: 0.25,
@@ -1518,10 +1506,8 @@ const styles = StyleSheet.create({
   },
   ballHighlight: {
     position: "absolute",
-    top: 7,
-    left: 8,
-    width: 14,
-    height: 9,
+    top: "16%",
+    left: "20%",
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.35)",
   },
@@ -1606,8 +1592,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   saveButton: {
-    flex: 1,
-    borderRadius: 9,
+    marginTop: 8,
+    minHeight: 48,
+    justifyContent: "center",
+    borderRadius: 10,
     backgroundColor: "#1E6A4E",
     borderWidth: 1,
     borderColor: "#42A57A",
