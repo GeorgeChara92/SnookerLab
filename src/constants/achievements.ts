@@ -50,7 +50,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "century_winner",
-    title: "Century Champion",
+    title: "Hundred Match Club",
     description: "Win 100 matches",
     icon: "trophy-variant-outline",
     category: "matches",
@@ -205,7 +205,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: "routine_master",
     title: "Routine Master",
-    description: "Complete all routines at least once",
+    description: "Complete 25 different routines",
     icon: "check-all",
     category: "special",
     requirement: { type: "routine_completion", value: 25 },

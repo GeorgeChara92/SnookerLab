@@ -36,7 +36,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Phase 3: Add medium-distance shots only when stance shape stays repeatable.",
     ],
     commonTechniques: [
-      "Classic textbook setup: lead foot on line, rear foot behind at comfortable angle, cue centered under dominant eye line.",
+      "Classic textbook setup: lead foot on line, rear foot behind at comfortable angle, cue centred under dominant eye line.",
       "Square setup variant: feet less staggered, often used by players preferring upright balance and less trunk rotation.",
       "Long-reach variant: slightly wider base with lower hip hinge, used for extended bridge shots without losing balance.",
       "Key rule across all variants: stance must allow straight cue delivery without tension.",
@@ -52,7 +52,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Lifting early or peeking up breaks follow-through and changes strike timing.",
     ],
     adaptNotes: [
-      "Foot angles can vary by flexibility and height. Prioritize comfort and stability over imitation.",
+      "Foot angles can vary by flexibility and height. Prioritise comfort and stability over imitation.",
       "If your lower back tightens, shorten your stance slightly and retest cue freedom.",
       "Keep the principle constant: balanced base, quiet head, straight cue path.",
     ],
@@ -135,13 +135,13 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Closed bridge: loop forefinger over cue for extra guidance on firmer or spin shots.",
       "Pressure test: keep finger pads and especially forefinger base pressed into cloth to remove side wobble.",
       "Screw bridge: lower bridge height while maintaining firmness and cue clearance.",
-      "Rail bridge: use cushion support with stable hand contact, avoid cue scraping.",
-      "Over-ball bridge: elevate safely, reduce pace, and prioritize straight cueing over power.",
+      "Cushion bridge: use cushion support with stable hand contact, avoid cue scraping.",
+      "Over-ball bridge: elevate safely, reduce pace, and prioritise straight cueing over power.",
       "Rest/spider shots: keep same cueing rhythm as normal shots, even if bridge tool changes hand feel.",
     ],
     progression: [
       "Phase 1: 10 open-bridge shots + 10 closed-bridge shots on the same pot.",
-      "Phase 2: 10 rail-bridge shots down the cushion and compare strike stability.",
+      "Phase 2: 10 cushion-bridge shots down the cushion and compare strike stability.",
       "Phase 3: 6-8 over-ball or awkward-bridge shots with controlled tempo.",
     ],
     commonTechniques: [
@@ -167,9 +167,9 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Rail, over-ball, and elevated bridges should keep the same base rule: planted support and clear cue channel.",
     ],
     sessionPlan: [
-      "Practice 10 shots each with open and closed bridges on the same pot.",
-      "Play along-cushion shots with rail bridge focus and evaluate cue freedom.",
-      "Add 6-8 raised-bridge shots over an object ball and prioritize stability over pace.",
+      "Practise 10 shots each with open and closed bridges on the same pot.",
+      "Play along-cushion shots with cushion bridge focus and evaluate cue freedom.",
+      "Add 6-8 raised-bridge shots over an object ball and prioritise stability over pace.",
     ],
     checkpoints: [
       "My finger pads stay planted through impact.",
@@ -200,10 +200,10 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Phase 3: Add medium distance while keeping same visual sequence.",
     ],
     commonTechniques: [
-      "Center-of-face sighting: cue delivered along visual center line between eyes and cue.",
+      "Centre-of-face sighting: cue delivered along visual centre line between eyes and cue.",
       "Dominant-eye bias setup: slight head offset to keep dominant eye naturally on cue line.",
       "Contact-point-first method: decide object-ball contact before getting down.",
-      "Contact-picture visualization: imagine the exact object-ball contact needed before you get down.",
+      "Contact-picture visualisation: imagine the exact object-ball contact needed before you get down.",
       "Any method is useful if it is repeatable and reduces late steering.",
     ],
     importance: [
@@ -243,8 +243,8 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     stepByStep: [
       "Play 10 shots focusing only on smooth transition from backswing to forward swing.",
       "Play 10 shots with explicit pause before final delivery.",
-      "Play 10 shots emphasizing full follow-through and still head position.",
-      "Use a simple count rhythm (for example: settle, feather, pause, go) to stabilize tempo.",
+      "Play 10 shots emphasising full follow-through and still head position.",
+      "Use a simple count rhythm (for example: settle, feather, pause, go) to stabilise tempo.",
       "Review misses and classify cause: jab, deceleration, steering, or pace misread.",
       "Only then add gentle stun/screw while keeping the same timing signature.",
     ],
@@ -256,16 +256,16 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     commonTechniques: [
       "Three-stage cueing model: rest position, backswing, follow-through.",
       "Pause-and-deliver model: brief pause at end of backswing to improve strike timing.",
-      "Longer follow-through model: emphasizes positive acceleration through the cue-ball.",
+      "Longer follow-through model: emphasises positive acceleration through the cue-ball.",
       "Compact cueing model: shorter cue action for tight positional shots while preserving smoothness.",
     ],
     importance: [
-      "Stable timing improves center-ball contact and reduces unplanned side.",
+      "Stable timing improves centre-ball contact and reduces unplanned side.",
       "A controlled pause before delivery helps transition from aiming to execution.",
       "Good follow-through supports pace control and cleaner object-ball contact.",
     ],
     commonIssues: [
-      "Rushing the final transition often leads to jabbed delivery and overcut misses.",
+      "Rushing the final transition often leads to jabbed delivery and thin misses.",
       "Decelerating into the cue ball weakens strike and hurts positional control.",
       "Jumping up early removes feedback and masks the real cause of misses.",
     ],
@@ -306,10 +306,10 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Phase 3: add medium distance and verify setup remains unchanged.",
     ],
     commonTechniques: [
-      "Center-head method: cue appears centered under face and visual line.",
+      "Centre-head method: cue appears centred under face and visual line.",
       "Dominant-eye offset method: small head shift to keep dominant eye on line.",
       "Chin-close method: common with modern players for consistent sight picture.",
-      "Higher-head method: used by players prioritizing comfort and freedom of movement.",
+      "Higher-head method: used by players prioritising comfort and freedom of movement.",
     ],
     importance: [
       "Stable head gives stable visual information.",
@@ -342,20 +342,20 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Straight cueing is the backbone of reliable potting and position. It removes hidden side and makes your misses meaningful.",
     whereToStart: [
       "Start with dead-straight pots at short range.",
-      "Use center-ball only until cue path is clean.",
+      "Use centre-ball only until cue path is clean.",
       "Track miss side instead of just counting misses.",
     ],
     stepByStep: [
       "Align stance and bridge so the cue can travel on a straight line.",
-      "Feather with cue centered in bridge groove.",
-      "Deliver through center-ball with no wrist flick.",
+      "Feather with cue centred in bridge groove.",
+      "Deliver through centre-ball with no wrist flick.",
       "Hold finish and check whether cue ended on same line.",
       "Review patterns: repeated one-side misses suggest line bias.",
     ],
     progression: [
       "Phase 1: short straight pots for pure cueing-line training.",
       "Phase 2: medium straight pots with controlled pace variation.",
-      "Phase 3: slight angles while preserving same cue-line behavior.",
+      "Phase 3: slight angles while preserving same cue-line behaviour.",
     ],
     commonTechniques: [
       "Line drill method: repeated straight setups from same marks.",
@@ -374,7 +374,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     ],
     adaptNotes: [
       "Some players use slightly different grip and bridge lengths.",
-      "Keep what allows repeatable center-ball strike.",
+      "Keep what allows repeatable centre-ball strike.",
       "Do not sacrifice straightness for power.",
     ],
     sessionPlan: [
@@ -383,9 +383,9 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Finish with a confidence set where process is identical on each shot.",
     ],
     checkpoints: [
-      "Cue remains centered in bridge during feathers and strike.",
+      "Cue remains centred in bridge during feathers and strike.",
       "Misses are reducing on one-side bias.",
-      "Center-ball contact feels predictable.",
+      "Centre-ball contact feels predictable.",
     ],
   },
   "routine-cue-ball-control-fundamentals-guide": {
@@ -397,9 +397,9 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Record finish zones for each strike type.",
     ],
     stepByStep: [
-      "Play center-ball shots and map natural roll outcomes.",
-      "Play above-center shots and measure run-through distance.",
-      "Play below-center shots and measure check-back distance.",
+      "Play centre-ball shots and map natural roll outcomes.",
+      "Play above-centre shots and measure run-through distance.",
+      "Play below-centre shots and measure check-back distance.",
       "Keep cue speed similar to isolate tip-position effect.",
       "Repeat with mild pace changes once baseline is stable.",
     ],
@@ -409,7 +409,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Phase 3: introduce stun and small side at controlled pace.",
     ],
     commonTechniques: [
-      "Five-point strike map (top to bottom) for cue-ball behavior learning.",
+      "Five-point strike map (top to bottom) for cue-ball behaviour learning.",
       "Landing-zone method: define cue-ball finishing zones before each shot.",
       "Same-speed comparison method: isolate strike point changes.",
     ],
@@ -426,10 +426,10 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
     adaptNotes: [
       "Cue-ball response varies with cloth speed and table condition.",
       "Adjust expectations per table, keep process constant.",
-      "Prioritize repeatability over flashy spin.",
+      "Prioritise repeatability over flashy spin.",
     ],
     sessionPlan: [
-      "3 blocks: center, follow, screw (10 shots each).",
+      "3 blocks: centre, top, screw (10 shots each).",
       "Log finish zones and % of intended outcomes.",
       "Repeat next session and compare consistency trend.",
     ],
@@ -480,7 +480,7 @@ const GUIDE_PLAYBOOKS: Record<string, GuidePlaybook> = {
       "Consistency is more important than style.",
     ],
     sessionPlan: [
-      "Run 20-shot routine audit and mark any step you skipped.",
+      "Run 20-shot routine check and mark any step you skipped.",
       "Repeat with light pressure (e.g., reset count on routine break).",
       "Finish with 10-shot block where every shot uses full routine.",
     ],
