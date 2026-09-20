@@ -1,6 +1,5 @@
 import React, { useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Modal,
   Pressable,
@@ -14,6 +13,7 @@ import {
 import * as Haptics from "expo-haptics";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { AppButton } from "../../components/ui/AppButton";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useTournamentsStore } from "../../store";
@@ -67,6 +67,7 @@ export const NewTournamentScreen = () => {
   const route = useRoute<RouteProp<MatchesStackParamList, "NewTournament">>();
   const prefill = route.params?.prefill;
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const { createTournament } = useTournamentsStore();
   const subscription = useSubscriptionAccess();
   const [isSaving, setIsSaving] = useState(false);
@@ -241,13 +242,23 @@ export const NewTournamentScreen = () => {
 
     if (entryMode === "singles") {
       if (singlesParticipants.includes(trimmed)) {
-        Alert.alert("Already added", "This player is already in the draw.");
+        dialog.alert({
+          title: "Already in the draw",
+          message: "That name is entered. Add an initial or surname to tell two players apart.",
+          icon: "account-alert-outline",
+          confirmLabel: "Got it",
+        });
         return;
       }
       setSinglesParticipants((prev) => [...prev, trimmed]);
     } else {
       if (doublesPlayers.includes(trimmed)) {
-        Alert.alert("Already added", "This player is already in the player pool.");
+        dialog.alert({
+          title: "Already in the pool",
+          message: "That name is waiting to be paired up. Add an initial or surname to tell two players apart.",
+          icon: "account-alert-outline",
+          confirmLabel: "Got it",
+        });
         return;
       }
       setDoublesPlayers((prev) => [...prev, trimmed]);
@@ -406,12 +417,22 @@ export const NewTournamentScreen = () => {
     const manualFixturesOverride = options?.manualFixturesOverride;
 
     if (!name.trim()) {
-      Alert.alert("Tournament name needed", "Give your tournament a name before creating it.");
+      dialog.alert({
+        title: "Name the tournament first",
+        message: "Give the event a name on the Basics step, then come back and create it.",
+        icon: "trophy-outline",
+        confirmLabel: "Back to basics",
+      });
       return;
     }
 
     if (sourceParticipants.filter((item) => item !== "BYE" && !/^BYE\b/i.test(item)).length < 2) {
-      Alert.alert("Add entries", "Please add at least 2 real players/teams.");
+      dialog.alert({
+        title: "Not enough entries",
+        message: "You need at least two real entries before a draw can be made. Byes do not count.",
+        icon: "account-multiple-outline",
+        confirmLabel: "Add entries",
+      });
       return;
     }
 
@@ -428,12 +449,22 @@ export const NewTournamentScreen = () => {
       });
 
       if (hasByeVsBye) {
-        Alert.alert("Invalid BYE pairing", "A BYE cannot be matched against another BYE in round one. Reorder the draw.");
+        dialog.alert({
+          title: "Two byes cannot meet",
+          message: "Every bye must be drawn against a real entry, or nobody walks over. Reorder the draw and try again.",
+          icon: "alert-outline",
+          confirmLabel: "Reorder the draw",
+        });
         return;
       }
 
       if (pairingMode === "manual" && (manualAvailable.length > 0 || manualPicked.length > 0)) {
-        Alert.alert("Manual fixtures incomplete", "Finish pairing all entries before creating the tournament.");
+        dialog.alert({
+          title: "The draw is not finished",
+          message: "Some entries are still unpaired. Pair every one of them into a fixture before you create the tournament.",
+          icon: "alert-outline",
+          confirmLabel: "Finish the draw",
+        });
         return;
       }
     }
@@ -456,7 +487,12 @@ export const NewTournamentScreen = () => {
       if (isSubscriptionLimitError(error)) {
         setShowPaywall(true);
       } else {
-        Alert.alert("Save failed", "Could not create this tournament right now.");
+        dialog.alert({
+          title: "Could not create the tournament",
+          message: "Nothing was saved, so your setup is still here. Check your connection and try again.",
+          tone: "danger",
+          icon: "wifi-off",
+        });
       }
     } finally {
       setIsSaving(false);

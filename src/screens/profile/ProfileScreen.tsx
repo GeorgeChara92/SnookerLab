@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore, useMatchesStore, useSessionsStore, useRoutineScoresStore, useRoutinesStore } from "../../store";
@@ -8,6 +8,7 @@ import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useSeenAchievements } from "../../hooks/useSeenAchievements";
 import { AppButton } from "../../components/ui/AppButton";
 import { AppCard } from "../../components/ui/AppCard";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { SNOOKER_PRESET_AVATARS, isAvatarUnlocked, type PresetAvatar } from "../../constants/profileAvatars";
 import { SnookerPresetAvatar } from "../../components/profile/SnookerPresetAvatar";
 import { ACHIEVEMENTS, getPlayerLevel, type Achievement } from "../../constants/achievements";
@@ -106,6 +107,7 @@ export const ProfileScreen = () => {
   const navigation = useNavigation<any>();
   const { user, signOut, updateAvatarPreset } = useAuthStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const subscription = useSubscriptionAccess();
   const { width } = useWindowDimensions();
 
@@ -150,8 +152,13 @@ export const ProfileScreen = () => {
   const handlePresetSelect = async (presetId: string) => {
     try {
       await updateAvatarPreset(presetId);
-    } catch (error: any) {
-      Alert.alert("Avatar update failed", error?.message ?? "Could not save your preset avatar.");
+    } catch {
+      dialog.alert({
+        title: "Could not change your avatar",
+        message: "Your avatar has been left as it was. Check your connection and try again.",
+        tone: "danger",
+        icon: "alert-outline",
+      });
     }
   };
 

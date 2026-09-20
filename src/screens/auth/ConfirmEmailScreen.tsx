@@ -1,11 +1,12 @@
 import React from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { AppButton } from "../../components/ui/AppButton";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "ConfirmEmail">;
@@ -13,15 +14,27 @@ type Props = NativeStackScreenProps<AuthStackParamList, "ConfirmEmail">;
 export const ConfirmEmailScreen = ({ navigation, route }: Props) => {
   const { colors } = useAppTheme();
   const { resendEmailVerification, isLoading } = useAuthStore();
+  const dialog = useDialog();
 
   const email = route.params.email;
 
   const handleResend = async () => {
     try {
       await resendEmailVerification(email);
-      Alert.alert("Email sent", "We sent a new confirmation email. Check your inbox and spam folder.");
+      dialog.alert({
+        title: "Confirmation email sent",
+        message: "Check your inbox, and your spam folder, for the new link.",
+        tone: "success",
+        icon: "email-outline",
+      });
     } catch (error: any) {
-      Alert.alert("Could not resend", getAuthEmailActionErrorMessage(error));
+      dialog.alert({
+        title: "Could not send the email",
+        message: getAuthEmailActionErrorMessage(error),
+        tone: "danger",
+        icon: "email-alert-outline",
+        confirmLabel: "Try again",
+      });
     }
   };
 

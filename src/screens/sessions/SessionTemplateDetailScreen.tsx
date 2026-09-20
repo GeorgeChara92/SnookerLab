@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   useNavigation,
   useRoute,
@@ -9,6 +9,7 @@ import {
 import { useRoutinesStore, useSessionsStore } from "../../store";
 import type { SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useDialog } from "../../components/ui/DialogProvider";
 
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr);
@@ -30,6 +31,7 @@ export const SessionTemplateDetailScreen = () => {
   const { getTemplateById, getLogsForTemplate, deleteSessionLog } = useSessionsStore();
   const { getRoutineById } = useRoutinesStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
 
   const template = getTemplateById(templateId);
   const logs = getLogsForTemplate(templateId);
@@ -65,10 +67,15 @@ export const SessionTemplateDetailScreen = () => {
   }
 
   const confirmDeleteLog = (logId: string) => {
-    Alert.alert("Delete Practice Date", "Remove this session log entry?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteSessionLog(logId) },
-    ]);
+    dialog.confirm({
+      title: "Delete this practice date?",
+      message: "The scores logged on this date will be removed from the session's history. This cannot be undone.",
+      tone: "danger",
+      icon: "trash-can-outline",
+      confirmLabel: "Delete date",
+      cancelLabel: "Keep it",
+      onConfirm: () => deleteSessionLog(logId),
+    });
   };
 
   return (

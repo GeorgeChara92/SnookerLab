@@ -1,11 +1,12 @@
 import React, { useLayoutEffect, useState } from "react";
-import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRoute, useNavigation, type RouteProp } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
 import { AppCard } from "../../components/ui/AppCard";
+import { useDialog } from "../../components/ui/DialogProvider";
 import {
   COUNTRIES,
   getCountryByCode,
@@ -35,6 +36,7 @@ export const EditProfileFieldScreen = () => {
   const route = useRoute<FieldRoute>();
   const navigation = useNavigation();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const { user, updateProfile } = useAuthStore();
 
   const field = route.params.field;
@@ -95,7 +97,11 @@ export const EditProfileFieldScreen = () => {
 
   const handleSave = async () => {
     if (!selectedValue) {
-      Alert.alert("Required", "Please select a value.");
+      dialog.alert({
+        title: "Nothing selected yet",
+        message: "Choose an option, then save.",
+        icon: "cursor-default-click-outline",
+      });
       return;
     }
 
@@ -109,8 +115,13 @@ export const EditProfileFieldScreen = () => {
         await updateProfile({ cue_preference: buildCuePreferenceValue(cueSetup) });
       }
       navigation.goBack();
-    } catch (error: any) {
-      Alert.alert("Error", error?.message ?? "Failed to update profile.");
+    } catch {
+      dialog.alert({
+        title: "Could not save your profile",
+        message: "Your change was not saved. Check your connection and try again.",
+        tone: "danger",
+        icon: "alert-outline",
+      });
     } finally {
       setIsSaving(false);
     }

@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { StyleSheet, View, useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppNavigator } from "./src/navigation";
+import { DialogProvider } from "./src/components/ui/DialogProvider";
 import { getThemeColors } from "./src/constants";
 
 export default function App() {
@@ -12,7 +13,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={[styles.container, { backgroundColor: colors.background }]}> 
-        <AppNavigator />
+        <DialogProvider>
+          <AppNavigator />
+        </DialogProvider>
         <StatusBar style={isDark ? "light" : "dark"} />
       </View>
     </SafeAreaProvider>

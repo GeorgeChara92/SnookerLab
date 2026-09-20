@@ -12,8 +12,11 @@ export type DialogRequest = {
   tone?: DialogTone;
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
   confirmLabel: string;
+  /** A second choice, for the rare prompt that genuinely has three answers. */
+  secondaryLabel?: string;
   cancelLabel?: string;
   onConfirm?: () => void;
+  onSecondary?: () => void;
   onCancel?: () => void;
 };
 
@@ -33,8 +36,10 @@ export const AppDialog = ({
   tone = "default",
   icon,
   confirmLabel,
+  secondaryLabel,
   cancelLabel,
   onConfirm,
+  onSecondary,
   onCancel,
   onDismiss,
 }: Props) => {
@@ -79,6 +84,23 @@ export const AppDialog = ({
             >
               <Text style={[styles.confirmText, { color: onAccent }]}>{confirmLabel}</Text>
             </Pressable>
+
+            {secondaryLabel ? (
+              <Pressable
+                onPress={() => {
+                  onSecondary?.();
+                  onDismiss();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={secondaryLabel}
+                style={({ pressed }) => [
+                  styles.secondary,
+                  { borderColor: colors.border, backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={[styles.secondaryText, { color: colors.text }]}>{secondaryLabel}</Text>
+              </Pressable>
+            ) : null}
 
             {cancelLabel ? (
               <Pressable onPress={dismiss} accessibilityRole="button" accessibilityLabel={cancelLabel} style={styles.cancel}>
@@ -142,6 +164,19 @@ const styles = StyleSheet.create({
   confirmText: {
     fontSize: 15,
     fontWeight: "800",
+  },
+  secondary: {
+    alignSelf: "stretch",
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.sm,
+  },
+  secondaryText: {
+    fontSize: 15,
+    fontWeight: "700",
   },
   cancel: {
     minHeight: 44,

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { useAIAnalysesStore } from "../../store";
 import { AICoachStackParamList } from "../../types";
 import { supabase } from "../../api/supabase";
@@ -37,6 +38,7 @@ export const AnalysisDetailScreen = () => {
   const route = useRoute<AnalysisDetailRoute>();
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const { analyses, deleteAnalysis } = useAIAnalysesStore();
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -92,7 +94,13 @@ export const AnalysisDetailScreen = () => {
       await deleteAnalysis(analysis.id);
       navigation.goBack();
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to delete analysis");
+      dialog.alert({
+        title: "Delete failed",
+        message: "Could not delete this analysis. Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+        confirmLabel: "Try again",
+      });
     } finally {
       setIsDeleting(false);
       setShowDeleteModal(false);

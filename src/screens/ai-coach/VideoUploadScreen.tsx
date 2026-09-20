@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Text, Alert, ActivityIndicator, TextInput, Pressable, ScrollView } from "react-native";
+import { View, StyleSheet, Text, ActivityIndicator, TextInput, Pressable, ScrollView } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystemLegacy from "expo-file-system/legacy";
 import { AppButton } from "../../components/ui/AppButton";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useAIAnalysesStore } from "../../store";
@@ -95,18 +96,28 @@ export const VideoUploadScreen = () => {
   const [showPaywall, setShowPaywall] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const subscription = useSubscriptionAccess();
   const { createAnalysis, runAnalysis } = useAIAnalysesStore();
 
   const validateClipLength = (asset: any) => {
     const seconds = getDurationSeconds(asset?.duration);
     if (!seconds) {
-      Alert.alert("Invalid clip", "We could not read the clip duration. Please choose another video.");
+      dialog.alert({
+        title: "Clip could not be read",
+        message: "We could not work out how long that clip is. Choose another video and try again.",
+        tone: "danger",
+        icon: "video-off-outline",
+      });
       return false;
     }
 
     if (seconds < 10 || seconds > 20) {
-      Alert.alert("Clip length required", "Please upload a clip between 10 and 20 seconds for best analysis quality.");
+      dialog.alert({
+        title: "Clip is the wrong length",
+        message: "Analysis works best on a clip between 10 and 20 seconds. Pick a shorter or longer clip and try again.",
+        icon: "timer-outline",
+      });
       return false;
     }
 
@@ -126,7 +137,11 @@ export const VideoUploadScreen = () => {
     if (!checkLimit()) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission needed", "Please grant permission to access your media library.");
+      dialog.alert({
+        title: "Library access needed",
+        message: "Allow access to your photo library in Settings, then choose a clip.",
+        icon: "image-multiple-outline",
+      });
       return;
     }
 
@@ -147,7 +162,11 @@ export const VideoUploadScreen = () => {
     if (!checkLimit()) return;
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission needed", "Please grant permission to access your camera.");
+      dialog.alert({
+        title: "Camera access needed",
+        message: "Allow access to your camera in Settings, then record your clip.",
+        icon: "camera-outline",
+      });
       return;
     }
 
@@ -171,7 +190,11 @@ export const VideoUploadScreen = () => {
 
     const authUser = (await supabase.auth.getUser()).data.user;
     if (!authUser) {
-      Alert.alert("Sign in required", "Please sign in before uploading AI analysis videos.");
+      dialog.alert({
+        title: "Sign in to continue",
+        message: "Sign in to your account before sending a clip for analysis.",
+        icon: "account-outline",
+      });
       return;
     }
 
@@ -250,7 +273,13 @@ export const VideoUploadScreen = () => {
       }
 
       const message = safeErrorMessage(error);
-      Alert.alert("Upload failed", `Could not start analysis. ${message}`);
+      dialog.alert({
+        title: "Upload failed",
+        message: "Could not upload your clip. Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+        confirmLabel: "Try again",
+      });
       console.warn("AI upload failed:", message);
     } finally {
       setUploading(false);

@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -21,6 +20,7 @@ import {
 } from "@react-navigation/native";
 import { useMatchesStore } from "../../store";
 import type { MatchResult, MatchesStackParamList, LiveFrameEvent } from "../../types";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { useAppTheme } from "../../hooks/useAppTheme";
 
 type Visit = {
@@ -96,6 +96,7 @@ export const MatchDetailScreen = () => {
 
   const { getMatchById, updateMatch, deleteMatch, getFrameRecordsByMatchId } = useMatchesStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const match = useMemo(() => getMatchById(matchId), [getMatchById, matchId]);
 
   const [opponentName, setOpponentName] = useState(match?.opponent_name ?? "");
@@ -185,31 +186,48 @@ export const MatchDetailScreen = () => {
         sync_status: "pending",
       });
 
-      Alert.alert("Updated", "Match has been updated.");
+      dialog.alert({
+        title: "Match updated",
+        message: "The scoreline and details are saved.",
+        tone: "success",
+        icon: "check-circle-outline",
+        confirmLabel: "Done",
+      });
       navigation.goBack();
     } catch (error) {
-      Alert.alert("Save failed", "Could not update this match right now.");
+      dialog.alert({
+        title: "Could not save the match",
+        message: "Your changes are still on screen. Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
   const onDelete = () => {
-    Alert.alert("Delete Match", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteMatch(match.id);
-            navigation.goBack();
-          } catch (error) {
-            Alert.alert("Delete failed", "Could not delete this match right now.");
-          }
-        },
+    dialog.confirm({
+      title: "Delete this match?",
+      message: "Every frame, break and pot logged against it goes too. This cannot be undone.",
+      tone: "danger",
+      icon: "trash-can-outline",
+      confirmLabel: "Delete match",
+      cancelLabel: "Keep it",
+      onConfirm: async () => {
+        try {
+          await deleteMatch(match.id);
+          navigation.goBack();
+        } catch (error) {
+          dialog.alert({
+            title: "Could not delete the match",
+            message: "It is still here. Check your connection and try again.",
+            tone: "danger",
+            icon: "wifi-off",
+          });
+        }
       },
-    ]);
+    });
   };
 
   return (

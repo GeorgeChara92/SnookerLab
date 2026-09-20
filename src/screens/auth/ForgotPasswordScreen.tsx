@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,6 +14,7 @@ import type { AuthStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { AppButton } from "../../components/ui/AppButton";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "ForgotPassword">;
@@ -23,21 +23,37 @@ export const ForgotPasswordScreen = ({ navigation }: Props) => {
   const [email, setEmail] = useState("");
   const { colors } = useAppTheme();
   const { resetPassword, isLoading } = useAuthStore();
+  const dialog = useDialog();
 
   const handleReset = async () => {
     const cleanEmail = email.trim();
     if (!cleanEmail || !cleanEmail.includes("@")) {
-      Alert.alert("Invalid email", "Please enter a valid email address.");
+      dialog.alert({
+        title: "Check your email address",
+        message: "Enter the email address you signed up with, including the @.",
+        icon: "email-outline",
+      });
       return;
     }
 
     try {
       await resetPassword(cleanEmail);
-      Alert.alert("Check your inbox", "If this email exists, a reset link has been sent.", [
-        { text: "Back to Sign In", onPress: () => navigation.navigate("Login") },
-      ]);
+      dialog.alert({
+        title: "Check your inbox",
+        message: "If an account uses this address, we have sent a link to reset your password.",
+        tone: "success",
+        icon: "email-outline",
+        confirmLabel: "Back to sign in",
+        onConfirm: () => navigation.navigate("Login"),
+      });
     } catch (error: any) {
-      Alert.alert("Unable to reset", getAuthEmailActionErrorMessage(error));
+      dialog.alert({
+        title: "Could not send the link",
+        message: getAuthEmailActionErrorMessage(error),
+        tone: "danger",
+        icon: "email-alert-outline",
+        confirmLabel: "Try again",
+      });
     }
   };
 

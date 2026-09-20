@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,6 +16,7 @@ import { useAuthStore } from "../../store";
 import type { AuthStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
@@ -31,6 +31,7 @@ export const LoginScreen = ({ navigation, route }: Props) => {
   const [resendError, setResendError] = useState("");
   const { signIn, resendEmailVerification, isLoading } = useAuthStore();
   const { colors, isDark } = useAppTheme();
+  const dialog = useDialog();
 
   useEffect(() => {
     const params = route.params;
@@ -88,7 +89,15 @@ export const LoginScreen = ({ navigation, route }: Props) => {
       }
 
       setErrorMessage(message);
-      if (!isEmailConfirmationIssue) Alert.alert("Sign in failed", message);
+      if (!isEmailConfirmationIssue) {
+        dialog.alert({
+          title: "Could not sign you in",
+          message: "Check your email address and password, then try again.",
+          tone: "danger",
+          icon: "lock-outline",
+          confirmLabel: "Try again",
+        });
+      }
     }
   };
 

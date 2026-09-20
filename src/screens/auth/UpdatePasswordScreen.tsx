@@ -1,17 +1,19 @@
 import React, { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { AppButton } from "../../components/ui/AppButton";
+import { useDialog } from "../../components/ui/DialogProvider";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "UpdatePassword">;
 
 export const UpdatePasswordScreen = ({ navigation }: Props) => {
   const { colors } = useAppTheme();
   const { updatePassword, signOut, isLoading } = useAuthStore();
+  const dialog = useDialog();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -31,7 +33,12 @@ export const UpdatePasswordScreen = ({ navigation }: Props) => {
 
     try {
       await updatePassword(password);
-      Alert.alert("Password updated", "Your password has been changed successfully.");
+      dialog.alert({
+        title: "Password updated",
+        message: "Your new password is now in use. Keep it somewhere safe.",
+        tone: "success",
+        icon: "check-circle-outline",
+      });
     } catch (error: any) {
       setErrorMessage(error?.message ?? "Could not update your password.");
     }

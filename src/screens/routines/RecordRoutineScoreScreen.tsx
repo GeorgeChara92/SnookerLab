@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +19,7 @@ import {
 import type { PracticeStackParamList } from "../../types";
 import { useRoutineScoresStore, useRoutinesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useDialog } from "../../components/ui/DialogProvider";
 import type { ScoringType } from "../../types";
 
 type EntryMode = "direct" | "fraction";
@@ -129,6 +129,7 @@ export const RecordRoutineScoreScreen = () => {
   const { getRoutineById } = useRoutinesStore();
   const { addEntry } = useRoutineScoresStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
 
   const routine = useMemo(() => getRoutineById(routineId), [getRoutineById, routineId]);
   const scoringType = (routine?.scoring_type ?? "count") as ScoringType;
@@ -136,7 +137,12 @@ export const RecordRoutineScoreScreen = () => {
 
   const saveResult = async () => {
     if (!routine) {
-      Alert.alert("Error", "Routine not found.");
+      dialog.alert({
+        title: "Routine not found",
+        message: "We could not find this routine. Go back and choose it again from the library.",
+        tone: "danger",
+        icon: "alert-outline",
+      });
       return;
     }
 
@@ -149,7 +155,11 @@ export const RecordRoutineScoreScreen = () => {
       maxScore: routine.max_score,
     });
     if (!built.value) {
-      Alert.alert("Invalid score", built.error ?? "Enter a valid score first.");
+      dialog.alert({
+        title: "Check your score",
+        message: built.error ?? "Enter a valid score first.",
+        icon: "pencil-outline",
+      });
       return;
     }
 
@@ -162,14 +172,22 @@ export const RecordRoutineScoreScreen = () => {
           notes: notes.trim() || undefined,
         });
 
-      Alert.alert("Saved", "Your result has been recorded.", [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      dialog.alert({
+        title: "Score saved",
+        message: "Your result has been added to this routine's history.",
+        tone: "success",
+        icon: "check-circle-outline",
+        confirmLabel: "Done",
+        onConfirm: () => navigation.goBack(),
+      });
     } catch (error) {
-      Alert.alert("Save failed", "Could not save this routine score right now.");
+      dialog.alert({
+        title: "Save failed",
+        message: "Could not save your score. Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+        confirmLabel: "Try again",
+      });
     } finally {
       setIsSaving(false);
     }

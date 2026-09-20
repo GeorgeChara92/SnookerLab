@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, Vibration, View } from "react-native";
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, Vibration, View } from "react-native";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, TournamentFixture, TournamentFrameScore } from "../../types";
 import { computeLeagueStandings } from "../../features/tournaments/leagueStandings";
+import { buildBracketRounds } from "../../features/tournaments/knockout";
 
 const triggerHaptic = async (type: "light" | "success") => {
   try {
@@ -32,6 +34,7 @@ const FixtureRow = ({
   collapsible?: boolean;
   initialExpanded?: boolean;
 }) => {
+  const dialog = useDialog();
   const isByeA = /^BYE\b/i.test(fixture.participant_a);
   const isByeB = /^BYE\b/i.test(fixture.participant_b);
   const isAutoAdvanced = (isByeA && !isByeB) || (isByeB && !isByeA);
@@ -99,7 +102,12 @@ const FixtureRow = ({
     const aWins = parsed.filter((item) => item.winner === "a").length;
     const bWins = parsed.filter((item) => item.winner === "b").length;
     if (!parsed.length) {
-      Alert.alert("Enter frame scores", "Add at least one completed frame before saving.");
+      dialog.alert({
+        title: "No frames to save",
+        message: "Enter both scores for at least one finished frame. A level frame cannot be saved, so play the re-spotted black out first.",
+        icon: "numeric",
+        confirmLabel: "Enter scores",
+      });
       return;
     }
 
@@ -230,6 +238,7 @@ export const TournamentDetailScreen = () => {
   const route = useRoute<RouteProp<MatchesStackParamList, "TournamentDetail">>();
   const { tournamentId } = route.params;
   const { colors, isDark } = useAppTheme();
+  const dialog = useDialog();
   const { getTournamentById, updateFixtureResult, deleteTournament } = useTournamentsStore();
   const tournament = getTournamentById(tournamentId);
   const [selectedLeaguePlayer, setSelectedLeaguePlayer] = useState<string>("All");
@@ -262,42 +271,10 @@ export const TournamentDetailScreen = () => {
       .map(([round, fixtures]) => ({ round, fixtures }));
   }, [tournament]);
 
-  const virtualKnockoutRounds = useMemo(() => {
-    if (!tournament || tournament.tournament_type !== "knockout") return [];
-
-    const roundsList: Array<{ title: string; names: string[] }> = [];
-    let current = tournament.fixtures
-      .filter((fixture) => fixture.round_number === 1)
-      .flatMap((fixture) => [fixture.participant_a, fixture.participant_b]);
-
-    roundsList.push({ title: "Round 1", names: current });
-
-    let stage = 2;
-    while (current.length > 2) {
-      const next: string[] = [];
-      for (let i = 0; i < current.length; i += 2) {
-        const left = current[i];
-        const right = current[i + 1];
-        const matching = tournament.fixtures.find(
-          (fixture) =>
-            fixture.round_number === stage - 1 &&
-            ((fixture.participant_a === left && fixture.participant_b === right) ||
-              (fixture.participant_a === right && fixture.participant_b === left))
-        );
-
-        next.push(matching?.winner ?? `Winner ${i / 2 + 1}`);
-      }
-      roundsList.push({ title: stage === 3 ? "Semi Final" : stage > 3 ? "Final" : `Round ${stage}`, names: next });
-      current = next;
-      stage += 1;
-    }
-
-    if (current.length === 2) {
-      roundsList.push({ title: "Final", names: current });
-    }
-
-    return roundsList;
-  }, [tournament]);
+  const bracketRounds = useMemo(
+    () => (tournament && tournament.tournament_type === "knockout" ? buildBracketRounds(tournament.fixtures) : []),
+    [tournament]
+  );
 
   const standings = useMemo(() => {
     if (!tournament || tournament.tournament_type !== "league") return [];
@@ -404,42 +381,41 @@ export const TournamentDetailScreen = () => {
 
   const handleFreshStart = () => {
     if (tournament.tournament_type === "knockout") {
-      Alert.alert("Fresh Start", "How should round one fixtures be generated?", [
-        {
-          text: "Manual",
-          onPress: () => {
-            navigation.navigate("NewTournament", {
-              prefill: {
-                name: tournament.name,
-                participants: tournament.participants,
-                tournamentType: tournament.tournament_type,
-                entryMode: tournament.entry_mode,
-                pairingMode: "manual",
-                bestOfFrames: tournament.best_of_frames,
-                previousChampion: completion.champion ?? undefined,
-              },
-            });
-          },
+      dialog.choose({
+        title: "Start again with the same field?",
+        message: "The same players go back in the hat for a new round one. How should the fixtures be drawn?",
+        icon: "shuffle-variant",
+        confirmLabel: "Draw at random",
+        secondaryLabel: "Pair them myself",
+        cancelLabel: "Not now",
+        onConfirm: () => {
+          navigation.navigate("NewTournament", {
+            prefill: {
+              name: tournament.name,
+              participants: tournament.participants,
+              tournamentType: tournament.tournament_type,
+              entryMode: tournament.entry_mode,
+              pairingMode: "random",
+              bestOfFrames: tournament.best_of_frames,
+              previousChampion: completion.champion ?? undefined,
+              autoRunDraw: true,
+            },
+          });
         },
-        {
-          text: "Random",
-          onPress: () => {
-            navigation.navigate("NewTournament", {
-              prefill: {
-                name: tournament.name,
-                participants: tournament.participants,
-                tournamentType: tournament.tournament_type,
-                entryMode: tournament.entry_mode,
-                pairingMode: "random",
-                bestOfFrames: tournament.best_of_frames,
-                previousChampion: completion.champion ?? undefined,
-                autoRunDraw: true,
-              },
-            });
-          },
+        onSecondary: () => {
+          navigation.navigate("NewTournament", {
+            prefill: {
+              name: tournament.name,
+              participants: tournament.participants,
+              tournamentType: tournament.tournament_type,
+              entryMode: tournament.entry_mode,
+              pairingMode: "manual",
+              bestOfFrames: tournament.best_of_frames,
+              previousChampion: completion.champion ?? undefined,
+            },
+          });
         },
-        { text: "Cancel", style: "cancel" },
-      ]);
+      });
       return;
     }
 
@@ -457,21 +433,27 @@ export const TournamentDetailScreen = () => {
   };
 
   const handleDeleteTournament = () => {
-    Alert.alert("Delete Tournament", "This tournament and all fixtures will be removed.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteTournament(tournament.id);
-            navigation.goBack();
-          } catch (error) {
-            Alert.alert("Delete failed", "Could not delete this tournament right now.");
-          }
-        },
+    dialog.confirm({
+      title: "Delete this tournament?",
+      message: "The draw, every fixture and all the frame scores go with it. This cannot be undone.",
+      tone: "danger",
+      icon: "trash-can-outline",
+      confirmLabel: "Delete tournament",
+      cancelLabel: "Keep it",
+      onConfirm: async () => {
+        try {
+          await deleteTournament(tournament.id);
+          navigation.goBack();
+        } catch (error) {
+          dialog.alert({
+            title: "Could not delete the tournament",
+            message: "It is still here. Check your connection and try again.",
+            tone: "danger",
+            icon: "wifi-off",
+          });
+        }
       },
-    ]);
+    });
   };
 
   const openHeroActions = () => {
@@ -540,31 +522,87 @@ export const TournamentDetailScreen = () => {
 
       {tournament.tournament_type === "knockout" ? (
         <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Bracket View</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Bracket</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.bracketRow}>
-              {virtualKnockoutRounds.map((round, index) => (
-                <Animated.View
-                  key={round.title + index}
-                  style={[
-                    styles.bracketColumn,
-                    {
-                      borderColor: colors.border,
-                      backgroundColor: index === virtualKnockoutRounds.length - 1 ? colors.surface : colors.surfaceMuted,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.bracketTitle, { color: colors.text }]}>{round.title}</Text>
-                  {round.names.map((name, i) => {
-                    const isWinner = completion.completed && completion.champion === name;
+              {bracketRounds.map((round) => (
+                <View key={round.title} style={styles.bracketColumn}>
+                  <Text style={[styles.bracketTitle, { color: colors.textMuted }]}>{round.title.toUpperCase()}</Text>
+
+                  {round.ties.map((tie) => {
+                    if (tie.isEmpty) {
+                      return (
+                        <View
+                          key={tie.id}
+                          style={[styles.bracketTie, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, opacity: 0.5 }]}
+                        >
+                          <Text style={[styles.bracketEmpty, { color: colors.textMuted }]}>No tie</Text>
+                        </View>
+                      );
+                    }
+
+                    if (tie.isWalkover) {
+                      const through = tie.a.name ?? tie.b.name ?? "";
+                      return (
+                        <View
+                          key={tie.id}
+                          style={[styles.bracketTie, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+                        >
+                          <Text style={[styles.bracketSeatName, { color: colors.text }]} numberOfLines={1}>
+                            {through}
+                          </Text>
+                          <Text style={[styles.bracketWalkover, { color: colors.textMuted }]}>Walkover</Text>
+                        </View>
+                      );
+                    }
+
                     return (
-                      <View key={`${round.title}-${i}`} style={[styles.bracketMatchCard, { borderColor: colors.border, backgroundColor: colors.surface }]}> 
-                        <Text style={[styles.bracketName, { color: isWinner ? colors.primary : colors.textMuted, fontWeight: isWinner ? "800" : "700" }]}> {name} </Text>
+                      <View
+                        key={tie.id}
+                        style={[
+                          styles.bracketTie,
+                          {
+                            borderColor: tie.status === "completed" ? colors.border : colors.borderStrong,
+                            backgroundColor: colors.surface,
+                          },
+                        ]}
+                      >
+                        {[tie.a, tie.b].map((player, seatIndex) => (
+                          <View
+                            key={`${tie.id}-${seatIndex}`}
+                            style={[
+                              styles.bracketSeat,
+                              seatIndex === 0 ? { borderBottomWidth: 1, borderBottomColor: colors.border } : null,
+                            ]}
+                          >
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.bracketSeatName,
+                                {
+                                  color: player.isPending || !player.name ? colors.textMuted : colors.text,
+                                  fontWeight: player.isWinner ? "800" : "600",
+                                },
+                              ]}
+                            >
+                              {player.name ?? (player.isPending ? "To be decided" : "Bye")}
+                            </Text>
+                            {typeof player.score === "number" ? (
+                              <Text
+                                style={[
+                                  styles.bracketSeatScore,
+                                  { color: player.isWinner ? colors.primary : colors.textMuted },
+                                ]}
+                              >
+                                {player.score}
+                              </Text>
+                            ) : null}
+                          </View>
+                        ))}
                       </View>
                     );
                   })}
-                  {index < virtualKnockoutRounds.length - 1 ? <View style={[styles.bracketConnector, { backgroundColor: colors.border }]} /> : null}
-                </Animated.View>
+                </View>
               ))}
             </View>
           </ScrollView>
@@ -1020,24 +1058,27 @@ const styles = StyleSheet.create({
   },
   matchScoreText: { marginTop: 8, fontSize: 12, fontWeight: "700" },
   winnerText: { marginTop: 8, fontSize: 12, fontWeight: "700" },
-  bracketRow: { flexDirection: "row", gap: 8, paddingBottom: 4 },
-  bracketColumn: { width: 170, borderWidth: 1, borderRadius: 12, padding: 10 },
-  bracketMatchCard: {
+  bracketRow: { flexDirection: "row", gap: 12, paddingBottom: 4 },
+  bracketColumn: { width: 176, justifyContent: "space-around" },
+  bracketTitle: { fontSize: 10, fontWeight: "800", letterSpacing: 1, marginBottom: 8 },
+  bracketTie: {
     borderWidth: 1,
     borderRadius: 10,
-    paddingVertical: 7,
-    paddingHorizontal: 8,
-    marginBottom: 6,
+    marginBottom: 10,
+    overflow: "hidden",
   },
-  bracketConnector: {
-    position: "absolute",
-    right: -8,
-    top: "50%",
-    width: 8,
-    height: 2,
+  bracketSeat: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    gap: 8,
   },
-  bracketTitle: { fontSize: 13, fontWeight: "800", marginBottom: 4 },
-  bracketName: { fontSize: 12, marginBottom: 3 },
+  bracketSeatName: { fontSize: 13, flexShrink: 1 },
+  bracketSeatScore: { fontSize: 13, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  bracketWalkover: { fontSize: 11, marginTop: 2 },
+  bracketEmpty: { fontSize: 12, fontStyle: "italic" },
   leagueTabRow: {
     flexDirection: "row",
     gap: 8,

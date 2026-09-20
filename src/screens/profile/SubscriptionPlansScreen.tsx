@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Pressable,
   RefreshControl,
@@ -13,6 +12,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { AppButton } from "../../components/ui/AppButton";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { SUBSCRIPTION_LIMITS, TIER_LABELS } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
@@ -85,6 +85,7 @@ const formatDate = (value: string | null) => {
 
 export const SubscriptionPlansScreen = () => {
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const { user, setUser } = useAuthStore();
   const subscription = useSubscriptionAccess();
 
@@ -138,16 +139,26 @@ export const SubscriptionPlansScreen = () => {
         if (options?.announce !== false && lastSignatureRef.current && lastSignatureRef.current !== signature) {
           const endsOn = formatDate(state.expiresAt);
           if (state.tier === "free") {
-            Alert.alert("Subscription ended", "You're now on the Free plan.");
+            dialog.alert({
+              title: "Subscription ended",
+              message: "You are on the Free plan now.",
+              icon: "information-outline",
+            });
           } else if (!state.willRenew) {
-            Alert.alert(
-              "Subscription cancelled",
-              endsOn
+            dialog.alert({
+              title: "Subscription cancelled",
+              message: endsOn
                 ? `Your ${TIER_LABELS[state.tier]} plan stays active until ${endsOn}, then you move to Free.`
-                : `Your ${TIER_LABELS[state.tier]} plan stays active until the end of the current period.`
-            );
+                : `Your ${TIER_LABELS[state.tier]} plan stays active until the end of the period you have paid for.`,
+              icon: "calendar-clock",
+            });
           } else {
-            Alert.alert("Plan updated", `You're now on the ${TIER_LABELS[state.tier]} plan.`);
+            dialog.alert({
+              title: "Plan updated",
+              message: `You are on the ${TIER_LABELS[state.tier]} plan.`,
+              tone: "success",
+              icon: "check-circle-outline",
+            });
           }
         }
         lastSignatureRef.current = signature;
@@ -189,28 +200,39 @@ export const SubscriptionPlansScreen = () => {
     try {
       await openNativeSubscriptionSettings();
     } catch {
-      Alert.alert("Unavailable", "Could not open your store subscription settings.");
+      dialog.alert({
+        title: "Could not open the App Store",
+        message: "Open Settings, then Apple Account, then Subscriptions to manage it there.",
+        tone: "danger",
+        icon: "open-in-new",
+      });
     }
   };
 
   const confirmStoreChange = (targetLabel: string) => {
-    Alert.alert(
-      `Switch to ${targetLabel}`,
-      "Downgrades and cancellations are handled in your App Store subscriptions and take effect at the end of the period you've already paid for.",
-      [
-        { text: "Not now", style: "cancel" },
-        { text: "Open App Store", onPress: () => void openStoreSubscriptions() },
-      ]
-    );
+    dialog.confirm({
+      title: `Switch to ${targetLabel}`,
+      message:
+        "Downgrades and cancellations happen in your App Store subscriptions, and take effect at the end of the period you have paid for.",
+      icon: "cart-outline",
+      confirmLabel: "Open App Store",
+      cancelLabel: "Not now",
+      onConfirm: () => void openStoreSubscriptions(),
+    });
   };
 
   const purchase = async (tier: PaidTier) => {
     if (!user?.id) {
-      Alert.alert("Sign in required", "Please sign in to subscribe.");
+      dialog.alert({ title: "Sign in to subscribe", message: "You need an account so your plan follows you between devices." });
       return;
     }
     if (!offerings) {
-      Alert.alert("Plans unavailable", "Subscription plans could not be loaded. Pull down to try again.");
+      dialog.alert({
+        title: "Plans could not be loaded",
+        message: "Pull down to refresh and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+      });
       return;
     }
 
@@ -219,10 +241,20 @@ export const SubscriptionPlansScreen = () => {
       await initBilling(user.id);
       await purchaseTierMonthly(tier, offerings);
       await refresh({ force: true, announce: false });
-      Alert.alert("You're all set", `You're now on the ${TIER_LABELS[tier]} plan.`);
+      dialog.alert({
+        title: "You are on " + TIER_LABELS[tier],
+        message: "Your new limits apply straight away.",
+        tone: "success",
+        icon: "check-circle-outline",
+      });
     } catch (error: any) {
       if (!error?.userCancelled) {
-        Alert.alert("Purchase failed", "That purchase didn't go through. Nothing has been charged.");
+        dialog.alert({
+          title: "Purchase did not go through",
+          message: "Nothing has been charged. Try again in a moment.",
+          tone: "danger",
+          icon: "credit-card-off-outline",
+        });
       }
     } finally {
       setBusyTier(null);
@@ -231,7 +263,7 @@ export const SubscriptionPlansScreen = () => {
 
   const restore = async () => {
     if (!user?.id) {
-      Alert.alert("Sign in required", "Please sign in to restore purchases.");
+      dialog.alert({ title: "Sign in to restore", message: "Purchases are restored to the account you are signed in with." });
       return;
     }
 
@@ -240,9 +272,19 @@ export const SubscriptionPlansScreen = () => {
       await initBilling(user.id);
       await restoreBillingPurchases();
       await refresh({ force: true, announce: false });
-      Alert.alert("Purchases restored", "Any active subscription has been applied to this account.");
+      dialog.alert({
+        title: "Purchases restored",
+        message: "Any active subscription now applies to this account.",
+        tone: "success",
+        icon: "restore",
+      });
     } catch {
-      Alert.alert("Restore failed", "Could not restore purchases. Please try again.");
+      dialog.alert({
+        title: "Could not restore purchases",
+        message: "Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+      });
     } finally {
       setIsRestoring(false);
     }

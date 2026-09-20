@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
 import {
-  Alert,
   Animated,
   Keyboard,
   KeyboardAvoidingView,
@@ -21,6 +20,7 @@ import {
 import { useRoutinesStore, useSessionsStore } from "../../store";
 import type { ScoringType, SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useDialog } from "../../components/ui/DialogProvider";
 
 const getQuickScores = (scoringType: ScoringType, maxScore?: number) => {
   const scoreMax = maxScore && maxScore > 0 ? maxScore : undefined;
@@ -179,6 +179,7 @@ export const ActiveSessionScreen = () => {
   } = useSessionsStore();
   const { getRoutineById } = useRoutinesStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const [isSaving, setIsSaving] = useState(false);
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const scrollRef = useRef<ScrollView>(null);
@@ -224,14 +225,22 @@ export const ActiveSessionScreen = () => {
     try {
       setIsSaving(true);
       await saveActiveSession();
-      Alert.alert("Session Complete", "Your results have been saved.", [
-        {
-          text: "Done",
-          onPress: () => navigation.navigate("SessionTemplateDetail", { templateId }),
-        },
-      ]);
+      dialog.alert({
+        title: "Session complete",
+        message: "Your results have been saved to this session's history.",
+        tone: "success",
+        icon: "check-circle-outline",
+        confirmLabel: "Done",
+        onConfirm: () => navigation.navigate("SessionTemplateDetail", { templateId }),
+      });
     } catch (error) {
-      Alert.alert("Save failed", "Could not save session results right now.");
+      dialog.alert({
+        title: "Save failed",
+        message: "Could not save your session results. Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+        confirmLabel: "Try again",
+      });
     } finally {
       setIsSaving(false);
     }

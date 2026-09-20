@@ -1,7 +1,8 @@
 import React from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import type { MatchesStackParamList } from "../../types";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { SnookerARKitView, isNativeARKitViewAvailable, type GroundPoint } from "../../features/arkit/SnookerARKitView";
 import { ARTableTopDownView } from "../../components/arTableCapture/ARTableTopDownView";
 import { buildTableFrame, tableMmToWorld, validateCornerShape, worldToTableMm } from "../../features/arTableCapture/geometry";
@@ -35,6 +36,7 @@ const BALL_HEX: Record<BallColour, string> = {
 export const ARTableCaptureScreen = () => {
   const route = useRoute<RouteProp<MatchesStackParamList, "ARTableCapture">>();
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
+  const dialog = useDialog();
   const [crosshair, setCrosshair] = React.useState<GroundPoint | null>(null);
   const [tracking, setTracking] = React.useState<"normal" | "limited" | "unavailable">("unavailable");
   const [step, setStep] = React.useState<Step>("baulkLeft");
@@ -150,7 +152,12 @@ export const ARTableCaptureScreen = () => {
 
   const saveSnapshot = async () => {
     if (!corners.baulkLeft || !corners.baulkRight || !corners.blackRight || !corners.blackLeft) {
-      Alert.alert("Table not calibrated", "Mark all four corners first.");
+      dialog.alert({
+        title: "The table is not marked out yet",
+        message: "Mark all four inner cushion corners, baulk end first, before you save the table.",
+        icon: "table-furniture",
+        confirmLabel: "Mark corners",
+      });
       return;
     }
     const next: ARTableSnapshot = {
@@ -172,9 +179,14 @@ export const ARTableCaptureScreen = () => {
 
     await saveARTableSnapshot(next);
     setSnapshot(next);
-    Alert.alert("Saved", "AR table snapshot saved for foul-and-miss restoration.", [
-      { text: "Done", onPress: () => navigation.goBack() },
-    ]);
+    dialog.alert({
+      title: "Table saved",
+      message: "The layout is stored, so the balls can be put back where they were after a foul and a miss.",
+      tone: "success",
+      icon: "check-circle-outline",
+      confirmLabel: "Done",
+      onConfirm: () => navigation.goBack(),
+    });
   };
 
   if (!isNativeARKitViewAvailable()) {

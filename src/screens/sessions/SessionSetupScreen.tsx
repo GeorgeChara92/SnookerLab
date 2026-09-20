@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import {
-  Alert,
   Animated,
   Keyboard,
   KeyboardAvoidingView,
@@ -24,6 +23,7 @@ import {
 import { useRoutinesStore, useSessionsStore } from "../../store";
 import type { SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useDialog } from "../../components/ui/DialogProvider";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -48,6 +48,7 @@ export const SessionSetupScreen = () => {
   const { categories, routines } = useRoutinesStore();
   const { createTemplate, updateTemplate, getTemplateById } = useSessionsStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
 
   const existing = useMemo(() => (templateId ? getTemplateById(templateId) : undefined), [templateId, getTemplateById]);
 
@@ -135,11 +136,19 @@ export const SessionSetupScreen = () => {
 
   const handleSave = async () => {
     if (!sessionName.trim()) {
-      Alert.alert("Name required", "Please enter a name for your session.");
+      dialog.alert({
+        title: "Name your session",
+        message: "Give this session a name so you can find it again later.",
+        icon: "pencil-outline",
+      });
       return;
     }
     if (!selectedRoutines.length) {
-      Alert.alert("No routines", "Please select at least one routine.");
+      dialog.alert({
+        title: "Add a routine first",
+        message: "Pick at least one routine from the library to build this session.",
+        icon: "playlist-plus",
+      });
       return;
     }
 
@@ -156,7 +165,13 @@ export const SessionSetupScreen = () => {
       setShowSaveModal(false);
       navigation.navigate("SessionTemplateDetail", { templateId: newTemplateId });
     } catch (error) {
-      Alert.alert("Save failed", "Could not save this session right now.");
+      dialog.alert({
+        title: "Save failed",
+        message: "Could not save your session. Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+        confirmLabel: "Try again",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -164,7 +179,11 @@ export const SessionSetupScreen = () => {
 
   const openSaveModal = () => {
     if (!selectedRoutines.length) {
-      Alert.alert("No routines", "Please select at least one routine.");
+      dialog.alert({
+        title: "Add a routine first",
+        message: "Pick at least one routine from the library to build this session.",
+        icon: "playlist-plus",
+      });
       return;
     }
     Keyboard.dismiss();

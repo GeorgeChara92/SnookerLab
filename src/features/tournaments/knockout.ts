@@ -165,3 +165,86 @@ export const buildKnockoutFixtures = (
 
   return recomputeKnockoutTree(fixtures);
 };
+
+export type BracketSeat = {
+  /** The player, or null when the seat is a bye or not yet decided. */
+  name: string | null;
+  score?: number;
+  isWinner: boolean;
+  /** Waiting on an earlier tie. */
+  isPending: boolean;
+};
+
+export type BracketTie = {
+  id: string;
+  a: BracketSeat;
+  b: BracketSeat;
+  status: TournamentFixture["status"];
+  /** One player through unopposed: shown as a walkover rather than a tie. */
+  isWalkover: boolean;
+  /** Nobody in this slot at all, which only happens in a manual draw. */
+  isEmpty: boolean;
+  bestOfFrames: number;
+};
+
+export type BracketRound = {
+  title: string;
+  ties: BracketTie[];
+};
+
+/** Rounds are named by how many ties they hold, the way a draw sheet reads. */
+export const roundTitle = (tieCount: number, roundNumber: number) => {
+  if (tieCount === 1) return "Final";
+  if (tieCount === 2) return "Semi-finals";
+  if (tieCount === 4) return "Quarter-finals";
+  if (tieCount === 8) return "Last 16";
+  if (tieCount === 16) return "Last 32";
+  return `Round ${roundNumber}`;
+};
+
+const seat = (name: string, score: number | undefined, winner: string | undefined): BracketSeat => {
+  const real = isRealName(name);
+  return {
+    name: real ? name : null,
+    score: real ? score : undefined,
+    isWinner: real && winner === name,
+    isPending: name === "TBD",
+  };
+};
+
+/**
+ * Turns the flat fixture list into rounds of ties, so the bracket can show who plays
+ * whom instead of a column of names.
+ */
+export const buildBracketRounds = (fixtures: TournamentFixture[]): BracketRound[] => {
+  const byRound = new Map<number, TournamentFixture[]>();
+  for (const fixture of fixtures) {
+    const list = byRound.get(fixture.round_number) ?? [];
+    list.push(fixture);
+    byRound.set(fixture.round_number, list);
+  }
+
+  return Array.from(byRound.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([roundNumber, roundFixtures]) => {
+      const ordered = [...roundFixtures].sort((x, y) => x.fixture_index - y.fixture_index);
+
+      return {
+        title: roundTitle(ordered.length, roundNumber),
+        ties: ordered.map((fixture) => {
+          const aReal = isRealName(fixture.participant_a);
+          const bReal = isRealName(fixture.participant_b);
+
+          return {
+            id: fixture.id,
+            a: seat(fixture.participant_a, fixture.score_a, fixture.winner),
+            b: seat(fixture.participant_b, fixture.score_b, fixture.winner),
+            status: fixture.status,
+            isWalkover: (aReal && isBye(fixture.participant_b)) || (bReal && isBye(fixture.participant_a)),
+            isEmpty: isBye(fixture.participant_a) && isBye(fixture.participant_b),
+            bestOfFrames: fixture.best_of_frames,
+          };
+        }),
+      };
+    });
+};

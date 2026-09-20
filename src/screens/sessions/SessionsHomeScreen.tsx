@@ -1,9 +1,10 @@
 import React, { useMemo } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useSessionsStore } from "../../store";
 import type { SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useDialog } from "../../components/ui/DialogProvider";
 
 type TemplateWithStats = {
   id: string;
@@ -115,6 +116,7 @@ export const SessionsHomeScreen = () => {
   const navigation = useNavigation<NavigationProp<SessionsStackParamList>>();
   const { templates, logs, deleteTemplate } = useSessionsStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
 
   const templateStats = useMemo<TemplateWithStats[]>(
     () =>
@@ -130,20 +132,27 @@ export const SessionsHomeScreen = () => {
   );
 
   const confirmDelete = (templateId: string) => {
-    Alert.alert("Delete Session Preset", "Delete this preset and all its saved practice dates?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteTemplate(templateId);
-          } catch (error) {
-            Alert.alert("Delete failed", "Could not delete this preset right now.");
-          }
-        },
+    dialog.confirm({
+      title: "Delete this preset?",
+      message: "The preset and every practice date saved against it will be removed. This cannot be undone.",
+      tone: "danger",
+      icon: "trash-can-outline",
+      confirmLabel: "Delete preset",
+      cancelLabel: "Keep it",
+      onConfirm: async () => {
+        try {
+          await deleteTemplate(templateId);
+        } catch (error) {
+          dialog.alert({
+            title: "Delete failed",
+            message: "Could not delete this preset. Check your connection and try again.",
+            tone: "danger",
+            icon: "wifi-off",
+            confirmLabel: "Try again",
+          });
+        }
       },
-    ]);
+    });
   };
 
   return (

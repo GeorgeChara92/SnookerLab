@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { useNavigation, useNavigationState, type NavigationProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -7,6 +7,7 @@ import { AppButton } from "../../components/ui/AppButton";
 import { AppCard } from "../../components/ui/AppCard";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
 import { CodeConfirmModal } from "../../components/ui/CodeConfirmModal";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useAuthStore } from "../../store";
@@ -58,6 +59,7 @@ export const SettingsScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp<ProfileStackParamList & RootStackParamList>>();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const subscription = useSubscriptionAccess();
   const { user, resetPassword, resendEmailVerification, deleteAccount, resetProfile, isLoading } = useAuthStore();
   
@@ -73,54 +75,91 @@ export const SettingsScreen = () => {
 
   const openCustomerCenter = async () => {
     if (!isBillingConfigured()) {
-      Alert.alert("Subscription unavailable", "Subscription management is not available in this build.");
+      dialog.alert({
+        title: "Subscription management unavailable",
+        message: "This build cannot open subscription settings. You can manage your plan in your app store account.",
+        icon: "credit-card-off-outline",
+      });
       return;
     }
 
     try {
       await presentCustomerCenter();
-    } catch (error: any) {
-      Alert.alert("Subscription settings unavailable", typeof error?.message === "string" ? error.message : "Could not open subscription settings.", [
-        { text: "Close", style: "cancel" },
-        {
-          text: "Open Store Subscriptions",
-          onPress: () => {
-            void openNativeSubscriptionSettings().catch(() => {
-              Alert.alert("Unavailable", "Could not open store subscription settings.");
+    } catch {
+      dialog.confirm({
+        title: "Could not open subscription settings",
+        message: "The subscription screen did not load. You can manage your plan in your app store account instead.",
+        icon: "credit-card-outline",
+        confirmLabel: "Open store subscriptions",
+        cancelLabel: "Close",
+        onConfirm: () => {
+          void openNativeSubscriptionSettings().catch(() => {
+            dialog.alert({
+              title: "Could not open store subscriptions",
+              message: "Open your device settings and manage your subscription from there.",
+              icon: "credit-card-off-outline",
             });
-          },
+          });
         },
-      ]);
+      });
     }
   };
 
   const handlePasswordReset = async () => {
     const email = user?.email?.trim();
     if (!email) {
-      Alert.alert("Email missing", "No account email is available for this profile.");
+      dialog.alert({
+        title: "No email on this account",
+        message: "There is no email address on your profile, so we cannot send a reset link. Get in touch with support and we will sort it out.",
+        icon: "email-alert-outline",
+      });
       return;
     }
 
     try {
       await resetPassword(email);
-      Alert.alert("Check your inbox", "Password reset instructions were sent to your email.");
+      dialog.alert({
+        title: "Check your inbox",
+        message: `We have sent a link to reset your password to ${email}. It can take a minute to arrive.`,
+        tone: "success",
+        icon: "email-check-outline",
+      });
     } catch (error: any) {
-      Alert.alert("Could not send reset", getAuthEmailActionErrorMessage(error));
+      dialog.alert({
+        title: "Could not send the reset email",
+        message: getAuthEmailActionErrorMessage(error),
+        tone: "danger",
+        icon: "alert-outline",
+      });
     }
   };
 
   const handleResendVerification = async () => {
     const email = user?.email?.trim();
     if (!email) {
-      Alert.alert("Email missing", "No account email is available for this profile.");
+      dialog.alert({
+        title: "No email on this account",
+        message: "There is no email address on your profile, so we cannot send a verification link. Get in touch with support and we will sort it out.",
+        icon: "email-alert-outline",
+      });
       return;
     }
 
     try {
       await resendEmailVerification(email);
-      Alert.alert("Email sent", "A new verification email has been sent.");
+      dialog.alert({
+        title: "Verification email sent",
+        message: `Open the link we sent to ${email} to confirm your address.`,
+        tone: "success",
+        icon: "email-check-outline",
+      });
     } catch (error: any) {
-      Alert.alert("Could not send email", getAuthEmailActionErrorMessage(error));
+      dialog.alert({
+        title: "Could not send the verification email",
+        message: getAuthEmailActionErrorMessage(error),
+        tone: "danger",
+        icon: "alert-outline",
+      });
     }
   };
 
@@ -130,7 +169,11 @@ export const SettingsScreen = () => {
       if (!canOpen) throw new Error("Cannot open URL");
       await Linking.openURL(url);
     } catch {
-      Alert.alert("Unavailable", `Could not open ${label}.`);
+      dialog.alert({
+        title: `Could not open ${label}`,
+        message: "Check your connection and try again.",
+        icon: "wifi-off",
+      });
     }
   };
 
@@ -141,7 +184,11 @@ export const SettingsScreen = () => {
       if (!canOpen) throw new Error("Cannot open URL");
       await Linking.openURL(url);
     } catch {
-      Alert.alert("Unavailable", "Could not open your email app.");
+      dialog.alert({
+        title: "Could not open your email app",
+        message: `Write to us at ${SUPPORT_EMAIL} and we will get back to you.`,
+        icon: "email-off-outline",
+      });
     }
   };
 
@@ -166,8 +213,13 @@ export const SettingsScreen = () => {
         index: 0,
         routes: [{ name: "Main" }],
       });
-    } catch (error: any) {
-      Alert.alert("Reset failed", error?.message ?? "Could not reset profile. Please try again.");
+    } catch {
+      dialog.alert({
+        title: "Could not reset your profile",
+        message: "Nothing has been changed. Check your connection and try again.",
+        tone: "danger",
+        icon: "alert-outline",
+      });
     }
   };
 
@@ -187,8 +239,13 @@ export const SettingsScreen = () => {
     try {
       await deleteAccount();
       setShowDeleteConfirm(false);
-    } catch (error: any) {
-      Alert.alert("Delete failed", error?.message ?? "Could not delete account. Please try again.");
+    } catch {
+      dialog.alert({
+        title: "Could not delete your account",
+        message: "Your account is still here. Check your connection and try again.",
+        tone: "danger",
+        icon: "alert-outline",
+      });
     }
   };
 

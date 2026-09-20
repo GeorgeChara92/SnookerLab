@@ -1,5 +1,12 @@
 import type { TournamentFixture } from "../../../types";
-import { buildKnockoutFixtures, buildRandomDrawSlots, isBye, recomputeKnockoutTree } from "../knockout";
+import {
+  buildBracketRounds,
+  buildKnockoutFixtures,
+  buildRandomDrawSlots,
+  isBye,
+  recomputeKnockoutTree,
+  roundTitle,
+} from "../knockout";
 import { computeLeagueStandings } from "../leagueStandings";
 
 const players = (count: number) => Array.from({ length: count }, (_, i) => `Player ${i + 1}`);
@@ -85,5 +92,60 @@ describe("league standings", () => {
     );
     // Dan: 3 pts, +1. Ann and Bob: 3 pts, level on frames; Bob won the head-to-head.
     expect(table.map((row) => row.name)).toEqual(["Dan", "Bob", "Ann", "Cat"]);
+  });
+});
+
+describe("bracket", () => {
+  it("names rounds the way a draw sheet reads", () => {
+    expect(roundTitle(1, 4)).toBe("Final");
+    expect(roundTitle(2, 3)).toBe("Semi-finals");
+    expect(roundTitle(4, 2)).toBe("Quarter-finals");
+    expect(roundTitle(8, 1)).toBe("Last 16");
+    expect(roundTitle(32, 1)).toBe("Round 1");
+  });
+
+  it("shows who plays whom, not a column of names", () => {
+    const rounds = buildBracketRounds(buildKnockoutFixtures("t1", players(8), 3, "random"));
+
+    expect(rounds.map((round) => round.title)).toEqual(["Quarter-finals", "Semi-finals", "Final"]);
+    expect(rounds[0].ties).toHaveLength(4);
+    rounds[0].ties.forEach((tie) => {
+      expect(tie.a.name).not.toBeNull();
+      expect(tie.b.name).not.toBeNull();
+    });
+  });
+
+  it("marks a bye as a walkover rather than an opponent", () => {
+    const rounds = buildBracketRounds(buildKnockoutFixtures("t1", players(5), 3, "random"));
+    const walkovers = rounds[0].ties.filter((tie) => tie.isWalkover);
+
+    expect(walkovers).toHaveLength(3);
+    walkovers.forEach((tie) => {
+      // One real player, one empty seat, and nobody called "BYE".
+      expect([tie.a.name, tie.b.name].filter(Boolean)).toHaveLength(1);
+    });
+  });
+
+  it("marks later ties as waiting on an earlier result", () => {
+    const rounds = buildBracketRounds(buildKnockoutFixtures("t1", players(8), 3, "random"));
+    const final = rounds[rounds.length - 1].ties[0];
+
+    expect(final.a.isPending).toBe(true);
+    expect(final.b.isPending).toBe(true);
+  });
+
+  it("carries the winner and score through once a tie is played", () => {
+    const fixtures = buildKnockoutFixtures("t1", players(4), 3, "random");
+    const first = fixtures.find((f) => f.round_number === 1)!;
+    const played = recomputeKnockoutTree(
+      fixtures.map((f) =>
+        f.id === first.id ? { ...f, status: "completed" as const, winner: f.participant_a, score_a: 2, score_b: 1 } : f
+      )
+    );
+
+    const tie = buildBracketRounds(played)[0].ties.find((t) => t.id === first.id)!;
+    expect(tie.a.isWinner).toBe(true);
+    expect(tie.a.score).toBe(2);
+    expect(tie.b.score).toBe(1);
   });
 });
