@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Modal,
   Pressable,
@@ -18,6 +17,8 @@ import type { LiveFrameEvent as SavedLiveFrameEvent, MatchesStackParamList } fro
 import { useAuthStore, useMatchesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
+import { AppDialog, type DialogRequest } from "../../components/ui/AppDialog";
+import { FoulSheet } from "../../components/matches/FoulSheet";
 import {
   BALL_POINTS,
   COLOR_SEQUENCE,
@@ -130,6 +131,7 @@ export const LiveFrameScoringScreen = () => {
   const [selectedSavedFrameId, setSelectedSavedFrameId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"match" | "stats" | "log">("match");
   const [potNotice, setPotNotice] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<DialogRequest | null>(null);
 
   const scorePulse = useRef(new Animated.Value(1)).current;
   const breakPulse = useRef(new Animated.Value(1)).current;
@@ -341,7 +343,13 @@ export const LiveFrameScoringScreen = () => {
       });
       setRaceToInput(String(value));
     } catch (error) {
-      Alert.alert("Update failed", "Could not update match frame target right now.");
+      setDialog({
+        title: "Could not update the match length",
+        message: "The change was not saved. Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+        confirmLabel: "OK",
+      });
     } finally {
       setIsUpdatingRace(false);
     }
@@ -442,19 +450,20 @@ export const LiveFrameScoringScreen = () => {
   };
 
   const handleReRack = () => {
-    Alert.alert("Re-rack frame", "This will reset score, breaks, and event log for this frame.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Re-rack",
-        style: "destructive",
-        onPress: () => {
-          setUndoStack([]);
-          const reset = reRack(frameRef.current);
-          frameRef.current = reset;
-          setFrame(reset);
-        },
+    setDialog({
+      title: "Re-rack this frame?",
+      message: "The score, breaks and shot log for this frame are cleared, and you start again from 15 reds.",
+      tone: "danger",
+      icon: "restart",
+      confirmLabel: "Re-rack",
+      cancelLabel: "Keep playing",
+      onConfirm: () => {
+        setUndoStack([]);
+        const reset = reRack(frameRef.current);
+        frameRef.current = reset;
+        setFrame(reset);
       },
-    ]);
+    });
   };
 
   const openFoulSheet = () => {
@@ -514,30 +523,42 @@ export const LiveFrameScoringScreen = () => {
             ? opponentLabel
             : null;
 
-Alert.alert(
-        projectedMatchWinner ? "Match complete" : "Frame saved",
+setDialog(
         projectedMatchWinner
-          ? `${projectedMatchWinner} wins the match ${projectedWins.user}-${projectedWins.opponent}.`
-          : abandoned
-            ? "Frame saved as abandoned."
-            : "Frame saved successfully.",
-        [
-          {
-            text: "Next frame",
-            style: projectedMatchWinner ? "cancel" : "default",
-            isPreferred: !projectedMatchWinner,
-            onPress: () => {
-              const nextFrame = createInitialLiveFrameState(frame.frameNumber + 1, frame.atTable);
-              frameRef.current = nextFrame;
-              setFrame(nextFrame);
-              setUndoStack([]);
-            },
-          },
-          { text: "Done", onPress: () => navigation.goBack() },
-        ]
+          ? {
+              title: "Match complete",
+              message: `${projectedMatchWinner} wins it ${projectedWins.user}-${projectedWins.opponent}.`,
+              tone: "success",
+              icon: "trophy-outline",
+              confirmLabel: "Back to match",
+              onConfirm: () => navigation.goBack(),
+            }
+          : {
+              title: abandoned ? "Frame abandoned" : "Frame saved",
+              message: abandoned
+                ? "Saved for your records. It does not count for either player."
+                : `${frame.userScore}-${frame.opponentScore} to ${frameWinner === "user" ? userLabel : opponentLabel}.`,
+              tone: "success",
+              icon: abandoned ? "archive-outline" : "check-circle-outline",
+              confirmLabel: "Next frame",
+              cancelLabel: "Back to match",
+              onConfirm: () => {
+                const nextFrame = createInitialLiveFrameState(frame.frameNumber + 1, frame.atTable);
+                frameRef.current = nextFrame;
+                setFrame(nextFrame);
+                setUndoStack([]);
+              },
+              onCancel: () => navigation.goBack(),
+            }
       );
     } catch (error) {
-      Alert.alert("Save failed", "Could not save this frame right now.");
+      setDialog({
+        title: "Could not save the frame",
+        message: "Nothing was lost. Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+        confirmLabel: "OK",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -550,22 +571,27 @@ Alert.alert(
     }
 
     const leader = frame.userScore > frame.opponentScore ? userLabel : opponentLabel;
-    Alert.alert(
-      "End the frame here?",
-      `The frame is not finished. It will be saved at ${frame.userScore}-${frame.opponentScore}, so ${leader} takes it.`,
-      [
-        { text: "Keep playing", style: "cancel" },
-        { text: "End frame", onPress: () => persistFrame(false) },
-      ]
-    );
+    setDialog({
+      title: "End the frame here?",
+      message: `The frame is not finished. It is saved at ${frame.userScore}-${frame.opponentScore}, so ${leader} takes it.`,
+      icon: "flag-checkered",
+      confirmLabel: "End frame",
+      cancelLabel: "Keep playing",
+      onConfirm: () => persistFrame(false),
+    });
   };
 
   // An abandoned frame is replayed, so it counts for neither player.
   const handleAbandonFrame = () => {
-    Alert.alert("Abandon this frame?", "It will be saved for your records but will not count for either player.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Abandon frame", style: "destructive", onPress: () => persistFrame(true) },
-    ]);
+    setDialog({
+      title: "Abandon this frame?",
+      message: "It is saved for your records but counts for neither player.",
+      tone: "danger",
+      icon: "archive-outline",
+      confirmLabel: "Abandon frame",
+      cancelLabel: "Keep playing",
+      onConfirm: () => persistFrame(true),
+    });
   };
 
   const handleOpenTableCapture = () => {
@@ -588,24 +614,31 @@ Alert.alert(
       if (allowExitWithoutGuardRef.current || !canAutoDiscardEmptyMatch || isSaving) return;
 
       event.preventDefault();
-      Alert.alert("Discard empty match?", "No frames were played. This empty 0-0 match will be removed.", [
-        { text: "Keep", style: "cancel" },
-        {
-          text: "Discard",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteMatch(match.id);
-            } catch (error) {
-              Alert.alert("Could not discard", "Please try again.");
-              return;
-            }
+      setDialog({
+        title: "Discard this match?",
+        message: "No frames were played, so there is nothing to keep.",
+        tone: "danger",
+        icon: "trash-can-outline",
+        confirmLabel: "Discard match",
+        cancelLabel: "Keep it",
+        onConfirm: async () => {
+          try {
+            await deleteMatch(match.id);
+          } catch (error) {
+            setDialog({
+              title: "Could not discard the match",
+              message: "Check your connection and try again.",
+              tone: "danger",
+              icon: "wifi-off",
+              confirmLabel: "OK",
+            });
+            return;
+          }
 
-            allowExitWithoutGuardRef.current = true;
-            navigation.dispatch(event.data.action);
-          },
+          allowExitWithoutGuardRef.current = true;
+          navigation.dispatch(event.data.action);
         },
-      ]);
+      });
     });
 
     return unsubscribe;
@@ -948,57 +981,25 @@ Alert.alert(
         </View>
       </View>
 
-      <Modal visible={isFoulOpen} transparent animationType="fade" onRequestClose={() => setIsFoulOpen(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setIsFoulOpen(false)}>
-          <Pressable style={[styles.modalCard, { backgroundColor: colors.surface }]} onPress={() => null}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Record Foul</Text>
+      <FoulSheet
+        visible={isFoulOpen}
+        minimumValue={minimumFoulValue}
+        value={foulValue}
+        onValueChange={setFoulValue}
+        foulType={foulType}
+        onFoulTypeChange={setFoulType}
+        note={foulNote}
+        onNoteChange={setFoulNote}
+        awardedTo={frame.atTable === "user" ? opponentLabel : userLabel}
+        onApply={applyFoul}
+        onCancel={() => setIsFoulOpen(false)}
+      />
 
-            <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Penalty Points</Text>
-            <View style={styles.optionRow}>
-              {FOUL_OPTIONS.map((option) => (
-                <Pressable
-                  key={option.value}
-                  disabled={option.value < minimumFoulValue}
-                  style={[
-                    styles.optionPill,
-                    foulValue === option.value && { backgroundColor: colors.primary },
-                    option.value < minimumFoulValue && styles.disabledPill,
-                  ]}
-                  onPress={() => setFoulValue(option.value)}
-                >
-                  <Text style={[styles.optionPillLabel, foulValue === option.value && { color: colors.onPrimary }]}>{option.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <Text style={[styles.modalLabel, { color: colors.textMuted }]}>Foul Type</Text>
-            <View style={styles.typeWrap}>
-              {FOUL_TYPES.map((type) => (
-                <Pressable
-                  key={type.key}
-                  style={[styles.typePill, foulType === type.key && { backgroundColor: colors.primaryStrong }]}
-                  onPress={() => setFoulType(type.key)}
-                >
-                  <Text style={[styles.typePillText, foulType === type.key && { color: colors.onPrimary }]}>{type.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <TextInput
-              value={foulNote}
-              onChangeText={setFoulNote}
-              placeholder="Optional note"
-              placeholderTextColor={colors.textMuted}
-              style={[styles.noteInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]}
-            />
-
-            <View style={styles.modalActions}>
-              <AppButton label="Cancel" variant="secondary" onPress={() => setIsFoulOpen(false)} />
-              <AppButton label="Apply Foul" variant="danger" onPress={applyFoul} />
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <AppDialog
+        visible={dialog !== null}
+        {...(dialog ?? { title: "", confirmLabel: "OK" })}
+        onDismiss={() => setDialog(null)}
+      />
 
       <Modal visible={!!selectedSavedFrame} transparent animationType="fade" onRequestClose={() => setSelectedSavedFrameId(null)}>
         <Pressable style={styles.modalOverlay} onPress={() => setSelectedSavedFrameId(null)}>
