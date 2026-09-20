@@ -142,18 +142,6 @@ export const RADIUS = {
 } as const;
 
 /**
- * How wide a ball is drawn on a routine diagram, as a fraction of the table's width.
- *
- * The drill data and the renderer share this one number, so balls the data places a ball apart
- * are drawn exactly touching. A real ball is nearer 3% of the bed, but that is too small to read
- * on a phone, so the whole diagram is drawn at this slightly generous scale.
- */
-export const DIAGRAM_BALL_WIDTH = 0.048;
-
-/** The same ball measured along the table, which is twice as long as it is wide. */
-export const DIAGRAM_BALL_LENGTH = DIAGRAM_BALL_WIDTH / 2;
-
-/**
  * The scrim behind every dialog and sheet. Near-black with a trace of green, so the table
  * cloth reads through it rather than a flat grey. One value, so nothing looks out of place.
  */
