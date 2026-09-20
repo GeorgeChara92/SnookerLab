@@ -44,6 +44,10 @@ Dashboard → Edge Functions → Secrets. Add:
 | --- | --- |
 | `REVENUECAT_SECRET_API_KEY` | RevenueCat → Project Settings → API keys → **secret** key (starts `sk_`). Never the public key, and never in a `EXPO_PUBLIC_` variable. |
 | `REVENUECAT_WEBHOOK_SECRET` | Any long random string you generate; you paste the same value into RevenueCat in step 4. |
+| `REVENUECAT_PROJECT_ID` | Optional. The `projects/<id>` segment of the RevenueCat dashboard URL. Defaults to `2c1d0f01`, so only set it if the project changes. |
+
+Both functions call the RevenueCat **v2** API (`/v2/projects/{project_id}/customers/...`), so the
+secret key must be a V2 key. A V1 key returns 401 and the functions answer `sync_failed`.
 
 Optional, only if your product identifiers change:
 `RC_CENTURY_IDS` and `RC_HALF_CENTURY_IDS` (comma-separated). The defaults cover
@@ -85,6 +89,22 @@ Send a test event and check Edge Function logs for `revenuecat-webhook applied`.
    `supabase.auth.updateUser({ data: { subscription_tier: 'century' } })`. The call still succeeds
    — that field is just ordinary user metadata now — but limits and the displayed tier must not
    change, because nothing reads it any more.
+
+## Status (applied 20 Sep 2026)
+
+Done on the live project:
+
+- migration run and verified: 5/5 users on `app_metadata`, 0 still user-writable; helper functions
+  no longer executable by `anon`/`authenticated`; `created_at` freeze triggers in place; `ai-videos`
+  limited to 100 MB of video;
+- `REVENUECAT_SECRET_API_KEY` and `REVENUECAT_WEBHOOK_SECRET` set;
+- all five functions deployed, `sync-subscription` with JWT verification on and
+  `revenuecat-webhook` with it off;
+- webhook configured in RevenueCat for production and sandbox, all events; test delivery returned
+  200 with no errors in the function logs.
+
+Left to check on a device: open Subscription Plans while signed in, then confirm the tier in
+`app_metadata` matches the store.
 
 ## Still open
 
