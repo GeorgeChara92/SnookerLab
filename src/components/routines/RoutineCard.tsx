@@ -5,6 +5,7 @@ import { Routine } from "../../types";
 import { getYoutubeThumbnailUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { getRoutineReferenceImageByRoutineId, isRoutineARBadgeVisible } from "../../features/ar/routineLayouts";
+import { TableDiagram } from "./TableDiagram";
 
 interface RoutineCardProps {
   routine: Routine;
@@ -42,12 +43,16 @@ export const RoutineCard = ({ routine, categoryName, categoryColor, onPress }: R
       ) : null}
       <View style={styles.topRow}>
         <View style={styles.leftMeta}>
+          {routine.diagram && !isGuide ? (
+            <TableDiagram diagram={routine.diagram} width={40} showCaption={false} />
+          ) : (
             <Text style={styles.icon}>{routine.icon ?? "🎱"}</Text>
-            <View>
-              <Text style={[styles.title, { color: colors.text }]}>{routine.name}</Text>
-              <Text style={[styles.category, { color: categoryColor ?? "#0F766E" }]}>{categoryName}</Text>
-            </View>
+          )}
+          <View style={styles.titleWrap}>
+            <Text style={[styles.title, { color: colors.text }]}>{routine.name}</Text>
+            <Text style={[styles.category, { color: categoryColor ?? "#0F766E" }]}>{categoryName}</Text>
           </View>
+        </View>
         <Text style={[styles.difficulty, { backgroundColor: colors.surfaceMuted, color: colors.textMuted }]}>{isGuide ? "guide" : routine.difficulty}</Text>
       </View>
       <Text style={[styles.summary, { color: colors.textMuted }]}>{routine.summary ?? routine.description ?? "Structured snooker drill."}</Text>
@@ -56,6 +61,7 @@ export const RoutineCard = ({ routine, categoryName, categoryColor, onPress }: R
 };
 
 const styles = StyleSheet.create({
+  titleWrap: { flex: 1 },
   card: {
     borderRadius: 14,
     padding: 14,
@@ -113,10 +119,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   leftMeta: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    flexShrink: 1,
   },
   icon: {
     fontSize: 22,

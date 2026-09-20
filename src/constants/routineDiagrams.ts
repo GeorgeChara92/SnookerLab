@@ -1,4 +1,5 @@
 import { RoutineDiagram } from "../types";
+import { DIAGRAM_BALL_LENGTH, DIAGRAM_BALL_WIDTH } from "./theme";
 
 /**
  * Diagrams for the routines that were written before the library had any.
@@ -28,8 +29,30 @@ const colours = (): RoutineDiagram["balls"] => [
   { colour: "black", x: SPOT.black[0], y: SPOT.black[1] },
 ];
 
-const BALL_W = 0.048;
-const BALL_L = BALL_W / 2;
+const BALL_W = DIAGRAM_BALL_WIDTH;
+const BALL_L = DIAGRAM_BALL_LENGTH;
+
+/** Every ball in the line-up sits at this pitch: a ball, plus a whisker of daylight. */
+const LINE_PITCH = BALL_L * 1.15;
+
+/** The spots a red in the centre line has to make room for. */
+const CENTRE_SPOTS = [0.909, 0.75, 0.5, 0.206];
+
+/**
+ * Reds down the centre line at one even pitch, stepping over the colour spots rather than
+ * squeezing round them. A gap where a colour sits is exactly two pitches, so the line still
+ * reads as evenly spaced - which is how it looks on a real table.
+ */
+export const centreLineReds = (count: number, start = 0.9366): RoutineDiagram["balls"] => {
+  const reds: RoutineDiagram["balls"] = [];
+
+  for (let y = start; y > 0.12 && reds.length < count; y -= LINE_PITCH) {
+    if (CENTRE_SPOTS.some((spot) => Math.abs(spot - y) < BALL_L)) continue;
+    reds.push({ colour: "red", x: 0.5, y: Number(y.toFixed(4)) });
+  }
+
+  return reds;
+};
 
 /** The full triangle, apex behind the pink, widening towards the black. */
 const pack = (apexY = 0.78): RoutineDiagram["balls"] =>
@@ -45,12 +68,7 @@ const pack = (apexY = 0.78): RoutineDiagram["balls"] =>
  * The line-up as it is actually set: two reds above the black, four between black and pink,
  * seven between pink and blue, two between blue and brown. The gaps are the colour spots.
  */
-export const LINE_UP_REDS: RoutineDiagram["balls"] = [
-  0.96, 0.935,
-  0.875, 0.85, 0.815, 0.785,
-  0.72, 0.69, 0.66, 0.63, 0.6, 0.57, 0.54,
-  0.44, 0.37,
-].map((y) => ({ colour: "red" as const, x: 0.5, y }));
+export const LINE_UP_REDS: RoutineDiagram["balls"] = centreLineReds(15);
 
 export const FIRST_WAVE_DIAGRAMS: Record<string, RoutineDiagram> = {
   "routine-line-up": {
@@ -60,8 +78,13 @@ export const FIRST_WAVE_DIAGRAMS: Record<string, RoutineDiagram> = {
 
   "routine-t-routine": {
     balls: [
-      ...[0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map((x) => ({ colour: "red" as const, x, y: 0.71 })),
-      ...[0.67, 0.63, 0.59, 0.55, 0.47, 0.43, 0.39, 0.35].map((y) => ({ colour: "red" as const, x: 0.5, y })),
+      // Seven across the bar, a ball and a half apart, then the stem down to the blue.
+      ...Array.from({ length: 7 }, (_, index) => ({
+        colour: "red" as const,
+        x: Number((0.5 + (index - 3) * BALL_W * 1.6).toFixed(4)),
+        y: 0.7,
+      })),
+      ...centreLineReds(8, 0.66),
       ...colours(),
     ],
     caption: "A bar of reds under the pink and a stem running down towards the blue.",

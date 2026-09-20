@@ -1,6 +1,7 @@
 import { Routine, RoutineCategory, RoutineDiagram } from "../types";
 import { getYoutubeWatchUrl } from "../utils/youtube";
-import { LINE_UP_REDS } from "./routineDiagrams";
+import { DIAGRAM_BALL_LENGTH, DIAGRAM_BALL_WIDTH } from "./theme";
+import { LINE_UP_REDS, centreLineReds } from "./routineDiagrams";
 
 /**
  * The second wave of the routine library.
@@ -52,8 +53,8 @@ const redLine = (
   });
 
 /** How wide a ball is as a fraction of the table, matching how the diagram draws it. */
-const BALL_W = 0.048;
-const BALL_L = BALL_W / 2;
+const BALL_W = DIAGRAM_BALL_WIDTH;
+const BALL_L = DIAGRAM_BALL_LENGTH;
 
 /**
  * The full triangle: fifteen reds in five rows, apex sitting behind the pink and widening
@@ -375,7 +376,7 @@ export const EXTRA_ROUTINES: Routine[] = [
     max_score: 71,
     estimated_duration_minutes: 20,
     diagram: {
-      balls: [...redLine([0.5, 0.71], [0.5, 0.42], 7), ...colourSpots()],
+      balls: [...centreLineReds(7, 0.8538), ...colourSpots()],
       caption: "Seven reds down the middle, colours on their spots.",
     },
   },
@@ -506,14 +507,14 @@ export const EXTRA_ROUTINES: Routine[] = [
     diagram: {
       balls: [
         { colour: "black", x: SPOT.black[0], y: SPOT.black[1] },
-        { colour: "red", x: 0.46, y: 0.96 },
-        { colour: "red", x: 0.54, y: 0.96 },
-        { colour: "red", x: 0.5, y: 0.99 },
+        { colour: "red", x: 0.452, y: 0.945 },
+        { colour: "red", x: 0.548, y: 0.945 },
+        { colour: "red", x: 0.5, y: 0.969 },
         { colour: "cue", x: 0.38, y: 0.84 },
       ],
       lines: [
         { from: [0.38, 0.84], to: [0.5, 0.909], kind: "shot" },
-        { from: [0.5, 0.909], to: [0.5, 0.96], kind: "travel" },
+        { from: [0.5, 0.909], to: [0.5, 0.945], kind: "travel" },
       ],
       caption: "Pot the black and carry on into the reds behind it.",
     },
@@ -615,9 +616,15 @@ export const EXTRA_ROUTINES: Routine[] = [
     estimated_duration_minutes: 30,
     diagram: {
       balls: [
-        ...redLine([0.5, 0.86], [0.18, 0.52], 7),
-        ...redLine([0.54, 0.83], [0.82, 0.52], 7),
         { colour: "red", x: 0.5, y: 0.88 },
+        // Seven up each arm from the point, a ball and a half apart along the arm.
+        ...[-1, 1].flatMap((side) =>
+          Array.from({ length: 7 }, (_, index) => ({
+            colour: "red" as const,
+            x: Number((0.5 + side * (index + 1) * BALL_W * 1.15).toFixed(4)),
+            y: Number((0.88 - (index + 1) * BALL_L * 1.25).toFixed(4)),
+          }))
+        ),
         ...colourSpots(),
       ],
       caption: "Fifteen reds in a V, the point just below the black.",

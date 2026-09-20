@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { DiagramBallColour, RoutineDiagram } from "../../types";
-import { RADIUS, SPACING } from "../../constants";
+import { DIAGRAM_BALL_WIDTH, RADIUS, SPACING } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
 
 /**
@@ -15,8 +15,11 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 /** Playing surface is 11ft 8.5in by 5ft 10in, so it is almost exactly twice as long as it is wide. */
 const TABLE_RATIO = 2;
 
-/** A ball is 52.5mm across a 1778mm bed, a little over 3%. Nudged up so it reads on a phone. */
-const BALL_SIZE_RATIO = 0.055;
+/**
+ * The drill data spaces balls using this same figure, so a pack the data builds a ball apart is
+ * drawn exactly touching rather than overlapping.
+ */
+const BALL_SIZE_RATIO = DIAGRAM_BALL_WIDTH;
 
 /**
  * The balls keep their real colours whatever the app theme is doing, because they are sitting
@@ -64,7 +67,16 @@ const POCKETS: Array<[number, number]> = [
 const BAULK_Y = 0.206;
 const D_RADIUS = 0.163;
 
-export const TableDiagram = ({ diagram, width = 250 }: { diagram: RoutineDiagram; width?: number }) => {
+export const TableDiagram = ({
+  diagram,
+  width = 250,
+  showCaption = true,
+}: {
+  diagram: RoutineDiagram;
+  width?: number;
+  /** Off for the small previews in a list, where there is no room to read one. */
+  showCaption?: boolean;
+}) => {
   const { colors } = useAppTheme();
 
   const height = width * TABLE_RATIO;
@@ -79,8 +91,11 @@ export const TableDiagram = ({ diagram, width = 250 }: { diagram: RoutineDiagram
       <View style={[styles.table, { width, height, backgroundColor: CLOTH, borderColor: CUSHION }]}>
         <View style={[styles.cloth, { backgroundColor: CLOTH_DARK }]} />
 
-        <View style={[styles.baulkLine, { top: (1 - BAULK_Y) * height, backgroundColor: MARKING }]} />
+        {showCaption ? (
+          <View style={[styles.baulkLine, { top: (1 - BAULK_Y) * height, backgroundColor: MARKING }]} />
+        ) : null}
         {/* The D bulges towards the baulk cushion, so only the half below the line is drawn. */}
+        {showCaption ? (
         <View
           style={[
             styles.dClip,
@@ -105,6 +120,7 @@ export const TableDiagram = ({ diagram, width = 250 }: { diagram: RoutineDiagram
             ]}
           />
         </View>
+        ) : null}
 
         {POCKETS.map(([x, y], index) => (
           <View
@@ -173,7 +189,7 @@ export const TableDiagram = ({ diagram, width = 250 }: { diagram: RoutineDiagram
         ))}
       </View>
 
-      {diagram.caption ? (
+      {showCaption && diagram.caption ? (
         <Text style={[styles.caption, { color: colors.textMuted, maxWidth: width + 40 }]}>{diagram.caption}</Text>
       ) : null}
     </View>
@@ -187,7 +203,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
   },
   table: {
-    borderWidth: 6,
+    borderWidth: 4,
     borderRadius: RADIUS.sm,
     overflow: "hidden",
   },
