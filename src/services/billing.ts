@@ -235,6 +235,34 @@ export const hasProEntitlement = (profile: CustomerInfo): boolean => {
   return tierFromCustomerInfo(profile) !== "free";
 };
 
+export type BillingSubscriptionState = {
+  tier: SubscriptionTier;
+  /** False once the subscription has been cancelled but access has not yet run out. */
+  willRenew: boolean;
+  /** When the current period ends, ISO string, if the store reported one. */
+  expiresAt: string | null;
+};
+
+/**
+ * Tier plus renewal state. A cancelled subscription keeps its entitlement until the period
+ * ends, so the app can say "Century until 21 September" rather than pretending it is already free.
+ */
+export const subscriptionStateFromCustomerInfo = (profile: CustomerInfo): BillingSubscriptionState => {
+  const tier = tierFromCustomerInfo(profile);
+  if (tier === "free") return { tier, willRenew: false, expiresAt: null };
+
+  const active = Object.values(profile.entitlements.active ?? {});
+  const latest = active
+    .slice()
+    .sort((a, b) => (Date.parse(b.expirationDate ?? "") || 0) - (Date.parse(a.expirationDate ?? "") || 0))[0];
+
+  return {
+    tier,
+    willRenew: latest?.willRenew ?? true,
+    expiresAt: latest?.expirationDate ?? null,
+  };
+};
+
 export const tierFromCustomerInfo = (profile: CustomerInfo): SubscriptionTier => {
   const activeProducts = (profile.activeSubscriptions ?? []).map((value) => value.toLowerCase());
 

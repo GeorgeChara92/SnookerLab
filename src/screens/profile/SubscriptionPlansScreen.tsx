@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Animated, Dimensions, Easing, Linking, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Animated, AppState, Dimensions, Easing, Linking, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { AppButton } from "../../components/ui/AppButton";
 import { SUBSCRIPTION_LIMITS, TIER_LABELS } from "../../constants";
@@ -20,10 +21,19 @@ import {
   purchaseTierMonthly,
   resolveTierFromPurchaseResult,
   restoreBillingPurchases,
+  subscriptionStateFromCustomerInfo,
   syncSubscriptionWithServer,
   tierFromCustomerInfo,
+  type BillingSubscriptionState,
 } from "../../services/billing";
 import type { SubscriptionTier } from "../../types";
+
+const formatRenewalDate = (value: string | null) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+};
 
 type PaidTier = Exclude<SubscriptionTier, "free">;
 
@@ -144,46 +154,92 @@ export const SubscriptionPlansScreen = () => {
   const [offerings, setOfferings] = useState<any>(null);
   const [purchasingTier, setPurchasingTier] = useState<PaidTier | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [billingTier, setBillingTier] = useState<SubscriptionTier | null>(null);
+  const [billingState, setBillingState] = useState<BillingSubscriptionState | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const lastNotifiedRef = useRef<string | null>(null);
 
-  const metadataTier: SubscriptionTier =
+  // The server's tier is what actually unlocks features, so that is what the page shows.
+  const currentTier: SubscriptionTier =
     user?.subscription_tier === "half_century" || user?.subscription_tier === "century" ? user.subscription_tier : "free";
-
-  const currentTier: SubscriptionTier = billingTier ?? metadataTier;
 
   const billingEnabled = isBillingConfigured();
   const usingTestKey = isUsingRevenueCatTestKey();
 
   const fadeInAnims = useMemo(() => Array.from({ length: 5 }, () => new Animated.Value(0)), []);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const boot = async () => {
+  /**
+   * Re-reads the store, asks the server to verify it, and tells the user when something
+   * changed. Runs on focus and whenever the app comes back to the foreground, so returning
+   * from the App Store subscription sheet updates the page instead of leaving it stale.
+   */
+  const refreshBilling = useCallback(
+    async (options?: { withOfferings?: boolean; announce?: boolean }) => {
       if (!user?.id || !billingEnabled) return;
+
       try {
+        setIsRefreshing(true);
         await initBilling(user.id);
-        const nextOfferings = await fetchCurrentOfferings();
-        if (mounted) setOfferings(nextOfferings);
+
+        if (options?.withOfferings) {
+          setOfferings(await fetchCurrentOfferings());
+        }
 
         const info = await getBillingCustomerInfo();
-        if (mounted) setBillingTier(tierFromCustomerInfo(info));
+        const state = subscriptionStateFromCustomerInfo(info);
+        setBillingState(state);
+
         const updatedUser = await syncSubscriptionWithServer();
-        if (mounted && updatedUser) setUser(updatedUser);
+        if (updatedUser) setUser(updatedUser);
+
+        if (options?.announce !== false) {
+          const signature = `${state.tier}:${state.willRenew}:${state.expiresAt ?? ""}`;
+          if (lastNotifiedRef.current && lastNotifiedRef.current !== signature) {
+            const endsOn = formatRenewalDate(state.expiresAt);
+            if (state.tier === "free") {
+              Alert.alert("Subscription ended", "You're now on the Free plan.");
+            } else if (!state.willRenew) {
+              Alert.alert(
+                "Subscription cancelled",
+                endsOn
+                  ? `Your ${TIER_LABELS[state.tier]} plan stays active until ${endsOn}, then you move to Free.`
+                  : `Your ${TIER_LABELS[state.tier]} plan stays active until the end of the current period.`
+              );
+            } else {
+              Alert.alert("Plan updated", `You're now on the ${TIER_LABELS[state.tier]} plan.`);
+            }
+          }
+          lastNotifiedRef.current = signature;
+        }
       } catch (error) {
-        console.warn("Billing init failed:", {
+        console.warn("Billing refresh failed:", {
           message: (error as any)?.message,
           detail: (error as any)?.detail,
           code: (error as any)?.code,
         });
+      } finally {
+        setIsRefreshing(false);
       }
-    };
+    },
+    [billingEnabled, setUser, user?.id]
+  );
 
-    void boot();
-    return () => {
-      mounted = false;
-    };
-  }, [billingEnabled, setUser, user?.id]);
+  useEffect(() => {
+    void refreshBilling({ withOfferings: true, announce: false });
+  }, [refreshBilling]);
+
+  // Coming back from the store's subscription sheet lands here.
+  useFocusEffect(
+    useCallback(() => {
+      void refreshBilling();
+    }, [refreshBilling])
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") void refreshBilling();
+    });
+    return () => subscription.remove();
+  }, [refreshBilling]);
 
   useEffect(() => {
     Animated.stagger(
@@ -202,23 +258,12 @@ export const SubscriptionPlansScreen = () => {
   useEffect(() => {
     if (!user?.id || !billingEnabled) return;
 
-    const unsubscribe = addBillingCustomerInfoListener(async (info) => {
-      try {
-        // The store's entitlement is the truth, including when it lapses to free.
-        setBillingTier(tierFromCustomerInfo(info));
-        const updatedUser = await syncSubscriptionWithServer();
-        if (updatedUser) setUser(updatedUser);
-      } catch (error) {
-        console.warn("Failed to sync billing listener state:", {
-          message: (error as any)?.message,
-          detail: (error as any)?.detail,
-          code: (error as any)?.code,
-        });
-      }
+    const unsubscribe = addBillingCustomerInfoListener(() => {
+      void refreshBilling();
     });
 
     return unsubscribe;
-  }, [billingEnabled, billingTier, metadataTier, setUser, user?.id]);
+  }, [billingEnabled, refreshBilling, user?.id]);
 
   const purchase = async (tier: PaidTier) => {
     if (!user?.id) {
@@ -237,9 +282,7 @@ export const SubscriptionPlansScreen = () => {
       setOfferings(activeOfferings);
       const purchaseResult = await purchaseTierMonthly(tier, activeOfferings);
       const resolvedTier = resolveTierFromPurchaseResult(purchaseResult, tier);
-      setBillingTier(resolvedTier);
-      const updatedUser = await syncSubscriptionWithServer();
-      if (updatedUser) setUser(updatedUser);
+      await refreshBilling({ announce: false });
       Alert.alert("Welcome to Pro!", `You're now on the ${TIER_LABELS[resolvedTier]} plan.`);
     } catch (error: any) {
       if (!error?.userCancelled) {
@@ -250,24 +293,27 @@ export const SubscriptionPlansScreen = () => {
     }
   };
 
+  const promptStoreDowngrade = (targetLabel: string) => {
+    Alert.alert(
+      `Switch to ${targetLabel}`,
+      "Downgrades and cancellations are handled in your App Store subscriptions, and take effect at the end of the period you've paid for. Your current plan stays active until then.",
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Open Store Subscriptions",
+          onPress: () => {
+            void openCustomerCenter();
+          },
+        },
+      ]
+    );
+  };
+
   const chooseTier = async (tier: PaidTier) => {
     if (tier === currentTier) return;
 
-    const isDowngrade = tierRank[tier] < tierRank[currentTier];
-    if (isDowngrade) {
-      Alert.alert(
-        "Manage downgrade in Store Subscriptions",
-        "Downgrades and cancellations are managed in App Store/Play subscriptions and usually take effect at your next renewal.",
-        [
-          { text: "Not now", style: "cancel" },
-          {
-            text: "Open Store Subscriptions",
-            onPress: () => {
-              void openCustomerCenter();
-            },
-          },
-        ]
-      );
+    if (tierRank[tier] < tierRank[currentTier]) {
+      promptStoreDowngrade(TIER_LABELS[tier]);
       return;
     }
 
@@ -289,9 +335,7 @@ export const SubscriptionPlansScreen = () => {
       await initBilling(user.id);
       const customerInfo = await restoreBillingPurchases();
       const resolvedTier = tierFromCustomerInfo(customerInfo);
-      setBillingTier(resolvedTier);
-      const updatedUser = await syncSubscriptionWithServer();
-      if (updatedUser) setUser(updatedUser);
+      await refreshBilling({ announce: false });
       Alert.alert("Purchases restored", `Active plan: ${TIER_LABELS[resolvedTier]}.`);
     } catch (error: any) {
       Alert.alert("Restore failed", typeof error?.message === "string" ? error.message : "Could not restore purchases.");
@@ -338,6 +382,18 @@ export const SubscriptionPlansScreen = () => {
   const matchesLimit = subscription.limits.matchesPerPeriod;
   const aiUsed = subscription.usage.aiAnalyses;
   const aiLimit = subscription.limits.aiAnalysesPerPeriod;
+
+  const renewalDateText = formatRenewalDate(billingState?.expiresAt ?? null);
+  const planStatusText = (() => {
+    if (currentTier === "free") return "You're on the Free plan.";
+    const label = TIER_LABELS[currentTier];
+    if (billingState && !billingState.willRenew) {
+      return renewalDateText
+        ? `${label} · cancelled, active until ${renewalDateText}`
+        : `${label} · cancelled, active until the end of this period`;
+    }
+    return renewalDateText ? `${label} · renews on ${renewalDateText}` : `${label} · active`;
+  })();
 
   const animStyle = (index: number) => ({
     opacity: fadeInAnims[index],
@@ -452,6 +508,13 @@ export const SubscriptionPlansScreen = () => {
       <Animated.View style={animStyle(3)}>
         <Text style={[styles.sectionTitle, { color: colors.textMuted, marginBottom: 12 }]}>CHOOSE YOUR PLAN</Text>
 
+        {planStatusText ? (
+          <Text style={[styles.planStatusText, { color: colors.textMuted }]}>
+            {planStatusText}
+            {isRefreshing ? " · checking…" : ""}
+          </Text>
+        ) : null}
+
         {/* Free Plan */}
         <PlanCard
           tier="free"
@@ -459,8 +522,10 @@ export const SubscriptionPlansScreen = () => {
           price="$0"
           features={[`${freeLimits.matchesPerPeriod} matches/month`, `${freeLimits.aiAnalysesPerPeriod} AI analysis/month`, "Basic stats"]}
           isCurrent={currentTier === "free"}
-          isDowngrade={false}
-          onSelect={() => {}}
+          isDowngrade={currentTier !== "free"}
+          onSelect={() => {
+            if (currentTier !== "free") promptStoreDowngrade("Free");
+          }}
           loading={false}
           colors={colors}
         />
@@ -695,6 +760,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 20,
     overflow: "hidden",
+  },
+  planStatusText: {
+    fontSize: 13,
+    marginBottom: 12,
+    lineHeight: 18,
   },
   planSpacer: {
     height: 12,
