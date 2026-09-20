@@ -16,6 +16,7 @@ import type { Match, SessionLog, RoutineScoreEntry, Routine } from "../../types"
 
 type AchievementStats = {
   matchesWon: number;
+  matchesLost: number;
   matchesPlayed: number;
   sessionsLogged: number;
   bestBreak: number;
@@ -35,6 +36,7 @@ const getPlayerStats = (
   liveFramesByMatch: Record<string, { highest_break_user: number }[]>
 ): AchievementStats => {
   const matchesWon = matches.filter((m: Match) => m.result === "win").length;
+  const matchesLost = matches.filter((m: Match) => m.result === "loss").length;
   const matchesPlayed = matches.length;
   const sessionsLogged = sessions.length + entries.length;
   const winRate = matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0;
@@ -76,6 +78,7 @@ const getPlayerStats = (
 
   return {
     matchesWon,
+    matchesLost,
     matchesPlayed,
     sessionsLogged,
     bestBreak,
@@ -227,8 +230,9 @@ export const ProfileScreen = () => {
   const levelInfo = getPlayerLevel(xp);
 
   const renderProgressBar = (current: number, max: number | null, label: string, color?: string) => {
-    const percentage = max ? Math.min(100, (current / max) * 100) : 100;
-    const displayMax = max ?? "∞";
+    const isUnlimited = max === null;
+    const percentage = max ? Math.min(100, (current / max) * 100) : 0;
+    const displayMax = max ?? "Unlimited";
 
     return (
       <View style={styles.progressRow}>
@@ -238,14 +242,16 @@ export const ProfileScreen = () => {
             {current} / {displayMax}
           </Text>
         </View>
-        <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceMuted }]}>
-          <View
-            style={[
-              styles.progressBarFill,
-              { width: `${percentage}%`, backgroundColor: color ?? colors.primary },
-            ]}
-          />
-        </View>
+        {isUnlimited ? null : (
+          <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceMuted }]}>
+            <View
+              style={[
+                styles.progressBarFill,
+                { width: `${percentage}%`, backgroundColor: color ?? colors.primary },
+              ]}
+            />
+          </View>
+        )}
       </View>
     );
   };
@@ -308,7 +314,7 @@ export const ProfileScreen = () => {
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.surfaceMuted }]}>
             <MaterialCommunityIcons name="trophy" size={24} color={colors.primary} />
-            <Text style={[styles.statValue, { color: colors.text }]}>{playerStats.matchesWon}W - {playerStats.matchesPlayed - playerStats.matchesWon}L</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{playerStats.matchesWon}W - {playerStats.matchesLost}L</Text>
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Match Record</Text>
           </View>
 
@@ -506,7 +512,7 @@ export const ProfileScreen = () => {
           <MaterialCommunityIcons name="earth" size={20} color={colors.primary} />
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Player Profile</Text>
         </View>
-        <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Your profile for worldwide leaderboards and challenges.</Text>
+        <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Used across the app to tailor routines and to show your cue setup.</Text>
 
         <Pressable style={[styles.profileField, { borderColor: colors.border }]} onPress={() => navigation.navigate("EditProfileField", { field: "skill_level" })}>
           <View style={styles.profileFieldLeft}>

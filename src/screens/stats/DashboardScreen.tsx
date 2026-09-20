@@ -96,10 +96,12 @@ const formatTrend = (current: number, previous: number, isPercentage = false): T
   const arrow = direction === "up" ? "↑" : direction === "down" ? "↓" : "—";
 
   if (isPercentage) {
-    const absChange = Math.abs(changePercent).toFixed(0);
+    // Percentages move in points. Saying a win rate is "up 50%" when it went from
+    // 46% to 69% is the kind of stat that makes an app look like it is flattering you.
+    const points = Math.abs(current - previous).toFixed(0);
     return {
       direction,
-      label: `${arrow}${direction !== "neutral" ? absChange + "%" : ""}`,
+      label: `${arrow}${direction !== "neutral" ? points + " pts" : ""}`,
       subLabel: "vs last 4 weeks",
     };
   }
@@ -565,7 +567,7 @@ export const DashboardScreen = () => {
       </View>
       <Animated.View style={[styles.statsGrid, { opacity: statsOpacity }]}>
         {renderStatCard("Win Rate", `${analytics.winRate.toFixed(0)}%`, analytics.winRateTrend)}
-        {renderStatCard("Avg Score", `${analytics.averageNormalizedScore.toFixed(0)}%`, analytics.avgScoreTrend)}
+        {renderStatCard("Avg Routine Score", `${analytics.averageNormalizedScore.toFixed(0)}%`, analytics.avgScoreTrend)}
       </Animated.View>
 
       {analytics.insights.length > 0 && renderInsightCard()}
@@ -646,7 +648,7 @@ export const DashboardScreen = () => {
           <Text style={[styles.groupLabelText, { color: colors.textMuted }]}>Routine Scores</Text>
         </View>
         <View style={styles.statsGrid}>
-          {renderStatCard("Avg Score", `${analytics.averageNormalizedScore.toFixed(0)}%`, analytics.avgScoreTrend)}
+          {renderStatCard("Avg Routine Score", `${analytics.averageNormalizedScore.toFixed(0)}%`, analytics.avgScoreTrend)}
         </View>
 
         {analytics.topRoutines.length > 0 && (
@@ -758,7 +760,6 @@ export const DashboardScreen = () => {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: colors.text }]}>Statistics</Text>
       <Text style={[styles.subtitle, { color: colors.textMuted }]}>{activeSegmentData?.description ?? "Your performance at a glance"}</Text>
 
       <View style={[styles.segmentWrap, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>

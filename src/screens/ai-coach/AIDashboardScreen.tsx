@@ -11,12 +11,16 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { TierPaywallModal } from "../../components/subscription";
 import { useRef } from "react";
 
-type AnalysisType = "stroke_analysis" | "alignment_check" | "technique_review";
+// These must match the AnalysisType values the upload screen actually stores, otherwise
+// every lookup falls through and the raw value ("technique") is shown to the player.
+type AnalysisType = "shot" | "stance" | "technique" | "tactical" | "full_session";
 
 const ANALYSIS_LABELS: Record<AnalysisType, { label: string; focus: string }> = {
-  stroke_analysis: { label: "Stroke", focus: "cue action consistency" },
-  alignment_check: { label: "Alignment", focus: "body and cue positioning" },
-  technique_review: { label: "Technique", focus: "overall form" },
+  shot: { label: "Shot", focus: "shot selection and potting" },
+  stance: { label: "Stance", focus: "your stance and alignment at address" },
+  technique: { label: "Technique", focus: "your cue action and delivery" },
+  tactical: { label: "Tactical", focus: "safety play and shot choice" },
+  full_session: { label: "Full session", focus: "consistency across a full session" },
 };
 
 const getDaysSince = (dateStr: string): number => {
@@ -90,7 +94,7 @@ const getCoachingState = (
   if (daysSince > 7) {
     return {
       title: "Time for a Check-in",
-      message: `Your last ${typeInfo.label.toLowerCase()} analysis was ${daysSince} days ago.`,
+      message: `Your last ${typeInfo.label.toLowerCase()} check was ${daysSince} days ago.`,
       action: "Upload new clip",
       greeting: "Welcome back",
     };
@@ -140,7 +144,7 @@ const getImprovementTrend = (
   if (avgImprovements >= 4) {
     return { trend: "needs_work", label: "Multiple areas to work on" };
   }
-  return { trend: "stable", label: "Consistent feedback pattern" };
+  return { trend: "stable", label: "Feedback is steady across your recent clips" };
 };
 
 export const AIDashboardScreen = () => {
