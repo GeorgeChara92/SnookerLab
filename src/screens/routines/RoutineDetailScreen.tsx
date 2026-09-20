@@ -65,6 +65,12 @@ export const RoutineDetailScreen = () => {
   const hasAlt = Boolean(altVideoId);
   const referenceImage = routine ? getRoutineReferenceImageByRoutineId(routine.id) : undefined;
   const hasImageGuide = !isGuide && Boolean(referenceImage);
+  /**
+   * A routine with no video and no saved photo would otherwise open on a blank header, so its
+   * own diagram stands in as the picture at the top and is left out of the setup section below.
+   */
+  const showDiagramInHeader =
+    !isGuide && Boolean(routine?.diagram) && !referenceImage && !primaryVideoId && !altVideoId;
   const guidePlaybook = routine && isGuide ? getGuidePlaybookByRoutineId(routine.id) : undefined;
   const arEnabled = !isGuide && isRoutineAREnabled(routine);
 
@@ -171,7 +177,9 @@ export const RoutineDetailScreen = () => {
           </View>
         ) : null}
 
-        {selectedGuide === "image" && referenceImage && !isGuide ? (
+        {showDiagramInHeader && routine?.diagram ? (
+          <TableDiagram diagram={routine.diagram} width={190} />
+        ) : selectedGuide === "image" && referenceImage && !isGuide ? (
           <Image source={referenceImage} style={styles.thumbnail} resizeMode="contain" />
         ) : thumbnail ? (
           <Pressable style={styles.thumbnailWrap} onPress={() => youtubeUrl && Linking.openURL(youtubeUrl)}>
@@ -309,7 +317,7 @@ export const RoutineDetailScreen = () => {
         <>
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Setup</Text>
-            {routine.diagram ? <TableDiagram diagram={routine.diagram} /> : null}
+            {routine.diagram && !showDiagramInHeader ? <TableDiagram diagram={routine.diagram} /> : null}
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.setup_instructions}</Text>
             {arEnabled ? (
               <Pressable

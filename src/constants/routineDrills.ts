@@ -1,4 +1,5 @@
 import { Routine, RoutineCategory, RoutineDiagram } from "../types";
+import { getYoutubeWatchUrl } from "../utils/youtube";
 import { LINE_UP_REDS } from "./routineDiagrams";
 
 /**
@@ -50,6 +51,23 @@ const redLine = (
     };
   });
 
+/** How wide a ball is as a fraction of the table, matching how the diagram draws it. */
+const BALL_W = 0.048;
+const BALL_L = BALL_W / 2;
+
+/**
+ * The full triangle: fifteen reds in five rows, apex sitting behind the pink and widening
+ * towards the black. Rows are a ball apart, offset by the height of an equilateral triangle.
+ */
+const pack = (apexY = 0.78): RoutineDiagram["balls"] =>
+  Array.from({ length: 5 }).flatMap((_, row) =>
+    Array.from({ length: row + 1 }, (_, index) => ({
+      colour: "red" as const,
+      x: 0.5 + (index - row / 2) * BALL_W,
+      y: apexY + row * BALL_L * 0.866,
+    }))
+  );
+
 /** Reds evenly spaced around a circle, for the drills that ring a colour. */
 const redRing = (centre: [number, number], radius: number, count: number): RoutineDiagram["balls"] =>
   Array.from({ length: count }, (_, index) => {
@@ -61,6 +79,23 @@ const redRing = (centre: [number, number], radius: number, count: number): Routi
       y: centre[1] + (Math.sin(angle) * radius) / 2,
     };
   });
+
+type VideoMeta = { id: string; title: string; channel: string };
+
+/**
+ * Lessons that cover the drill, so the page has a thumbnail to open with. Every id here was
+ * checked against YouTube's oembed endpoint, so none of them are dead links.
+ */
+const withVideo = (primary: VideoMeta, alternate?: VideoMeta) => ({
+  youtube_video_id: primary.id,
+  youtube_url: getYoutubeWatchUrl(primary.id),
+  youtube_title: primary.title,
+  youtube_channel: primary.channel,
+  youtube_alt_video_id: alternate?.id,
+  youtube_alt_url: alternate ? getYoutubeWatchUrl(alternate.id) : undefined,
+  youtube_alt_title: alternate?.title,
+  youtube_alt_channel: alternate?.channel,
+});
 
 const base = {
   is_system_routine: true,
@@ -173,6 +208,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   // ---------------------------------------------------------------- long potting
   {
     ...base,
+    ...withVideo(
+      { id: "EftK9MPXdgI", title: "148. Straight Through the Middle", channel: "Barry Stark Snooker Coach" }
+    ),
     id: "routine-reds-across-middle",
     category_id: "cat-long-potting",
     name: "Reds Across the Middle",
@@ -508,10 +546,7 @@ export const EXTRA_ROUTINES: Routine[] = [
       balls: [
         { colour: "blue", x: SPOT.blue[0], y: SPOT.blue[1] },
         { colour: "pink", x: SPOT.pink[0], y: SPOT.pink[1] },
-        { colour: "red", x: 0.46, y: 0.82 },
-        { colour: "red", x: 0.54, y: 0.82 },
-        { colour: "red", x: 0.5, y: 0.86 },
-        { colour: "red", x: 0.42, y: 0.86 },
+        ...pack(0.78).slice(0, 10),
         { colour: "cue", x: 0.38, y: 0.4 },
       ],
       lines: [
@@ -644,13 +679,8 @@ export const EXTRA_ROUTINES: Routine[] = [
     diagram: {
       balls: [
         ...colourSpots(),
-        { colour: "red", x: 0.5, y: 0.8 },
-        { colour: "red", x: 0.47, y: 0.83 },
-        { colour: "red", x: 0.53, y: 0.83 },
-        { colour: "red", x: 0.44, y: 0.86 },
-        { colour: "red", x: 0.5, y: 0.86 },
-        { colour: "red", x: 0.56, y: 0.86 },
-        { colour: "cue", x: 0.42, y: 0.2 },
+        ...pack(),
+        { colour: "cue", x: 0.42, y: 0.18 },
       ],
       caption: "A full frame. Break off, split the pack, then clear whatever you leave yourself.",
     },
@@ -831,6 +861,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   // ---------------------------------------------------------------- safety
   {
     ...base,
+    ...withVideo(
+      { id: "fhoHHNLWDaQ", title: "How to utilise a Shot To Nothing", channel: "Shaun Murphy Snooker" },
+      { id: "TPwgL-WbQzM", title: "Professional snooker player and his daily shot to nothing practice", channel: "Victoria Snooker" }
+    ),
     id: "routine-shot-to-nothing",
     category_id: "cat-safety",
     name: "The Shot to Nothing",
@@ -910,6 +944,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "4jfoSoh1JA4", title: "50. Swerve - Part 1: When and how", channel: "Barry Stark Snooker Coach" },
+      { id: "FLxZDEBB-WI", title: "Snooker how to Swerve", channel: "Break from life" }
+    ),
     id: "routine-swerve-escape",
     category_id: "cat-safety",
     name: "The Swerve Escape",
@@ -983,6 +1021,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   // ---------------------------------------------------------------- openings
   {
     ...base,
+    ...withVideo(
+      { id: "Rzg_pmjDh7k", title: "Snooker Break Off - Snooker Breaking Off - Snooker Lesson", channel: "BartonSnooker" },
+      { id: "QMBnqoz9jRw", title: "Do This Everytime To MASTER The Break-Off", channel: "Stephen Hendry's Cue Tips" }
+    ),
     id: "routine-break-off-standard",
     category_id: "cat-openings",
     name: "The Standard Break-Off",
@@ -1008,17 +1050,12 @@ export const EXTRA_ROUTINES: Routine[] = [
     diagram: {
       balls: [
         { colour: "pink", x: SPOT.pink[0], y: SPOT.pink[1] },
-        { colour: "red", x: 0.5, y: 0.79 },
-        { colour: "red", x: 0.47, y: 0.82 },
-        { colour: "red", x: 0.53, y: 0.82 },
-        { colour: "red", x: 0.44, y: 0.85 },
-        { colour: "red", x: 0.5, y: 0.85 },
-        { colour: "red", x: 0.56, y: 0.85 },
+        ...pack(),
         { colour: "cue", x: 0.44, y: 0.206 },
       ],
       lines: [
-        { from: [0.44, 0.206], to: [0.42, 0.86], kind: "shot" },
-        { from: [0.42, 0.86], to: [0.02, 0.62], kind: "travel" },
+        { from: [0.44, 0.206], to: [0.404, 0.863], kind: "shot" },
+        { from: [0.404, 0.863], to: [0.02, 0.62], kind: "travel" },
         { from: [0.02, 0.62], to: [0.5, 0.04], kind: "travel" },
       ],
       caption: "Two inches off the brown, thinnest possible contact, back down to the baulk cushion.",
@@ -1026,6 +1063,9 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "zIyky-vR75c", title: "Snooker Coaching Session - Shot by Shot Break Tips", channel: "BartonSnooker" }
+    ),
     id: "routine-first-red-of-the-break",
     category_id: "cat-openings",
     name: "The First Red",
@@ -1051,9 +1091,7 @@ export const EXTRA_ROUTINES: Routine[] = [
     diagram: {
       balls: [
         ...colourSpots(),
-        { colour: "red", x: 0.46, y: 0.8 },
-        { colour: "red", x: 0.54, y: 0.8 },
-        { colour: "red", x: 0.5, y: 0.84 },
+        ...pack(0.8).slice(0, 10),
         { colour: "red", x: 0.34, y: 0.62 },
         { colour: "red", x: 0.66, y: 0.58 },
         { colour: "red", x: 0.6, y: 0.46 },
@@ -1106,6 +1144,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   // ---------------------------------------------------------------- rest play
   {
     ...base,
+    ...withVideo(
+      { id: "tF-kPbZFtr4", title: "Snooker Lesson Rest Play - Coaching Tutorial", channel: "BartonSnooker" },
+      { id: "l57RjLfD3pM", title: "12. Using the Rest in Snooker", channel: "Barry Stark Snooker Coach" }
+    ),
     id: "routine-rest-pots",
     category_id: "cat-rest-play",
     name: "Rest Pots",
@@ -1140,6 +1182,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "R3HUoypZ5To", title: "Snooker How To Use The Rest - Coaching Video", channel: "BartonSnooker" },
+      { id: "hNMni0n-ajE", title: "How to Use the Rest", channel: "Break from life" }
+    ),
     id: "routine-rest-spin",
     category_id: "cat-rest-play",
     name: "Spin with the Rest",
@@ -1238,6 +1284,10 @@ export const EXTRA_ROUTINES: Routine[] = [
   },
   {
     ...base,
+    ...withVideo(
+      { id: "CCLKVFEZyxM", title: "45. Spider & Swan-Neck Usage - Full use of table equipment", channel: "Barry Stark Snooker Coach" },
+      { id: "RMK16b4DvPk", title: "701. Correct Rest-Play, Spider & Swan-Neck Rest", channel: "Arshad Qureshi - AQ Snooker" }
+    ),
     id: "routine-spider-swan-neck",
     category_id: "cat-rest-play",
     name: "Spider and Swan Neck",
@@ -1430,13 +1480,8 @@ export const EXTRA_ROUTINES: Routine[] = [
     diagram: {
       balls: [
         ...colourSpots(),
-        { colour: "red", x: 0.5, y: 0.79 },
-        { colour: "red", x: 0.47, y: 0.82 },
-        { colour: "red", x: 0.53, y: 0.82 },
-        { colour: "red", x: 0.44, y: 0.85 },
-        { colour: "red", x: 0.5, y: 0.85 },
-        { colour: "red", x: 0.56, y: 0.85 },
-        { colour: "cue", x: 0.44, y: 0.206 },
+        ...pack(),
+        { colour: "cue", x: 0.44, y: 0.18 },
       ],
       caption: "A normal frame, with the white in hand at the start of each visit.",
     },

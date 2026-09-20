@@ -28,6 +28,19 @@ const colours = (): RoutineDiagram["balls"] => [
   { colour: "black", x: SPOT.black[0], y: SPOT.black[1] },
 ];
 
+const BALL_W = 0.048;
+const BALL_L = BALL_W / 2;
+
+/** The full triangle, apex behind the pink, widening towards the black. */
+const pack = (apexY = 0.78): RoutineDiagram["balls"] =>
+  Array.from({ length: 5 }).flatMap((_, row) =>
+    Array.from({ length: row + 1 }, (_, index) => ({
+      colour: "red" as const,
+      x: 0.5 + (index - row / 2) * BALL_W,
+      y: apexY + row * BALL_L * 0.866,
+    }))
+  );
+
 /**
  * The line-up as it is actually set: two reds above the black, four between black and pink,
  * seven between pink and blue, two between blue and brown. The gaps are the colour spots.
@@ -96,18 +109,13 @@ export const FIRST_WAVE_DIAGRAMS: Record<string, RoutineDiagram> = {
     balls: [
       { colour: "pink", x: SPOT.pink[0], y: SPOT.pink[1] },
       { colour: "blue", x: SPOT.blue[0], y: SPOT.blue[1] },
-      { colour: "red", x: 0.5, y: 0.79 },
-      { colour: "red", x: 0.47, y: 0.82 },
-      { colour: "red", x: 0.53, y: 0.82 },
-      { colour: "red", x: 0.44, y: 0.85 },
-      { colour: "red", x: 0.5, y: 0.85 },
-      { colour: "red", x: 0.56, y: 0.85 },
+      ...pack(),
       { colour: "cue", x: 0.42, y: 0.16 },
     ],
     caption: "From behind baulk, clip the pack and bring the white back behind the line.",
     lines: [
-      { from: [0.42, 0.16], to: [0.44, 0.85], kind: "shot" },
-      { from: [0.44, 0.85], to: [0.5, 0.06], kind: "travel" },
+      { from: [0.42, 0.16], to: [0.404, 0.863], kind: "shot" },
+      { from: [0.404, 0.863], to: [0.5, 0.06], kind: "travel" },
     ],
   },
 
