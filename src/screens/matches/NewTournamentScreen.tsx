@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { AppButton } from "../../components/ui/AppButton";
 import { useDialog } from "../../components/ui/DialogProvider";
@@ -19,11 +20,36 @@ import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, TournamentEntryMode, TournamentPairingMode, TournamentType } from "../../types";
 import { TierPaywallModal } from "../../components/subscription";
-import { isSubscriptionLimitError } from "../../constants";
+import { HIT_TARGET, RADIUS, SPACING, TYPE, isSubscriptionLimitError } from "../../constants";
+
+/** The scrim behind a modal, matching AppDialog and FoulSheet. There is no token for it. */
+const SCRIM = "rgba(4, 10, 8, 0.72)";
 
 const framesOptions = [1, 3, 5, 7, 9, 11, 13, 19];
-const creationSteps = ["Basics", "Format", "Players", "Draw", "Review"];
-const iconOptions = ["🏆", "🎱", "⚡", "🔥", "🥇", "🎯"];
+
+/** The five steps, each with the one line that says what it is for. */
+const creationSteps = [
+  { key: "basics", title: "Basics", blurb: "Name the event and add any notes." },
+  { key: "format", title: "Format", blurb: "Set the competition, the entries and the match length." },
+  { key: "entries", title: "Entries", blurb: "Add everyone taking part." },
+  { key: "draw", title: "Draw", blurb: "Decide who meets who in round one." },
+  { key: "review", title: "Review", blurb: "Check the details, then create the tournament." },
+] as const;
+
+/** The icon is data the owner picks; the label is what a screen reader says. */
+const iconOptions: ReadonlyArray<{ glyph: string; label: string }> = [
+  { glyph: "🏆", label: "Trophy" },
+  { glyph: "🎱", label: "Snooker ball" },
+  { glyph: "⚡", label: "Lightning" },
+  { glyph: "🔥", label: "Flame" },
+  { glyph: "🥇", label: "Gold medal" },
+  { glyph: "🎯", label: "Target" },
+];
+
+const drawModes = [
+  { value: "animated", label: "One tie at a time", meta: "Names appear slowly, as they do at a live draw." },
+  { value: "quick", label: "The whole draw at once", meta: "Show every tie straight away." },
+] as const;
 
 const triggerHaptic = async (type: "light" | "success") => {
   try {
@@ -61,6 +87,77 @@ const buildFreshStartName = (base?: string) => {
   if (/rematch/i.test(clean)) return clean;
   return `${clean} Rematch`;
 };
+
+/** One card. Everything on a step lives inside one of these, so the page reads as a stack. */
+const Section = ({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) => {
+  const { colors } = useAppTheme();
+
+  return (
+    <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+      {hint ? <Text style={[styles.sectionHint, { color: colors.textMuted }]}>{hint}</Text> : null}
+      <View style={styles.sectionBody}>{children}</View>
+    </View>
+  );
+};
+
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => {
+  const { colors } = useAppTheme();
+
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>{label}</Text>
+      {children}
+    </View>
+  );
+};
+
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  groupLabel,
+}: {
+  options: ReadonlyArray<{ value: T; label: string }>;
+  value: T;
+  onChange: (next: T) => void;
+  groupLabel: string;
+}) {
+  const { colors } = useAppTheme();
+
+  return (
+    <View style={[styles.segmentedTrack, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`${groupLabel}: ${option.label}`}
+            style={[
+              styles.segment,
+              selected ? { backgroundColor: colors.surface, borderColor: colors.primary } : null,
+            ]}
+          >
+            <Text style={[styles.segmentText, { color: selected ? colors.primary : colors.textMuted }]}>
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 
 export const NewTournamentScreen = () => {
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
@@ -118,7 +215,17 @@ export const NewTournamentScreen = () => {
   const finalRevealAnim = useRef(new Animated.Value(0)).current;
 
   const participants = entryMode === "singles" ? singlesParticipants : doublesTeams;
-  const hasEnoughParticipants = participants.filter((item) => !isByeName(item)).length >= 2;
+  const realEntries = participants.filter((item) => !isByeName(item));
+  const byeCount = participants.length - realEntries.length;
+  const hasEnoughParticipants = realEntries.length >= 2;
+  const framesToWin = Math.floor(bestOfFrames / 2) + 1;
+  const step = creationSteps[currentStep];
+  const isLastStep = currentStep === creationSteps.length - 1;
+
+  const entryNoun = (count: number) => {
+    if (entryMode === "singles") return count === 1 ? "player" : "players";
+    return count === 1 ? "team" : "teams";
+  };
 
   React.useEffect(() => {
     if (tournamentType !== "knockout" || pairingMode !== "manual") return;
@@ -524,367 +631,761 @@ export const NewTournamentScreen = () => {
     return true;
   };
 
-  const renderPlayersStep = () => (
-    <>
-      <Text style={[styles.label, { color: colors.text }]}>Add {entryMode === "singles" ? "Players" : "Doubles Pool Players"}</Text>
-      <View style={styles.addRow}>
-        <TextInput
-          value={participantName}
-          onChangeText={setParticipantName}
-          onSubmitEditing={onAddEntry}
-          placeholder={entryMode === "singles" ? "Enter player name" : "Enter player for doubles pool"}
-          placeholderTextColor={colors.textMuted}
-          style={[styles.input, styles.flexInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]}
-        />
-        <View style={styles.addButtonWrap}>
-          <AppButton label="Add" onPress={onAddEntry} />
-        </View>
-      </View>
+  const closeDrawModal = () => {
+    clearRevealTimer();
+    setDrawModalVisible(false);
+  };
 
-      {entryMode === "singles" ? (
-        <View style={styles.participantWrap}>
-          {singlesParticipants.map((nameValue) => (
-            <Pressable key={nameValue} onPress={() => removeParticipant(nameValue)} style={[styles.participantChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
-              <Text style={[styles.participantText, { color: colors.text }]}>{nameValue}</Text>
-              <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : (
-        <>
-          <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Tap two players to create a doubles team. Long press to remove.</Text>
-          <View style={styles.participantWrap}>
-            {doublesPlayers.map((nameValue) => {
-              const selected = selectedDoublesPlayers.includes(nameValue);
-              return (
-                <Pressable
-                  key={nameValue}
-                  onPress={() => toggleDoublesSelection(nameValue)}
-                  onLongPress={() => removeDoublesPlayer(nameValue)}
-                  style={[
-                    styles.participantChip,
-                    {
-                      borderColor: selected ? colors.primary : colors.border,
-                      backgroundColor: selected ? colors.surfaceMuted : colors.surface,
-                    },
-                  ]}
-                >
-                  <Text style={[styles.participantText, { color: selected ? colors.primary : colors.text }]}>{nameValue}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.toolsSplit}>
-            <View style={styles.toolButton}><AppButton label="Build Team" onPress={createTeamFromSelection} disabled={selectedDoublesPlayers.length !== 2} /></View>
-            <View style={styles.toolButton}><AppButton label="Auto Build" variant="secondary" onPress={randomBuildDoublesTeams} disabled={doublesPlayers.length < 2} /></View>
-          </View>
-          <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Created Teams:</Text>
-          <View style={styles.participantWrap}>
-            {doublesTeams.map((team) => (
-              <Pressable key={team} onPress={() => removeParticipant(team)} style={[styles.participantChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
-                <Text style={[styles.participantText, { color: colors.text }]}>{team}</Text>
-                <Text style={[styles.removeText, { color: colors.danger }]}>✕</Text>
+  /** A removable chip: an entry, a team, or a name waiting to be paired. */
+  const renderChip = (
+    label: string,
+    onPress: () => void,
+    options?: { selected?: boolean; removable?: boolean; accessibilityLabel?: string; onLongPress?: () => void }
+  ) => {
+    const selected = options?.selected ?? false;
+    const bye = isByeName(label);
+
+    return (
+      <Pressable
+        key={label}
+        onPress={onPress}
+        onLongPress={options?.onLongPress}
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        accessibilityLabel={options?.accessibilityLabel ?? `Remove ${label}`}
+        style={({ pressed }) => [
+          styles.chip,
+          {
+            borderColor: selected ? colors.primary : colors.border,
+            backgroundColor: selected ? colors.surface : colors.surfaceMuted,
+            opacity: pressed ? 0.75 : 1,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.chipText,
+            { color: selected ? colors.primary : bye ? colors.textSubtle : colors.text },
+          ]}
+        >
+          {bye ? "Bye" : label}
+        </Text>
+        {options?.removable ? (
+          <MaterialCommunityIcons name="close" size={14} color={colors.textSubtle} />
+        ) : null}
+      </Pressable>
+    );
+  };
+
+  const renderBasicsStep = () => (
+    <Section title="Event" hint="Only the name is needed to carry on.">
+      <Field label="Tournament name">
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="Friday club open"
+          placeholderTextColor={colors.textMuted}
+          accessibilityLabel="Tournament name"
+          style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]}
+        />
+      </Field>
+
+      <Field label="Event icon">
+        <View style={styles.chipRow}>
+          {iconOptions.map((option) => {
+            const selected = tournamentIcon === option.glyph;
+            return (
+              <Pressable
+                key={option.glyph}
+                onPress={() => setTournamentIcon(option.glyph)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Event icon: ${option.label}`}
+                style={[
+                  styles.iconTile,
+                  {
+                    borderColor: selected ? colors.primary : colors.border,
+                    backgroundColor: selected ? colors.surface : colors.surfaceMuted,
+                  },
+                ]}
+              >
+                <Text style={styles.iconGlyph}>{option.glyph}</Text>
               </Pressable>
-            ))}
-          </View>
-        </>
-      )}
+            );
+          })}
+        </View>
+      </Field>
+
+      <Field label="Notes (optional)">
+        <TextInput
+          value={notes}
+          onChangeText={setNotes}
+          placeholder="Final night starts at 7:30pm"
+          placeholderTextColor={colors.textMuted}
+          accessibilityLabel="Notes about the tournament"
+          multiline
+          textAlignVertical="top"
+          style={[
+            styles.input,
+            styles.notes,
+            { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted },
+          ]}
+        />
+      </Field>
+    </Section>
+  );
+
+  const renderFormatStep = () => (
+    <>
+      <Section title="Competition">
+        <View style={styles.cardsRow}>
+          {(
+            [
+              { value: "knockout", icon: "trophy-outline", title: "Knockout", meta: "Single elimination bracket" },
+              { value: "league", icon: "format-list-numbered", title: "League", meta: "Round robin standings" },
+            ] as const
+          ).map((option) => {
+            const selected = tournamentType === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => setTournamentType(option.value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${option.title}. ${option.meta}`}
+                style={[
+                  styles.selectCard,
+                  {
+                    borderColor: selected ? colors.primary : colors.border,
+                    backgroundColor: selected ? colors.surface : colors.surfaceMuted,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={option.icon}
+                  size={22}
+                  color={selected ? colors.primary : colors.textMuted}
+                />
+                <Text style={[styles.selectTitle, { color: colors.text }]}>{option.title}</Text>
+                <Text style={[styles.selectMeta, { color: colors.textMuted }]}>{option.meta}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.field}>
+          <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Singles or doubles</Text>
+          <Segmented
+            groupLabel="Entry mode"
+            value={entryMode}
+            onChange={setEntryMode}
+            options={[
+              { value: "singles" as TournamentEntryMode, label: "Singles" },
+              { value: "doubles" as TournamentEntryMode, label: "Doubles" },
+            ]}
+          />
+        </View>
+      </Section>
 
       {tournamentType === "knockout" ? (
-        <View style={styles.toolsSplit}>
-          <View style={styles.toolButton}><AppButton label="Add BYE Slot" variant="secondary" onPress={addByeSlot} /></View>
-        </View>
+        <Section
+          title="The draw"
+          hint={
+            pairingMode === "random"
+              ? "Names are pulled at random when you open the draw."
+              : "You pair the entries yourself on the draw step."
+          }
+        >
+          <Segmented
+            groupLabel="Draw"
+            value={pairingMode}
+            onChange={setPairingMode}
+            options={[
+              { value: "random" as TournamentPairingMode, label: "Random" },
+              { value: "manual" as TournamentPairingMode, label: "Manual" },
+            ]}
+          />
+        </Section>
       ) : null}
-      <Text style={[styles.smallHint, { color: colors.textMuted }]}>Need at least 2 real entries to continue.</Text>
+
+      <Section title="Match length" hint={`Best of ${bestOfFrames}, so first to ${framesToWin} frames.`}>
+        <View style={styles.chipRow}>
+          {framesOptions.map((option) => {
+            const selected = bestOfFrames === option;
+            return (
+              <Pressable
+                key={option}
+                onPress={() => setBestOfFrames(option)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`Best of ${option} frames`}
+                style={[
+                  styles.frameChip,
+                  {
+                    borderColor: selected ? colors.primary : colors.border,
+                    backgroundColor: selected ? colors.surface : colors.surfaceMuted,
+                  },
+                ]}
+              >
+                <Text style={[styles.frameLabel, { color: selected ? colors.primary : colors.text }]}>{option}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Section>
     </>
   );
 
-  const renderCurrentStep = () => {
-    if (currentStep === 0) {
-      return (
-        <>
-          <Text style={[styles.label, { color: colors.text }]}>Tournament Name</Text>
-          <TextInput value={name} onChangeText={setName} placeholder="Friday Club Open" placeholderTextColor={colors.textMuted} style={[styles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]} />
-          <Text style={[styles.label, { color: colors.text }]}>Event Icon</Text>
-          <View style={styles.framesRow}>
-            {iconOptions.map((icon) => (
-              <Pressable key={icon} onPress={() => setTournamentIcon(icon)} style={[styles.frameChip, { borderColor: tournamentIcon === icon ? colors.primary : colors.border, backgroundColor: tournamentIcon === icon ? colors.surfaceMuted : colors.surface }]}> 
-                <Text style={styles.iconChip}>{icon}</Text>
-              </Pressable>
-            ))}
+  const renderEntriesStep = () => (
+    <>
+      <Section
+        title={entryMode === "singles" ? "Players" : "Player pool"}
+        hint={
+          entryMode === "singles"
+            ? "Tap a name to take it out."
+            : "Tap two players to pair them up. Long press a name to take it out."
+        }
+      >
+        <View style={styles.addRow}>
+          <TextInput
+            value={participantName}
+            onChangeText={setParticipantName}
+            onSubmitEditing={onAddEntry}
+            placeholder={entryMode === "singles" ? "Player name" : "Player name for the pool"}
+            placeholderTextColor={colors.textMuted}
+            accessibilityLabel={entryMode === "singles" ? "Player name" : "Player name for the pool"}
+            style={[
+              styles.input,
+              styles.flexInput,
+              { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted },
+            ]}
+          />
+          <View style={styles.addButtonWrap}>
+            <AppButton label="Add" onPress={onAddEntry} />
           </View>
-          <Text style={[styles.label, { color: colors.text }]}>Notes (Optional)</Text>
-          <TextInput value={notes} onChangeText={setNotes} placeholder="Final night starts at 7:30pm" placeholderTextColor={colors.textMuted} style={[styles.input, styles.notes, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surfaceMuted }]} multiline textAlignVertical="top" />
-        </>
-      );
-    }
+        </View>
 
-    if (currentStep === 1) {
-      return (
-        <>
-          <Text style={[styles.label, { color: colors.text }]}>Tournament Format</Text>
-          <View style={styles.cardsRow}>
-            <Pressable style={[styles.selectCard, { borderColor: tournamentType === "knockout" ? colors.primary : colors.border, backgroundColor: colors.surfaceMuted }]} onPress={() => setTournamentType("knockout")}>
-              <Text style={styles.selectEmoji}>🏆</Text>
-              <Text style={[styles.selectTitle, { color: colors.text }]}>Knockout</Text>
-              <Text style={[styles.selectMeta, { color: colors.textMuted }]}>Single elimination bracket</Text>
-            </Pressable>
-            <Pressable style={[styles.selectCard, { borderColor: tournamentType === "league" ? colors.primary : colors.border, backgroundColor: colors.surfaceMuted }]} onPress={() => setTournamentType("league")}>
-              <Text style={styles.selectEmoji}>📋</Text>
-              <Text style={[styles.selectTitle, { color: colors.text }]}>League</Text>
-              <Text style={[styles.selectMeta, { color: colors.textMuted }]}>Round-robin standings</Text>
-            </Pressable>
-          </View>
-
-          <Text style={[styles.label, { color: colors.text }]}>Entry Mode</Text>
-          <View style={styles.rowButtons}>
-            {([ ["singles", "Singles"], ["doubles", "Doubles"] ] as const).map(([value, label]) => (
-              <Pressable key={value} onPress={() => setEntryMode(value)} style={[styles.segment, { borderColor: entryMode === value ? colors.primary : colors.border, backgroundColor: entryMode === value ? colors.surfaceMuted : colors.surface }]}> 
-                <Text style={[styles.segmentText, { color: entryMode === value ? colors.primary : colors.text }]}>{label}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {tournamentType === "knockout" ? (
-            <>
-              <Text style={[styles.label, { color: colors.text }]}>Draw Type</Text>
-              <View style={styles.rowButtons}>
-                {([ ["random", "🎲 Random Draw"], ["manual", "🧩 Manual Draw"] ] as const).map(([value, label]) => (
-                  <Pressable key={value} onPress={() => setPairingMode(value)} style={[styles.segment, { borderColor: pairingMode === value ? colors.primary : colors.border, backgroundColor: pairingMode === value ? colors.surfaceMuted : colors.surface }]}> 
-                    <Text style={[styles.segmentText, { color: pairingMode === value ? colors.primary : colors.text }]}>{label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          ) : null}
-
-          <Text style={[styles.label, { color: colors.text }]}>Match Length (Best Of)</Text>
-          <View style={styles.framesRow}>
-            {framesOptions.map((option) => (
-              <Pressable key={option} onPress={() => setBestOfFrames(option)} style={[styles.frameChip, { borderColor: bestOfFrames === option ? colors.primary : colors.border, backgroundColor: bestOfFrames === option ? colors.surfaceMuted : colors.surface }]}> 
-                <Text style={[styles.frameLabel, { color: bestOfFrames === option ? colors.primary : colors.text }]}>{option}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={[styles.smallHint, { color: colors.textMuted }]}>First to {Math.floor(bestOfFrames / 2) + 1} frames.</Text>
-        </>
-      );
-    }
-
-    if (currentStep === 2) return renderPlayersStep();
-
-    if (currentStep === 3) {
-      return (
-        <>
-          <Text style={[styles.label, { color: colors.text }]}>Draw Setup</Text>
-          {tournamentType === "league" ? (
-            <Text style={[styles.smallHint, { color: colors.textMuted }]}>League format auto-generates fixtures from participant list.</Text>
-          ) : pairingMode === "random" ? (
-            <>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Open the draw arena to reveal fixtures with suspense, or run a quick draw.</Text>
-              <View style={styles.toolsRow}>
-                <AppButton label="Open Draw" onPress={randomiseAndDraw} disabled={participants.length < 2} />
-              </View>
-            </>
+        {entryMode === "singles" ? (
+          singlesParticipants.length ? (
+            <View style={styles.chipRow}>
+              {singlesParticipants.map((nameValue) =>
+                renderChip(nameValue, () => removeParticipant(nameValue), { removable: true })
+              )}
+            </View>
           ) : (
-            <>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Tap one entry then another to pair fixtures manually.</Text>
-              <View style={styles.manualToolsRow}>
-                <View style={styles.toolButton}><AppButton label="Undo" variant="secondary" onPress={undoLastManualFixture} disabled={!manualPairs.length} /></View>
-                <View style={styles.toolButton}><AppButton label="Reset" variant="secondary" onPress={resetManualPairing} /></View>
+            <Text style={[styles.emptyText, { color: colors.textSubtle }]}>Nobody entered yet.</Text>
+          )
+        ) : (
+          <>
+            {doublesPlayers.length ? (
+              <View style={styles.chipRow}>
+                {doublesPlayers.map((nameValue) =>
+                  renderChip(nameValue, () => toggleDoublesSelection(nameValue), {
+                    selected: selectedDoublesPlayers.includes(nameValue),
+                    accessibilityLabel: `${nameValue}. Tap to pair, long press to remove`,
+                    onLongPress: () => removeDoublesPlayer(nameValue),
+                  })
+                )}
               </View>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Selected:</Text>
-              <View style={styles.participantWrap}>
-                {manualPicked.length === 0 ? <Text style={[styles.emptyManualText, { color: colors.textMuted }]}>No selection yet.</Text> : manualPicked.map((item) => (
-                  <Pressable key={item} onPress={() => unpickManualEntry(item)} style={[styles.participantChip, { borderColor: colors.primary, backgroundColor: colors.surfaceMuted }]}> 
-                    <Text style={[styles.participantText, { color: colors.primary }]}>{item}</Text>
-                  </Pressable>
-                ))}
+            ) : (
+              <Text style={[styles.emptyText, { color: colors.textSubtle }]}>The pool is empty.</Text>
+            )}
+
+            <View style={styles.buttonRow}>
+              <View style={styles.buttonCell}>
+                <AppButton
+                  label="Pair selected"
+                  onPress={createTeamFromSelection}
+                  disabled={selectedDoublesPlayers.length !== 2}
+                />
               </View>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Available:</Text>
-              <View style={styles.participantWrap}>
-                {manualAvailable.map((item) => (
-                  <Pressable key={item} onPress={() => pickManualEntry(item)} style={[styles.participantChip, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
-                    <Text style={[styles.participantText, { color: colors.text }]}>{item}</Text>
-                  </Pressable>
-                ))}
+              <View style={styles.buttonCell}>
+                <AppButton
+                  label="Pair at random"
+                  variant="secondary"
+                  onPress={randomBuildDoublesTeams}
+                  disabled={doublesPlayers.length < 2}
+                />
               </View>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Fixture Preview:</Text>
-              <View style={styles.fixturePreviewWrap}>
-                {manualPairs.length === 0 ? <Text style={[styles.emptyManualText, { color: colors.textMuted }]}>No fixtures paired yet.</Text> : manualPairs.map((pair, index) => (
-                  <View key={`manual-${index}`} style={[styles.fixturePreview, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
-                    <Text style={[styles.fixturePreviewText, { color: colors.text }]}>{pair.participantA}</Text>
-                    <Text style={[styles.fixturePreviewVs, { color: colors.textMuted }]}>vs</Text>
-                    <Text style={[styles.fixturePreviewText, { color: colors.text }]}>{pair.participantB}</Text>
-                  </View>
-                ))}
-              </View>
-            </>
+            </View>
+          </>
+        )}
+      </Section>
+
+      {entryMode === "doubles" ? (
+        <Section title="Teams" hint="Tap a team to take it out of the draw.">
+          {doublesTeams.length ? (
+            <View style={styles.chipRow}>
+              {doublesTeams.map((team) => renderChip(team, () => removeParticipant(team), { removable: true }))}
+            </View>
+          ) : (
+            <Text style={[styles.emptyText, { color: colors.textSubtle }]}>No teams paired yet.</Text>
           )}
-        </>
+        </Section>
+      ) : null}
+
+      {tournamentType === "knockout" ? (
+        <Section title="Byes" hint="A bye is an empty slot, so the entry drawn against it walks over.">
+          <AppButton label="Add a bye" variant="secondary" onPress={addByeSlot} />
+        </Section>
+      ) : null}
+
+      <Text style={[styles.footnote, { color: colors.textMuted }]}>
+        {realEntries.length} {entryNoun(realEntries.length)}
+        {byeCount ? ` and ${byeCount} ${byeCount === 1 ? "bye" : "byes"}` : ""}
+        {hasEnoughParticipants ? "." : ". Two entries are needed to carry on."}
+      </Text>
+    </>
+  );
+
+  const renderDrawStep = () => {
+    if (tournamentType === "league") {
+      return (
+        <Section title="Fixtures" hint="Everyone plays everyone else.">
+          <Text style={[styles.bodyText, { color: colors.textMuted }]}>
+            The league table and its fixtures are built for you when the tournament is created, so there is nothing to
+            do here.
+          </Text>
+        </Section>
       );
     }
+
+    if (pairingMode === "random") {
+      return (
+        <Section title="Random draw" hint="Entries are paired at random, and no bye ever meets another bye.">
+          <Text style={[styles.bodyText, { color: colors.textMuted }]}>
+            Open the draw to see the round one ties, one at a time or all at once.
+          </Text>
+          <View style={styles.primaryAction}>
+            <AppButton label="Open the draw" onPress={randomiseAndDraw} disabled={participants.length < 2} />
+          </View>
+        </Section>
+      );
+    }
+
+    const paired = manualPairs.length;
+    const left = manualAvailable.length + manualPicked.length;
 
     return (
       <>
-        <Text style={[styles.label, { color: colors.text }]}>Review & Create</Text>
-        <View style={[styles.reviewCard, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}> 
-          <Text style={[styles.reviewLine, { color: colors.text }]}>{tournamentIcon} {name || "Untitled Tournament"}</Text>
-          <Text style={[styles.reviewSub, { color: colors.textMuted }]}>Type: {tournamentType.toUpperCase()} · {entryMode.toUpperCase()}</Text>
-          <Text style={[styles.reviewSub, { color: colors.textMuted }]}>Draw: {tournamentType === "knockout" ? pairingMode.toUpperCase() : "AUTO LEAGUE"}</Text>
-          <Text style={[styles.reviewSub, { color: colors.textMuted }]}>Best of {bestOfFrames} (First to {Math.floor(bestOfFrames / 2) + 1})</Text>
-          <Text style={[styles.reviewSub, { color: colors.textMuted }]}>Entries: {participants.length}</Text>
-        </View>
-        <AppButton label="Create Tournament" onPress={create} loading={isSaving} disabled={!hasEnoughParticipants || !name.trim() || isSaving} />
+        <Section title="Pair the entries" hint="Tap one entry, then another, to make a tie.">
+          {manualPicked.length ? (
+            <View style={styles.chipRow}>
+              {manualPicked.map((item) =>
+                renderChip(item, () => unpickManualEntry(item), {
+                  selected: true,
+                  accessibilityLabel: `${item} is picked. Tap to put it back`,
+                })
+              )}
+            </View>
+          ) : null}
+
+          {manualAvailable.length ? (
+            <View style={styles.chipRow}>
+              {manualAvailable.map((item) =>
+                renderChip(item, () => pickManualEntry(item), {
+                  accessibilityLabel: `Pick ${item} for the next tie`,
+                })
+              )}
+            </View>
+          ) : (
+            <Text style={[styles.emptyText, { color: colors.textSubtle }]}>Every entry is paired.</Text>
+          )}
+
+          <Text style={[styles.footnote, { color: colors.textMuted }]}>
+            {paired} {paired === 1 ? "tie" : "ties"} made
+            {left ? ` · ${left} still to pair` : ""}
+          </Text>
+
+          <View style={styles.buttonRow}>
+            <View style={styles.buttonCell}>
+              <AppButton label="Undo" variant="secondary" onPress={undoLastManualFixture} disabled={!manualPairs.length} />
+            </View>
+            <View style={styles.buttonCell}>
+              <AppButton label="Start again" variant="secondary" onPress={resetManualPairing} />
+            </View>
+          </View>
+        </Section>
+
+        <Section title="Round one">
+          {manualPairs.length ? (
+            <View style={styles.tieList}>
+              {manualPairs.map((pair, index) => (
+                <View
+                  key={`manual-${index}`}
+                  style={[styles.tieRow, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+                >
+                  <Text style={[styles.tieRowIndex, { color: colors.textSubtle }]}>{index + 1}</Text>
+                  <View style={styles.tieRowNames}>
+                    <Text
+                      style={[
+                        styles.tieRowName,
+                        { color: isByeName(pair.participantA) ? colors.textSubtle : colors.text },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {isByeName(pair.participantA) ? "Bye" : pair.participantA}
+                    </Text>
+                    <View style={[styles.tieRowDivider, { backgroundColor: colors.border }]} />
+                    <Text
+                      style={[
+                        styles.tieRowName,
+                        { color: isByeName(pair.participantB) ? colors.textSubtle : colors.text },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {isByeName(pair.participantB) ? "Bye" : pair.participantB}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.emptyText, { color: colors.textSubtle }]}>No ties made yet.</Text>
+          )}
+        </Section>
       </>
     );
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}> 
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={[styles.heroCard, { borderColor: colors.border, backgroundColor: colors.surface }]}> 
-          <Text style={[styles.heroEyebrow, { color: colors.textMuted }]}>Tournament Creator</Text>
-          <Text style={[styles.title, { color: colors.text }]}>Set Up Your Event</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Wizard-style flow with live draw reveal and full bracket control.</Text>
-        </View>
+  const renderReviewStep = () => {
+    const summary: Array<{ label: string; value: string }> = [
+      { label: "Event", value: `${tournamentIcon} ${name || "Untitled tournament"}` },
+      {
+        label: "Competition",
+        value: `${tournamentType === "knockout" ? "Knockout" : "League"} · ${
+          entryMode === "singles" ? "Singles" : "Doubles"
+        }`,
+      },
+      {
+        label: "Draw",
+        value:
+          tournamentType === "knockout"
+            ? pairingMode === "manual"
+              ? "Paired by hand"
+              : "Drawn at random"
+            : "Fixtures built automatically",
+      },
+      { label: "Match length", value: `Best of ${bestOfFrames}, first to ${framesToWin}` },
+      {
+        label: "Entries",
+        value: `${realEntries.length} ${entryNoun(realEntries.length)}${
+          byeCount ? `, ${byeCount} ${byeCount === 1 ? "bye" : "byes"}` : ""
+        }`,
+      },
+    ];
 
-        <View style={styles.stepDotsRow}>
-          {creationSteps.map((label, index) => (
-            <Pressable key={label} onPress={() => transitionToStep(index)} style={[styles.stepDot, { borderColor: colors.border, backgroundColor: index === currentStep ? colors.primary : colors.surfaceMuted }]}> 
-              <Text style={[styles.stepDotLabel, { color: index === currentStep ? colors.onPrimary : colors.textMuted }]}>{index + 1}</Text>
-            </Pressable>
+    return (
+      <Section title="Summary" hint="Change anything by going back a step.">
+        <View style={styles.summaryList}>
+          {summary.map((row) => (
+            <View key={row.label} style={[styles.summaryRow, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>{row.label}</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{row.value}</Text>
+            </View>
           ))}
         </View>
-        <Text style={[styles.stepLabel, { color: colors.text }]}>{creationSteps[currentStep]}</Text>
+        {notes.trim() ? <Text style={[styles.bodyText, { color: colors.textMuted }]}>{notes.trim()}</Text> : null}
+      </Section>
+    );
+  };
 
-        <Animated.View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, opacity: stepFade, transform: [{ translateY: stepShift }] }]}> 
-          {renderCurrentStep()}
+  const renderCurrentStep = () => {
+    if (currentStep === 0) return renderBasicsStep();
+    if (currentStep === 1) return renderFormatStep();
+    if (currentStep === 2) return renderEntriesStep();
+    if (currentStep === 3) return renderDrawStep();
+    return renderReviewStep();
+  };
+
+  const renderDrawSetup = () => (
+    <View style={styles.drawBody}>
+      <Text style={[styles.drawPhaseTitle, { color: colors.text }]}>How should the draw be revealed?</Text>
+
+      {drawModes.map((mode) => {
+        const selected = drawMode === mode.value;
+        return (
+          <Pressable
+            key={mode.value}
+            onPress={() => setDrawMode(mode.value)}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`${mode.label}. ${mode.meta}`}
+            style={[
+              styles.modeOption,
+              {
+                borderColor: selected ? colors.primary : colors.border,
+                backgroundColor: selected ? colors.surface : colors.surfaceMuted,
+              },
+            ]}
+          >
+            <View style={[styles.radio, { borderColor: selected ? colors.primary : colors.borderStrong }]}>
+              {selected ? <View style={[styles.radioDot, { backgroundColor: colors.primary }]} /> : null}
+            </View>
+            <View style={styles.modeText}>
+              <Text style={[styles.modeTitle, { color: colors.text }]}>{mode.label}</Text>
+              <Text style={[styles.modeMeta, { color: colors.textMuted }]}>{mode.meta}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
+
+      <View style={styles.anchoredAction}>
+        <AppButton label="Start the draw" onPress={() => void startDrawSequence()} disabled={!drawPreviewPairs.length} />
+      </View>
+    </View>
+  );
+
+  const renderDrawRevealing = () => (
+    <View style={styles.drawBody}>
+      <Text style={[styles.drawKicker, { color: colors.textMuted }]}>
+        Tie {Math.max(activeMatchNumber, 1)} of {drawPreviewPairs.length}
+      </Text>
+
+      <Animated.View
+        style={[
+          styles.tieCard,
+          {
+            borderColor: colors.borderStrong,
+            backgroundColor: colors.surfaceMuted,
+            transform: [{ scale: revealPulse }],
+          },
+        ]}
+      >
+        <Animated.View
+          style={[styles.tieSlot, { opacity: revealAOpacity, transform: [{ translateY: revealATranslate }] }]}
+        >
+          <Text style={[styles.tieSlotName, { color: colors.text }]} numberOfLines={1}>
+            {slotLeftName || "—"}
+          </Text>
         </Animated.View>
 
-        <View style={styles.wizardNavRow}>
-          <View style={styles.toolButton}><AppButton label="Back" variant="secondary" onPress={() => transitionToStep(Math.max(0, currentStep - 1))} disabled={currentStep === 0} /></View>
-          {currentStep < creationSteps.length - 1 ? (
-            <View style={styles.toolButton}><AppButton label="Next" onPress={() => transitionToStep(Math.min(creationSteps.length - 1, currentStep + 1))} disabled={!canGoNext()} /></View>
-          ) : null}
+        <View style={styles.tieSplit}>
+          <View style={[styles.tieSplitLine, { backgroundColor: colors.border }]} />
+          <Text style={[styles.tieSplitText, { color: colors.textSubtle }]}>v</Text>
+          <View style={[styles.tieSplitLine, { backgroundColor: colors.border }]} />
         </View>
+
+        <Animated.View
+          style={[styles.tieSlot, { opacity: revealBOpacity, transform: [{ translateY: revealBTranslate }] }]}
+        >
+          <Text style={[styles.tieSlotName, { color: colors.text }]} numberOfLines={1}>
+            {slotRightName || "—"}
+          </Text>
+        </Animated.View>
+      </Animated.View>
+
+      <Text style={[styles.drawProgress, { color: colors.textMuted }]}>
+        {revealedPairs.length} of {drawPreviewPairs.length} drawn
+        {activeDrawPair ? " · drawing the next name" : ""}
+      </Text>
+
+      {revealedPairs.length ? (
+        <ScrollView style={styles.drawList} contentContainerStyle={styles.drawListContent}>
+          {revealedPairs.map((pair, index) => (
+            <View
+              key={`revealed-${pair.a}-${pair.b}-${index}`}
+              style={[styles.tieRow, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+            >
+              <Text style={[styles.tieRowIndex, { color: colors.textSubtle }]}>{index + 1}</Text>
+              <View style={styles.tieRowNames}>
+                <Text
+                  style={[styles.tieRowName, { color: isByeName(pair.a) ? colors.textSubtle : colors.text }]}
+                  numberOfLines={1}
+                >
+                  {isByeName(pair.a) ? "Bye" : pair.a}
+                </Text>
+                <View style={[styles.tieRowDivider, { backgroundColor: colors.border }]} />
+                <Text
+                  style={[styles.tieRowName, { color: isByeName(pair.b) ? colors.textSubtle : colors.text }]}
+                  numberOfLines={1}
+                >
+                  {isByeName(pair.b) ? "Bye" : pair.b}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      ) : null}
+    </View>
+  );
+
+  const renderDrawComplete = () => (
+    <Animated.View
+      style={[
+        styles.drawBody,
+        {
+          opacity: finalRevealAnim,
+          transform: [
+            {
+              scale: finalRevealAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.96, 1],
+              }),
+            },
+          ],
+        },
+      ]}
+    >
+      <View style={[styles.completeBadge, { backgroundColor: colors.accentWash, borderColor: colors.accent }]}>
+        <MaterialCommunityIcons name="trophy-outline" size={15} color={colors.accent} />
+        <Text style={[styles.completeBadgeText, { color: colors.accent }]}>The draw is made</Text>
+      </View>
+
+      <Text style={[styles.drawPhaseTitle, { color: colors.text }]}>Round one</Text>
+
+      <ScrollView style={styles.drawList} contentContainerStyle={styles.drawListContent}>
+        {revealedPairs.map((pair, index) => (
+          <View
+            key={`${pair.a}-${pair.b}-${index}`}
+            style={[styles.tieRow, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+          >
+            <Text style={[styles.tieRowIndex, { color: colors.textSubtle }]}>{index + 1}</Text>
+            <View style={styles.tieRowNames}>
+              <Text
+                style={[styles.tieRowName, { color: isByeName(pair.a) ? colors.textSubtle : colors.text }]}
+                numberOfLines={1}
+              >
+                {isByeName(pair.a) ? "Bye" : pair.a}
+              </Text>
+              <View style={[styles.tieRowDivider, { backgroundColor: colors.border }]} />
+              <Text
+                style={[styles.tieRowName, { color: isByeName(pair.b) ? colors.textSubtle : colors.text }]}
+                numberOfLines={1}
+              >
+                {isByeName(pair.b) ? "Bye" : pair.b}
+              </Text>
+            </View>
+          </View>
+        ))}
       </ScrollView>
 
-      <Modal
-        visible={drawModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          clearRevealTimer();
-          setDrawModalVisible(false);
-        }}
-      >
-        <View style={[styles.drawFullscreen, { backgroundColor: "rgba(5,12,9,0.96)" }]}> 
-          <View style={styles.drawTopBar}>
-            <Text style={[styles.modalTitle, { color: "#ECFFF5" }]}>🎲 Tournament Draw</Text>
-            <Pressable
-              onPress={() => {
-                clearRevealTimer();
-                setDrawModalVisible(false);
-              }}
-              style={styles.closeDrawButton}
-            >
-              <Text style={styles.closeDrawText}>Close</Text>
-            </Pressable>
-          </View>
+      <View style={styles.primaryAction}>
+        <AppButton
+          label="Use this draw"
+          disabled={!drawComplete}
+          onPress={async () => {
+            clearRevealTimer();
+            setDrawModalVisible(false);
+            await createWith({
+              entriesOverride: drawParticipants.length
+                ? drawParticipants
+                : entryMode === "singles"
+                  ? singlesParticipants
+                  : doublesTeams,
+              manualFixturesOverride: drawPreviewPairs.map((pair) => ({ participantA: pair.a, participantB: pair.b })),
+            });
+          }}
+        />
+      </View>
 
-          <Text style={[styles.modalHint, { color: "#8FB9AB" }]}>
-            {drawPreviewPairs.length * 2} players · {drawPreviewPairs.length} matches
+      <Pressable
+        onPress={randomiseAndDraw}
+        disabled={participants.length < 2}
+        accessibilityRole="button"
+        accessibilityLabel="Draw again"
+        style={({ pressed }) => [styles.quietAction, { opacity: participants.length < 2 ? 0.5 : pressed ? 0.7 : 1 }]}
+      >
+        <Text style={[styles.quietActionText, { color: colors.textMuted }]}>Draw again</Text>
+      </Pressable>
+    </Animated.View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.progressBlock}>
+          <Text style={[styles.progressLabel, { color: colors.textMuted }]}>
+            Step {currentStep + 1} of {creationSteps.length} · {step.title}
           </Text>
 
-          {drawPhase === "setup" ? (
-            <View style={styles.preDrawCard}>
-              <Text style={styles.preDrawTitle}>Tournament Draw</Text>
-              <Text style={styles.preDrawSubtitle}>Choose a reveal style before opening the bracket.</Text>
+          <View style={styles.railRow}>
+            {creationSteps.map((item, index) => (
+              <Pressable
+                key={item.key}
+                onPress={() => transitionToStep(index)}
+                hitSlop={{ top: 18, bottom: 18, left: 4, right: 4 }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: index === currentStep }}
+                accessibilityLabel={`Go to step ${index + 1} of ${creationSteps.length}, ${item.title}`}
+                style={styles.railSegment}
+              >
+                <View
+                  style={[
+                    styles.railFill,
+                    { backgroundColor: index <= currentStep ? colors.primary : colors.border },
+                  ]}
+                />
+              </Pressable>
+            ))}
+          </View>
 
-              <View style={styles.drawModeRow}>
-                <Pressable style={[styles.drawModeChip, drawMode === "animated" && styles.drawModeChipActive]} onPress={() => setDrawMode("animated")}>
-                  <Text style={[styles.drawModeText, drawMode === "animated" && styles.drawModeTextActive]}>Animated Draw</Text>
-                </Pressable>
-                <Pressable style={[styles.drawModeChip, drawMode === "quick" && styles.drawModeChipActive]} onPress={() => setDrawMode("quick")}>
-                  <Text style={[styles.drawModeText, drawMode === "quick" && styles.drawModeTextActive]}>Quick Draw</Text>
-                </Pressable>
+          <Text style={[styles.progressBlurb, { color: colors.textSubtle }]}>{step.blurb}</Text>
+        </View>
+
+        <Animated.View style={{ opacity: stepFade, transform: [{ translateY: stepShift }] }}>
+          {renderCurrentStep()}
+        </Animated.View>
+      </ScrollView>
+
+      <View style={[styles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+        <View style={styles.footerBack}>
+          <AppButton
+            label="Back"
+            variant="secondary"
+            onPress={() => transitionToStep(Math.max(0, currentStep - 1))}
+            disabled={currentStep === 0}
+          />
+        </View>
+        <View style={styles.footerNext}>
+          {isLastStep ? (
+            <AppButton
+              label="Create tournament"
+              onPress={create}
+              loading={isSaving}
+              disabled={!hasEnoughParticipants || !name.trim() || isSaving}
+            />
+          ) : (
+            <AppButton
+              label="Next"
+              onPress={() => transitionToStep(Math.min(creationSteps.length - 1, currentStep + 1))}
+              disabled={!canGoNext()}
+            />
+          )}
+        </View>
+      </View>
+
+      <Modal visible={drawModalVisible} transparent animationType="slide" onRequestClose={closeDrawModal}>
+        <View style={styles.drawBackdrop}>
+          <View style={[styles.drawSheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.grabber, { backgroundColor: colors.border }]} />
+
+            <View style={styles.drawHeader}>
+              <View style={styles.drawHeaderText}>
+                <Text style={[styles.drawTitle, { color: colors.text }]}>Tournament draw</Text>
+                <Text style={[styles.drawMeta, { color: colors.textMuted }]}>
+                  {drawPreviewPairs.length * 2} entries · {drawPreviewPairs.length}{" "}
+                  {drawPreviewPairs.length === 1 ? "tie" : "ties"} · best of {bestOfFrames}
+                </Text>
               </View>
 
-              <View style={styles.startDrawButtonWrap}>
-                <AppButton label="Start Draw" onPress={() => void startDrawSequence()} disabled={!drawPreviewPairs.length} />
-              </View>
+              <Pressable
+                onPress={closeDrawModal}
+                accessibilityRole="button"
+                accessibilityLabel="Close the draw"
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  { borderColor: colors.border, backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <MaterialCommunityIcons name="close" size={20} color={colors.textMuted} />
+              </Pressable>
             </View>
-          ) : null}
 
-          {drawPhase === "revealing" ? (
-            <View style={styles.drawCenterZone}>
-              <View style={styles.activeRevealWrap}>
-                <Text style={styles.activeMatchLabel}>Match {activeMatchNumber}</Text>
-                <Animated.View style={[styles.activeCardsRow, { transform: [{ scale: revealPulse }] }]}> 
-                  <Animated.View style={[styles.activePlayerCard, styles.activePlayerGlow, { opacity: revealAOpacity, transform: [{ translateX: revealATranslate }] }]}>
-                    <Text style={styles.activePlayerName}>{slotLeftName || "..."}</Text>
-                  </Animated.View>
-                  <Text style={styles.activeVsText}>vs</Text>
-                  <Animated.View style={[styles.activePlayerCard, styles.activePlayerGlow, { opacity: revealBOpacity, transform: [{ translateX: revealBTranslate }] }]}>
-                    <Text style={styles.activePlayerName}>{slotRightName || "..."}</Text>
-                  </Animated.View>
-                </Animated.View>
-              </View>
-              <Text style={styles.awaitingDrawText}>Revealing one match at a time...</Text>
-            </View>
-          ) : null}
-
-          {drawPhase === "complete" ? (
-            <Animated.View
-              style={[
-                styles.finalRevealWrap,
-                {
-                  opacity: finalRevealAnim,
-                  transform: [
-                    {
-                      scale: finalRevealAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.96, 1],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Text style={styles.finalRevealTitle}>Final Bracket</Text>
-              <ScrollView style={styles.modalList} contentContainerStyle={{ paddingBottom: 12 }}>
-                {revealedPairs.map((pair, index) => (
-                  <View key={`${pair.a}-${pair.b}-${index}`} style={styles.drawRow}> 
-                    <Text style={styles.drawMatchIndex}>M{index + 1}</Text>
-                    <Text style={styles.drawName}>{pair.a}</Text>
-                    <Text style={styles.drawVs}>vs</Text>
-                    <Text style={styles.drawName}>{pair.b}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-
-              <View style={styles.modalActionRow}>
-                <View style={styles.toolButton}>
-                  <AppButton label="Restart Draw" variant="secondary" onPress={randomiseAndDraw} disabled={participants.length < 2} />
-                </View>
-                <View style={styles.toolButton}>
-                  <AppButton
-                    label="Use This Draw"
-                    disabled={!drawComplete}
-                    onPress={async () => {
-                      clearRevealTimer();
-                      setDrawModalVisible(false);
-                      await createWith({
-                        entriesOverride: drawParticipants.length ? drawParticipants : entryMode === "singles" ? singlesParticipants : doublesTeams,
-                        manualFixturesOverride: drawPreviewPairs.map((pair) => ({ participantA: pair.a, participantB: pair.b })),
-                      });
-                    }}
-                  />
-                </View>
-              </View>
-            </Animated.View>
-          ) : null}
+            {drawPhase === "setup" ? renderDrawSetup() : null}
+            {drawPhase === "revealing" ? renderDrawRevealing() : null}
+            {drawPhase === "complete" ? renderDrawComplete() : null}
+          </View>
         </View>
       </Modal>
 
@@ -895,359 +1396,361 @@ export const NewTournamentScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 24 },
-  heroCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 12,
+  content: { padding: SPACING.lg, paddingBottom: SPACING.xl },
+
+  progressBlock: {
+    marginBottom: SPACING.lg,
   },
-  heroEyebrow: {
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
+  progressLabel: {
+    ...TYPE.label,
   },
-  stepDotsRow: {
+  railRow: {
     flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
   },
-  stepDot: {
-    width: 30,
-    height: 30,
-    borderRadius: 999,
+  railSegment: {
+    flex: 1,
+    paddingVertical: SPACING.xs,
+  },
+  railFill: {
+    height: 4,
+    borderRadius: RADIUS.pill,
+  },
+  progressBlurb: {
+    ...TYPE.caption,
+    marginTop: SPACING.xs,
+  },
+
+  section: {
     borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  sectionTitle: {
+    ...TYPE.heading,
+  },
+  sectionHint: {
+    ...TYPE.caption,
+    marginTop: SPACING.xs,
+  },
+  sectionBody: {
+    marginTop: SPACING.md,
+  },
+  field: {
+    marginTop: SPACING.md,
+  },
+  fieldLabel: {
+    ...TYPE.label,
+    marginBottom: SPACING.sm,
+  },
+  bodyText: {
+    ...TYPE.body,
+  },
+  footnote: {
+    ...TYPE.caption,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  emptyText: {
+    ...TYPE.caption,
+    marginTop: SPACING.md,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    minHeight: HIT_TARGET,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    fontSize: 15,
+  },
+  notes: { minHeight: 76 },
+  flexInput: { flex: 1 },
+  addRow: { flexDirection: "row", gap: SPACING.sm, alignItems: "center" },
+  addButtonWrap: { width: 88 },
+
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+  chip: {
+    minHeight: HIT_TARGET,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACING.md,
+  },
+  chipText: {
+    ...TYPE.label,
+  },
+  iconTile: {
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
     alignItems: "center",
     justifyContent: "center",
   },
-  stepDotLabel: {
-    fontSize: 12,
-    fontWeight: "800",
+  iconGlyph: { fontSize: 20 },
+  frameChip: {
+    minWidth: HIT_TARGET,
+    minHeight: HIT_TARGET,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm,
   },
-  stepLabel: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  wizardNavRow: {
-    marginTop: 2,
+  frameLabel: { fontSize: 15, fontWeight: "700" },
+
+  segmentedTrack: {
     flexDirection: "row",
-    gap: 8,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    padding: SPACING.xs,
+    gap: SPACING.xs,
   },
-  cardsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
+  segment: {
+    flex: 1,
+    minHeight: HIT_TARGET - SPACING.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "transparent",
+    borderRadius: RADIUS.sm,
   },
+  segmentText: {
+    ...TYPE.label,
+  },
+
+  cardsRow: { flexDirection: "row", gap: SPACING.sm },
   selectCard: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 11,
-    paddingHorizontal: 10,
-  },
-  selectEmoji: {
-    fontSize: 20,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    minHeight: 92,
   },
   selectTitle: {
-    marginTop: 6,
-    fontSize: 14,
-    fontWeight: "800",
+    ...TYPE.bodyStrong,
+    marginTop: SPACING.sm,
   },
   selectMeta: {
-    marginTop: 3,
-    fontSize: 12,
+    ...TYPE.caption,
+    marginTop: 2,
   },
-  iconChip: {
-    fontSize: 18,
-  },
-  reviewCard: {
+
+  buttonRow: { marginTop: SPACING.md, flexDirection: "row", gap: SPACING.sm },
+  buttonCell: { flex: 1 },
+  primaryAction: { marginTop: SPACING.lg },
+  /** Sits at the foot of the draw sheet, so the one clear action is always in the same place. */
+  anchoredAction: { marginTop: "auto", paddingTop: SPACING.lg },
+
+  tieList: { gap: SPACING.sm },
+  tieRow: {
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  reviewLine: {
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  reviewSub: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  dismissKeyboard: {
-    alignSelf: "flex-end",
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 8,
-  },
-  dismissKeyboardText: { fontSize: 12, fontWeight: "700" },
-  title: { fontSize: 28, fontWeight: "800" },
-  subtitle: { marginTop: 6, fontSize: 14, marginBottom: 14 },
-  card: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 12,
-  },
-  label: { fontSize: 13, fontWeight: "700", marginBottom: 6 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    fontSize: 14,
-  },
-  notes: { minHeight: 64 },
-  rowButtons: { flexDirection: "row", gap: 8, marginBottom: 8 },
-  segment: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 9,
-    alignItems: "center",
-  },
-  segmentText: { fontSize: 12, fontWeight: "700" },
-  framesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  frameChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-  },
-  frameLabel: { fontWeight: "700", fontSize: 12 },
-  addRow: { flexDirection: "row", gap: 8, alignItems: "center" },
-  flexInput: { flex: 1 },
-  addButtonWrap: { width: 90 },
-  participantWrap: { marginTop: 10, flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  participantChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: SPACING.md,
+    marginBottom: SPACING.sm,
   },
-  participantText: { fontSize: 12, fontWeight: "700" },
-  removeText: { fontSize: 11, fontWeight: "700" },
-  toolsRow: { marginTop: 10 },
-  toolsSplit: { marginTop: 10, flexDirection: "row", gap: 8 },
-  toolButton: { flex: 1 },
-  manualToolsRow: { marginTop: 8, flexDirection: "row", gap: 8 },
-  sectionHint: { marginTop: 8, fontSize: 12 },
-  smallHint: { marginTop: 8, fontSize: 12 },
-  emptyManualText: { fontSize: 12, fontWeight: "600" },
-  fixturePreviewWrap: { marginTop: 10, gap: 8 },
-  fixturePreview: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+  tieRowIndex: {
+    ...TYPE.caption,
+    width: 16,
+  },
+  tieRowNames: { flex: 1 },
+  tieRowName: {
+    ...TYPE.bodyStrong,
+    paddingVertical: 3,
+  },
+  tieRowDivider: {
+    height: 1,
+    marginVertical: 2,
+  },
+
+  summaryList: { marginTop: -SPACING.sm },
+  summaryRow: {
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  summaryLabel: {
+    ...TYPE.caption,
+  },
+  summaryValue: {
+    ...TYPE.bodyStrong,
+    marginTop: 2,
+  },
+
+  footer: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xl,
+    borderTopWidth: 1,
   },
-  fixturePreviewText: { flex: 1, textAlign: "center", fontSize: 12, fontWeight: "700" },
-  fixturePreviewVs: { fontSize: 11, fontWeight: "700" },
-  vsText: { fontWeight: "700", fontSize: 12 },
-  modalBackdrop: {
+  footerBack: { width: 110 },
+  footerNext: { flex: 1 },
+
+  drawBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: SCRIM,
+    justifyContent: "flex-end",
+  },
+  drawSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    minHeight: "70%",
+    maxHeight: "94%",
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xxl,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: RADIUS.pill,
+    marginBottom: SPACING.lg,
+  },
+  drawHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: SPACING.md,
+  },
+  drawHeaderText: { flex: 1 },
+  drawTitle: {
+    ...TYPE.title,
+  },
+  drawMeta: {
+    ...TYPE.caption,
+    marginTop: 2,
+  },
+  closeButton: {
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 18,
   },
-  drawFullscreen: {
+  drawBody: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 44,
-    paddingBottom: 16,
+    marginTop: SPACING.lg,
   },
-  drawTopBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  drawPhaseTitle: {
+    ...TYPE.heading,
+    marginBottom: SPACING.md,
   },
-  preDrawCard: {
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: "#2F4C41",
-    backgroundColor: "#0F201A",
-    borderRadius: 16,
-    padding: 14,
-  },
-  preDrawTitle: {
-    color: "#ECFFF5",
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  preDrawSubtitle: {
-    marginTop: 6,
-    color: "#8FB9AB",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  startDrawButtonWrap: {
-    marginTop: 14,
-  },
-  closeDrawButton: {
-    borderWidth: 1,
-    borderColor: "#36584D",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "#11231D",
-  },
-  closeDrawText: {
-    color: "#D8F3E8",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  drawModeRow: {
-    marginTop: 10,
-    flexDirection: "row",
-    gap: 8,
-  },
-  drawModeChip: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#3B5E52",
-    borderRadius: 999,
-    paddingVertical: 8,
-    alignItems: "center",
-    backgroundColor: "#132821",
-  },
-  drawModeChipActive: {
-    borderColor: "#5BD0A2",
-    backgroundColor: "#1A6B4D",
-  },
-  drawModeText: {
-    color: "#B9DDD0",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  drawModeTextActive: {
-    color: "#EDFFF8",
-  },
-  drawCenterZone: {
-    flex: 1,
-    justifyContent: "center",
-  },
-  activeRevealWrap: {
-    marginTop: 14,
-    borderWidth: 1,
-    borderColor: "#2F4C41",
-    backgroundColor: "#0F201A",
-    borderRadius: 14,
-    minHeight: 170,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-  },
-  activeMatchLabel: {
-    color: "#80DDB7",
-    fontSize: 12,
-    fontWeight: "800",
+  drawKicker: {
+    ...TYPE.kicker,
     textTransform: "uppercase",
-    marginBottom: 8,
-    letterSpacing: 0.7,
-  },
-  activeCardsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    width: "100%",
-  },
-  activePlayerCard: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#58CDA0",
-    backgroundColor: "#183028",
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: "center",
-    shadowColor: "#58CDA0",
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-  },
-  activePlayerGlow: {
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 4,
-  },
-  activePlayerName: {
-    color: "#EDFFF8",
-    fontSize: 14,
-    fontWeight: "800",
     textAlign: "center",
   },
-  activeVsText: {
-    color: "#8BB8A8",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  awaitingDrawText: {
-    color: "#A9CDC0",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  modalActionRow: {
-    marginTop: 10,
-    flexDirection: "row",
-    gap: 8,
-  },
-  finalRevealWrap: {
-    flex: 1,
-    marginTop: 12,
-  },
-  finalRevealTitle: {
-    color: "#E8FFF4",
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  modalCard: {
-    width: "100%",
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-  },
-  modalTitle: { fontSize: 22, fontWeight: "800" },
-  modalHint: { marginTop: 4, fontSize: 12 },
-  ballWrap: {
-    marginTop: 10,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  ball: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  ballText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  modalList: { marginTop: 10, marginBottom: 4, gap: 8, maxHeight: 240 },
-  drawRow: {
-    borderWidth: 1,
-    borderColor: "#315347",
-    backgroundColor: "#11241D",
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+  modeOption: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    minHeight: HIT_TARGET + 12,
   },
-  drawMatchIndex: { width: 34, color: "#7FB8A3", fontSize: 11, fontWeight: "800" },
-  drawName: { flex: 1, fontSize: 13, fontWeight: "700", textAlign: "center", color: "#E7FCF3" },
-  drawVs: { fontSize: 12, fontWeight: "700", color: "#95BDAF" },
-  drawingText: { fontSize: 12, fontWeight: "700", textAlign: "center" },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: RADIUS.pill,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: RADIUS.pill,
+  },
+  modeText: { flex: 1 },
+  modeTitle: {
+    ...TYPE.bodyStrong,
+  },
+  modeMeta: {
+    ...TYPE.caption,
+    marginTop: 2,
+  },
+
+  tieCard: {
+    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
+  },
+  tieSlot: {
+    minHeight: 34,
+    justifyContent: "center",
+  },
+  tieSlotName: {
+    fontSize: 19,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  tieSplit: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    marginVertical: SPACING.md,
+  },
+  tieSplitLine: {
+    flex: 1,
+    height: 1,
+  },
+  tieSplitText: {
+    ...TYPE.label,
+  },
+  drawProgress: {
+    ...TYPE.caption,
+    textAlign: "center",
+    marginTop: SPACING.md,
+  },
+  drawList: {
+    flex: 1,
+    marginTop: SPACING.md,
+  },
+  drawListContent: {
+    paddingBottom: SPACING.sm,
+  },
+  completeBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.xs,
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    marginBottom: SPACING.md,
+  },
+  completeBadgeText: {
+    ...TYPE.label,
+  },
+  quietAction: {
+    minHeight: HIT_TARGET,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xs,
+  },
+  quietActionText: {
+    ...TYPE.bodyStrong,
+  },
 });
