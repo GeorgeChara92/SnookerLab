@@ -20,9 +20,7 @@ const HALF_CENTURY_PRODUCT_ID =
 const CENTURY_PRODUCT_ID =
   process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY ?? process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_CENTURY ?? "century_monthly";
 
-const DEFAULT_HALF_CENTURY_PRICE = process.env.EXPO_PUBLIC_DEFAULT_PRICE_HALF_CENTURY ?? "$3.49";
-const DEFAULT_CENTURY_PRICE = process.env.EXPO_PUBLIC_DEFAULT_PRICE_CENTURY ?? "$5.00";
-type BillingOfferings = {
+export type BillingOfferings = {
   current: PurchasesOfferings["current"];
   all: PurchasesOfferings["all"];
   packages: PurchasesPackage[];
@@ -215,16 +213,28 @@ export const purchaseTierMonthly = async (
   }
 };
 
-export const getTierPriceText = (tier: Exclude<SubscriptionTier, "free">, offerings: BillingOfferings | null) => {
-  if (offerings) {
-    const product = findProductForTier(tier, offerings);
-    if (product?.product?.priceString) {
-      return product.product.priceString;
-    }
-  }
-  if (tier === "half_century") return DEFAULT_HALF_CENTURY_PRICE;
-  if (tier === "century") return DEFAULT_CENTURY_PRICE;
-  return null;
+export type TierOffer = {
+  tier: Exclude<SubscriptionTier, "free">;
+  productId: string;
+  /** Localised price straight from the store, e.g. "£5.00". */
+  priceText: string;
+};
+
+/**
+ * What the store actually sells for a tier. Returns null when the offering has not loaded or
+ * has no product for that tier: the UI then says so instead of showing an invented price.
+ */
+export const getTierOffer = (
+  tier: Exclude<SubscriptionTier, "free">,
+  offerings: BillingOfferings | null
+): TierOffer | null => {
+  if (!offerings) return null;
+
+  const item = findProductForTier(tier, offerings);
+  const priceText = item?.product?.priceString;
+  if (!item || !priceText) return null;
+
+  return { tier, productId: item.product.identifier, priceText };
 };
 
 export const restoreBillingPurchases = async () => {
