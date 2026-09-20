@@ -44,6 +44,44 @@ export interface RoutineCategory {
   created_at: string;
 }
 
+/** A ball on a drill diagram. Colours are the snooker set, plus the cue ball. */
+export type DiagramBallColour =
+  | "cue"
+  | "red"
+  | "yellow"
+  | "green"
+  | "brown"
+  | "blue"
+  | "pink"
+  | "black";
+
+/**
+ * Where a ball sits on the table, as a fraction of the playing surface:
+ * x runs 0 (left cushion) to 1 (right cushion), y runs 0 (baulk cushion) to 1 (top cushion).
+ * Spots therefore sit at known values: blue (0.5, 0.5), pink (0.5, 0.75), black (0.5, 0.91).
+ */
+export interface DiagramBall {
+  colour: DiagramBallColour;
+  x: number;
+  y: number;
+  /** Shown inside the ball, for drills that number their shots. */
+  label?: string;
+}
+
+/** A dotted guide: where the cue ball goes, or the line of a pot. */
+export interface DiagramLine {
+  from: [number, number];
+  to: [number, number];
+  kind?: "shot" | "travel";
+}
+
+export interface RoutineDiagram {
+  balls: DiagramBall[];
+  lines?: DiagramLine[];
+  /** One line under the table explaining what the diagram shows. */
+  caption?: string;
+}
+
 export interface Routine {
   id: string;
   category_id: string;
@@ -63,6 +101,8 @@ export interface Routine {
   content_type?: RoutineContentType;
   difficulty: DifficultyLevel;
   setup_instructions?: string;
+  /** The table layout, drawn on the routine's page. */
+  diagram?: RoutineDiagram;
   steps?: string[];
   success_criteria?: string;
   improves?: string[];

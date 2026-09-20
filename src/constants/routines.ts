@@ -1,5 +1,7 @@
 import { Routine, RoutineCategory } from "../types";
 import { getYoutubeWatchUrl } from "../utils/youtube";
+import { EXTRA_CATEGORIES, EXTRA_ROUTINES } from "./routineDrills";
+import { FIRST_WAVE_DIAGRAMS } from "./routineDiagrams";
 
 type VideoMeta = {
   id: string;
@@ -75,9 +77,10 @@ export const DEFAULT_CATEGORIES: RoutineCategory[] = [
     order_index: 6,
     created_at: now,
   },
+  ...EXTRA_CATEGORIES,
 ];
 
-export const DEFAULT_ROUTINES: Routine[] = [
+const ROUTINE_LIST: Routine[] = [
   {
     id: "routine-bridge-grip-stance",
     category_id: "cat-basics",
@@ -1092,4 +1095,15 @@ export const DEFAULT_ROUTINES: Routine[] = [
       }
     ),
   },
+  ...EXTRA_ROUTINES,
 ];
+
+/**
+ * The drills written before the library had diagrams get theirs attached here, so those entries
+ * stay readable and a routine without a picture simply passes through unchanged.
+ */
+export const DEFAULT_ROUTINES: Routine[] = ROUTINE_LIST.map((routine) =>
+  routine.diagram || !FIRST_WAVE_DIAGRAMS[routine.id]
+    ? routine
+    : { ...routine, diagram: FIRST_WAVE_DIAGRAMS[routine.id] }
+);

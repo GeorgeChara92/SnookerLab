@@ -9,6 +9,7 @@ import {
 import { useRoutinesStore, useRoutineScoresStore } from "../../store";
 import type { PracticeStackParamList, ScoringType } from "../../types";
 import { getYoutubeThumbnailUrl, getYoutubeWatchUrl } from "../../utils/youtube";
+import { TableDiagram } from "../../components/routines/TableDiagram";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { getRoutineReferenceImageByRoutineId, isRoutineAREnabled } from "../../features/ar/routineLayouts";
 import { getGuidePlaybookByRoutineId } from "../../features/guides/guidePlaybooks";
@@ -308,6 +309,7 @@ export const RoutineDetailScreen = () => {
         <>
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Setup</Text>
+            {routine.diagram ? <TableDiagram diagram={routine.diagram} /> : null}
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.setup_instructions}</Text>
             {arEnabled ? (
               <Pressable
