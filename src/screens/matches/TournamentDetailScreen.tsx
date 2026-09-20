@@ -9,7 +9,7 @@ import { useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, TournamentFixture, TournamentFrameScore } from "../../types";
 import { computeLeagueStandings } from "../../features/tournaments/leagueStandings";
 import { buildBracketRounds } from "../../features/tournaments/knockout";
-import { RADIUS, SPACING } from "../../constants";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 
 const triggerHaptic = async (type: "light" | "success") => {
   try {
@@ -20,6 +20,15 @@ const triggerHaptic = async (type: "light" | "success") => {
   }
 };
 
+/** Initials for the opponent badge, so a long name still fits a 38pt circle. */
+const initialsOf = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+
 const FixtureRow = ({
   fixture,
   onSave,
@@ -27,6 +36,7 @@ const FixtureRow = ({
   delay,
   collapsible = false,
   initialExpanded = true,
+  caption,
 }: {
   fixture: TournamentFixture;
   onSave: (fixtureId: string, frameScores: TournamentFrameScore[]) => void;
@@ -34,6 +44,8 @@ const FixtureRow = ({
   delay: number;
   collapsible?: boolean;
   initialExpanded?: boolean;
+  /** Small label above the tie, e.g. which meeting of a league pairing this is. */
+  caption?: string;
 }) => {
   const dialog = useDialog();
   const isByeA = /^BYE\b/i.test(fixture.participant_a);
@@ -129,7 +141,9 @@ const FixtureRow = ({
       ]}
     >
       <View style={styles.fixtureHeadRow}>
-        <Text style={[styles.bestOfBadge, { color: colors.textMuted }]}>BEST OF {fixture.best_of_frames}</Text>
+        <Text style={[styles.bestOfBadge, { color: colors.textMuted }]}>
+          {caption ? `${caption} · ` : ""}BEST OF {fixture.best_of_frames}
+        </Text>
         <View
           style={[
             styles.statusPill,
@@ -257,7 +271,7 @@ export const TournamentDetailScreen = () => {
   const [showChampionModal, setShowChampionModal] = useState(false);
   const [showActionsModal, setShowActionsModal] = useState(false);
   const [collapsedKnockoutRounds, setCollapsedKnockoutRounds] = useState<Record<number, boolean>>({});
-  const [collapsedLeagueRounds, setCollapsedLeagueRounds] = useState<Record<number, boolean>>({});
+  const [expandedPairings, setExpandedPairings] = useState<Record<string, boolean>>({});
   const [leagueStatusFilter, setLeagueStatusFilter] = useState<"all" | "to play" | "played">("all");
   const heroProgressAnim = useRef(new Animated.Value(0)).current;
   const previousCompletedRef = useRef(tournament?.status === "completed");
@@ -293,42 +307,75 @@ export const TournamentDetailScreen = () => {
     return computeLeagueStandings(tournament.participants, tournament.fixtures);
   }, [tournament]);
 
-  /** Every round in the league, whatever the current filter is. */
-  const leagueRounds = useMemo(() => {
-    if (!tournament || tournament.tournament_type !== "league") return [] as Array<{ round: number; fixtures: TournamentFixture[] }>;
+  /**
+   * Leagues are not played in rounds, they are played between people. Group every fixture by
+   * the pair who contest it, so a player's whole head-to-head record sits in one row.
+   */
+  const leaguePairings = useMemo(() => {
+    if (!tournament || tournament.tournament_type !== "league") {
+      return [] as Array<{ key: string; players: [string, string]; fixtures: TournamentFixture[] }>;
+    }
 
-    const groups = new Map<number, TournamentFixture[]>();
-    tournament.fixtures.forEach((fixture) => {
-      groups.set(fixture.round_number, [...(groups.get(fixture.round_number) ?? []), fixture]);
-    });
+    const isPlaceholder = (name: string) => /^BYE\b/i.test(name) || name === "TBD";
+    const groups = new Map<string, { key: string; players: [string, string]; fixtures: TournamentFixture[] }>();
 
-    return Array.from(groups.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([round, fixtures]) => ({
-        round,
-        fixtures: [...fixtures].sort((x, y) => x.fixture_index - y.fixture_index),
-      }));
+    [...tournament.fixtures]
+      .sort((a, b) => a.round_number - b.round_number || a.fixture_index - b.fixture_index)
+      .forEach((fixture) => {
+        if (isPlaceholder(fixture.participant_a) || isPlaceholder(fixture.participant_b)) return;
+
+        const players = [fixture.participant_a, fixture.participant_b].sort((a, b) => a.localeCompare(b)) as [
+          string,
+          string,
+        ];
+        const key = players.join(" v ");
+        const existing = groups.get(key);
+        if (existing) existing.fixtures.push(fixture);
+        else groups.set(key, { key, players, fixtures: [fixture] });
+      });
+
+    return Array.from(groups.values());
   }, [tournament]);
 
-  /** The same rounds, narrowed by the player and status filters. */
-  const filteredLeagueRounds = useMemo(
+  /** Whose fixtures we are looking at, or null when it is everyone's. */
+  const leaguePerspective = selectedLeaguePlayer === "All" ? null : selectedLeaguePlayer;
+
+  /**
+   * One row per pairing: the head-to-head record over every meeting, plus the meetings the
+   * current filter leaves visible. The record ignores the filter, because a record is a record.
+   */
+  const visiblePairings = useMemo(
     () =>
-      leagueRounds
-        .map((group) => ({
-          round: group.round,
-          fixtures: group.fixtures.filter((fixture) => {
-            const matchesPlayer =
-              selectedLeaguePlayer === "All" ||
-              fixture.participant_a === selectedLeaguePlayer ||
-              fixture.participant_b === selectedLeaguePlayer;
-            const matchesStatus =
-              leagueStatusFilter === "all" ||
-              (leagueStatusFilter === "played" ? fixture.status === "completed" : fixture.status !== "completed");
-            return matchesPlayer && matchesStatus;
-          }),
-        }))
-        .filter((group) => group.fixtures.length > 0),
-    [leagueRounds, leagueStatusFilter, selectedLeaguePlayer]
+      leaguePairings
+        .filter((pairing) => !leaguePerspective || pairing.players.includes(leaguePerspective))
+        .map((pairing) => {
+          const left = leaguePerspective ?? pairing.players[0];
+          const right = pairing.players[0] === left ? pairing.players[1] : pairing.players[0];
+
+          const numbered = pairing.fixtures.map((fixture, index) => ({ fixture, meeting: index + 1 }));
+          const visible = numbered.filter(({ fixture }) =>
+            leagueStatusFilter === "all"
+              ? true
+              : leagueStatusFilter === "played"
+                ? fixture.status === "completed"
+                : fixture.status !== "completed"
+          );
+
+          let played = 0;
+          let leftWins = 0;
+          let rightWins = 0;
+          pairing.fixtures.forEach((fixture) => {
+            if (fixture.status !== "completed") return;
+            played += 1;
+            if (fixture.winner === left) leftWins += 1;
+            else if (fixture.winner === right) rightWins += 1;
+          });
+
+          return { key: pairing.key, left, right, total: pairing.fixtures.length, played, leftWins, rightWins, visible };
+        })
+        .filter((row) => row.visible.length > 0)
+        .sort((a, b) => (leaguePerspective ? a.right.localeCompare(b.right) : a.key.localeCompare(b.key))),
+    [leaguePairings, leaguePerspective, leagueStatusFilter]
   );
 
   const completion = useMemo(() => {
@@ -367,10 +414,12 @@ export const TournamentDetailScreen = () => {
       return `Round ${nextRound.round}`;
     }
 
-    const pending = leagueRounds.find((round) => round.fixtures.some((fixture) => fixture.status !== "completed"));
-    const current = pending ?? leagueRounds[leagueRounds.length - 1];
-    return current ? `Round ${current.round} of ${leagueRounds.length}` : "Round 1";
-  }, [completion.completed, leagueRounds, rounds, tournament]);
+    // A league has no stage to be at, so it reports how often everyone plays each other.
+    const meetings = leaguePairings.length
+      ? Math.round(leaguePairings.reduce((sum, pairing) => sum + pairing.fixtures.length, 0) / leaguePairings.length)
+      : 1;
+    return String(Math.max(1, meetings));
+  }, [completion.completed, leaguePairings, rounds, tournament]);
 
   const heroDisplayName = useMemo(() => {
     const trimmed = tournament?.name?.trim() ?? "";
@@ -527,7 +576,9 @@ export const TournamentDetailScreen = () => {
           <View style={[styles.heroFactDivider, { backgroundColor: colors.border }]} />
           <View style={styles.heroFact}>
             <Text style={[styles.heroFactValue, { color: colors.text }]} numberOfLines={1}>{stageLabel}</Text>
-            <Text style={[styles.heroFactLabel, { color: colors.textMuted }]}>Stage</Text>
+            <Text style={[styles.heroFactLabel, { color: colors.textMuted }]}>
+              {tournament.tournament_type === "knockout" ? "Stage" : "Meetings"}
+            </Text>
           </View>
         </View>
 
@@ -690,7 +741,9 @@ export const TournamentDetailScreen = () => {
               </>
             ) : (
               <>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>League Fixtures</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  {leaguePerspective ? `${leaguePerspective}'s opponents` : "Every pairing"}
+                </Text>
             <View style={styles.filterBar}>
               {(["all", "to play", "played"] as const).map((option) => {
                 const selected = leagueStatusFilter === option;
@@ -758,49 +811,95 @@ export const TournamentDetailScreen = () => {
               ) : null}
             </View>
 
-            {filteredLeagueRounds.length === 0 ? (
+            {visiblePairings.length === 0 ? (
               <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                {leagueStatusFilter === "played" ? "No results yet." : "Nothing left to play here."}
+                {leaguePairings.length === 0
+                  ? "No fixtures yet."
+                  : leagueStatusFilter === "played"
+                    ? "No results yet. Save a scoreline and it will show up here."
+                    : "Every match has been played."}
               </Text>
             ) : (
-              filteredLeagueRounds.map((group) => {
-                const played = group.fixtures.filter((fixture) => fixture.status === "completed").length;
-                const isCollapsed = collapsedLeagueRounds[group.round] ?? played === group.fixtures.length;
+              visiblePairings.map((row) => {
+                const isOpen = expandedPairings[row.key] ?? false;
+                const title = leaguePerspective ? row.right : `${row.left} v ${row.right}`;
 
                 return (
-                  <View key={`round-${group.round}`} style={styles.matchdayBlock}>
+                  <View
+                    key={row.key}
+                    style={[styles.pairingCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  >
                     <Pressable
-                      style={[styles.fixtureCollapseHeader, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-                      onPress={() =>
-                        setCollapsedLeagueRounds((prev) => ({ ...prev, [group.round]: !isCollapsed }))
-                      }
+                      onPress={() => {
+                        triggerHaptic("light");
+                        setExpandedPairings((prev) => ({ ...prev, [row.key]: !isOpen }));
+                      }}
                       accessibilityRole="button"
-                      accessibilityLabel={`Round ${group.round}, ${played} of ${group.fixtures.length} played`}
+                      accessibilityState={{ expanded: isOpen }}
+                      accessibilityLabel={`${title}, ${row.played} of ${row.total} played`}
+                      style={styles.pairingHeader}
                     >
-                      <Text style={[styles.matchdayTitle, { color: colors.text }]}>Round {group.round}</Text>
-                      <Text style={[styles.matchdayMeta, { color: colors.textMuted }]}>
-                        {played}/{group.fixtures.length}
-                      </Text>
+                      <View
+                        style={[styles.pairingBadge, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+                      >
+                        {leaguePerspective ? (
+                          <Text style={[styles.pairingInitials, { color: colors.textMuted }]}>{initialsOf(row.right)}</Text>
+                        ) : (
+                          <MaterialCommunityIcons name="account-multiple-outline" size={18} color={colors.textMuted} />
+                        )}
+                      </View>
+
+                      <View style={styles.pairingNames}>
+                        <Text style={[styles.pairingTitle, { color: colors.text }]} numberOfLines={1}>
+                          {title}
+                        </Text>
+                        <Text style={[styles.pairingMeta, { color: colors.textMuted }]}>
+                          {row.played === row.total
+                            ? row.total === 1
+                              ? "Played"
+                              : `All ${row.total} played`
+                            : `${row.played} of ${row.total} played`}
+                        </Text>
+                      </View>
+
+                      {row.played ? (
+                        <View style={[styles.pairingScore, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                          <Text
+                            style={[
+                              styles.pairingScoreText,
+                              { color: row.leftWins > row.rightWins ? colors.primary : colors.text },
+                            ]}
+                          >
+                            {row.leftWins}-{row.rightWins}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.pairingPending, { color: colors.textMuted }]}>To play</Text>
+                      )}
+
                       <MaterialCommunityIcons
-                        name={isCollapsed ? "chevron-down" : "chevron-up"}
-                        size={18}
+                        name={isOpen ? "chevron-up" : "chevron-down"}
+                        size={20}
                         color={colors.textMuted}
                       />
                     </Pressable>
 
-                    {!isCollapsed
-                      ? group.fixtures.map((fixture, fixtureIndex) => (
+                    {isOpen ? (
+                      <View style={styles.pairingBody}>
+                        {row.visible.map(({ fixture, meeting }, index) => (
                           <FixtureRow
                             key={fixture.id}
                             fixture={fixture}
-                            delay={30 * (fixtureIndex + 1)}
+                            caption={row.total > 1 ? `MEETING ${meeting} OF ${row.total}` : undefined}
+                            delay={30 * (index + 1)}
                             colors={colors}
                             collapsible
                             initialExpanded={false}
                             onSave={(fixtureId, frameScores) => updateFixtureResult(tournament.id, fixtureId, { frameScores })}
                           />
-                        ))
-                      : null}
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
                 );
               })
@@ -908,18 +1007,28 @@ export const TournamentDetailScreen = () => {
     </Modal>
 
     <Modal visible={showChampionModal && !!completion.champion} transparent animationType="fade" onRequestClose={() => setShowChampionModal(false)}>
-      <View style={styles.championOverlay}>
-        <View style={[styles.championCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.championTitle, { color: colors.primary }]}>Champion</Text>
-          <Text style={[styles.championName, { color: colors.text }]}>{completion.champion}</Text>
-          <Text style={[styles.championSubtitle, { color: colors.textMuted }]}>Tournament complete with {completion.done} fixtures recorded.</Text>
+      <Pressable style={styles.championOverlay} onPress={() => setShowChampionModal(false)} accessibilityLabel="Close">
+        <Pressable
+          style={[styles.championCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => null}
+          accessibilityViewIsModal
+        >
+          <View style={[styles.championAccentBar, { backgroundColor: colors.accent }]} />
 
-          <View style={styles.championActions}>
-            <Pressable style={[styles.championButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]} onPress={() => setShowChampionModal(false)}>
-              <Text style={[styles.championButtonText, { color: colors.text }]}>View Summary</Text>
-            </Pressable>
+          <View style={styles.championBody}>
+            <View style={[styles.championIcon, { backgroundColor: colors.accentWash, borderColor: colors.accent }]}>
+              <MaterialCommunityIcons name="trophy" size={28} color={colors.accent} />
+            </View>
+
+            <Text style={[styles.championKicker, { color: colors.accent }]}>Champion</Text>
+            <Text style={[styles.championName, { color: colors.text }]} numberOfLines={2}>
+              {completion.champion}
+            </Text>
+            <Text style={[styles.championSubtitle, { color: colors.textMuted }]}>
+              {tournament.name} is finished, with {completion.done} {completion.done === 1 ? "match" : "matches"} played.
+            </Text>
+
             <Pressable
-              style={[styles.championButton, { backgroundColor: colors.primary, borderColor: colors.primaryStrong }]}
               onPress={() => {
                 setShowChampionModal(false);
                 navigation.navigate("NewTournament", {
@@ -934,12 +1043,27 @@ export const TournamentDetailScreen = () => {
                   },
                 });
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Set up another tournament with the same players"
+              style={({ pressed }) => [
+                styles.championPrimary,
+                { backgroundColor: colors.accent, opacity: pressed ? 0.85 : 1 },
+              ]}
             >
-              <Text style={[styles.championButtonText, { color: colors.onPrimary }]}>Start New Tournament</Text>
+              <Text style={[styles.championPrimaryText, { color: colors.onAccent }]}>Play it again</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setShowChampionModal(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Look back over the results"
+              style={styles.championCancel}
+            >
+              <Text style={[styles.championCancelText, { color: colors.textMuted }]}>See the results</Text>
             </Pressable>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
     </View>
   );
@@ -1081,7 +1205,7 @@ const styles = StyleSheet.create({
   },
   sheetBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(4, 10, 8, 0.72)",
+    backgroundColor: SCRIM,
     justifyContent: "flex-end",
   },
   sheet: {
@@ -1232,8 +1356,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bestOfBadge: {
+    flexShrink: 1,
+    marginRight: SPACING.sm,
     fontSize: 11,
     fontWeight: "700",
+    letterSpacing: 0.4,
     textTransform: "uppercase",
   },
   statusPill: {
@@ -1374,15 +1501,64 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  matchdayMeta: {
+  pairingCard: {
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.sm,
+    overflow: "hidden",
+  },
+  pairingHeader: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  pairingBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pairingInitials: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  pairingNames: {
+    flex: 1,
+  },
+  pairingTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  pairingMeta: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  pairingScore: {
+    minWidth: 52,
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+  },
+  pairingScoreText: {
+    fontSize: 13,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
+  pairingPending: {
     fontSize: 12,
     fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    marginLeft: "auto",
-    marginRight: SPACING.sm,
   },
-  matchdayBlock: {
-    marginBottom: 10,
+  pairingBody: {
+    paddingHorizontal: SPACING.sm,
+    paddingBottom: SPACING.sm,
   },
   fixtureCollapseHeader: {
     borderWidth: 1,
@@ -1393,12 +1569,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  matchdayTitle: {
-    fontSize: 12,
-    fontWeight: "800",
-    marginBottom: 4,
-    textTransform: "uppercase",
   },
   matchdayCaret: {
     fontSize: 12,
@@ -1431,87 +1601,70 @@ const styles = StyleSheet.create({
   },
   championOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.56)",
-    alignItems: "center",
+    backgroundColor: SCRIM,
     justifyContent: "center",
-    padding: 18,
+    paddingHorizontal: SPACING.xl,
   },
   championCard: {
-    width: "100%",
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
+    overflow: "hidden",
   },
-  championTitle: {
-    fontSize: 18,
+  championAccentBar: {
+    height: 4,
+  },
+  championBody: {
+    padding: SPACING.xl,
+    alignItems: "center",
+  },
+  championIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.md,
+  },
+  championKicker: {
+    fontSize: 12,
     fontWeight: "800",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
   championName: {
-    marginTop: 8,
-    fontSize: 28,
-    fontWeight: "900",
+    fontSize: 24,
+    fontWeight: "800",
+    textAlign: "center",
+    marginTop: SPACING.xs,
   },
   championSubtitle: {
-    marginTop: 8,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginTop: SPACING.sm,
   },
-  championActions: {
-    marginTop: 14,
-    flexDirection: "row",
-    gap: 8,
-  },
-  championButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
+  championPrimary: {
+    alignSelf: "stretch",
+    minHeight: 48,
+    borderRadius: RADIUS.md,
     alignItems: "center",
-  },
-  championButtonText: {
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  actionsOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "center",
-    padding: 18,
+    marginTop: SPACING.xl,
   },
-  actionsCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-  },
-  actionsTitle: {
-    fontSize: 16,
+  championPrimaryText: {
+    fontSize: 15,
     fontWeight: "800",
-    marginBottom: 8,
   },
-  actionsItem: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    marginTop: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  championCancel: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.lg,
+    marginTop: SPACING.xs,
   },
-  actionsItemText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  actionsCancel: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    marginTop: 10,
-    alignItems: "center",
-  },
-  actionsCancelText: {
-    fontSize: 12,
-    fontWeight: "700",
+  championCancelText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   emptyWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText: { fontSize: 14 },

@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +18,7 @@ import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { TierPaywallModal } from "../../components/subscription";
 import { isSubscriptionLimitError } from "../../constants";
 import { todayKey } from "../../utils/date";
+import { useDialog } from "../../components/ui/DialogProvider";
 
 type MatchMode = "live" | "manual";
 
@@ -35,6 +35,7 @@ export const NewMatchScreen = () => {
   const { addMatch, matches } = useMatchesStore();
   const { colors } = useAppTheme();
   const subscription = useSubscriptionAccess();
+  const dialog = useDialog();
 
   const [mode, setMode] = useState<MatchMode>("live");
   const [opponentName, setOpponentName] = useState("");
@@ -44,11 +45,6 @@ export const NewMatchScreen = () => {
   const [targetFrames, setTargetFrames] = useState(5);
   const [isSaving, setIsSaving] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [dialog, setDialog] = useState<{
-    title: string;
-    message: string;
-    actions: Array<{ label: string; role?: "default" | "destructive"; onPress?: () => void }>;
-  } | null>(null);
 
   const recentOpponents = useMemo(() => {
     const opponentMap = new Map<string, { count: number; lastPlayed: string }>();
@@ -82,11 +78,14 @@ export const NewMatchScreen = () => {
     return { wins, losses, draws, total: opponentMatches.length };
   }, [matches, opponentName]);
 
-  const showDialog = (
-    title: string,
-    message: string,
-    actions: Array<{ label: string; role?: "default" | "destructive"; onPress?: () => void }> = [{ label: "OK" }]
-  ) => setDialog({ title, message, actions });
+  const showDialog = (title: string, message: string, tone: "default" | "danger" = "default") =>
+    dialog.alert({
+      title,
+      message,
+      tone,
+      icon: tone === "danger" ? "alert-circle-outline" : "information-outline",
+      confirmLabel: "OK",
+    });
 
   const getResult = (): MatchResult => {
     const uScore = parseInt(userScore) || 0;
@@ -103,7 +102,7 @@ export const NewMatchScreen = () => {
     }
 
     if (!opponentName.trim()) {
-      showDialog("Opponent required", "Please add an opponent name before starting live scoring.");
+      showDialog("Add an opponent first", "Live scoring needs a name for the other side of the scoreboard.");
       return;
     }
 
@@ -130,7 +129,7 @@ export const NewMatchScreen = () => {
       if (isSubscriptionLimitError(error)) {
         setShowPaywall(true);
       } else {
-        showDialog("Start failed", "Could not start live match right now.");
+        showDialog("Could not start the match", "Something went wrong setting up live scoring. Have another go in a moment.", "danger");
       }
     } finally {
       setIsSaving(false);
@@ -144,7 +143,7 @@ export const NewMatchScreen = () => {
     }
 
     if (!opponentName.trim()) {
-      showDialog("Opponent required", "Please add an opponent name.");
+      showDialog("Add an opponent first", "A match needs a name for the other side of the scoreboard.");
       return;
     }
 
@@ -152,7 +151,7 @@ export const NewMatchScreen = () => {
     const oScore = parseInt(opponentScore) || 0;
 
     if (uScore === 0 && oScore === 0) {
-      showDialog("Score required", "Please enter at least one score.");
+      showDialog("Add a score first", "Enter at least one score so the match has a result.");
       return;
     }
 
@@ -178,7 +177,7 @@ export const NewMatchScreen = () => {
       if (isSubscriptionLimitError(error)) {
         setShowPaywall(true);
       } else {
-        showDialog("Save failed", "Could not save this match right now.");
+        showDialog("Could not save the match", "Something went wrong saving it. Have another go in a moment.", "danger");
       }
     } finally {
       setIsSaving(false);
@@ -381,35 +380,6 @@ export const NewMatchScreen = () => {
         </View>
       </ScrollView>
 
-      <Modal visible={!!dialog} transparent animationType="fade" onRequestClose={() => setDialog(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setDialog(null)}>
-          <Pressable style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => null}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>{dialog?.title ?? ""}</Text>
-            <Text style={[styles.modalMessage, { color: colors.textMuted }]}>{dialog?.message ?? ""}</Text>
-            <View style={styles.modalActions}>
-              {(dialog?.actions ?? []).map((action, index) => (
-                <Pressable
-                  key={`${action.label}-${index}`}
-                  style={[
-                    styles.modalButton,
-                    {
-                      borderColor: action.role === "destructive" ? colors.danger : colors.border,
-                      backgroundColor: action.role === "destructive" ? colors.danger + "20" : colors.surfaceMuted,
-                    },
-                  ]}
-                  onPress={() => {
-                    setDialog(null);
-                    action.onPress?.();
-                  }}
-                >
-                  <Text style={[styles.modalButtonText, { color: action.role === "destructive" ? colors.danger : colors.text }]}>{action.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
       <TierPaywallModal
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
@@ -596,39 +566,5 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     fontWeight: "600",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    padding: 16,
-  },
-  modalCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  modalMessage: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  modalActions: {
-    marginTop: 14,
-    gap: 8,
-  },
-  modalButton: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  modalButtonText: {
-    fontSize: 14,
-    fontWeight: "700",
   },
 });

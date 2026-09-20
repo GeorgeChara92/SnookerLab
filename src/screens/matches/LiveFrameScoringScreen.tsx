@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LiveFrameEvent as SavedLiveFrameEvent, MatchesStackParamList } from "../../types";
 import { useAuthStore, useMatchesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { AppButton } from "../../components/ui/AppButton";
 import { AppDialog, type DialogRequest } from "../../components/ui/AppDialog";
 import { FoulSheet } from "../../components/matches/FoulSheet";
 import {
@@ -38,6 +37,7 @@ import {
   type LiveFrameState,
 } from "../../features/matches/liveFrameEngine";
 import { clearLiveFrame, loadLiveFrame, saveLiveFrame } from "../../features/matches/liveFrameStorage";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 
 const BALL_META: Array<{ key: LiveBall; color: string; textColor: string }> = [
   { key: "red", color: "#C7343A", textColor: "#FFFFFF" },
@@ -1002,9 +1002,15 @@ setDialog(
       />
 
       <Modal visible={!!selectedSavedFrame} transparent animationType="fade" onRequestClose={() => setSelectedSavedFrameId(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setSelectedSavedFrameId(null)}>
-          <Pressable style={[styles.modalCard, styles.savedLogModal, { backgroundColor: ui.panel, borderColor: ui.border }]} onPress={() => null}>
-            <Text style={[styles.modalTitle, { color: ui.text }]}>Frame {selectedSavedFrame?.frame_number} Log</Text>
+        <Pressable style={styles.modalOverlay} onPress={() => setSelectedSavedFrameId(null)} accessibilityLabel="Close">
+          <Pressable
+            style={[styles.modalCard, styles.savedLogModal, { backgroundColor: ui.panel, borderColor: ui.border }]}
+            onPress={() => null}
+            accessibilityViewIsModal
+          >
+            <View style={[styles.modalAccentBar, { backgroundColor: ui.accent }]} />
+            <View style={styles.savedLogBody}>
+            <Text style={[styles.modalTitle, { color: ui.text }]}>Frame {selectedSavedFrame?.frame_number} log</Text>
             <ScrollView style={styles.savedLogScroll}>
               {(selectedSavedFrame?.events ?? []).length === 0 ? (
                 <Text style={[styles.emptyLog, { color: ui.textMuted }]}>No events stored.</Text>
@@ -1027,7 +1033,18 @@ setDialog(
                 })
               )}
             </ScrollView>
-            <AppButton label="Close" variant="secondary" onPress={() => setSelectedSavedFrameId(null)} />
+            <Pressable
+              onPress={() => setSelectedSavedFrameId(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              style={({ pressed }) => [
+                styles.savedLogClose,
+                { backgroundColor: ui.panelSoft, borderColor: ui.border, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Text style={[styles.savedLogCloseText, { color: ui.text }]}>Close</Text>
+            </Pressable>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1731,26 +1748,42 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: SCRIM,
     justifyContent: "center",
-    padding: 16,
+    paddingHorizontal: SPACING.xl,
   },
   modalCard: {
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: RADIUS.xl,
+    overflow: "hidden",
+  },
+  modalAccentBar: {
+    height: 4,
   },
   savedLogModal: {
     maxHeight: "78%",
-    backgroundColor: "#0F201A",
     borderWidth: 1,
-    borderColor: "#2B4A3F",
+  },
+  savedLogBody: {
+    padding: SPACING.xl,
   },
   savedLogScroll: {
-    marginVertical: 10,
+    marginVertical: SPACING.md,
+  },
+  savedLogClose: {
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  savedLogCloseText: {
+    fontSize: 15,
+    fontWeight: "700",
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "800",
+    textAlign: "center",
   },
   modalLabel: {
     marginTop: 10,

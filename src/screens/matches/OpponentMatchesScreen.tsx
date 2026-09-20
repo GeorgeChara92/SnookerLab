@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   useNavigation,
   useRoute,
@@ -8,8 +8,10 @@ import {
 } from "@react-navigation/native";
 import { useMatchesStore } from "../../store";
 import type { Match, MatchesStackParamList } from "../../types";
+import { RADIUS, SPACING } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
+import { useDialog } from "../../components/ui/DialogProvider";
 
 export const OpponentMatchesScreen = () => {
   const route = useRoute<RouteProp<MatchesStackParamList, "OpponentMatches">>();
@@ -18,9 +20,9 @@ export const OpponentMatchesScreen = () => {
 
   const { matches, deleteMatch, getFrameRecordsByMatchId } = useMatchesStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
-  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const opponentMatches = useMemo(
@@ -104,13 +106,29 @@ export const OpponentMatchesScreen = () => {
     try {
       setIsDeleting(true);
       await Promise.all(selectedMatchIds.map((matchId) => deleteMatch(matchId)));
-      setIsDeleteConfirmOpen(false);
       exitSelectionMode();
     } catch (error) {
       console.warn("Failed to delete selected matches:", error);
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const confirmDeleteSelected = () => {
+    const count = selectedMatchIds.length;
+    if (count === 0) return;
+
+    dialog.confirm({
+      tone: "danger",
+      icon: "trash-can-outline",
+      title: `Delete ${count} ${count === 1 ? "match" : "matches"}?`,
+      message: "Their frames and breaks go too, and this cannot be undone.",
+      confirmLabel: count === 1 ? "Delete match" : "Delete matches",
+      cancelLabel: "Keep them",
+      onConfirm: () => {
+        void handleDeleteSelected();
+      },
+    });
   };
 
   return (
@@ -146,13 +164,18 @@ export const OpponentMatchesScreen = () => {
           <Pressable
             style={[
               styles.bulkDeleteButton,
-              { backgroundColor: "#5E1D21", borderColor: "#9A3A43" },
+              { backgroundColor: colors.danger, borderColor: colors.danger },
               selectedMatchIds.length === 0 && styles.bulkDeleteButtonDisabled,
             ]}
-            disabled={selectedMatchIds.length === 0}
-            onPress={() => setIsDeleteConfirmOpen(true)}
+            disabled={selectedMatchIds.length === 0 || isDeleting}
+            accessibilityRole="button"
+            accessibilityLabel={`Delete ${selectedMatchIds.length} selected ${selectedMatchIds.length === 1 ? "match" : "matches"}`}
+            accessibilityState={{ disabled: selectedMatchIds.length === 0 || isDeleting }}
+            onPress={confirmDeleteSelected}
           >
-            <Text style={styles.bulkDeleteText}>Delete Selected</Text>
+            <Text style={[styles.bulkDeleteText, { color: colors.onDanger }]}>
+              {isDeleting ? "Deleting…" : "Delete selected"}
+            </Text>
           </Pressable>
         </View>
       ) : null}
@@ -200,22 +223,6 @@ export const OpponentMatchesScreen = () => {
         )}
       />
 
-      <Modal visible={isDeleteConfirmOpen} transparent animationType="fade" onRequestClose={() => setIsDeleteConfirmOpen(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setIsDeleteConfirmOpen(false)}>
-          <Pressable style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => null}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Delete selected matches?</Text>
-            <Text style={[styles.modalMessage, { color: colors.textMuted }]}>This will permanently remove {selectedMatchIds.length} match{selectedMatchIds.length === 1 ? "" : "es"}.</Text>
-            <View style={styles.modalActions}>
-              <Pressable style={[styles.modalBtn, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]} onPress={() => setIsDeleteConfirmOpen(false)}>
-                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.modalBtn, styles.modalDeleteBtn]} onPress={handleDeleteSelected}>
-                <Text style={styles.modalDeleteText}>{isDeleting ? "Deleting..." : "Delete"}</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 };
@@ -260,17 +267,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   bulkDeleteButton: {
+    minHeight: 44,
+    justifyContent: "center",
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: SPACING.md,
   },
   bulkDeleteButtonDisabled: {
     opacity: 0.45,
   },
   bulkDeleteText: {
-    color: "#FFE8E8",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "800",
   },
   matchCard: {
@@ -333,51 +340,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: "#6FCFAD",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.52)",
-    justifyContent: "center",
-    padding: 16,
-  },
-  modalCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-  },
-  modalMessage: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  modalActions: {
-    marginTop: 12,
-    flexDirection: "row",
-    gap: 8,
-  },
-  modalBtn: {
-    flex: 1,
-    minHeight: 40,
-    borderWidth: 1,
-    borderRadius: 9,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  modalDeleteBtn: {
-    borderColor: "#9A3A43",
-    backgroundColor: "#5E1D21",
-  },
-  modalDeleteText: {
-    color: "#FFE8E8",
-    fontSize: 13,
-    fontWeight: "800",
   },
 });

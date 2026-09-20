@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { AppButton } from "./AppButton";
 
 type CodeConfirmModalProps = {
   visible: boolean;
@@ -19,6 +19,10 @@ type CodeConfirmModalProps = {
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 };
 
+/**
+ * A sibling of AppDialog for the gravest prompts: the player types the code back
+ * before the action can run, and the dialog stays put while it does.
+ */
 export const CodeConfirmModal = ({
   visible,
   title,
@@ -49,27 +53,38 @@ export const CodeConfirmModal = ({
   };
 
   const isValid = inputValue.trim().toUpperCase() === code;
+  const confirmDisabled = !isValid || loading;
+
+  const accent = danger ? colors.danger : colors.primary;
+  const onAccent = danger ? colors.onDanger : colors.onPrimary;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel}>
-        <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {icon && (
-              <View style={[styles.iconContainer, { backgroundColor: danger ? colors.danger + "15" : colors.primary + "15" }]}>
-                <MaterialCommunityIcons
-                  name={icon}
-                  size={32}
-                  color={danger ? colors.danger : colors.primary}
-                />
+      <Pressable style={styles.backdrop} onPress={onCancel} accessibilityLabel="Close">
+        <Pressable
+          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => null}
+          accessibilityViewIsModal
+        >
+          <View style={[styles.accentBar, { backgroundColor: accent }]} />
+
+          <View style={styles.body}>
+            {icon ? (
+              <View style={[styles.iconWrap, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                <MaterialCommunityIcons name={icon} size={26} color={accent} />
               </View>
-            )}
+            ) : null}
+
             <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
             <Text style={[styles.message, { color: colors.textMuted }]}>{message}</Text>
-            
-            <Text style={[styles.codeLabel, { color: colors.textMuted }]}>Enter this code to confirm:</Text>
-            <Text style={[styles.codeDisplay, { color: danger ? colors.danger : colors.primary }]}>{code}</Text>
-            
+
+            <Text style={[styles.codeLabel, { color: colors.textMuted }]}>Type this code to confirm</Text>
+            <View style={[styles.codeChip, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+              <Text style={[styles.codeDisplay, { color: accent }]} accessibilityLabel={`Confirmation code ${code.split("").join(" ")}`}>
+                {code}
+              </Text>
+            </View>
+
             <TextInput
               style={[styles.codeInput, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
               placeholder="Enter code"
@@ -79,27 +94,37 @@ export const CodeConfirmModal = ({
               autoCapitalize="characters"
               autoCorrect={false}
               maxLength={6}
+              accessibilityLabel="Confirmation code"
             />
 
-            <View style={styles.actions}>
-              <View style={styles.actionBtn}>
-                <AppButton
-                  label={cancelLabel}
-                  variant="secondary"
-                  onPress={onCancel}
-                  disabled={loading}
-                />
-              </View>
-              <View style={styles.actionBtn}>
-                <AppButton
-                  label={confirmLabel}
-                  variant={danger ? "danger" : "primary"}
-                  onPress={onConfirm}
-                  loading={loading}
-                  disabled={!isValid || loading}
-                />
-              </View>
-            </View>
+            <Pressable
+              onPress={onConfirm}
+              disabled={confirmDisabled}
+              accessibilityRole="button"
+              accessibilityLabel={confirmLabel}
+              accessibilityState={{ disabled: confirmDisabled, busy: loading }}
+              style={({ pressed }) => [
+                styles.confirm,
+                { backgroundColor: accent, opacity: confirmDisabled ? 0.5 : pressed ? 0.85 : 1 },
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={onAccent} />
+              ) : (
+                <Text style={[styles.confirmText, { color: onAccent }]}>{confirmLabel}</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={onCancel}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel={cancelLabel}
+              accessibilityState={{ disabled: loading }}
+              style={[styles.cancel, { opacity: loading ? 0.5 : 1 }]}
+            >
+              <Text style={[styles.cancelText, { color: colors.textMuted }]}>{cancelLabel}</Text>
+            </Pressable>
           </View>
         </Pressable>
       </Pressable>
@@ -110,69 +135,92 @@ export const CodeConfirmModal = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: SCRIM,
     justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  container: {
-    width: "100%",
-    maxWidth: 360,
+    paddingHorizontal: SPACING.xl,
   },
   card: {
-    borderRadius: 20,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
-    padding: 24,
+    overflow: "hidden",
+  },
+  accentBar: {
+    height: 4,
+  },
+  body: {
+    padding: SPACING.xl,
     alignItems: "center",
   },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  iconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   title: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: 8,
   },
   message: {
     fontSize: 14,
-    textAlign: "center",
     lineHeight: 20,
-    marginBottom: 16,
+    textAlign: "center",
+    marginTop: SPACING.sm,
   },
   codeLabel: {
     fontSize: 12,
-    marginBottom: 6,
+    fontWeight: "600",
+    marginTop: SPACING.lg,
+  },
+  codeChip: {
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    marginTop: SPACING.sm,
   },
   codeDisplay: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "800",
     letterSpacing: 3,
-    marginBottom: 16,
+    textAlign: "center",
   },
   codeInput: {
-    width: "100%",
+    alignSelf: "stretch",
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 18,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.lg,
+    fontSize: 17,
     fontWeight: "700",
     textAlign: "center",
     letterSpacing: 2,
-    marginBottom: 20,
+    marginTop: SPACING.md,
   },
-  actions: {
-    flexDirection: "row",
-    gap: 12,
-    width: "100%",
+  confirm: {
+    alignSelf: "stretch",
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xl,
   },
-  actionBtn: {
-    flex: 1,
+  confirmText: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  cancel: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.lg,
+    marginTop: SPACING.xs,
+  },
+  cancelText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

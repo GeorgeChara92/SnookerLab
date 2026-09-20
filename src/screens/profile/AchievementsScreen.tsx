@@ -7,6 +7,7 @@ import { useSeenAchievements } from "../../hooks/useSeenAchievements";
 import { AppCard } from "../../components/ui/AppCard";
 import { ACHIEVEMENTS, getPlayerLevel, type Achievement, type AchievementCategory } from "../../constants/achievements";
 import type { Match, SessionLog, RoutineScoreEntry, Routine } from "../../types";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 
 type AchievementStats = {
   matchesWon: number;
@@ -443,37 +444,55 @@ export const AchievementsScreen = () => {
 
       {/* Achievement Detail Modal */}
       <Modal visible={!!selectedAchievement} transparent animationType="fade" onRequestClose={() => setSelectedAchievement(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setSelectedAchievement(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setSelectedAchievement(null)} accessibilityLabel="Close">
           {selectedAchievement && (
-            <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View
-                style={[
-                  styles.modalIcon,
-                  {
-                    backgroundColor: unlockedAchievements.some((a) => a.id === selectedAchievement.id)
-                      ? TIER_COLORS[selectedAchievement.tier] + "20"
-                      : colors.surfaceMuted,
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={selectedAchievement.icon as any}
-                  size={48}
-                  color={unlockedAchievements.some((a) => a.id === selectedAchievement.id) ? TIER_COLORS[selectedAchievement.tier] : colors.textMuted}
-                />
+            <Pressable
+              style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => null}
+              accessibilityViewIsModal
+            >
+              <View style={[styles.modalAccentBar, { backgroundColor: TIER_COLORS[selectedAchievement.tier] }]} />
+
+              <View style={styles.modalBody}>
+                <View
+                  style={[
+                    styles.modalIcon,
+                    {
+                      backgroundColor: colors.surfaceMuted,
+                      borderColor: unlockedAchievements.some((a) => a.id === selectedAchievement.id)
+                        ? TIER_COLORS[selectedAchievement.tier]
+                        : colors.border,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={selectedAchievement.icon as any}
+                    size={34}
+                    color={unlockedAchievements.some((a) => a.id === selectedAchievement.id) ? TIER_COLORS[selectedAchievement.tier] : colors.textMuted}
+                  />
+                </View>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedAchievement.title}</Text>
+                <Text style={[styles.modalDescription, { color: colors.textMuted }]}>{selectedAchievement.description}</Text>
+                <View style={[styles.modalTier, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                  <Text style={[styles.modalTierText, { color: TIER_COLORS[selectedAchievement.tier] }]}>
+                    {selectedAchievement.tier.toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={[styles.modalXp, { color: colors.primary }]}>+{selectedAchievement.xpReward} XP</Text>
+
+                <Pressable
+                  onPress={() => setSelectedAchievement(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  style={({ pressed }) => [
+                    styles.modalClose,
+                    { backgroundColor: colors.surfaceMuted, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.modalCloseText, { color: colors.text }]}>Close</Text>
+                </Pressable>
               </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedAchievement.title}</Text>
-              <Text style={[styles.modalDescription, { color: colors.textMuted }]}>{selectedAchievement.description}</Text>
-              <View style={[styles.modalTier, { backgroundColor: TIER_COLORS[selectedAchievement.tier] + "20" }]}>
-                <Text style={[styles.modalTierText, { color: TIER_COLORS[selectedAchievement.tier] }]}>
-                  {selectedAchievement.tier.toUpperCase()}
-                </Text>
-              </View>
-              <Text style={[styles.modalXp, { color: colors.primary }]}>+{selectedAchievement.xpReward} XP</Text>
-              <Pressable style={[styles.modalClose, { backgroundColor: colors.surfaceMuted }]} onPress={() => setSelectedAchievement(null)}>
-                <Text style={[styles.modalCloseText, { color: colors.text }]}>Close</Text>
-              </Pressable>
-            </View>
+            </Pressable>
           )}
         </Pressable>
       </Modal>
@@ -552,14 +571,43 @@ const styles = StyleSheet.create({
   xpText: { fontSize: 13, fontWeight: "600" },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 320, borderRadius: 16, borderWidth: 1, padding: 24, alignItems: "center" },
-  modalIcon: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  modalTitle: { fontSize: 22, fontWeight: "800", textAlign: "center", marginBottom: 8 },
-  modalDescription: { fontSize: 14, textAlign: "center", lineHeight: 20, marginBottom: 12 },
-  modalTier: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 6 },
-  modalTierText: { fontSize: 12, fontWeight: "700" },
-  modalXp: { fontSize: 16, fontWeight: "700", marginTop: 8 },
-  modalClose: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 8 },
-  modalCloseText: { fontSize: 14, fontWeight: "600" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: SCRIM,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.xl,
+  },
+  modalCard: { borderRadius: RADIUS.xl, borderWidth: 1, overflow: "hidden" },
+  modalAccentBar: { height: 4 },
+  modalBody: { padding: SPACING.xl, alignItems: "center" },
+  modalIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.md,
+  },
+  modalTitle: { fontSize: 19, fontWeight: "800", textAlign: "center" },
+  modalDescription: { fontSize: 14, textAlign: "center", lineHeight: 20, marginTop: SPACING.sm },
+  modalTier: {
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+  },
+  modalTierText: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
+  modalXp: { fontSize: 16, fontWeight: "800", marginTop: SPACING.sm },
+  modalClose: {
+    alignSelf: "stretch",
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xl,
+  },
+  modalCloseText: { fontSize: 15, fontWeight: "700" },
 });

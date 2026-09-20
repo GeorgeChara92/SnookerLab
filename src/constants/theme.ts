@@ -142,6 +142,12 @@ export const RADIUS = {
 } as const;
 
 /**
+ * The scrim behind every dialog and sheet. Near-black with a trace of green, so the table
+ * cloth reads through it rather than a flat grey. One value, so nothing looks out of place.
+ */
+export const SCRIM = "rgba(4, 10, 8, 0.72)";
+
+/**
  * Type scale. `score` is the scoreboard voice: tabular figures so digits do not jump
  * as a break climbs, used for scores, breaks and headline stats.
  */

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -42,7 +42,6 @@ export const AnalysisDetailScreen = () => {
   const { analyses, deleteAnalysis } = useAIAnalysesStore();
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
@@ -103,8 +102,21 @@ export const AnalysisDetailScreen = () => {
       });
     } finally {
       setIsDeleting(false);
-      setShowDeleteModal(false);
     }
+  };
+
+  const confirmDelete = () => {
+    dialog.confirm({
+      tone: "danger",
+      icon: "trash-can-outline",
+      title: "Delete this analysis?",
+      message: "The analysis and its clip go too, and this cannot be undone.",
+      confirmLabel: "Delete analysis",
+      cancelLabel: "Keep it",
+      onConfirm: () => {
+        void handleDelete();
+      },
+    });
   };
 
   if (!analysis) {
@@ -164,8 +176,15 @@ export const AnalysisDetailScreen = () => {
             ))}
           </View>
         )}
-        <Pressable style={styles.deleteButton} onPress={() => setShowDeleteModal(true)}>
-          <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Delete</Text>
+        <Pressable
+          style={styles.deleteButton}
+          onPress={confirmDelete}
+          disabled={isDeleting}
+          accessibilityRole="button"
+          accessibilityLabel="Delete this analysis"
+          accessibilityState={{ disabled: isDeleting, busy: isDeleting }}
+        >
+          <Text style={[styles.deleteButtonText, { color: colors.danger }]}>{isDeleting ? "Deleting…" : "Delete"}</Text>
         </Pressable>
       </View>
 
@@ -251,22 +270,6 @@ export const AnalysisDetailScreen = () => {
         </View>
       )}
 
-      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}> 
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Delete Analysis?</Text>
-            <Text style={[styles.modalBody, { color: colors.textMuted }]}>This cannot be undone. The analysis and its video will be permanently removed.</Text>
-            <View style={styles.modalActions}>
-              <Pressable style={[styles.modalButton, styles.modalCancel]} onPress={() => setShowDeleteModal(false)}>
-                <Text style={[styles.modalCancelText, { color: colors.textMuted }]}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.modalButton, styles.modalDelete, { backgroundColor: colors.danger }]} onPress={handleDelete} disabled={isDeleting}>
-                <Text style={styles.modalDeleteText}>{isDeleting ? "Deleting..." : "Delete"}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 };
@@ -353,25 +356,4 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
   emptyTitle: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
   emptySubtitle: { fontSize: 14, textAlign: "center" },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalCard: {
-    borderRadius: 16,
-    padding: 20,
-    width: "100%",
-    maxWidth: 320,
-  },
-  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
-  modalBody: { fontSize: 14, lineHeight: 20, marginBottom: 20 },
-  modalActions: { flexDirection: "row", gap: 12 },
-  modalButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
-  modalCancel: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#ccc" },
-  modalCancelText: { fontSize: 14, fontWeight: "600" },
-  modalDelete: {},
-  modalDeleteText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
 });

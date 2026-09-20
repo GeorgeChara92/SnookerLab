@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Keyboard,
   KeyboardAvoidingView,
@@ -24,6 +25,7 @@ import { useRoutinesStore, useSessionsStore } from "../../store";
 import type { SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -423,15 +425,22 @@ export const SessionSetupScreen = () => {
       </View>
 
       <Modal visible={showSaveModal} transparent animationType="fade" onRequestClose={() => setShowSaveModal(false)}>
-        <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowSaveModal(false)} accessibilityLabel="Close">
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalContainer}>
-            <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Save Session</Text>
+            <Pressable
+              style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => null}
+              accessibilityViewIsModal
+            >
+              <View style={[styles.modalAccentBar, { backgroundColor: colors.primary }]} />
+
+              <View style={styles.modalBody}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Save this session</Text>
               <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
-                {selectedRoutines.length} routine{selectedRoutines.length !== 1 ? "s" : ""} · ~{estimatedDuration} min
+                {selectedRoutines.length} routine{selectedRoutines.length !== 1 ? "s" : ""} · about {estimatedDuration} min
               </Text>
 
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Session Name</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Session name</Text>
               <TextInput
                 style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
                 value={sessionName}
@@ -452,23 +461,39 @@ export const SessionSetupScreen = () => {
                 textAlignVertical="top"
               />
 
-              <View style={styles.modalActions}>
-                <Pressable style={[styles.modalBtn, { backgroundColor: colors.surfaceMuted }]} onPress={() => setShowSaveModal(false)}>
-                  <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.modalBtn, { backgroundColor: colors.primary }]}
-                  onPress={handleSave}
-                  disabled={isSaving}
-                >
-                  <Text style={[styles.modalBtnText, { color: colors.onPrimary }]}>
-                    {isSaving ? "Saving..." : "Save"}
+              <Pressable
+                onPress={handleSave}
+                disabled={isSaving}
+                accessibilityRole="button"
+                accessibilityLabel={templateId ? "Update the session" : "Save the session"}
+                accessibilityState={{ disabled: isSaving, busy: isSaving }}
+                style={({ pressed }) => [
+                  styles.modalConfirm,
+                  { backgroundColor: colors.primary, opacity: isSaving ? 0.65 : pressed ? 0.85 : 1 },
+                ]}
+              >
+                {isSaving ? (
+                  <ActivityIndicator size="small" color={colors.onPrimary} />
+                ) : (
+                  <Text style={[styles.modalConfirmText, { color: colors.onPrimary }]}>
+                    {templateId ? "Update session" : "Save session"}
                   </Text>
-                </Pressable>
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={() => setShowSaveModal(false)}
+                disabled={isSaving}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                style={[styles.modalCancel, { opacity: isSaving ? 0.5 : 1 }]}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.textMuted }]}>Cancel</Text>
+              </Pressable>
               </View>
-            </View>
+            </Pressable>
           </KeyboardAvoidingView>
-        </View>
+        </Pressable>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -598,26 +623,40 @@ const styles = StyleSheet.create({
   saveButtonText: { fontSize: 16, fontWeight: "700" },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: SCRIM,
     justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    paddingHorizontal: SPACING.xl,
   },
-  modalContainer: { width: "100%", maxWidth: 360 },
-  modalCard: { borderRadius: 18, padding: 22 },
-  modalTitle: { fontSize: 22, fontWeight: "800", marginBottom: 4 },
-  modalSubtitle: { fontSize: 13, marginBottom: 18 },
-  inputLabel: { fontSize: 13, fontWeight: "600", marginBottom: 6 },
+  modalContainer: { width: "100%" },
+  modalCard: { borderRadius: RADIUS.xl, borderWidth: 1, overflow: "hidden" },
+  modalAccentBar: { height: 4 },
+  modalBody: { padding: SPACING.xl },
+  modalTitle: { fontSize: 19, fontWeight: "800", textAlign: "center" },
+  modalSubtitle: { fontSize: 14, textAlign: "center", marginTop: SPACING.xs, marginBottom: SPACING.lg },
+  inputLabel: { fontSize: 13, fontWeight: "700", marginBottom: SPACING.xs },
   input: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
     fontSize: 15,
-    marginBottom: 14,
+    marginBottom: SPACING.md,
   },
   notesInput: { minHeight: 80, textAlignVertical: "top" },
-  modalActions: { flexDirection: "row", gap: 10, marginTop: 8 },
-  modalBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  modalBtnText: { fontSize: 15, fontWeight: "600" },
+  modalConfirm: {
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.sm,
+  },
+  modalConfirmText: { fontSize: 15, fontWeight: "800" },
+  modalCancel: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xs,
+  },
+  modalCancelText: { fontSize: 14, fontWeight: "600" },
 });

@@ -419,10 +419,10 @@ export const SettingsScreen = () => {
       {/* Reset Profile Initial Modal */}
       <ConfirmModal
         visible={showResetModal}
-        title="Reset Profile?"
-        message="This will delete all your matches, practice sessions, and progress. Your account and login will remain unchanged."
+        title="Reset your profile?"
+        message="Every match, practice session and bit of progress goes. Your account and login stay as they are."
         confirmLabel="Continue"
-        cancelLabel="Cancel"
+        cancelLabel="Keep everything"
         icon="refresh"
         onConfirm={handleResetFromModal}
         onCancel={() => setShowResetModal(false)}
@@ -431,10 +431,10 @@ export const SettingsScreen = () => {
       {/* Reset Profile Code Confirmation */}
       <CodeConfirmModal
         visible={showResetConfirm}
-        title="Confirm Reset"
-        message="Type the code below to permanently reset your profile data."
+        title="Confirm the reset"
+        message="Type the code below and your profile data is wiped for good."
         code={resetCode}
-        confirmLabel="Reset Profile"
+        confirmLabel="Reset profile"
         cancelLabel="Cancel"
         icon="alert-circle"
         danger
@@ -447,10 +447,10 @@ export const SettingsScreen = () => {
       {/* Delete Account Initial Modal */}
       <ConfirmModal
         visible={showDeleteModal}
-        title="Delete Account?"
-        message="This will permanently remove your account and all associated data. This action cannot be undone."
+        title="Delete your account?"
+        message="Your account and everything in it goes for good. This cannot be undone."
         confirmLabel="Continue"
-        cancelLabel="Cancel"
+        cancelLabel="Keep my account"
         icon="account-remove"
         danger
         onConfirm={handleDeleteFromModal}
@@ -460,10 +460,10 @@ export const SettingsScreen = () => {
       {/* Delete Account Code Confirmation */}
       <CodeConfirmModal
         visible={showDeleteConfirm}
-        title="Delete Account"
-        message="Type the code below to permanently delete your account."
+        title="Delete account"
+        message="Type the code below and your account is deleted for good."
         code={deleteCode}
-        confirmLabel="Delete Account"
+        confirmLabel="Delete account"
         cancelLabel="Cancel"
         icon="alert"
         danger

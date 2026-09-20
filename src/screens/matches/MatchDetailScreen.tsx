@@ -22,6 +22,7 @@ import { useMatchesStore } from "../../store";
 import type { MatchResult, MatchesStackParamList, LiveFrameEvent } from "../../types";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 
 type Visit = {
   id: string;
@@ -337,12 +338,23 @@ export const MatchDetailScreen = () => {
       </View>
 
       <Modal visible={!!selectedFrame} transparent animationType="slide" onRequestClose={() => setSelectedFrameId(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+        <Pressable style={styles.modalOverlay} onPress={() => setSelectedFrameId(null)} accessibilityLabel="Close">
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => null}
+            accessibilityViewIsModal
+          >
+            <View style={[styles.grabber, { backgroundColor: colors.border }]} />
+
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Frame {selectedFrame?.frame_number} Timeline</Text>
-              <Pressable style={styles.modalCloseBtn} onPress={() => setSelectedFrameId(null)}>
-                <Text style={[styles.modalCloseBtnText, { color: colors.textMuted }]}>✕</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Frame {selectedFrame?.frame_number} timeline</Text>
+              <Pressable
+                style={styles.modalCloseBtn}
+                onPress={() => setSelectedFrameId(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close the frame timeline"
+              >
+                <MaterialCommunityIcons name="close" size={20} color={colors.textMuted} />
               </Pressable>
             </View>
 
@@ -464,8 +476,17 @@ export const MatchDetailScreen = () => {
                 ))
               )}
             </ScrollView>
-          </View>
-        </View>
+
+            <Pressable
+              onPress={() => setSelectedFrameId(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              style={styles.modalCancel}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.textMuted }]}>Close</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -671,41 +692,58 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: SCRIM,
     justifyContent: "flex-end",
   },
   modalCard: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
     maxHeight: "85%",
     flex: 1,
-    paddingBottom: 34,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xxl,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: RADIUS.pill,
+    marginBottom: SPACING.md,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.md,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "800",
   },
   modalCloseBtn: {
-    padding: 4,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "flex-end",
+    justifyContent: "center",
   },
-  modalCloseBtnText: {
-    fontSize: 18,
+  modalCancel: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xs,
+  },
+  modalCancelText: {
+    fontSize: 14,
     fontWeight: "600",
   },
   statsGrid: {
     flexDirection: "row",
-    marginHorizontal: 16,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
+    marginHorizontal: SPACING.xl,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
   },
   statItem: {
     flex: 1,
@@ -725,8 +763,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalScrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.lg,
   },
   modalEmpty: {
     fontSize: 14,

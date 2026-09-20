@@ -14,6 +14,7 @@ import { SnookerPresetAvatar } from "../../components/profile/SnookerPresetAvata
 import { ACHIEVEMENTS, getPlayerLevel, type Achievement } from "../../constants/achievements";
 import { getSkillLabel, getCuePreferenceLabel, getCountryByCode } from "../../constants/profileOptions";
 import type { Match, SessionLog, RoutineScoreEntry, Routine } from "../../types";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 
 type AchievementStats = {
   matchesWon: number;
@@ -596,36 +597,60 @@ export const ProfileScreen = () => {
 
       {/* Achievement Detail Modal */}
       <Modal visible={!!selectedAchievement} transparent animationType="fade" onRequestClose={() => setSelectedAchievement(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setSelectedAchievement(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setSelectedAchievement(null)} accessibilityLabel="Close">
           {selectedAchievement && (
-            <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={[styles.modalIcon, { backgroundColor: colors.surfaceMuted }]}>
-                <MaterialCommunityIcons
-                  name={selectedAchievement.icon as any}
-                  size={40}
-                  color={unlockedAchievements.some((a) => a.id === selectedAchievement.id) ? colors.primary : colors.textMuted}
-                />
+            <Pressable
+              style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => null}
+              accessibilityViewIsModal
+            >
+              <View style={[styles.modalAccentBar, { backgroundColor: colors.primary }]} />
+
+              <View style={styles.modalBody}>
+                <View style={[styles.modalIcon, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                  <MaterialCommunityIcons
+                    name={selectedAchievement.icon as any}
+                    size={30}
+                    color={unlockedAchievements.some((a) => a.id === selectedAchievement.id) ? colors.primary : colors.textMuted}
+                  />
+                </View>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedAchievement.title}</Text>
+                <Text style={[styles.modalDescription, { color: colors.textMuted }]}>{selectedAchievement.description}</Text>
+                <View style={[styles.modalTier, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                  <Text style={[styles.modalTierText, { color: colors.text }]}>{selectedAchievement.tier.toUpperCase()}</Text>
+                </View>
+                <Text style={[styles.modalXp, { color: colors.primary }]}>+{selectedAchievement.xpReward} XP</Text>
+
+                <Pressable
+                  onPress={() => setSelectedAchievement(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close"
+                  style={({ pressed }) => [
+                    styles.modalClose,
+                    { backgroundColor: colors.surfaceMuted, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.modalCloseText, { color: colors.text }]}>Close</Text>
+                </Pressable>
               </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedAchievement.title}</Text>
-              <Text style={[styles.modalDescription, { color: colors.textMuted }]}>{selectedAchievement.description}</Text>
-              <View style={[styles.modalTier, { backgroundColor: colors.surfaceMuted }]}>
-                <Text style={[styles.modalTierText, { color: colors.text }]}>{selectedAchievement.tier.toUpperCase()}</Text>
-              </View>
-              <Text style={[styles.modalXp, { color: colors.primary }]}>+{selectedAchievement.xpReward} XP</Text>
-              <View style={styles.modalClose}>
-              <AppButton label="Close" variant="secondary" onPress={() => setSelectedAchievement(null)} />
-            </View>
-            </View>
+            </Pressable>
           )}
         </Pressable>
       </Modal>
 
       {/* Locked Avatar Modal */}
       <Modal visible={!!lockedAvatar} transparent animationType="fade" onRequestClose={() => setLockedAvatar(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setLockedAvatar(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setLockedAvatar(null)} accessibilityLabel="Close">
           {lockedAvatar && (
-            <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={[styles.avatarModalIcon, { backgroundColor: colors.surfaceMuted }]}>
+            <Pressable
+              style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => null}
+              accessibilityViewIsModal
+            >
+              <View style={[styles.modalAccentBar, { backgroundColor: colors.accent }]} />
+
+              <View style={styles.modalBody}>
+              <View style={[styles.avatarModalIcon, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
                 <SnookerPresetAvatar presetId={lockedAvatar.id} size={56} />
                 <View style={styles.avatarModalLock}>
                   <MaterialCommunityIcons name="lock" size={20} color={colors.textMuted} />
@@ -637,7 +662,7 @@ export const ProfileScreen = () => {
                   <Text style={[styles.avatarTagText, { color: colors.primary }]}>{lockedAvatar.tag}</Text>
                 </View>
               )}
-              <Text style={[styles.avatarUnlockLabel, { color: colors.textMuted }]}>Unlock Requirement</Text>
+              <Text style={[styles.avatarUnlockLabel, { color: colors.textMuted }]}>How to unlock it</Text>
               <Text style={[styles.avatarUnlockText, { color: colors.text }]}>{getUnlockConditionText(lockedAvatar)}</Text>
               {lockedAvatar.unlockCondition && (() => {
                 const progressPercent = (() => {
@@ -663,10 +688,19 @@ export const ProfileScreen = () => {
               <Text style={[styles.avatarProgressText, { color: colors.textMuted }]}>
                 {getUnlockProgressText(lockedAvatar)}
               </Text>
-              <View style={styles.modalClose}>
-                <AppButton label="Got it" variant="secondary" onPress={() => setLockedAvatar(null)} />
+              <Pressable
+                onPress={() => setLockedAvatar(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Got it"
+                style={({ pressed }) => [
+                  styles.modalClose,
+                  { backgroundColor: colors.surfaceMuted, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={[styles.modalCloseText, { color: colors.text }]}>Got it</Text>
+              </Pressable>
               </View>
-            </View>
+            </Pressable>
           )}
         </Pressable>
       </Modal>
@@ -837,24 +871,63 @@ const styles = StyleSheet.create({
   signOutText: { fontSize: 14, fontWeight: "500" },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 320, borderRadius: 16, borderWidth: 1, padding: 24, alignItems: "center" },
-  modalIcon: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  modalTitle: { fontSize: 20, fontWeight: "800", textAlign: "center", marginBottom: 8 },
-  modalDescription: { fontSize: 14, textAlign: "center", lineHeight: 20, marginBottom: 12 },
-  modalTier: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 6 },
-  modalTierText: { fontSize: 11, fontWeight: "700" },
-  modalXp: { fontSize: 16, fontWeight: "700", marginTop: 8 },
-  modalClose: { marginTop: 16, width: "100%" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: SCRIM,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.xl,
+  },
+  modalCard: { borderRadius: RADIUS.xl, borderWidth: 1, overflow: "hidden" },
+  modalAccentBar: { height: 4 },
+  modalBody: { padding: SPACING.xl, alignItems: "center" },
+  modalIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.md,
+  },
+  modalTitle: { fontSize: 19, fontWeight: "800", textAlign: "center" },
+  modalDescription: { fontSize: 14, textAlign: "center", lineHeight: 20, marginTop: SPACING.sm },
+  modalTier: {
+    marginTop: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+  },
+  modalTierText: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
+  modalXp: { fontSize: 16, fontWeight: "800", marginTop: SPACING.sm },
+  modalClose: {
+    alignSelf: "stretch",
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xl,
+  },
+  modalCloseText: { fontSize: 15, fontWeight: "700" },
 
   // Avatar Modal
-  avatarModalIcon: { width: 80, height: 80, borderRadius: 40, alignItems: "center", justifyContent: "center", marginBottom: 12, position: "relative" },
-  avatarModalLock: { position: "absolute", bottom: -4, right: -4, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 12, padding: 4 },
-  avatarTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginTop: 8 },
-  avatarTagText: { fontSize: 11, fontWeight: "700" },
-  avatarUnlockLabel: { fontSize: 11, fontWeight: "600", marginTop: 16, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 },
-  avatarUnlockText: { fontSize: 16, fontWeight: "700", textAlign: "center" },
-  avatarProgressBar: { width: "100%", height: 8, borderRadius: 4, marginTop: 12, overflow: "hidden" },
-  avatarProgressFill: { height: "100%", borderRadius: 4 },
+  avatarModalIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.md,
+    position: "relative",
+  },
+  avatarModalLock: { position: "absolute", bottom: -4, right: -4, backgroundColor: SCRIM, borderRadius: RADIUS.md, padding: SPACING.xs },
+  avatarTag: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs, borderRadius: RADIUS.pill, marginTop: SPACING.sm },
+  avatarTagText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.6 },
+  avatarUnlockLabel: { fontSize: 11, fontWeight: "700", marginTop: SPACING.lg, marginBottom: SPACING.xs, textTransform: "uppercase", letterSpacing: 1.2 },
+  avatarUnlockText: { fontSize: 15, fontWeight: "700", textAlign: "center" },
+  avatarProgressBar: { alignSelf: "stretch", height: 8, borderRadius: RADIUS.pill, marginTop: SPACING.md, overflow: "hidden" },
+  avatarProgressFill: { height: "100%", borderRadius: RADIUS.pill },
   avatarProgressText: { fontSize: 12, marginTop: 6 },
 });

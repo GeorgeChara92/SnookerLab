@@ -10,5 +10,9 @@ export const getAuthEmailActionErrorMessage = (error: any) => {
     return "Please enter a valid email address.";
   }
 
-  return raw || "Please try again in a moment.";
+  if (msg.includes("not found") || msg.includes("no user")) {
+    return "We could not find an account with that email address.";
+  }
+
+  return "Something went wrong at our end. Have another go in a moment.";
 };

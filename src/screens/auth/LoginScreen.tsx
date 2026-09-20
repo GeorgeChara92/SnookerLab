@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -18,6 +19,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
 
@@ -169,31 +171,65 @@ export const LoginScreen = ({ navigation, route }: Props) => {
       </KeyboardAvoidingView>
 
       <Modal visible={showResendModal} animationType="fade" transparent onRequestClose={() => setShowResendModal(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Resend confirmation email</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>Enter your email and we will send a new verification link.</Text>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowResendModal(false)} accessibilityLabel="Close">
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => null}
+            accessibilityViewIsModal
+          >
+            <View style={[styles.modalAccentBar, { backgroundColor: colors.primary }]} />
 
-            {resendError ? <Text style={[styles.errorText, { color: colors.danger }]}>{resendError}</Text> : null}
+            <View style={styles.modalBody}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Resend the confirmation email</Text>
+              <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>
+                Give us your email address and a fresh verification link is on its way.
+              </Text>
 
-            <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-              placeholder="Email"
-              placeholderTextColor={colors.textMuted}
-              value={resendEmail}
-              onChangeText={setResendEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoCorrect={false}
-              returnKeyType="done"
-              onSubmitEditing={handleResendFromModal}
-            />
+              {resendError ? <Text style={[styles.errorText, { color: colors.danger }]}>{resendError}</Text> : null}
 
-            <AppButton label="Send confirmation email" onPress={handleResendFromModal} loading={isLoading} />
-            <View style={{ height: 8 }} />
-            <AppButton label="Cancel" variant="secondary" onPress={() => setShowResendModal(false)} />
-          </View>
-        </View>
+              <TextInput
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+                placeholder="Email"
+                placeholderTextColor={colors.textMuted}
+                value={resendEmail}
+                onChangeText={setResendEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoCorrect={false}
+                returnKeyType="done"
+                accessibilityLabel="Email address"
+                onSubmitEditing={handleResendFromModal}
+              />
+
+              <Pressable
+                onPress={handleResendFromModal}
+                disabled={isLoading}
+                accessibilityRole="button"
+                accessibilityLabel="Send the confirmation email"
+                accessibilityState={{ disabled: isLoading, busy: isLoading }}
+                style={({ pressed }) => [
+                  styles.modalConfirm,
+                  { backgroundColor: colors.primary, opacity: isLoading ? 0.65 : pressed ? 0.85 : 1 },
+                ]}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.onPrimary} />
+                ) : (
+                  <Text style={[styles.modalConfirmText, { color: colors.onPrimary }]}>Send confirmation email</Text>
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={() => setShowResendModal(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                style={styles.modalCancel}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.textMuted }]}>Cancel</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
@@ -282,24 +318,53 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: SCRIM,
     justifyContent: "center",
-    paddingHorizontal: 18,
+    paddingHorizontal: SPACING.xl,
   },
   modalCard: {
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 18,
+    borderRadius: RADIUS.xl,
+    overflow: "hidden",
+  },
+  modalAccentBar: {
+    height: 4,
+  },
+  modalBody: {
+    padding: SPACING.xl,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: "800",
+    textAlign: "center",
   },
   modalSubtitle: {
-    marginTop: 6,
-    marginBottom: 12,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.lg,
     fontSize: 14,
     lineHeight: 20,
+    textAlign: "center",
+  },
+  modalConfirm: {
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xs,
+  },
+  modalConfirmText: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  modalCancel: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xs,
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   switchText: {
     textAlign: "center",

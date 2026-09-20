@@ -1,8 +1,8 @@
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { AppButton } from "./AppButton";
 
 type ConfirmModalProps = {
   visible: boolean;
@@ -17,6 +17,10 @@ type ConfirmModalProps = {
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 };
 
+/**
+ * A sibling of AppDialog for the prompts that cannot be raised through useDialog:
+ * these ones stay on screen while an async job runs, so they carry their own loading state.
+ */
 export const ConfirmModal = ({
   visible,
   title,
@@ -31,40 +35,57 @@ export const ConfirmModal = ({
 }: ConfirmModalProps) => {
   const { colors } = useAppTheme();
 
+  const accent = danger ? colors.danger : colors.primary;
+  const onAccent = danger ? colors.onDanger : colors.onPrimary;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel}>
-        <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {icon && (
-              <View style={[styles.iconContainer, { backgroundColor: danger ? colors.danger + "15" : colors.primary + "15" }]}>
-                <MaterialCommunityIcons
-                  name={icon}
-                  size={32}
-                  color={danger ? colors.danger : colors.primary}
-                />
+      <Pressable style={styles.backdrop} onPress={onCancel} accessibilityLabel="Close">
+        <Pressable
+          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => null}
+          accessibilityViewIsModal
+        >
+          <View style={[styles.accentBar, { backgroundColor: accent }]} />
+
+          <View style={styles.body}>
+            {icon ? (
+              <View style={[styles.iconWrap, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                <MaterialCommunityIcons name={icon} size={26} color={accent} />
               </View>
-            )}
+            ) : null}
+
             <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
             <Text style={[styles.message, { color: colors.textMuted }]}>{message}</Text>
-            <View style={styles.actions}>
-              <View style={styles.actionBtn}>
-                <AppButton
-                  label={cancelLabel}
-                  variant="secondary"
-                  onPress={onCancel}
-                  disabled={loading}
-                />
-              </View>
-              <View style={styles.actionBtn}>
-                <AppButton
-                  label={confirmLabel}
-                  variant={danger ? "danger" : "primary"}
-                  onPress={onConfirm}
-                  loading={loading}
-                />
-              </View>
-            </View>
+
+            <Pressable
+              onPress={onConfirm}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel={confirmLabel}
+              accessibilityState={{ disabled: loading, busy: loading }}
+              style={({ pressed }) => [
+                styles.confirm,
+                { backgroundColor: accent, opacity: loading ? 0.65 : pressed ? 0.85 : 1 },
+              ]}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={onAccent} />
+              ) : (
+                <Text style={[styles.confirmText, { color: onAccent }]}>{confirmLabel}</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={onCancel}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityLabel={cancelLabel}
+              accessibilityState={{ disabled: loading }}
+              style={[styles.cancel, { opacity: loading ? 0.5 : 1 }]}
+            >
+              <Text style={[styles.cancelText, { color: colors.textMuted }]}>{cancelLabel}</Text>
+            </Pressable>
           </View>
         </Pressable>
       </Pressable>
@@ -75,47 +96,62 @@ export const ConfirmModal = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: SCRIM,
     justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  container: {
-    width: "100%",
-    maxWidth: 340,
+    paddingHorizontal: SPACING.xl,
   },
   card: {
-    borderRadius: 20,
+    borderRadius: RADIUS.xl,
     borderWidth: 1,
-    padding: 24,
+    overflow: "hidden",
+  },
+  accentBar: {
+    height: 4,
+  },
+  body: {
+    padding: SPACING.xl,
     alignItems: "center",
   },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  iconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: RADIUS.pill,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   title: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: 8,
   },
   message: {
     fontSize: 14,
-    textAlign: "center",
     lineHeight: 20,
-    marginBottom: 20,
+    textAlign: "center",
+    marginTop: SPACING.sm,
   },
-  actions: {
-    flexDirection: "row",
-    gap: 12,
-    width: "100%",
+  confirm: {
+    alignSelf: "stretch",
+    minHeight: 48,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xl,
   },
-  actionBtn: {
-    flex: 1,
+  confirmText: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  cancel: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.lg,
+    marginTop: SPACING.xs,
+  },
+  cancelText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

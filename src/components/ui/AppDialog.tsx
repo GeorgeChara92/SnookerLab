@@ -1,7 +1,7 @@
 import React from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { RADIUS, SPACING } from "../../constants";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
 
 export type DialogTone = "default" | "danger" | "success";
@@ -117,7 +117,7 @@ export const AppDialog = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(4, 10, 8, 0.72)",
+    backgroundColor: SCRIM,
     justifyContent: "center",
     paddingHorizontal: SPACING.xl,
   },

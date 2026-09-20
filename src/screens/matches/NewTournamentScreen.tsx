@@ -15,16 +15,15 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { AppButton } from "../../components/ui/AppButton";
 import { useDialog } from "../../components/ui/DialogProvider";
-import { leagueRoundCount, leagueTieCount } from "../../features/tournaments/leagueSchedule";
+import { leagueTieCount } from "../../features/tournaments/leagueSchedule";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, TournamentEntryMode, TournamentPairingMode, TournamentType } from "../../types";
 import { TierPaywallModal } from "../../components/subscription";
-import { HIT_TARGET, RADIUS, SPACING, TYPE, isSubscriptionLimitError } from "../../constants";
+import { HIT_TARGET, RADIUS, SCRIM, SPACING, TYPE, isSubscriptionLimitError } from "../../constants";
 
 /** The scrim behind a modal, matching AppDialog and FoulSheet. There is no token for it. */
-const SCRIM = "rgba(4, 10, 8, 0.72)";
 
 const framesOptions = [1, 3, 5, 7, 9, 11, 13, 19];
 
@@ -160,6 +159,9 @@ function Segmented<T extends string>({
   );
 }
 
+/** A sane ceiling: 20 times through is already a very long season. */
+const MAX_MEETINGS = 20;
+
 export const NewTournamentScreen = () => {
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
   const route = useRoute<RouteProp<MatchesStackParamList, "NewTournament">>();
@@ -190,6 +192,9 @@ export const NewTournamentScreen = () => {
   const [bestOfFrames, setBestOfFrames] = useState(prefill?.bestOfFrames ?? 5);
   /** League only: how many times each pair meets. */
   const [meetings, setMeetings] = useState(1);
+  /** Big leagues run more than four times through, so the count can be typed. */
+  const [isCustomMeetings, setIsCustomMeetings] = useState(false);
+  const [customMeetings, setCustomMeetings] = useState("5");
   const [drawModalVisible, setDrawModalVisible] = useState(false);
   const [drawParticipants, setDrawParticipants] = useState<string[]>([]);
   const [drawPreviewPairs, setDrawPreviewPairs] = useState<Array<{ a: string; b: string }>>([]);
@@ -223,7 +228,14 @@ export const NewTournamentScreen = () => {
   const hasEnoughParticipants = realEntries.length >= 2;
   const framesToWin = Math.floor(bestOfFrames / 2) + 1;
   const leagueTies = leagueTieCount(realEntries.length, meetings);
-  const leagueRounds = leagueRoundCount(realEntries.length, meetings);
+  const matchesEach = Math.max(0, realEntries.length - 1) * meetings;
+
+  const applyCustomMeetings = (value: string) => {
+    const digits = value.replace(/[^0-9]/g, "").slice(0, 2);
+    setCustomMeetings(digits);
+    const parsed = Number(digits);
+    if (digits && Number.isFinite(parsed) && parsed >= 1) setMeetings(Math.min(MAX_MEETINGS, parsed));
+  };
   const step = creationSteps[currentStep];
   const isLastStep = currentStep === creationSteps.length - 1;
 
@@ -819,24 +831,23 @@ export const NewTournamentScreen = () => {
           title="How often does everyone play each other?"
           hint={
             realEntries.length >= 2
-              ? `${leagueTies} ${leagueTies === 1 ? "match" : "matches"} in total, over ${leagueRounds} ${
-                  leagueRounds === 1 ? "round" : "rounds"
-                }.`
-              : "Add players to see how long the league will run."
+              ? `${leagueTies} ${leagueTies === 1 ? "match" : "matches"} in all, ${matchesEach} each.`
+              : "Add players to see how many matches that is."
           }
         >
           <View style={styles.chipRow}>
             {[1, 2, 3, 4].map((option) => {
-              const selected = meetings === option;
+              const selected = !isCustomMeetings && meetings === option;
               return (
                 <Pressable
                   key={option}
-                  onPress={() => setMeetings(option)}
+                  onPress={() => {
+                    setIsCustomMeetings(false);
+                    setMeetings(option);
+                  }}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
-                  accessibilityLabel={
-                    option === 1 ? "Play everyone once" : `Play everyone ${option} times`
-                  }
+                  accessibilityLabel={option === 1 ? "Play everyone once" : `Play everyone ${option} times`}
                   style={[
                     styles.meetingChip,
                     {
@@ -851,7 +862,67 @@ export const NewTournamentScreen = () => {
                 </Pressable>
               );
             })}
+
+            <Pressable
+              onPress={() => {
+                setIsCustomMeetings(true);
+                applyCustomMeetings(customMeetings || "5");
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isCustomMeetings }}
+              accessibilityLabel="Type how many times everyone plays"
+              style={[
+                styles.meetingChip,
+                {
+                  borderColor: isCustomMeetings ? colors.primary : colors.border,
+                  backgroundColor: isCustomMeetings ? colors.surface : colors.surfaceMuted,
+                },
+              ]}
+            >
+              <Text style={[styles.meetingLabel, { color: isCustomMeetings ? colors.primary : colors.text }]}>
+                Custom
+              </Text>
+            </Pressable>
           </View>
+
+          {isCustomMeetings ? (
+            <View style={styles.meetingCustomRow}>
+              <Pressable
+                onPress={() => applyCustomMeetings(String(Math.max(1, meetings - 1)))}
+                accessibilityRole="button"
+                accessibilityLabel="One time fewer"
+                style={[styles.meetingStep, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+              >
+                <MaterialCommunityIcons name="minus" size={18} color={colors.text} />
+              </Pressable>
+
+              <TextInput
+                value={customMeetings}
+                onChangeText={applyCustomMeetings}
+                onBlur={() => setCustomMeetings(String(meetings))}
+                keyboardType="number-pad"
+                maxLength={2}
+                accessibilityLabel="Times everyone plays each other"
+                style={[
+                  styles.meetingInput,
+                  { borderColor: colors.primary, backgroundColor: colors.surface, color: colors.text },
+                ]}
+              />
+
+              <Pressable
+                onPress={() => applyCustomMeetings(String(Math.min(MAX_MEETINGS, meetings + 1)))}
+                accessibilityRole="button"
+                accessibilityLabel="One time more"
+                style={[styles.meetingStep, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+              >
+                <MaterialCommunityIcons name="plus" size={18} color={colors.text} />
+              </Pressable>
+
+              <Text style={[styles.meetingCustomHint, { color: colors.textMuted }]}>
+                times each, up to {MAX_MEETINGS}
+              </Text>
+            </View>
+          ) : null}
         </Section>
       ) : null}
 
@@ -1118,7 +1189,9 @@ export const NewTournamentScreen = () => {
         ? [
             {
               label: "Fixtures",
-              value: `Everyone plays each other ${meetings === 1 ? "once" : meetings === 2 ? "twice" : `${meetings} times`}, ${leagueTies} matches`,
+              value: `Everyone plays each other ${
+                meetings === 1 ? "once" : meetings === 2 ? "twice" : `${meetings} times`
+              }, ${leagueTies} matches`,
             },
           ]
         : []),
@@ -1563,6 +1636,35 @@ const styles = StyleSheet.create({
   meetingLabel: {
     fontSize: 14,
     fontWeight: "700",
+  },
+  meetingCustomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+  meetingStep: {
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  meetingInput: {
+    width: 68,
+    height: HIT_TARGET,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"],
+  },
+  meetingCustomHint: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
   },
   frameChip: {
     minWidth: HIT_TARGET,

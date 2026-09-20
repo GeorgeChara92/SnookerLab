@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { ACHIEVEMENTS, type Achievement } from "../../constants/achievements";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 
 type UnlockableItem = {
   id: string;
@@ -290,10 +291,10 @@ export const UnlockQueueProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <UnlockQueueContext.Provider value={{ queue, showUnlock, showAchievementUnlock, showLevelUp, showAvatarUnlock, clearQueue }}>
       {children}
       <Modal visible={isVisible} transparent animationType="none" onRequestClose={handleBackdropPress} statusBarTranslucent>
-        <Pressable style={styles.backdrop} onPress={handleBackdropPress}>
+        <Pressable style={styles.backdrop} onPress={handleBackdropPress} accessibilityLabel="Close">
           <Animated.View style={[styles.backdropOverlay, { opacity: backdropOpacity }]} />
           
-          <Pressable style={styles.modalContainer} onPress={(e) => e.stopPropagation()}>
+          <Pressable style={styles.modalContainer} onPress={(e) => e.stopPropagation()} accessibilityViewIsModal>
             {particleAnims.map((particle, i) => (
               <Animated.View
                 key={i}
@@ -357,8 +358,16 @@ export const UnlockQueueProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 )}
               </Animated.View>
 
-              <Pressable style={[styles.tapHint, { backgroundColor: colors.surfaceMuted }]} onPress={handleBackdropPress}>
-                <Text style={[styles.tapHintText, { color: colors.textMuted }]}>Tap to continue</Text>
+              <Pressable
+                onPress={handleBackdropPress}
+                accessibilityRole="button"
+                accessibilityLabel="Continue"
+                style={({ pressed }) => [
+                  styles.tapHint,
+                  { backgroundColor: colors.surfaceMuted, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={[styles.tapHintText, { color: colors.text }]}>Continue</Text>
               </Pressable>
             </Animated.View>
 
@@ -392,7 +401,7 @@ const styles = StyleSheet.create({
   },
   backdropOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: SCRIM,
   },
   modalContainer: {
     width: SCREEN_WIDTH * 0.88,
@@ -407,9 +416,9 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "100%",
-    borderRadius: 28,
-    borderWidth: 2,
-    padding: 28,
+    borderRadius: RADIUS.xl,
+    borderWidth: 1,
+    padding: SPACING.xl,
     alignItems: "center",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.35,
@@ -417,62 +426,68 @@ const styles = StyleSheet.create({
     elevation: 16,
   },
   iconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 88,
+    height: 88,
+    borderRadius: RADIUS.pill,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 18,
+    marginBottom: SPACING.lg,
     overflow: "visible",
   },
   iconGlow: {
     position: "absolute",
     width: 120,
     height: 120,
-    borderRadius: 60,
+    borderRadius: RADIUS.pill,
     opacity: 0.3,
   },
   typeLabel: {
     fontSize: 11,
     fontWeight: "800",
-    letterSpacing: 2,
-    marginBottom: 10,
+    letterSpacing: 1.2,
+    marginBottom: SPACING.sm,
     textTransform: "uppercase",
+    textAlign: "center",
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: 8,
   },
   description: {
-    fontSize: 15,
+    fontSize: 14,
     textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 16,
+    lineHeight: 20,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
   xpBadge: {
     flexDirection: "row",
+    alignSelf: "center",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.pill,
     borderWidth: 1,
   },
   xpText: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "800",
   },
   tapHint: {
-    marginTop: 20,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 14,
+    alignSelf: "stretch",
+    minHeight: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
   },
   tapHintText: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "700",
   },
   glowRing: {
     position: "absolute",

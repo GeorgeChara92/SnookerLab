@@ -1,6 +1,6 @@
 import React from "react";
 import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { RADIUS, SPACING } from "../../constants";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import type { BallColourName } from "../../constants/theme";
 import type { LiveFoulType } from "../../features/matches/liveFrameEngine";
@@ -163,7 +163,7 @@ export const FoulSheet = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(4, 10, 8, 0.72)",
+    backgroundColor: SCRIM,
     justifyContent: "flex-end",
   },
   sheet: {

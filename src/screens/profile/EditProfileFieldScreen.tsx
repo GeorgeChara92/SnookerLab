@@ -21,6 +21,7 @@ import {
   type CueSetupSelection,
 } from "../../constants/profileOptions";
 import type { ProfileStackParamList, SkillLevel } from "../../types";
+import { RADIUS, SCRIM, SPACING } from "../../constants";
 
 type FieldRoute = RouteProp<ProfileStackParamList, "EditProfileField">;
 
@@ -209,13 +210,15 @@ export const EditProfileFieldScreen = () => {
           </View>
 
           <Modal visible={activeCueField !== null} transparent animationType="fade" onRequestClose={() => setActiveCueField(null)}>
-            <Pressable style={styles.modalOverlay} onPress={() => setActiveCueField(null)}>
+            <Pressable style={styles.modalOverlay} onPress={() => setActiveCueField(null)} accessibilityLabel="Close">
               <Pressable
                 style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
                 onPress={() => null}
+                accessibilityViewIsModal
               >
+                <View style={[styles.modalAccentBar, { backgroundColor: colors.primary }]} />
                 {activeCueField ? (
-                  <>
+                  <View style={styles.modalBody}>
                     <Text style={[styles.modalTitle, { color: colors.text }]}>{cueFieldConfig[activeCueField].label}</Text>
                     <FlatList
                       data={cueFieldConfig[activeCueField].options}
@@ -226,8 +229,14 @@ export const EditProfileFieldScreen = () => {
                           <Pressable
                             style={[
                               styles.modalOption,
-                              { borderColor: colors.border, backgroundColor: isSelected ? colors.primary + "12" : colors.surfaceMuted },
+                              {
+                                borderColor: isSelected ? colors.primary : colors.border,
+                                backgroundColor: colors.surfaceMuted,
+                              },
                             ]}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: isSelected }}
+                            accessibilityLabel={cueFieldConfig[activeCueField].format(item)}
                             onPress={() => {
                               setCueSetup((prev) => ({ ...prev, [activeCueField]: item }));
                               setActiveCueField(null);
@@ -241,7 +250,16 @@ export const EditProfileFieldScreen = () => {
                         );
                       }}
                     />
-                  </>
+
+                    <Pressable
+                      onPress={() => setActiveCueField(null)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel"
+                      style={styles.modalCancel}
+                    >
+                      <Text style={[styles.modalCancelText, { color: colors.textMuted }]}>Cancel</Text>
+                    </Pressable>
+                  </View>
                 ) : null}
               </Pressable>
             </Pressable>
@@ -389,30 +407,48 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(2,6,12,0.62)",
+    backgroundColor: SCRIM,
     justifyContent: "center",
-    padding: 20,
+    paddingHorizontal: SPACING.xl,
   },
   modalCard: {
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: RADIUS.xl,
+    overflow: "hidden",
     maxHeight: "72%",
   },
+  modalAccentBar: {
+    height: 4,
+  },
+  modalBody: {
+    padding: SPACING.xl,
+    flexShrink: 1,
+  },
   modalTitle: {
-    fontSize: 17,
+    fontSize: 19,
     fontWeight: "800",
-    marginBottom: 10,
+    textAlign: "center",
+    marginBottom: SPACING.md,
   },
   modalOption: {
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    marginBottom: 8,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.sm,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  modalCancel: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.xs,
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   modalOptionText: {
     fontSize: 15,
