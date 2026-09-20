@@ -15,7 +15,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { LiveFrameEvent as SavedLiveFrameEvent, MatchesStackParamList } from "../../types";
 import { useAuthStore, useMatchesStore } from "../../store";
-import { useSnookerScanStore } from "../../store/snookerScanStore";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
 import {
@@ -115,7 +114,6 @@ export const LiveFrameScoringScreen = () => {
   const { colors, isDark } = useAppTheme();
   const { user } = useAuthStore();
   const { getMatchById, getFrameRecordsByMatchId, getNextFrameNumber, saveFrameRecord, updateMatch, deleteMatch } = useMatchesStore();
-  const snookerScanStore = useSnookerScanStore();
   const match = getMatchById(route.params.matchId);
 
   const frameRecords = getFrameRecordsByMatchId(route.params.matchId);
@@ -467,7 +465,6 @@ export const LiveFrameScoringScreen = () => {
           const reset = reRack(frameRef.current);
           frameRef.current = reset;
           setFrame(reset);
-          snookerScanStore.endScan();
         },
       },
     ]);
@@ -547,7 +544,6 @@ Alert.alert(
               frameRef.current = nextFrame;
               setFrame(nextFrame);
               setUndoStack([]);
-              snookerScanStore.endScan();
             },
           },
           { text: "Done", onPress: () => navigation.goBack() },
@@ -580,11 +576,8 @@ Alert.alert(
     ]);
   };
 
-  const handleOpenSnookerScan = () => {
+  const handleOpenTableCapture = () => {
     if (!match) return;
-    const scanInProgress =
-      snookerScanStore.isActive && snookerScanStore.matchId === match.id && snookerScanStore.frameNumber === frame.frameNumber;
-    if (!scanInProgress) snookerScanStore.startScan(match.id, frame.frameNumber);
     navigation.navigate("ARTableCapture" as any, { matchId: match.id, frameNumber: frame.frameNumber });
   };
 
@@ -935,18 +928,14 @@ Alert.alert(
             <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => switchPlayer(state))}>
               <Text style={[styles.actionPillText, { color: ui.text }]}>Switch</Text>
             </Pressable>
-            {snookerScanStore.isActive && snookerScanStore.markers.length > 0 ? (
-              <Pressable
-                style={[styles.actionPill, { backgroundColor: ui.snookerBg, borderColor: ui.snookerBorder }]}
-                onPress={handleOpenSnookerScan}
-              >
-                <Text style={[styles.actionPillText, { color: ui.snookerText }]}>Markers ({snookerScanStore.markers.length})</Text>
-              </Pressable>
-            ) : (
-              <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={handleOpenSnookerScan}>
-                <Text style={[styles.actionPillText, { color: ui.text }]}>Scan Snooker</Text>
-              </Pressable>
-            )}
+            <Pressable
+              style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
+              onPress={handleOpenTableCapture}
+              accessibilityRole="button"
+              accessibilityLabel="Capture the table position in AR"
+            >
+              <Text style={[styles.actionPillText, { color: ui.text }]}>Scan Table</Text>
+            </Pressable>
           </View>
 
           <View style={styles.secondaryControlsWrap}>
