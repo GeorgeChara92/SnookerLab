@@ -19,8 +19,8 @@ const RC_PROJECT_ID = Deno.env.get("REVENUECAT_PROJECT_ID") ?? "2c1d0f01";
 const parseIds = (raw, fallback) =>
   (raw ?? fallback).split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
 
-const CENTURY_IDS = parseIds(Deno.env.get("RC_CENTURY_IDS"), "century,century_monthly,monthly_12");
-const HALF_CENTURY_IDS = parseIds(Deno.env.get("RC_HALF_CENTURY_IDS"), "half_century,half_century_monthly,monthly_3_46");
+const CENTURY_IDS = parseIds(Deno.env.get("RC_CENTURY_IDS"), "century,century_monthly,monthly_12,entlc40a5bb905");
+const HALF_CENTURY_IDS = parseIds(Deno.env.get("RC_HALF_CENTURY_IDS"), "half_century,half_century_monthly,monthly_3_46,entl243f0aff7d");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,10 +46,18 @@ let catalogCache = null;
 const loadCatalog = async () => {
   if (catalogCache) return catalogCache;
 
-  const [entitlements, products] = await Promise.all([
-    rcGet(`/projects/${RC_PROJECT_ID}/entitlements`),
-    rcGet(`/projects/${RC_PROJECT_ID}/products`),
-  ]);
+  // Optional: needs a key with project configuration read access. Without it the internal
+  // ids configured above still identify the tier, so a failure here is not fatal.
+  let entitlements = null;
+  let products = null;
+  try {
+    [entitlements, products] = await Promise.all([
+      rcGet(`/projects/${RC_PROJECT_ID}/entitlements`),
+      rcGet(`/projects/${RC_PROJECT_ID}/products`),
+    ]);
+  } catch (error) {
+    console.warn("catalog lookup unavailable", { message: error?.message });
+  }
 
   const entitlementNames = new Map();
   for (const item of entitlements?.items ?? []) {

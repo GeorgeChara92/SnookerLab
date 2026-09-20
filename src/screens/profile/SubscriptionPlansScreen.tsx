@@ -310,9 +310,9 @@ export const SubscriptionPlansScreen = () => {
 
       {status === "error" ? (
         <View style={[styles.notice, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
-          <MaterialCommunityIcons name="wifi-off" size={18} color={colors.textMuted} />
+          <MaterialCommunityIcons name="sync-alert" size={18} color={colors.textMuted} />
           <Text style={[styles.noticeText, { color: colors.textMuted }]}>
-            Couldn't reach the store. Pull down to try again.
+            Couldn't refresh your plan just now. Your access is unchanged. Pull down to try again.
           </Text>
         </View>
       ) : null}
