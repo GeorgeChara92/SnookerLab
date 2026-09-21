@@ -10,7 +10,7 @@ import { useRoutinesStore, useRoutineScoresStore } from "../../store";
 import type { PracticeStackParamList, ScoringType } from "../../types";
 import { getYoutubeThumbnailUrl, getYoutubeWatchUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { getRoutineReferenceImageByRoutineId, isRoutineAREnabled } from "../../features/ar/routineLayouts";
+import { getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
 import { getGuidePlaybookByRoutineId } from "../../features/guides/guidePlaybooks";
 
 const scoringTypeLabel = (type: ScoringType): string => {
@@ -65,7 +65,6 @@ export const RoutineDetailScreen = () => {
   const referenceImage = routine ? getRoutineReferenceImageByRoutineId(routine.id) : undefined;
   const hasImageGuide = !isGuide && Boolean(referenceImage);
   const guidePlaybook = routine && isGuide ? getGuidePlaybookByRoutineId(routine.id) : undefined;
-  const arEnabled = !isGuide && isRoutineAREnabled(routine);
 
   useEffect(() => {
     if (hasImageGuide) {
@@ -309,15 +308,6 @@ export const RoutineDetailScreen = () => {
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Setup</Text>
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.setup_instructions}</Text>
-            {arEnabled ? (
-              <Pressable
-                style={[styles.arButton, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
-                onPress={() => navigation.navigate("ARRoutineSetup", { routineId: routine.id })}
-              >
-                <Text style={[styles.arButtonTitle, { color: colors.text }]}>Open AR Setup Assist (Beta)</Text>
-                <Text style={[styles.arButtonSubtitle, { color: colors.textMuted }]}>Use camera overlays to verify spots and drill layout before you begin.</Text>
-              </Pressable>
-            ) : null}
           </View>
 
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
@@ -498,22 +488,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 19,
-  },
-  arButton: {
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 10,
-  },
-  arButtonTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  arButtonSubtitle: {
-    marginTop: 3,
-    fontSize: 12,
-    lineHeight: 17,
   },
   thumbnailWrap: {
     borderRadius: 12,

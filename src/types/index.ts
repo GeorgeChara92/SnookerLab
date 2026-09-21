@@ -310,7 +310,6 @@ export type PracticeStackParamList = {
   RoutinesList: { categoryId: string };
   RoutineDetail: { routineId: string };
   RecordRoutineScore: { routineId: string };
-  ARRoutineSetup: { routineId: string };
 };
 
 export type MatchesStackParamList = {
@@ -318,7 +317,8 @@ export type MatchesStackParamList = {
   OpponentMatches: { opponentName: string };
   MatchDetail: { matchId: string };
   LiveFrameScoring: { matchId: string };
-  ARTableCapture: { matchId: string; frameNumber: number };
+  /** Recording a snookered position, and replacing the balls after a miss. */
+  ScanSnooker: { matchId: string; frameNumber: number };
   NewMatch: { opponentName?: string } | undefined;
   NewTournament:
     | {

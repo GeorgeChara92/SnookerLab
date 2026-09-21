@@ -33,13 +33,12 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "./plugins/with-snooker-arkit",
       "expo-video",
       [
         "expo-image-picker",
         {
           "photosPermission": "Snooker Lab needs access to your videos so you can choose a clip of your practice for AI coaching analysis.",
-          "cameraPermission": "Snooker Lab uses the camera to line up your table in AR, so practice routines and table positions can be placed on the real table in front of you.",
+          "cameraPermission": "Snooker Lab uses the camera to record practice clips for AI coaching, and to scan the table so balls can be put back in the right place.",
           "microphonePermission": false
         }
       ]

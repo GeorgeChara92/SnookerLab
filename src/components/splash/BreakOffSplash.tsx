@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Polygon, Rect, Stop } from "react-native-svg";
 import { FONTS, DISPLAY_TEXT_SCALE } from "../../constants";
+import { TABLE } from "../../features/scanSnooker/table";
 
 /**
  * The opening shot: a break-off, as it is played.
@@ -47,12 +48,13 @@ const BALL = {
 } as const;
 
 // ---------------------------------------------------------------------------- the table in mm
-const TABLE_LENGTH = 3569;
-const TABLE_WIDTH = 1778;
-const BALL_MM = 52.5;
-const BAULK_FROM_BOTTOM = 737;
-const D_RADIUS = 292;
-const BLACK_FROM_TOP = 324;
+// The same table Scan Snooker measures against, so there is one set of dimensions in the app.
+const TABLE_LENGTH = TABLE.length;
+const TABLE_WIDTH = TABLE.width;
+const BALL_MM = TABLE.ball;
+const BAULK_FROM_BOTTOM = TABLE.baulkFromBottom;
+const D_RADIUS = TABLE.dRadius;
+const BLACK_FROM_TOP = TABLE.blackFromTop;
 /** How far past the screen the cushions sit, so the pockets and rails stay out of sight. */
 const OVERHANG = 14;
 

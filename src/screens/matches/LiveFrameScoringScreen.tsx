@@ -596,7 +596,7 @@ setDialog(
 
   const handleOpenTableCapture = () => {
     if (!match) return;
-    navigation.navigate("ARTableCapture" as any, { matchId: match.id, frameNumber: frame.frameNumber });
+    navigation.navigate("ScanSnooker" as any, { matchId: match.id, frameNumber: frame.frameNumber });
   };
 
   useEffect(() => {
@@ -951,9 +951,9 @@ setDialog(
               style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
               onPress={handleOpenTableCapture}
               accessibilityRole="button"
-              accessibilityLabel="Capture the table position in AR"
+              accessibilityLabel="Scan snooker: record the position before a snooker, or replace the balls after a miss"
             >
-              <Text style={[styles.actionPillText, { color: ui.text }]}>Scan Table</Text>
+              <Text style={[styles.actionPillText, { color: ui.text }]}>Scan snooker</Text>
             </Pressable>
           </View>
 
