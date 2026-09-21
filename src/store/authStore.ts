@@ -113,10 +113,20 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       signOut: async () => {
-        await supabase.auth.signOut();
-        await logoutBilling();
-        await Promise.all(LEGACY_STORE_KEYS.map((key) => safeStorage.removeItem(key)));
-        set({ user: null, session: null, isAuthenticated: false, requiresPasswordReset: false });
+        // Signing out must always work on this phone, even offline or if Supabase is slow: the
+        // local session is cleared whatever happens to the calls around it.
+        try {
+          await Promise.race([
+            supabase.auth.signOut({ scope: "local" }),
+            new Promise((resolve) => setTimeout(resolve, 4000)),
+          ]);
+          await logoutBilling();
+          await Promise.all(LEGACY_STORE_KEYS.map((key) => safeStorage.removeItem(key)));
+        } catch (error) {
+          console.warn("Sign out cleanup failed:", error);
+        } finally {
+          set({ user: null, session: null, isAuthenticated: false, requiresPasswordReset: false });
+        }
       },
       resetPassword: async (email) => {
         set({ isLoading: true });

@@ -1,5 +1,5 @@
-import React from "react";
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { ActivityIndicator, Image, LayoutAnimation, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore, useRoutinesStore } from "../../store";
@@ -48,17 +48,20 @@ export const ProfileScreen = () => {
     });
   };
 
-  const confirmSignOut = () => {
-    dialog.confirm({
-      title: "Sign out?",
-      message: "Your data is saved to your account and comes back when you sign in again.",
-      icon: "logout",
-      confirmLabel: "Sign out",
-      cancelLabel: "Stay signed in",
-      onConfirm: () => {
-        void signOut();
-      },
-    });
+  // The confirm sits in the page rather than in a pop-up. Profile is itself a sheet, and a pop-up
+  // over a sheet on iOS could leave the switch to the login screen stuck halfway.
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const askToSignOut = (value: boolean) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setConfirmingSignOut(value);
+  };
+
+  // Signing out swaps the whole app to the login screen, which closes this sheet with it.
+  const doSignOut = async () => {
+    setSigningOut(true);
+    await signOut();
   };
 
   const usage = [
@@ -292,14 +295,58 @@ export const ProfileScreen = () => {
         <Row icon="help-circle-outline" label="Help and support" onPress={() => void openSupport()} />
       </View>
 
-      <Pressable
-        onPress={confirmSignOut}
-        accessibilityRole="button"
-        accessibilityLabel="Sign out"
-        style={styles.signOut}
-      >
-        <Text style={[styles.signOutText, { color: colors.textMuted }]}>Sign out</Text>
-      </Pressable>
+      {confirmingSignOut ? (
+        <View style={[styles.signOutConfirm, { backgroundColor: colors.surface, borderColor: colors.danger }]}>
+          <Text style={[styles.signOutTitle, { color: colors.text }]}>Sign out of this phone?</Text>
+          <Text style={[styles.signOutBody, { color: colors.textMuted }]}>
+            Your matches, practice and reports are saved to your account and come back when you sign in.
+          </Text>
+          <View style={styles.signOutActions}>
+            <Pressable
+              onPress={() => askToSignOut(false)}
+              disabled={signingOut}
+              accessibilityRole="button"
+              accessibilityLabel="Stay signed in"
+              style={({ pressed }) => [
+                styles.signOutAction,
+                { backgroundColor: pressed ? colors.border : colors.surfaceMuted },
+              ]}
+            >
+              <Text style={[styles.signOutActionText, { color: colors.text }]}>Stay signed in</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void doSignOut()}
+              disabled={signingOut}
+              accessibilityRole="button"
+              accessibilityLabel="Sign out now"
+              accessibilityState={{ busy: signingOut }}
+              style={({ pressed }) => [
+                styles.signOutAction,
+                { backgroundColor: colors.danger, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              {signingOut ? (
+                <ActivityIndicator color={colors.onDanger} />
+              ) : (
+                <Text style={[styles.signOutActionText, { color: colors.onDanger }]}>Sign out</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        <Pressable
+          onPress={() => askToSignOut(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+          style={({ pressed }) => [
+            styles.signOut,
+            { borderColor: colors.danger, backgroundColor: pressed ? colors.surfaceMuted : colors.surface },
+          ]}
+        >
+          <MaterialCommunityIcons name="logout" size={20} color={colors.danger} />
+          <Text style={[styles.signOutText, { color: colors.danger }]}>Sign out</Text>
+        </Pressable>
+      )}
     </ScrollView>
   );
 };
@@ -385,6 +432,27 @@ const styles = StyleSheet.create({
   usageLabel: { fontSize: 14, fontWeight: "600" },
   usageValue: { fontSize: 13, fontWeight: "600" },
 
-  signOut: { alignItems: "center", justifyContent: "center", minHeight: HIT_TARGET, marginTop: SPACING.sm },
-  signOutText: { fontSize: 15, fontWeight: "700" },
+  signOut: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 6,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.lg,
+  },
+  signOutText: { fontSize: 16, fontWeight: "800" },
+  signOutConfirm: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, marginTop: SPACING.lg, gap: SPACING.xs },
+  signOutTitle: { fontSize: 16, fontWeight: "800" },
+  signOutBody: { fontSize: 13, lineHeight: 18 },
+  signOutActions: { flexDirection: "row", gap: SPACING.sm, marginTop: SPACING.sm },
+  signOutAction: {
+    flex: 1,
+    minHeight: HIT_TARGET,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  signOutActionText: { fontSize: 15, fontWeight: "800" },
 });

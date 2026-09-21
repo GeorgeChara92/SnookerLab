@@ -347,15 +347,31 @@ const cleanList = (value: unknown): string[] =>
         .filter(Boolean)
     : [];
 
+/**
+ * The time a finding happens, as "0:04". Gemini writes it several ways - "0:04", "00:04",
+ * "0:04.5", "0:03-0:05", "4s", "4" - so the first time in whatever it wrote is taken.
+ */
+const findingTime = (at: string) => {
+  const clock = at.match(/(\d{1,2}):(\d{2})/);
+  if (clock) return `${Number(clock[1])}:${clock[2]}`;
+  const seconds = at.match(/^\s*(\d{1,3})(?:\.\d+)?\s*(?:s|secs?|seconds?)?\s*$/i);
+  if (seconds) {
+    const total = Number(seconds[1]);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+  }
+  return null;
+};
+
 /** "0:04" plus the point becomes "0:04 · The bridge ...", so the app shows where to look. */
 const cleanFindings = (value: unknown): string[] =>
   Array.isArray(value)
     ? value
         .map((item: any) => {
           const point = typeof item?.point === "string" ? item.point.trim() : "";
-          const at = typeof item?.at === "string" ? item.at.trim() : "";
           if (!point) return "";
-          return /^\d{1,2}:\d{2}$/.test(at) ? `${at} · ${point}` : point;
+          const time = typeof item?.at === "string" ? findingTime(item.at) : null;
+          if (!time && item?.at) console.warn(`Unrecognised finding time: ${JSON.stringify(item.at)}`);
+          return time ? `${time} · ${point}` : point;
         })
         .filter(Boolean)
     : [];
