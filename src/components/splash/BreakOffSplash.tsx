@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Svg, { Defs, LinearGradient, Path, Polygon, Rect, Stop } from "react-native-svg";
+import Svg, { Defs, LinearGradient, Path, Polygon, RadialGradient, Rect, Stop } from "react-native-svg";
 import { FONTS, DISPLAY_TEXT_SCALE } from "../../constants";
 import { TABLE } from "../../features/scanSnooker/table";
 
@@ -242,7 +242,7 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
   const { width, height } = useWindowDimensions();
   const finished = useRef(false);
   const layout = useMemo(() => layoutBreak(width, height), [height, width]);
-  const { bedW, bedL, top, d, cx, baulkY, dR, colours, reds, cueStart, contact, path, pathStops, dir } = layout;
+  const { d, cx, baulkY, dR, colours, reds, cueStart, contact, path, pathStops, dir } = layout;
 
   // ---------------------------------------------------------------- the clock
   const clock = useRef(new Animated.Value(0)).current;
@@ -353,20 +353,18 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
         >
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: tableIn }]}>
             {/* ------------------------------------------------ the baize, lit from above */}
-            <View
-              style={{
-                position: "absolute",
-                width: bedW * 1.5,
-                height: bedL * 0.95,
-                borderRadius: bedW,
-                left: cx - bedW * 0.75,
-                top: top + bedL * 0.03,
-                backgroundColor: BAIZE_LIGHT,
-                opacity: 0.5,
-              }}
-            />
-            <View style={[styles.edgeShade, { top: 0, height: height * 0.08 }]} />
-            <View style={[styles.edgeShade, { bottom: 0, height: height * 0.08 }]} />
+            {/* One soft gradient, brightest under the lamp and darkening towards every edge. Hard-edged
+                bands here once looked like a header and tab bar showing through. */}
+            <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
+              <Defs>
+                <RadialGradient id="lamp" cx="50%" cy="48%" rx="80%" ry="62%" fx="50%" fy="45%">
+                  <Stop offset="0" stopColor={BAIZE_LIGHT} stopOpacity={1} />
+                  <Stop offset="0.55" stopColor={BAIZE} stopOpacity={1} />
+                  <Stop offset="1" stopColor={BAIZE_EDGE} stopOpacity={1} />
+                </RadialGradient>
+              </Defs>
+              <Rect x={0} y={0} width={width} height={height} fill="url(#lamp)" />
+            </Svg>
 
             {/* ------------------------------------------------ the baulk line and the D */}
             <View style={[styles.line, { left: 0, right: 0, top: baulkY - 0.5 }]} />
@@ -501,7 +499,6 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
 
 const styles = StyleSheet.create({
   root: { backgroundColor: BAIZE, zIndex: 100, elevation: 100 },
-  edgeShade: { position: "absolute", left: 0, right: 0, backgroundColor: BAIZE_EDGE, opacity: 0.55 },
   line: { position: "absolute", height: 1, backgroundColor: LINE },
   at: { position: "absolute" },
   ripple: { position: "absolute", borderWidth: 2, borderColor: "#FFFFFF" },
