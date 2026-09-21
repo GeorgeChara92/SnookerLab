@@ -8,6 +8,7 @@ import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import { addDays, countStreak, dateKeyFrom, parseDateValue, startOfWeekMonday, toLocalDateKey } from "../../utils/date";
 import { BoardPanel, ScoreStrip } from "../../components/scoreboard/Scoreboard";
 import { FormStrip } from "../../components/matches/MatchRows";
+import { BreaksPanel } from "../../components/matches/BreaksPanel";
 import { countsAsResult, groupByOpponent, relativeDate, summariseMatches, byNewest } from "../../features/matches/matchSummary";
 import { calendarWeeks, countByDay, longestStreak, thisWeek } from "../../features/stats/activity";
 
@@ -706,6 +707,8 @@ export const DashboardScreen = () => {
             </View>
           </View>
         </BoardPanel>
+
+        <BreaksPanel />
 
         <View style={styles.grid}>
           {winRateTile()}

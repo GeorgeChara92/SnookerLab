@@ -37,6 +37,7 @@ import {
   type LiveFrameState, lastBallFor } from "../../features/matches/liveFrameEngine";
 import { clearLiveFrame, loadLiveFrame, saveLiveFrame } from "../../features/matches/liveFrameStorage";
 import { RADIUS, SCRIM, SPACING, DISPLAY_TEXT_SCALE } from "../../constants";
+import { ShareMatchSheet } from "../../components/matches/ShareMatchSheet";
 
 const BALL_META: Array<{ key: LiveBall; color: string; textColor: string }> = [
   { key: "red", color: "#C7343A", textColor: "#FFFFFF" },
@@ -119,6 +120,7 @@ export const LiveFrameScoringScreen = () => {
   const frameRef = useRef(frame);
   const hasRestoredFrameRef = useRef(false);
   const [undoStack, setUndoStack] = useState<LiveFrameState[]>([]);
+  const [shareOpen, setShareOpen] = useState(false);
   const [isFoulOpen, setIsFoulOpen] = useState(false);
   const [foulValue, setFoulValue] = useState<4 | 5 | 6 | 7>(4);
   const [foulType, setFoulType] = useState<LiveFoulType>("other");
@@ -529,8 +531,11 @@ setDialog(
               message: `${projectedMatchWinner} wins it ${projectedWins.user}-${projectedWins.opponent}.`,
               tone: "success",
               icon: "trophy-outline",
-              confirmLabel: "Back to match",
-              onConfirm: () => navigation.goBack(),
+              confirmLabel: "Share result",
+              cancelLabel: "Back to match",
+              // iOS will not show one pop-up while another is still closing.
+              onConfirm: () => setTimeout(() => setShareOpen(true), 400),
+              onCancel: () => navigation.goBack(),
             }
           : {
               title: abandoned ? "Frame abandoned" : "Frame saved",
@@ -1066,6 +1071,16 @@ setDialog(
           </Pressable>
         </Pressable>
       </Modal>
+      {match ? (
+        <ShareMatchSheet
+          match={match}
+          visible={shareOpen}
+          onClose={() => {
+            setShareOpen(false);
+            navigation.goBack();
+          }}
+        />
+      ) : null}
     </View>
   );
 };

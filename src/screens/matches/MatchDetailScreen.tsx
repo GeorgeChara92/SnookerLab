@@ -21,6 +21,8 @@ import {
 import { useMatchesStore } from "../../store";
 import type { MatchResult, MatchesStackParamList, LiveFrameEvent } from "../../types";
 import { useDialog } from "../../components/ui/DialogProvider";
+import { ShareMatchSheet } from "../../components/matches/ShareMatchSheet";
+import { countsAsResult } from "../../features/matches/matchSummary";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { RADIUS, SCRIM, SPACING } from "../../constants";
 
@@ -107,6 +109,7 @@ export const MatchDetailScreen = () => {
   const [notes, setNotes] = useState(match?.notes ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const frameRecords = getFrameRecordsByMatchId(matchId).sort((a, b) => b.frame_number - a.frame_number);
   const selectedFrame = frameRecords.find((frame) => frame.id === selectedFrameId);
   const hasManualScoreline = (match?.user_score ?? 0) > 0 || (match?.opponent_score ?? 0) > 0 || (match?.frames_played ?? 0) > 0;
@@ -246,6 +249,17 @@ export const MatchDetailScreen = () => {
         <Pressable style={styles.dismissKeyboard} onPress={() => Keyboard.dismiss()}>
           <Text style={[styles.dismissKeyboardText, { color: colors.text }]}>Done Editing</Text>
         </Pressable>
+
+        {countsAsResult(match) ? (
+          <Pressable
+            onPress={() => setShareOpen(true)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.shareButton, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+          >
+            <MaterialCommunityIcons name="export-variant" size={20} color={colors.onPrimary} />
+            <Text style={[styles.shareButtonText, { color: colors.onPrimary }]}>Share result</Text>
+          </Pressable>
+        ) : null}
 
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.title, { color: colors.text }]}>Edit Match</Text>
@@ -488,6 +502,9 @@ export const MatchDetailScreen = () => {
           </Pressable>
         </Pressable>
       </Modal>
+      {countsAsResult(match) ? (
+        <ShareMatchSheet match={match} visible={shareOpen} onClose={() => setShareOpen(false)} />
+      ) : null}
     </KeyboardAvoidingView>
   );
 };
@@ -564,6 +581,16 @@ function groupEventsIntoVisits(events: LiveFrameEvent[]): Visit[] {
 }
 
 const styles = StyleSheet.create({
+  shareButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: 50,
+    borderRadius: RADIUS.md,
+    marginBottom: SPACING.md,
+  },
+  shareButtonText: { fontSize: 16, fontWeight: "800" },
   container: {
     flex: 1,
   },
