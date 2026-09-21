@@ -26,7 +26,8 @@ export const AnalysisDetailScreen = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { analyses, deleteAnalysis } = useAIAnalysesStore();
+  const { analyses, deleteAnalysis, runAnalysis } = useAIAnalysesStore();
+  const [retrying, setRetrying] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -213,12 +214,41 @@ export const AnalysisDetailScreen = () => {
       {status.tone === "failed" ? (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.danger }]}>
           <Text style={[styles.cardTitle, { color: colors.danger }]}>This clip could not be analysed</Text>
-          <Text style={[styles.bodyText, { color: colors.textMuted }]}>
-            Delete it and upload again. A short, steady clip of a single shot works best.
+          <Text style={[styles.bodyText, { color: colors.text }]}>
+            {analysis.error_message ?? "Something went wrong analysing this clip."}
           </Text>
-          {analysis.error_message ? (
-            <Text style={[styles.errorDetail, { color: colors.textSubtle }]}>{analysis.error_message}</Text>
-          ) : null}
+          <Text style={[styles.bodyText, { color: colors.textMuted }]}>
+            Trying again uses the same clip and does not count as another analysis.
+          </Text>
+          <Pressable
+            onPress={async () => {
+              setRetrying(true);
+              try {
+                await runAnalysis(analysis.id);
+              } catch {
+                // The reason is already on the card.
+              } finally {
+                setRetrying(false);
+              }
+            }}
+            disabled={retrying}
+            accessibilityRole="button"
+            accessibilityLabel="Try the analysis again"
+            accessibilityState={{ disabled: retrying, busy: retrying }}
+            style={({ pressed }) => [
+              styles.retry,
+              { backgroundColor: colors.primary, opacity: pressed || retrying ? 0.8 : 1 },
+            ]}
+          >
+            {retrying ? (
+              <ActivityIndicator color={colors.onPrimary} />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="refresh" size={18} color={colors.onPrimary} />
+                <Text style={[styles.retryText, { color: colors.onPrimary }]}>Try again</Text>
+              </>
+            )}
+          </Pressable>
         </View>
       ) : null}
 
@@ -226,6 +256,33 @@ export const AnalysisDetailScreen = () => {
       {report ? (
         <>
           <Text style={[styles.summary, { color: colors.text }]}>{report.summary}</Text>
+
+          {/* How much the camera showed, so a thin report reads as a thin view, not a verdict. */}
+          {report.confidence ? (
+            <View
+              style={[
+                styles.viewNote,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: report.confidence === "low" ? colors.warning : colors.border,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={report.confidence === "high" ? "eye-check-outline" : "eye-outline"}
+                size={18}
+                color={report.confidence === "high" ? colors.primary : colors.textMuted}
+              />
+              <Text style={[styles.viewNoteText, { color: colors.textMuted }]}>
+                {report.confidence === "high"
+                  ? "Clear view of what this analysis needs"
+                  : report.confidence === "medium"
+                    ? "Partial view: some of this report is limited by the camera angle"
+                    : "Limited view: film side-on and level with the cue for a fuller report"}
+                {report.camera_view ? `. Camera: ${report.camera_view}` : ""}
+              </Text>
+            </View>
+          ) : null}
 
           {report.positives.length ? (
             <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -303,6 +360,26 @@ export const AnalysisDetailScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  retry: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.sm,
+  },
+  retryText: { fontSize: 15, fontWeight: "800" },
+  viewNote: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  viewNoteText: { flex: 1, fontSize: 13, lineHeight: 18 },
   container: { flex: 1 },
   content: { padding: SPACING.lg, paddingBottom: SPACING.xxl, gap: SPACING.md },
 

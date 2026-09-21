@@ -54,6 +54,9 @@ const mapRow = (row: any): AIAnalysis => ({
   updated_at: row.updated_at,
 });
 
+/** A failure the server has already explained and recorded on the row. */
+class CoachReportedError extends Error {}
+
 export const useAIAnalysesStore = create<AIAnalysesState>()(
   persist(
     (set, get) => ({
@@ -122,10 +125,16 @@ export const useAIAnalysesStore = create<AIAnalysesState>()(
           ),
         }));
 
-        await supabase
-          .from("ai_analyses")
-          .update({ status: "processing", error_message: null, updated_at: processingAt })
-          .eq("id", analysisId);
+        // Only the server moves the row to "processing": it claims the row in one step so the
+        // same clip is never analysed (and billed) twice. Doing it here first made that claim
+        // fail, because the server only picks up rows that are not already processing.
+        const refresh = async () => {
+          const { data: row } = await supabase.from("ai_analyses").select("*").eq("id", analysisId).single();
+          if (!row) return null;
+          const fresh = mapRow(row);
+          set((state) => ({ analyses: state.analyses.map((item) => (item.id === analysisId ? fresh : item)) }));
+          return fresh;
+        };
 
         try {
           const initialSession = (await supabase.auth.getSession()).data.session;
@@ -168,63 +177,57 @@ export const useAIAnalysesStore = create<AIAnalysesState>()(
           });
 
           const rawBody = await response.text();
-          if (!response.ok) {
-            throw new Error(`Edge function HTTP ${response.status}: ${rawBody.slice(0, 400)}`);
-          }
-
           let data: any = null;
           try {
             data = rawBody ? JSON.parse(rawBody) : null;
           } catch {
-            throw new Error("Edge function returned non-JSON response");
+            data = null;
           }
 
-          if (!data?.ok) throw new Error(data?.error || "AI analysis function failed");
+          // Already being analysed (a second tap, or another device): nothing has failed.
+          if (response.status === 409) {
+            await refresh();
+            return;
+          }
 
-          const { data: refreshedRow, error: refreshedError } = await supabase
-            .from("ai_analyses")
-            .select("*")
-            .eq("id", analysisId)
-            .single();
+          if (!response.ok || !data?.ok) {
+            // The server has already marked the row failed with a reason the player can read.
+            throw new CoachReportedError(data?.error || "The coach could not analyse this clip.");
+          }
 
-          if (refreshedError) throw refreshedError;
-
-          const refreshed = mapRow(refreshedRow);
-          set((state) => ({
-            analyses: state.analyses.map((item) => (item.id === analysisId ? refreshed : item)),
-          }));
+          await refresh();
         } catch (error: any) {
-          const message = error instanceof Error ? error.message : "Unknown function invoke error";
-
-          let details = "";
-          const context = error?.context;
-          if (context && typeof context.text === "function") {
-            try {
-              const raw = await context.text();
-              details = typeof raw === "string" ? raw.slice(0, 500) : "";
-            } catch {
-              // Ignore context parse errors.
+          if (error instanceof CoachReportedError) {
+            const fresh = await refresh().catch(() => null);
+            if (!fresh || fresh.status !== "failed") {
+              set((state) => ({
+                analyses: state.analyses.map((item) =>
+                  item.id === analysisId ? { ...item, status: "failed", error_message: error.message } : item
+                ),
+              }));
             }
+            throw error;
           }
 
-          const combinedMessage = details ? `${message} ${details}` : message;
-          const failedAt = new Date().toISOString();
-
+          // The connection failed, so the server may or may not have the clip. Only a row it never
+          // picked up is marked failed; one it is working on is left to finish and sync back,
+          // so Try again cannot start a second, billed run of the same clip.
+          console.warn("Edge analysis request failed:", error);
+          const message = "Could not reach the coach. Check your connection, then tap Try again.";
           await supabase
             .from("ai_analyses")
-            .update({ status: "failed", error_message: combinedMessage.slice(0, 280), updated_at: failedAt })
-            .eq("id", analysisId);
-
-          set((state) => ({
-            analyses: state.analyses.map((item) =>
-              item.id === analysisId
-                ? { ...item, status: "failed", error_message: combinedMessage.slice(0, 280), updated_at: failedAt }
-                : item
-            ),
-          }));
-
-          console.warn("Edge analysis failed:", combinedMessage);
-          throw new Error(combinedMessage);
+            .update({ status: "failed", error_message: message, updated_at: new Date().toISOString() })
+            .eq("id", analysisId)
+            .eq("status", "pending");
+          const fresh = await refresh().catch(() => null);
+          if (!fresh) {
+            set((state) => ({
+              analyses: state.analyses.map((item) =>
+                item.id === analysisId ? { ...item, status: "failed", error_message: message } : item
+              ),
+            }));
+          }
+          throw new Error(message);
         }
       },
 

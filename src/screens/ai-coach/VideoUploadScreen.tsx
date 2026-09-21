@@ -151,7 +151,8 @@ export const VideoUploadScreen = () => {
       mediaTypes: ["videos"],
       allowsEditing: true,
       videoMaxDuration: MAX_CLIP_SECONDS,
-      quality: 1,
+      // 720p shows a cue action clearly and uploads in a fraction of the time 4K takes.
+      videoQuality: ImagePicker.UIImagePickerControllerQualityType.IFrame1280x720,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -178,7 +179,8 @@ export const VideoUploadScreen = () => {
       mediaTypes: ["videos"],
       allowsEditing: true,
       videoMaxDuration: MAX_CLIP_SECONDS,
-      quality: 1,
+      // 720p shows a cue action clearly and uploads in a fraction of the time 4K takes.
+      videoQuality: ImagePicker.UIImagePickerControllerQualityType.IFrame1280x720,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -259,15 +261,24 @@ export const VideoUploadScreen = () => {
       });
 
       setProgress(0.82);
-      setProgressLabel("AI is analyzing your clip...");
-      await runAnalysis(analysisId);
+      setProgressLabel("The coach is watching your clip...");
+      const leave = () => {
+        setVideo(null);
+        setNotes("");
+        setSelectedTags([]);
+        navigation.replace("AnalysisDetail", { analysisId });
+      };
+      try {
+        await runAnalysis(analysisId);
+      } catch {
+        // The clip is saved. Its page says why it failed and offers Try again on the same clip,
+        // rather than a fresh upload that would count as another analysis.
+        leave();
+        return;
+      }
       setProgress(1);
-      setProgressLabel("Analysis complete");
-
-      setVideo(null);
-      setNotes("");
-      setSelectedTags([]);
-      navigation.replace("AnalysisDetail", { analysisId });
+      setProgressLabel("Report ready");
+      leave();
     } catch (error: any) {
       if (isSubscriptionLimitError(error)) {
         setShowPaywall(true);

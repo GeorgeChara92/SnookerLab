@@ -1,6 +1,16 @@
 // @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/**
+ * The AI Coach. Takes one uploaded clip, has Gemini watch it, and writes the coaching report
+ * back to the analysis row.
+ *
+ * Gemini is given the video itself - every frame it samples, with the motion between them -
+ * rather than a description of it, so the report is about what is actually on screen. Before
+ * coaching, the model has to say whether the clip shows snooker being played at all; a clip it
+ * cannot use is turned away with a reason rather than given an invented report.
+ */
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -8,9 +18,26 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-4o-mini";
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.8-flash";
+const GEMINI_BASE = "https://generativelanguage.googleapis.com";
+
 const MAX_USER_NOTES_CHARS = 1200;
+/**
+ * Small clips go in the request itself; bigger ones through the Files API. Base64 adds a third,
+ * so 10MB keeps the whole request well under Gemini's limit for inline data.
+ */
+const INLINE_LIMIT_BYTES = 10 * 1024 * 1024;
+/** Far beyond any 20-second clip from the app, and within what the function can hold. */
+const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
+/**
+ * Frames a second Gemini samples. The default is one, which misses most of a cue action: the
+ * backswing, pause and delivery all happen inside a second. Five catches them for a 20-second
+ * clip at about 26,000 tokens.
+ */
+const FRAMES_PER_SECOND = 5;
+/** An analysis stuck in "processing" this long was abandoned and may be claimed again. */
+const STALE_PROCESSING_MS = 5 * 60 * 1000;
 
 type AnalysisRow = {
   id: string;
@@ -21,185 +48,326 @@ type AnalysisRow = {
   user_notes: string | null;
 };
 
-type StructuredReport = {
-  summary: string;
-  positives: string[];
-  improvements: string[];
-  possible_causes: string[];
-  not_assessable: string[];
-  coaching_tip: string;
+/** A message the player sees. Anything else that goes wrong is logged and replaced. */
+class CoachError extends Error {
+  constructor(message: string, readonly status = 422) {
+    super(message);
+  }
+}
+
+const FRIENDLY = {
+  busy: "The coach is busy right now. Wait a minute, then upload the clip again.",
+  generic: "Something went wrong analysing this clip. Upload it again, and if it keeps happening, try a shorter clip.",
+  tooBig: "This clip is too large to analyse. Record or trim a shorter clip, around 10 to 20 seconds.",
+  blocked: "The coach could not review this clip. Upload a clip of a shot or practice at the table.",
 };
 
-const buildPrompt = (analysis: AnalysisRow, signedVideoUrl?: string) => {
+// ---------------------------------------------------------------------------- the brief
+
+/** What to look for, by the kind of analysis the player asked for. */
+const FOCUS: Record<string, string> = {
+  technique:
+    "Cue action and delivery: stance and head position over the shot, bridge (length, firmness, height), grip pressure, the feathering, the pause at the back, straightness of the backswing and follow-through, whether the head and body stay still through the shot, and the finish.",
+  shot:
+    "The shot itself: the pot or positional intent if it can be inferred, contact on the object ball, cue ball reaction (screw, stun, follow, side), and where the cue ball finishes relative to what the next shot likely needed.",
+  stance:
+    "Set-up: feet placement and width, weight distribution, body angle to the line of aim, how the player gets down on the shot, chin height over the cue, and whether the set-up is repeatable between shots.",
+  tactical:
+    "Shot selection and safety: the choice between attacking and safety given the balls shown, weight of shot, where the cue ball and object ball are left, and what the opponent is left.",
+  full_session:
+    "Consistency across the shots shown: pre-shot routine, tempo, how the set-up and delivery hold up from shot to shot, and any pattern in the misses.",
+};
+
+const buildPrompt = (analysis: AnalysisRow) => {
   const tags = (analysis.context_tags ?? []).join(", ") || "none";
   const notes = analysis.user_notes?.trim() || "none";
-  const clipReference = signedVideoUrl ?? analysis.video_path;
+  const focus = FOCUS[analysis.analysis_type] ?? FOCUS.technique;
 
-  return [
-    "You are a professional snooker coach analyzing a user-submitted clip.",
-    "Return strict JSON only.",
-    `Analysis type: ${analysis.analysis_type}`,
-    `Context tags: ${tags}`,
-    `User notes: ${notes}`,
-    `Clip reference: ${clipReference}`,
-    "Core rules:",
-    "- Base primary feedback only on clearly visible evidence in the clip.",
-    "- Do not guess or fabricate details.",
-    "- If something is not visible, do not present it as fact.",
-    "Controlled coaching insight:",
-    "- You may suggest likely causes only when tied to a visible outcome.",
-    "- Label these exactly as: Possible cause (not fully visible).",
-    "- Never present possible causes as certain facts.",
-    "Feedback style:",
-    "- Balanced, realistic, and evidence-based.",
-    "- Highlight genuine positives and key improvements.",
-    "- Avoid overpraise and avoid exaggerated faults.",
-    "Output schema:",
-    '{"summary":"string","positives":["string"],"improvements":["string"],"possible_causes":["string"],"not_assessable":["string"],"coaching_tip":"string"}',
-    "Rules:",
-    "- summary: one short factual paragraph",
-    "- positives: 1-4 bullets, visible evidence only",
-    "- improvements: 1-4 bullets, observed issues only",
-    "- possible_causes: 0-3 bullets and each starts with 'Possible cause (not fully visible):'",
-    "- not_assessable: 1-4 bullets for what cannot be judged from this clip",
-    "- coaching_tip: one practical action",
-  ].join("\n");
+  return `You are an experienced snooker coach reviewing a short video clip a player has sent you. You are watching the video itself.
+
+Step 1 - check the clip. Decide honestly:
+- Does it show snooker (or pool/billiards) being played or practised at a table?
+- Can you see the player and/or the balls well enough to coach from it?
+If the clip does not show play at a table, or is too dark, blurred, distant or brief to assess anything, set clip_check.usable to false, explain why in clip_check.reason in one plain sentence addressed to the player, and keep every other field minimal. Do not coach from a clip you cannot see.
+
+Step 2 - coach, only if usable. The player asked for this focus:
+${focus}
+
+Player context (from the player, not verified): analysis type "${analysis.analysis_type}"; tags: ${tags}; notes: ${notes}
+
+Rules:
+- Every positive and every improvement must be something you can see in the video. Give the time it happens as m:ss in "at".
+- Never invent details. If the camera angle hides something (for example the bridge hand, or the cue ball after contact), list it under not_assessable rather than guessing.
+- possible_causes are allowed only when tied to a visible outcome, and must be phrased as possibilities.
+- Be balanced and specific: real strengths, the one or two faults that matter most, no padding and no exaggeration.
+- Write in UK English, plainly, speaking to the player as "you".
+- summary: two or three sentences on what the clip shows and the main takeaway.
+- coaching_tip: one concrete drill or change to take to the table.
+- confidence: "high" if the view clearly shows what the focus needs, "medium" if partly, "low" if you could only see a little.`;
 };
 
-const parseLLMResponse = (payload: any): { report_json: StructuredReport; feedback: string; recommendations: string[] } => {
-  const outputText = typeof payload?.output_text === "string" ? payload.output_text : "";
-
-  const nestedText = Array.isArray(payload?.output)
-    ? payload.output
-        .flatMap((item: any) => (Array.isArray(item?.content) ? item.content : []))
-        .map((content: any) => {
-          if (typeof content?.text === "string") return content.text;
-          if (typeof content?.output_text === "string") return content.output_text;
-          return "";
-        })
-        .find((value: string) => !!value.trim()) ?? ""
-    : "";
-
-  const legacyChoicesText = Array.isArray(payload?.choices)
-    ? payload.choices
-        .map((choice: any) => choice?.message?.content)
-        .find((value: unknown) => typeof value === "string" && !!value.trim()) ?? ""
-    : "";
-
-  const rawText = outputText || nestedText || legacyChoicesText;
-  if (typeof rawText !== "string" || !rawText.trim()) {
-    const summary = JSON.stringify(
-      {
-        id: payload?.id,
-        model: payload?.model,
-        status: payload?.status,
-        output_len: Array.isArray(payload?.output) ? payload.output.length : 0,
+/** Gemini's structured output: the report, plus the check that comes before it. */
+const RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    clip_check: {
+      type: "object",
+      properties: {
+        usable: { type: "boolean" },
+        reason: { type: "string" },
+        camera_view: { type: "string", description: "Where the camera is, e.g. 'side-on, level with the cue'" },
       },
-      null,
-      0
+      required: ["usable", "reason", "camera_view"],
+    },
+    summary: { type: "string" },
+    positives: {
+      type: "array",
+      maxItems: 4,
+      items: {
+        type: "object",
+        properties: { at: { type: "string" }, point: { type: "string" } },
+        required: ["at", "point"],
+      },
+    },
+    improvements: {
+      type: "array",
+      maxItems: 4,
+      items: {
+        type: "object",
+        properties: { at: { type: "string" }, point: { type: "string" } },
+        required: ["at", "point"],
+      },
+    },
+    possible_causes: { type: "array", maxItems: 3, items: { type: "string" } },
+    not_assessable: { type: "array", maxItems: 4, items: { type: "string" } },
+    coaching_tip: { type: "string" },
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+  },
+  required: [
+    "clip_check",
+    "summary",
+    "positives",
+    "improvements",
+    "possible_causes",
+    "not_assessable",
+    "coaching_tip",
+    "confidence",
+  ],
+};
+
+// ---------------------------------------------------------------------------- Gemini
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Gemini's busy and hiccup responses, which are worth another go. */
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+
+const geminiFetch = async (url: string, init: RequestInit, attempts = 3) => {
+  let last: Response | null = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const response = await fetch(url, {
+      ...init,
+      headers: { "x-goog-api-key": GEMINI_API_KEY, ...(init.headers ?? {}) },
+    });
+    if (!RETRYABLE.has(response.status)) return response;
+    last = response;
+    await response.body?.cancel();
+    await sleep(2000 * 2 ** attempt);
+  }
+  return last!;
+};
+
+const toBase64 = (bytes: Uint8Array) => {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+};
+
+/** Uploads a larger clip through the Files API and waits until Gemini can read it. */
+const uploadToGemini = async (bytes: Uint8Array, mimeType: string) => {
+  const start = await geminiFetch(`${GEMINI_BASE}/upload/v1beta/files`, {
+    method: "POST",
+    headers: {
+      "X-Goog-Upload-Protocol": "resumable",
+      "X-Goog-Upload-Command": "start",
+      "X-Goog-Upload-Header-Content-Length": String(bytes.length),
+      "X-Goog-Upload-Header-Content-Type": mimeType,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ file: { display_name: "coach-clip" } }),
+  });
+  const uploadUrl = start.headers.get("x-goog-upload-url");
+  if (!start.ok || !uploadUrl) throw new Error(`Gemini upload start failed (${start.status})`);
+
+  const done = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      "Content-Length": String(bytes.length),
+      "X-Goog-Upload-Offset": "0",
+      "X-Goog-Upload-Command": "upload, finalize",
+    },
+    body: bytes,
+  });
+  if (!done.ok) throw new Error(`Gemini upload failed (${done.status}): ${(await done.text()).slice(0, 200)}`);
+  const { file } = await done.json();
+
+  // A video is processed before it can be used; a short clip takes a few seconds.
+  for (let i = 0; i < 30; i += 1) {
+    const check = await geminiFetch(`${GEMINI_BASE}/v1beta/${file.name}`, { method: "GET" });
+    const state = (await check.json())?.state;
+    if (state === "ACTIVE") return { name: file.name as string, uri: file.uri as string };
+    if (state === "FAILED") throw new CoachError("This video could not be read. Try recording or exporting it again.");
+    await sleep(2000);
+  }
+  throw new Error("Gemini file processing timed out");
+};
+
+const deleteFromGemini = (name: string) =>
+  fetch(`${GEMINI_BASE}/v1beta/${name}`, {
+    method: "DELETE",
+    headers: { "x-goog-api-key": GEMINI_API_KEY },
+  }).catch(() => undefined);
+
+/** Gemini expects its own names for a few video types. */
+const geminiMimeType = (storageType: string | undefined, path: string) => {
+  const type = (storageType ?? "").toLowerCase();
+  if (type === "video/quicktime" || /\.mov$/i.test(path)) return "video/mov";
+  if (type === "video/x-m4v" || /\.m4v$/i.test(path)) return "video/mp4";
+  if (type.startsWith("video/")) return type;
+  return "video/mp4";
+};
+
+const askGemini = async (videoPart: Record<string, unknown>, prompt: string) => {
+  const response = await geminiFetch(`${GEMINI_BASE}/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ ...videoPart, videoMetadata: { fps: FRAMES_PER_SECOND } }, { text: prompt }],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: RESPONSE_SCHEMA,
+        // Low, so the same clip gets much the same report twice.
+        temperature: 0.2,
+      },
+    }),
+  });
+
+  if (response.status === 429) throw new CoachError(FRIENDLY.busy, 503);
+  if (!response.ok) {
+    throw new Error(`Gemini error (${response.status}): ${(await response.text()).slice(0, 400)}`);
+  }
+
+  const payload = await response.json();
+  if (payload?.promptFeedback?.blockReason) throw new CoachError(FRIENDLY.blocked);
+
+  const candidate = payload?.candidates?.[0];
+  const text = (candidate?.content?.parts ?? [])
+    .map((part: any) => (typeof part?.text === "string" ? part.text : ""))
+    .join("")
+    .trim();
+  if (!text) throw new Error(`Gemini returned no text (finishReason: ${candidate?.finishReason ?? "none"})`);
+  return JSON.parse(text);
+};
+
+// ---------------------------------------------------------------------------- the report
+
+const cleanList = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .filter((item) => typeof item === "string")
+        .map((item: string) => item.trim())
+        .filter(Boolean)
+    : [];
+
+/** "0:04" plus the point becomes "0:04 · The bridge ...", so the app shows where to look. */
+const cleanFindings = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .map((item: any) => {
+          const point = typeof item?.point === "string" ? item.point.trim() : "";
+          const at = typeof item?.at === "string" ? item.at.trim() : "";
+          if (!point) return "";
+          return /^\d{1,2}:\d{2}$/.test(at) ? `${at} · ${point}` : point;
+        })
+        .filter(Boolean)
+    : [];
+
+const buildReport = (parsed: any) => {
+  const check = parsed?.clip_check ?? {};
+  if (check.usable === false) {
+    const reason = typeof check.reason === "string" && check.reason.trim() ? check.reason.trim() : "";
+    throw new CoachError(
+      reason
+        ? `${reason} Try a steady clip of a shot at the table.`
+        : "The coach could not see enough of a shot in this clip. Try a steady clip of a shot at the table."
     );
-    throw new Error(`LLM returned no text output (${summary})`);
   }
 
-  let parsed: any;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch {
-    const firstBrace = rawText.indexOf("{");
-    const lastBrace = rawText.lastIndexOf("}");
-    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-      throw new Error("LLM output was not valid JSON");
-    }
-    parsed = JSON.parse(rawText.slice(firstBrace, lastBrace + 1));
-  }
-
-  const report_json: StructuredReport = {
+  const report_json = {
     summary: typeof parsed.summary === "string" ? parsed.summary.trim() : "",
-    positives: Array.isArray(parsed.positives)
-      ? parsed.positives.filter((item: unknown) => typeof item === "string").map((item: string) => item.trim()).filter(Boolean)
-      : [],
-    improvements: Array.isArray(parsed.improvements)
-      ? parsed.improvements.filter((item: unknown) => typeof item === "string").map((item: string) => item.trim()).filter(Boolean)
-      : [],
-    possible_causes: Array.isArray(parsed.possible_causes)
-      ? parsed.possible_causes.filter((item: unknown) => typeof item === "string").map((item: string) => item.trim()).filter(Boolean)
-      : [],
-    not_assessable: Array.isArray(parsed.not_assessable)
-      ? parsed.not_assessable.filter((item: unknown) => typeof item === "string").map((item: string) => item.trim()).filter(Boolean)
-      : [],
+    positives: cleanFindings(parsed.positives),
+    improvements: cleanFindings(parsed.improvements),
+    possible_causes: cleanList(parsed.possible_causes),
+    not_assessable: cleanList(parsed.not_assessable),
     coaching_tip: typeof parsed.coaching_tip === "string" ? parsed.coaching_tip.trim() : "",
+    confidence: ["high", "medium", "low"].includes(parsed.confidence) ? parsed.confidence : "medium",
+    camera_view: typeof check.camera_view === "string" ? check.camera_view.trim() : "",
+    model: GEMINI_MODEL,
   };
 
-  if (!report_json.summary || report_json.positives.length === 0 || report_json.improvements.length === 0 || !report_json.coaching_tip) {
-    throw new Error("LLM output missing required structured fields");
+  if (!report_json.summary || !report_json.coaching_tip || report_json.improvements.length === 0) {
+    throw new Error("Report was missing required fields");
   }
 
-  const recommendations = report_json.improvements.slice(0, 2).concat(report_json.coaching_tip).slice(0, 3);
-  while (recommendations.length < 3) {
-    recommendations.push("Capture another clip from a clearer angle and reassess.");
-  }
+  const recommendations = report_json.improvements
+    .slice(0, 2)
+    .map((item) => item.replace(/^\d{1,2}:\d{2} · /, ""))
+    .concat(report_json.coaching_tip);
 
-  const possibleCausesText = report_json.possible_causes.length
-    ? report_json.possible_causes.map((item) => `- ${item}`).join("\n")
-    : "- None identified from this clip.";
-  const notAssessableText = report_json.not_assessable.length
-    ? report_json.not_assessable.map((item) => `- ${item}`).join("\n")
-    : "- None.";
-
+  // A plain-text copy for anything that reads `feedback` rather than the structured report.
   const feedback = [
-    "1) Summary",
     report_json.summary,
     "",
-    "2) What Was Done Well",
-    report_json.positives.map((item) => `- ${item}`).join("\n"),
+    "What went well:",
+    ...report_json.positives.map((item) => `- ${item}`),
     "",
-    "3) Areas to Improve (Observed)",
-    report_json.improvements.map((item) => `- ${item}`).join("\n"),
+    "What to work on:",
+    ...report_json.improvements.map((item) => `- ${item}`),
     "",
-    "4) Possible Causes (If Applicable)",
-    possibleCausesText,
-    "",
-    "5) What Cannot Be Assessed",
-    notAssessableText,
-    "",
-    "6) Coaching Tip",
-    report_json.coaching_tip,
-    "",
-    "This feedback is based on a short clip and may not fully represent overall technique.",
+    `Take to the table: ${report_json.coaching_tip}`,
   ].join("\n");
 
   return { report_json, feedback, recommendations };
 };
 
-const safeErrorMessage = (error: unknown) => {
-  if (error instanceof Error) return error.message.slice(0, 300);
-  return "Unknown error";
-};
+// ---------------------------------------------------------------------------- the request
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
-  let analysisId = "";
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  let analysisId = "";
+  let userClient: any = null;
+  let geminiFile: string | null = null;
 
   try {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      throw new Error("Supabase env vars missing for Edge Function");
-    }
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is missing");
-    }
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error("Supabase env vars missing for Edge Function");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not set");
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ ok: false, error: "Missing Authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return json({ ok: false, error: "Missing Authorization header" }, 401);
 
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
 
@@ -207,166 +375,100 @@ Deno.serve(async (req) => {
       data: { user },
       error: userError,
     } = await userClient.auth.getUser();
-
-    if (userError || !user) {
-      return new Response(JSON.stringify({ ok: false, error: "Invalid auth token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (userError || !user) return json({ ok: false, error: "Invalid auth token" }, 401);
 
     const body = await req.json().catch(() => ({}));
     analysisId = typeof body?.analysis_id === "string" ? body.analysis_id : "";
-    if (!analysisId) {
-      return new Response(JSON.stringify({ ok: false, error: "analysis_id is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!analysisId) return json({ ok: false, error: "analysis_id is required" }, 400);
 
-    // Claim the row: pending -> processing in one statement. Re-running a finished or
-    // in-flight analysis would bill OpenAI again for the same clip, so it is refused here.
+    // Claim the row in one statement, so a double tap cannot bill Gemini twice for one clip.
+    // A row left "processing" by a run that died part-way can be claimed again after a while.
+    const staleBefore = new Date(Date.now() - STALE_PROCESSING_MS).toISOString();
     const { data: analysis, error: analysisError } = await userClient
       .from("ai_analyses")
-      .update({ status: "processing", updated_at: new Date().toISOString() })
+      .update({ status: "processing", error_message: null, updated_at: new Date().toISOString() })
       .eq("id", analysisId)
       .eq("user_id", user.id)
-      .eq("status", "pending")
+      .or(`status.eq.pending,status.eq.failed,and(status.eq.processing,updated_at.lt."${staleBefore}")`)
       .select("id,user_id,video_path,analysis_type,context_tags,user_notes")
       .maybeSingle<AnalysisRow>();
 
     if (analysisError) throw analysisError;
-
     if (!analysis) {
-      return new Response(JSON.stringify({ ok: false, error: "Analysis is not pending" }), {
-        status: 409,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Already running or already done: not a failure, so the row is left alone.
+      return json({ ok: false, error: "This clip is already being analysed.", code: "not_claimable" }, 409);
     }
 
-    // Notes are free text from the client and go straight into the prompt.
     if (typeof analysis.user_notes === "string" && analysis.user_notes.length > MAX_USER_NOTES_CHARS) {
       analysis.user_notes = `${analysis.user_notes.slice(0, MAX_USER_NOTES_CHARS)}...`;
     }
-
-    let signedVideoUrl: string | undefined;
-    if (!analysis.video_path.startsWith("demo://")) {
-      const { data: signed, error: signedError } = await userClient.storage
-        .from("ai-videos")
-        .createSignedUrl(analysis.video_path, 60 * 10);
-      if (signedError) throw signedError;
-      signedVideoUrl = signed.signedUrl;
+    if (analysis.video_path.startsWith("demo://")) {
+      throw new CoachError("This is a demo clip with no video to watch. Upload one of your own.");
     }
 
-    const prompt = buildPrompt(analysis, signedVideoUrl);
+    const { data: blob, error: downloadError } = await userClient.storage.from("ai-videos").download(analysis.video_path);
+    if (downloadError || !blob) {
+      throw new CoachError("The video for this analysis could not be found. Upload the clip again.", 404);
+    }
+    if (blob.size > MAX_VIDEO_BYTES) throw new CoachError(FRIENDLY.tooBig, 413);
 
-    const openAiResponse = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        text: {
-          format: {
-            type: "json_schema",
-            name: "snooker_coach_report",
-                schema: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {
-                    summary: { type: "string" },
-                    positives: {
-                      type: "array",
-                      minItems: 1,
-                      maxItems: 4,
-                      items: { type: "string" },
-                    },
-                    improvements: {
-                      type: "array",
-                      minItems: 1,
-                      maxItems: 4,
-                      items: { type: "string" },
-                    },
-                    possible_causes: {
-                      type: "array",
-                      minItems: 0,
-                      maxItems: 3,
-                      items: { type: "string" },
-                    },
-                    not_assessable: {
-                      type: "array",
-                      minItems: 1,
-                      maxItems: 4,
-                      items: { type: "string" },
-                    },
-                    coaching_tip: {
-                      type: "string",
-                    },
-                  },
-                  required: ["summary", "positives", "improvements", "possible_causes", "not_assessable", "coaching_tip"],
-                },
-              },
-            },
-        input: [
-          {
-            role: "user",
-            content: [{ type: "input_text", text: prompt }],
-          },
-        ],
-      }),
-    });
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const mimeType = geminiMimeType(blob.type, analysis.video_path);
 
-    if (!openAiResponse.ok) {
-      const errorText = (await openAiResponse.text()).slice(0, 500);
-      throw new Error(`OpenAI error (${openAiResponse.status}): ${errorText}`);
+    let videoPart: Record<string, unknown>;
+    if (bytes.length <= INLINE_LIMIT_BYTES) {
+      videoPart = { inlineData: { mimeType, data: toBase64(bytes) } };
+    } else {
+      const uploaded = await uploadToGemini(bytes, mimeType);
+      geminiFile = uploaded.name;
+      videoPart = { fileData: { mimeType, fileUri: uploaded.uri } };
     }
 
-    const llmPayload = await openAiResponse.json();
-    const { report_json, feedback, recommendations } = parseLLMResponse(llmPayload);
+    const prompt = buildPrompt(analysis);
 
-    const completedAt = new Date().toISOString();
+    // A malformed answer is rare but not unheard of; one more try usually fixes it.
+    let result: ReturnType<typeof buildReport>;
+    try {
+      result = buildReport(await askGemini(videoPart, prompt));
+    } catch (error) {
+      if (error instanceof CoachError) throw error;
+      console.warn("First Gemini attempt failed, retrying:", error);
+      result = buildReport(await askGemini(videoPart, prompt));
+    }
+
     const { error: updateError } = await userClient
       .from("ai_analyses")
       .update({
         status: "completed",
-        report_json,
-        feedback,
-        recommendations,
+        report_json: result.report_json,
+        feedback: result.feedback,
+        recommendations: result.recommendations,
         error_message: null,
-        updated_at: completedAt,
+        updated_at: new Date().toISOString(),
       })
       .eq("id", analysis.id)
       .eq("user_id", user.id);
-
     if (updateError) throw updateError;
 
-    return new Response(JSON.stringify({ ok: true, model: OPENAI_MODEL, analysis_id: analysis.id }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ ok: true, model: GEMINI_MODEL, analysis_id: analysis.id });
   } catch (error) {
-    const message = safeErrorMessage(error);
+    // The player sees a plain reason; the detail stays in the function logs.
+    const friendly = error instanceof CoachError ? error.message : FRIENDLY.generic;
+    if (!(error instanceof CoachError)) console.error("ai-analyze-clip failed:", error);
 
-    try {
-      const authHeader = req.headers.get("Authorization");
-      if (analysisId && authHeader && SUPABASE_URL && SUPABASE_ANON_KEY) {
-        const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-          global: { headers: { Authorization: authHeader } },
-        });
-        await userClient
-          .from("ai_analyses")
-          .update({ status: "failed", error_message: message, updated_at: new Date().toISOString() })
-          .eq("id", analysisId);
-      }
-    } catch {
-      // Do nothing in nested failure path.
+    if (analysisId && userClient) {
+      await userClient
+        .from("ai_analyses")
+        .update({ status: "failed", error_message: friendly, updated_at: new Date().toISOString() })
+        .eq("id", analysisId)
+        .then(
+          () => undefined,
+          () => undefined
+        );
     }
 
-    return new Response(JSON.stringify({ ok: false, error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ ok: false, error: friendly }, error instanceof CoachError ? error.status : 500);
+  } finally {
+    if (geminiFile) await deleteFromGemini(geminiFile);
   }
 });

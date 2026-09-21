@@ -233,6 +233,11 @@ export interface AIAnalysis {
     possible_causes: string[];
     not_assessable: string[];
     coaching_tip: string;
+    /** How much of what the focus needs the camera showed. Reports before Gemini have none. */
+    confidence?: "high" | "medium" | "low";
+    /** Where the camera was, in the coach's words. */
+    camera_view?: string;
+    model?: string;
   };
   created_at: string;
   updated_at?: string;
