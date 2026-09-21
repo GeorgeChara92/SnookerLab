@@ -21,11 +21,12 @@ import { BALL_LOOK, TableDiagram } from "../../components/scanSnooker/TableDiagr
 import { BallTray } from "../../components/scanSnooker/BallTray";
 import { describePosition, type BallColour } from "../../features/scanSnooker/table";
 import {
+  RACK_SIZES,
   coloursOnSpots,
-  fullRack,
   moveBall,
   placeBall,
   placeLine,
+  rackReds,
   removeBall,
   summarise,
   type PlacedBall,
@@ -64,6 +65,8 @@ export const CustomRoutineBuilderScreen = () => {
   // Laying reds in a line rather than one at a time, and how many each line lays.
   const [lineMode, setLineMode] = useState(false);
   const [lineCount, setLineCount] = useState(5);
+  // Choosing how many reds to rack.
+  const [rackOpen, setRackOpen] = useState(false);
   const saved = useRef(false);
 
   useEffect(() => {
@@ -145,6 +148,21 @@ export const CustomRoutineBuilderScreen = () => {
 
   const toggleLine = () => {
     setLineMode((value) => !value);
+    setRackOpen(false);
+    setSelectedId(null);
+    setNotice(null);
+  };
+
+  const toggleRack = () => {
+    setRackOpen((value) => !value);
+    setLineMode(false);
+    setSelectedId(null);
+    setNotice(null);
+  };
+
+  const rack = (count: number) => {
+    change(rackReds(balls, count));
+    setRackOpen(false);
     setSelectedId(null);
     setNotice(null);
   };
@@ -260,21 +278,31 @@ export const CustomRoutineBuilderScreen = () => {
               disabled={lineCount >= 15}
             />
           </View>
+        ) : rackOpen ? (
+          <View style={[styles.lineBar, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+            <Text style={[styles.lineLabel, { color: colors.text }]}>Rack reds</Text>
+            {RACK_SIZES.map((size) => (
+              <Pressable
+                key={size}
+                onPress={() => rack(size)}
+                accessibilityRole="button"
+                accessibilityLabel={`Rack ${size} reds, with the colours on their spots`}
+                style={({ pressed }) => [
+                  styles.rackChoice,
+                  { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : colors.background },
+                ]}
+              >
+                <Text style={[styles.rackChoiceText, { color: colors.text }]}>{size}</Text>
+              </Pressable>
+            ))}
+          </View>
         ) : (
           <BallTray balls={balls} selected={colour} onSelect={setColour} />
         )}
 
         <View style={styles.tools}>
           <Tool icon="dots-horizontal" label={lineMode ? "Done" : "Line"} onPress={toggleLine} active={lineMode} />
-          <Tool
-            icon="triangle-outline"
-            label="Full rack"
-            onPress={() => {
-              change(fullRack(balls));
-              setSelectedId(null);
-              setNotice(null);
-            }}
-          />
+          <Tool icon="triangle-outline" label={rackOpen ? "Close" : "Rack"} onPress={toggleRack} active={rackOpen} />
           <Tool icon="circle-multiple-outline" label="Colours on spots" onPress={() => change(coloursOnSpots(balls))} />
         </View>
 
@@ -499,6 +527,16 @@ const styles = StyleSheet.create({
   lineBall: { width: 20, height: 20, borderRadius: 10, borderWidth: 1 },
   lineLabel: { flex: 1, fontSize: 14, fontWeight: "700" },
   lineCount: { minWidth: 24, textAlign: "center", fontSize: 18, fontWeight: "800" },
+  rackChoice: {
+    minWidth: 40,
+    minHeight: 36,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: SPACING.sm,
+  },
+  rackChoiceText: { fontSize: 16, fontWeight: "800" },
 
   tools: { flexDirection: "row", gap: SPACING.sm },
   tool: {

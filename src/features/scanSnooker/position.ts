@@ -18,7 +18,8 @@ export type RecordedPosition = {
 let counter = 0;
 const newId = (colour: BallColour) => `${colour}-${Date.now().toString(36)}-${(counter += 1)}`;
 
-export const countOf = (balls: PlacedBall[], colour: BallColour) => balls.filter((ball) => ball.colour === colour).length;
+export const countOf = (balls: PlacedBall[], colour: BallColour) =>
+  balls.filter((ball) => ball.colour === colour).length;
 
 /**
  * Moves a point the least distance needed so a ball there does not overlap any of the others:
@@ -67,7 +68,13 @@ export const placeBall = (
 export const moveBall = (balls: PlacedBall[], id: string, point: Point): PlacedBall[] =>
   balls.map((ball) =>
     ball.id === id
-      ? { ...ball, ...separate(point, balls.filter((other) => other.id !== id)) }
+      ? {
+          ...ball,
+          ...separate(
+            point,
+            balls.filter((other) => other.id !== id)
+          ),
+        }
       : ball
   );
 
@@ -138,25 +145,37 @@ export const placeLine = (balls: PlacedBall[], start: Point, end: Point, count: 
   return { balls: current, placed, notice: reason };
 };
 
+/** The rack sizes offered: a partial rack for shorter routines, up to the full fifteen. */
+export const RACK_SIZES = [6, 9, 10, 15] as const;
+
 /**
- * The table set for a frame: fifteen reds racked in a triangle behind the pink, as close to it as
- * they can be without touching, and the colours on their spots. Any reds already placed are
- * replaced by the rack; colours already placed stay where they are.
+ * Reds racked in a triangle behind the pink, as close to it as they can be without touching,
+ * with the colours on their spots. Rows fill from the front (the apex, by the pink) back towards
+ * the black; a count that does not make a full triangle, such as 9, puts the rest in the middle
+ * places of the next row. Any reds already placed are replaced by the rack; colours already placed stay put.
  */
-export const fullRack = (balls: PlacedBall[]): PlacedBall[] => {
+export const rackReds = (balls: PlacedBall[], count: number = 15): PlacedBall[] => {
   const withoutReds = balls.filter((ball) => ball.colour !== "red");
+  const total = Math.max(1, Math.min(BALL_LIMIT.red, Math.round(count)));
   const gap = TABLE.ball + 0.5; // a hair apart, so racked balls never count as overlapping
   const apexY = SPOTS.pink.y - TABLE.ball - 1;
   const reds: PlacedBall[] = [];
-  for (let row = 0; row < 5; row += 1) {
-    for (let index = 0; index <= row; index += 1) {
+  for (let row = 0; reds.length < total; row += 1) {
+    const inRow = Math.min(row + 1, total - reds.length);
+    // A short row still sits on the triangle's own places - nested between the balls in front -
+    // as near the middle as they go. Centred off those places, it would overlap the row in front.
+    const firstPlace = Math.floor((row + 1 - inRow) / 2);
+    for (let index = 0; index < inRow; index += 1) {
       reds.push({
         id: newId("red"),
         colour: "red",
-        x: SPOTS.pink.x + (index - row / 2) * gap,
+        x: SPOTS.pink.x + (firstPlace + index - row / 2) * gap,
         y: apexY - row * gap * (Math.sqrt(3) / 2),
       });
     }
   }
   return coloursOnSpots([...withoutReds, ...reds]);
 };
+
+/** The table set for a frame: all fifteen reds racked, and the colours on their spots. */
+export const fullRack = (balls: PlacedBall[]): PlacedBall[] => rackReds(balls, 15);

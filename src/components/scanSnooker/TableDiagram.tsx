@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   PanResponder,
   Pressable,
@@ -127,6 +127,19 @@ export const TableDiagram = ({
     };
   }, [box]);
 
+  // The closest any two balls are, centre to centre, in mm. Balls are drawn larger than life at
+  // full view so they can be seen, but never wider than this gap: enlarged any further, two balls
+  // that are apart on the table would look as if they touched or overlapped.
+  const closestMm = useMemo(() => {
+    let closest = Infinity;
+    for (let i = 0; i < balls.length; i += 1) {
+      for (let j = i + 1; j < balls.length; j += 1) {
+        closest = Math.min(closest, distance(balls[i], balls[j]));
+      }
+    }
+    return closest;
+  }, [balls]);
+
   /** Where the table is on screen for a given zoom and pan. */
   const layoutFor = (current: View2) => {
     if (!base) return null;
@@ -141,7 +154,8 @@ export const TableDiagram = ({
       rail: base.rail * current.zoom,
       bedW: TABLE.width * scale,
       bedL: TABLE.length * scale,
-      d: Math.max(9, TABLE.ball * scale * ballScale),
+      // Enlarged for visibility, capped by the closest gap, and never below true size.
+      d: Math.max(TABLE.ball * scale, Math.min(Math.max(9, TABLE.ball * scale * ballScale), closestMm * scale)),
     };
   };
 
@@ -396,11 +410,15 @@ export const TableDiagram = ({
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
-    if (width !== box.width || height !== box.height) {
-      setBox({ width, height });
-      setView(FULL_VIEW);
-    }
+    if (width !== box.width || height !== box.height) setBox({ width, height });
   };
+
+  // When the space changes - a tool swaps the tray for another bar, say - keep the zoom the player
+  // chose and just keep the table in view, rather than jumping back out to the whole table.
+  useEffect(() => {
+    setView((current) => clampView(current));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
 
   const zoomBy = (factor: number) => {
     if (!base) return;

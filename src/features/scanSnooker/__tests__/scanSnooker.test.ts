@@ -184,7 +184,7 @@ describe("reading the table through the camera", () => {
   });
 });
 
-import { fullRack, placeLine, pointsAlongLine } from "../position";
+import { fullRack, placeLine, pointsAlongLine, rackReds, RACK_SIZES } from "../position";
 
 describe("laying balls in bulk", () => {
   it("spaces a line evenly and never closer than touching", () => {
@@ -217,5 +217,39 @@ describe("laying balls in bulk", () => {
     }
     // Every red is on the black side of the pink.
     expect(reds.every((ball) => ball.y < SPOTS.pink.y)).toBe(true);
+  });
+});
+
+describe("partial racks", () => {
+  const noOverlaps = (balls: { x: number; y: number }[]) => {
+    for (let i = 0; i < balls.length; i += 1) {
+      for (let j = i + 1; j < balls.length; j += 1) {
+        expect(distance(balls[i], balls[j])).toBeGreaterThanOrEqual(TABLE.ball);
+      }
+    }
+  };
+
+  it("racks each offered size, front row first, with no two balls overlapping", () => {
+    for (const size of RACK_SIZES) {
+      const balls = rackReds([], size);
+      const reds = balls.filter((ball) => ball.colour === "red");
+      expect(reds).toHaveLength(size);
+      noOverlaps(balls);
+      // The apex red sits in front of the pink, on the centre line.
+      const apex = reds.reduce((a, b) => (b.y > a.y ? b : a));
+      expect(apex.x).toBeCloseTo(SPOTS.pink.x);
+    }
+  });
+
+  it("puts an unfinished row in the middle places: nine is three full rows and three of the fourth", () => {
+    const reds = rackReds([], 9).filter((ball) => ball.colour === "red");
+    const rows = new Map<number, number[]>();
+    reds.forEach((ball) => rows.set(Math.round(ball.y), [...(rows.get(Math.round(ball.y)) ?? []), ball.x]));
+    const sizes = [...rows.entries()].sort((a, b) => b[0] - a[0]).map(([, xs]) => xs.length);
+    expect(sizes).toEqual([1, 2, 3, 3]);
+    // As near the middle as the rack allows: within half a ball of the centre line.
+    const lastRow = [...rows.entries()].sort((a, b) => a[0] - b[0])[0][1];
+    const middle = lastRow.reduce((sum, x) => sum + x, 0) / lastRow.length;
+    expect(Math.abs(middle - SPOTS.pink.x)).toBeLessThanOrEqual(TABLE.ball / 2 + 1);
   });
 });
