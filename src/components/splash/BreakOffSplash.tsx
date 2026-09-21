@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from "react-native-svg";
+import Svg, { Defs, LinearGradient, Path, Polygon, Rect, Stop } from "react-native-svg";
 import { FONTS } from "../../constants";
 
 /**
@@ -17,11 +17,11 @@ import { FONTS } from "../../constants";
  *
  * The baize fills the screen with the cushions just out of view: the baulk line, the D, the
  * colours on their spots and the reds racked behind the pink, all to the real proportions. The
- * cue settles behind the cue ball between the brown and the yellow, feathers, draws back, pauses
- * and strikes. The cue ball runs up the table and takes the back-right corner red thin, goes
+ * cue settles behind the cue ball between the brown and the yellow, draws back, pauses and
+ * strikes. The cue ball runs up the table and takes the back-right corner red thin, goes
  * three cushions - top, right, then across to the left - and comes to rest behind the baulk
  * colours, while the corner red and its neighbours ease out of the pack. Then the name settles
- * in. About four seconds; a tap skips it, and with Reduce Motion on it shows the table and name.
+ * in. About three and a half seconds; a tap skips it, and with Reduce Motion on it shows the table and name.
  *
  * Everything runs off one clock on the phone's animation thread, so the shot keeps its timing
  * while the app loads.
@@ -58,21 +58,41 @@ const OVERHANG = 14;
 
 /** When each part of the shot happens, in milliseconds on the one clock. */
 const T = {
-  tableIn: [0, 350],
-  cueIn: [250, 550],
-  // The cue: settle, one feather, a slow draw back, a pause, then through.
-  cue: [550, 800, 1000, 1420, 1580, 1700, 1820],
-  cueOut: [1900, 2200],
-  travel: [1680, 2060], // cue ball from the strike to the pack
-  around: [2060, 3450], // three cushions and back to baulk
-  ripple: [2060, 2380],
-  reds: 2060,
-  dim: [3200, 3550],
-  name: [3300, 3680],
-  end: 4000,
+  tableIn: [0, 300],
+  cueIn: [200, 450],
+  // The cue: at the ball, one smooth draw back, a moment's pause, then through.
+  cue: [450, 980, 1100, 1210, 1320],
+  cueOut: [1380, 1630],
+  travel: [1200, 1540], // cue ball from the strike to the pack
+  around: [1540, 2780], // three cushions and back to baulk
+  ripple: [1540, 1840],
+  reds: 1540,
+  dim: [2580, 2880],
+  name: [2660, 3000],
+  end: 3350,
   /** The app starts loading underneath once the cue ball is on its way round. */
-  loadApp: 2500,
-  fade: 350,
+  loadApp: 2000,
+  fade: 300,
+};
+
+/**
+ * An eased move over a window of the clock, as points on a line. The native animation driver
+ * cannot run an easing inside an interpolation, so the curve is sampled into short straight steps
+ * instead - close enough that the eye cannot tell.
+ */
+const SAMPLES = 12;
+const easedStops = (times: number[], values: number[], easing: (t: number) => number) => {
+  const inputRange: number[] = [];
+  const outputRange: number[] = [];
+  for (let leg = 0; leg < times.length - 1; leg += 1) {
+    const [t0, t1, v0, v1] = [times[leg], times[leg + 1], values[leg], values[leg + 1]];
+    for (let i = leg === 0 ? 0 : 1; i <= SAMPLES; i += 1) {
+      const f = i / SAMPLES;
+      inputRange.push(t0 + (t1 - t0) * f);
+      outputRange.push(v0 + (v1 - v0) * easing(f));
+    }
+  }
+  return { inputRange, outputRange };
 };
 
 type Point = { x: number; y: number };
@@ -267,7 +287,7 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
 
   /** 0 to 1 over a window of the clock. */
   const phase = ([from, to]: number[], easing: (t: number) => number = Easing.linear) =>
-    clock.interpolate({ inputRange: [from, to], outputRange: [0, 1], easing, extrapolate: "clamp" });
+    clock.interpolate({ ...easedStops([from, to], [0, 1], easing), extrapolate: "clamp" });
 
   const tableIn = phase(T.tableIn, Easing.out(Easing.quad));
   const cueOpacity = clock.interpolate({
@@ -276,9 +296,7 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
     extrapolate: "clamp",
   });
   const tipGap = clock.interpolate({
-    inputRange: T.cue,
-    outputRange: [d * 1.6, d * 2.4, d * 1.4, d * 4.6, d * 4.6, d * 0.5, -d * 0.8],
-    easing: Easing.inOut(Easing.quad),
+    ...easedStops(T.cue, [d * 1.6, d * 4.6, d * 4.6, d * 0.5, -d * 0.8], Easing.inOut(Easing.quad)),
     extrapolate: "clamp",
   });
 
@@ -298,7 +316,7 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
   const dim = phase(T.dim, Easing.out(Easing.quad));
   const name = phase(T.name, Easing.out(Easing.back(1.3)));
   const redMoves = reds.map((red) =>
-    phase([T.reds + red.delay, T.reds + red.delay + (red.big ? 1100 : 500)], Easing.out(Easing.cubic))
+    phase([T.reds + red.delay, T.reds + red.delay + (red.big ? 1000 : 450)], Easing.out(Easing.cubic))
   );
 
   const cueAngle = (Math.atan2(dir.y, dir.x) * 180) / Math.PI + 90;
@@ -332,9 +350,10 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
 
           {/* ------------------------------------------------ the baulk line and the D */}
           <View style={[styles.line, { left: 0, right: 0, top: baulkY - 0.5 }]} />
-          <View
-            style={[styles.dee, { width: dR * 2, height: dR * 2, borderRadius: dR, left: cx - dR, top: baulkY - dR }]}
-          />
+          {/* Drawn as an arc so it meets the baulk line at both ends. */}
+          <Svg style={{ position: "absolute", left: cx - dR - 1, top: baulkY - 1 }} width={dR * 2 + 2} height={dR + 2}>
+            <Path d={`M 1 1 A ${dR} ${dR} 0 0 0 ${dR * 2 + 1} 1`} stroke={LINE} strokeWidth={1} fill="none" />
+          </Svg>
 
           {/* ------------------------------------------------ the colours on their spots */}
           {(Object.keys(colours) as Array<keyof typeof colours>).map((key) => (
@@ -451,7 +470,6 @@ const styles = StyleSheet.create({
   root: { backgroundColor: BAIZE, zIndex: 100, elevation: 100 },
   edgeShade: { position: "absolute", left: 0, right: 0, backgroundColor: BAIZE_EDGE, opacity: 0.55 },
   line: { position: "absolute", height: 1, backgroundColor: LINE },
-  dee: { position: "absolute", borderWidth: 1, borderColor: "transparent", borderBottomColor: LINE },
   at: { position: "absolute" },
   ripple: { position: "absolute", borderWidth: 2, borderColor: "#FFFFFF" },
   ball: {
