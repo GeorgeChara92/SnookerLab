@@ -12,6 +12,7 @@ import {
   useSessionsStore,
   useTournamentsStore,
 } from "../store";
+import { useScanSnookerStore } from "../store/scanSnookerStore";
 import { supabase } from "../api/supabase";
 import { startSync, stopSync } from "../sync";
 import { MainTabNavigator } from "./MainTabNavigator";
@@ -78,6 +79,9 @@ export const AppNavigator = () => {
       setAIOwner(id);
       useCustomRoutinesStore.getState().setOwner(id);
       usePracticePlanStore.getState().setOwner(id);
+      useScanSnookerStore.getState().setOwner(id);
+      // Not waited for: positions are only needed once a match is open.
+      void useScanSnookerStore.getState().hydrate(id);
       const loaded = Promise.allSettled([
         usePracticePlanStore.getState().hydrate(id),
         useCustomRoutinesStore.getState().hydrate(id),
@@ -115,6 +119,7 @@ export const AppNavigator = () => {
     loadingFor.current = null;
     useCustomRoutinesStore.getState().setOwner(null);
     usePracticePlanStore.getState().setOwner(null);
+    useScanSnookerStore.getState().setOwner(null);
     setReadyUserId(null);
   }, []);
 

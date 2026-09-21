@@ -21,6 +21,7 @@ import {
   useSessionsStore,
   useTournamentsStore,
 } from "../store";
+import { useScanSnookerStore } from "../store/scanSnookerStore";
 import { hasPendingWrites, type SyncScope } from "./outbox";
 
 /**
@@ -40,6 +41,7 @@ const TABLE_SCOPES: Record<string, SyncScope> = {
   ai_analyses: "ai",
   custom_routines: "customRoutines",
   practice_plans: "plan",
+  scan_positions: "scans",
 };
 
 const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
@@ -50,6 +52,7 @@ const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
   ai: (userId) => useAIAnalysesStore.getState().hydrateAnalysesForUser(userId),
   customRoutines: (userId) => useCustomRoutinesStore.getState().hydrate(userId),
   plan: (userId) => usePracticePlanStore.getState().hydrate(userId),
+  scans: (userId) => useScanSnookerStore.getState().hydrate(userId),
 };
 
 /** A burst of changes (a fixture, its frames, the tournament row) should cause one refresh. */
