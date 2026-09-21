@@ -181,6 +181,27 @@ export const MatchDetailScreen = () => {
                 <Text style={[styles.secondaryText, { color: colors.text }]}>Share</Text>
               </Pressable>
             ) : null}
+            {!canScoreLive && result ? (
+              <Pressable
+                onPress={() =>
+                  navigation.navigate("NewMatch", {
+                    opponentName: match.opponent_name,
+                    location: match.location || undefined,
+                    targetFrames: bestOf,
+                    matchType: match.match_type,
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`Play ${match.opponent_name} again`}
+                style={({ pressed }) => [
+                  styles.secondary,
+                  { borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <MaterialCommunityIcons name="restart" size={18} color={colors.text} />
+                <Text style={[styles.secondaryText, { color: colors.text }]}>Rematch</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={() => setEditOpen(true)}
               accessibilityRole="button"

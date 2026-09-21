@@ -1,384 +1,377 @@
-import React, { useMemo, useState } from "react";
-import { countsAsResult } from "../../features/matches/matchSummary";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMatchesStore } from "../../store";
-import { MatchResult } from "../../types";
-import type { MatchesStackParamList } from "../../types";
-import type { NavigationProp } from "@react-navigation/native";
+import type { MatchResult, MatchType, MatchesStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { TierPaywallModal } from "../../components/subscription";
-import { isSubscriptionLimitError } from "../../constants";
-import { todayKey } from "../../utils/date";
+import { isSubscriptionLimitError, DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { parseDateValue, todayKey } from "../../utils/date";
 import { useDialog } from "../../components/ui/DialogProvider";
+import { findOpponent, knownOpponents, searchOpponents } from "../../features/matches/opponents";
 
-type MatchMode = "live" | "manual";
+type Mode = "live" | "result";
 
-const FORMAT_OPTIONS = [
-  { label: "Best of 1", value: 1 },
-  { label: "Best of 3", value: 3 },
-  { label: "Best of 5", value: 5 },
-  { label: "Best of 7", value: 7 },
-  { label: "Best of 9", value: 9 },
+const FORMATS = [1, 3, 5, 7, 9, 11];
+const TYPES: Array<{ value: MatchType; label: string }> = [
+  { value: "casual", label: "Friendly" },
+  { value: "league", label: "League" },
+  { value: "tournament", label: "Tournament" },
+  { value: "practice", label: "Practice" },
 ];
 
+const shortDate = (value: string) =>
+  parseDateValue(value).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+/**
+ * Setting up a match. The opponent comes first, and picking someone already played fills in
+ * the rest from last time - the venue, the format, the kind of match - so a regular opponent
+ * is two taps from the first frame. A rematch or an opponent's page arrives with it all set.
+ */
 export const NewMatchScreen = () => {
-  const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
-  const { addMatch, matches } = useMatchesStore();
+  const navigation = useNavigation<NativeStackNavigationProp<MatchesStackParamList>>();
+  const route = useRoute<RouteProp<MatchesStackParamList, "NewMatch">>();
+  const prefill = route.params;
   const { colors } = useAppTheme();
-  const subscription = useSubscriptionAccess();
+  const insets = useSafeAreaInsets();
   const dialog = useDialog();
+  const subscription = useSubscriptionAccess();
+  const matches = useMatchesStore((state) => state.matches);
+  const addMatch = useMatchesStore((state) => state.addMatch);
 
-  const [mode, setMode] = useState<MatchMode>("live");
-  const [opponentName, setOpponentName] = useState("");
-  const [location, setLocation] = useState("");
-  const [userScore, setUserScore] = useState("");
-  const [opponentScore, setOpponentScore] = useState("");
-  const [targetFrames, setTargetFrames] = useState(5);
-  const [isSaving, setIsSaving] = useState(false);
+  const known = useMemo(() => knownOpponents(matches), [matches]);
+  const [mode, setMode] = useState<Mode>("live");
+  const [opponent, setOpponent] = useState(prefill?.opponentName ?? "");
+  const [location, setLocation] = useState(prefill?.location ?? "");
+  const [bestOf, setBestOf] = useState(prefill?.targetFrames ?? 5);
+  const [matchType, setMatchType] = useState<MatchType>(prefill?.matchType ?? "casual");
+  const [userFrames, setUserFrames] = useState("");
+  const [opponentFrames, setOpponentFrames] = useState("");
+  const [focused, setFocused] = useState(!prefill?.opponentName);
+  const [saving, setSaving] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  // Settings the player has chosen themselves are never overwritten by last time's.
+  const touched = useRef({
+    location: Boolean(prefill?.location),
+    bestOf: Boolean(prefill?.targetFrames),
+    type: Boolean(prefill?.matchType),
+  });
 
-  const recentOpponents = useMemo(() => {
-    const opponentMap = new Map<string, { count: number; lastPlayed: string }>();
-    matches.forEach((match) => {
-      const existing = opponentMap.get(match.opponent_name);
-      if (existing) {
-        existing.count++;
-        if (match.date > existing.lastPlayed) {
-          existing.lastPlayed = match.date;
-        }
-      } else {
-        opponentMap.set(match.opponent_name, { count: 1, lastPlayed: match.date });
-      }
-    });
-    return Array.from(opponentMap.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.lastPlayed.localeCompare(a.lastPlayed))
-      .slice(0, 5);
-  }, [matches]);
+  const match = findOpponent(opponent, known);
+  const suggestions = useMemo(
+    () => searchOpponents(opponent, known).filter((item) => item.name !== match?.name || !opponent.trim()),
+    [opponent, known, match?.name]
+  );
 
-  const lastOpponent = recentOpponents[0]?.name;
-  const lastLocation = matches[0]?.location;
+  // A known opponent brings last time's settings with them.
+  useEffect(() => {
+    if (!match) return;
+    const last = match.last;
+    if (!touched.current.location && last.location) setLocation(last.location);
+    if (!touched.current.bestOf && last.target_frames && last.recording_mode !== "manual")
+      setBestOf(last.target_frames);
+    if (!touched.current.type && last.match_type) setMatchType(last.match_type);
+  }, [match]);
 
-  const headToHead = useMemo(() => {
-    if (!opponentName.trim()) return null;
-    const opponentMatches = matches.filter((m) => m.opponent_name === opponentName.trim() && countsAsResult(m));
-    if (opponentMatches.length === 0) return null;
-    const wins = opponentMatches.filter((m) => m.result === "win").length;
-    const losses = opponentMatches.filter((m) => m.result === "loss").length;
-    const draws = opponentMatches.filter((m) => m.result === "draw").length;
-    return { wins, losses, draws, total: opponentMatches.length };
-  }, [matches, opponentName]);
-
-  const showDialog = (title: string, message: string, tone: "default" | "danger" = "default") =>
-    dialog.alert({
-      title,
-      message,
-      tone,
-      icon: tone === "danger" ? "alert-circle-outline" : "information-outline",
-      confirmLabel: "OK",
-    });
-
-  const getResult = (): MatchResult => {
-    const uScore = parseInt(userScore) || 0;
-    const oScore = parseInt(opponentScore) || 0;
-    if (uScore > oScore) return "win";
-    if (uScore < oScore) return "loss";
-    return "draw";
+  const pick = (name: string) => {
+    setOpponent(name);
+    setFocused(false);
   };
 
-  const handleStartLive = async () => {
+  const alert = (title: string, message: string) =>
+    dialog.alert({ title, message, icon: "information-outline", confirmLabel: "OK" });
+
+  const name = (match?.name ?? opponent).trim();
+  const uFrames = Math.max(0, parseInt(userFrames, 10) || 0);
+  const oFrames = Math.max(0, parseInt(opponentFrames, 10) || 0);
+  const result: MatchResult = uFrames > oFrames ? "win" : uFrames < oFrames ? "loss" : "draw";
+  const ready = Boolean(name) && (mode === "live" || uFrames + oFrames > 0);
+
+  const start = async () => {
     if (!subscription.canCreateMatch) {
       setShowPaywall(true);
       return;
     }
-
-    if (!opponentName.trim()) {
-      showDialog("Add an opponent first", "Live scoring needs a name for the other side of the scoreboard.");
+    if (!name) {
+      alert("Add an opponent first", "A match needs a name for the other side of the scoreboard.");
       return;
     }
-
+    if (mode === "result" && uFrames + oFrames === 0) {
+      alert("Add the score first", "Enter the frames each of you won.");
+      return;
+    }
+    setSaving(true);
     try {
-      setIsSaving(true);
-      const match = await addMatch({
+      const created = await addMatch({
         user_id: "",
-        opponent_name: opponentName.trim(),
+        opponent_name: name,
         date: todayKey(),
         location: location.trim() || undefined,
-        match_type: "casual",
+        match_type: matchType,
         format: "best_of",
-        target_frames: targetFrames,
-        frames_played: 0,
-        user_score: 0,
-        opponent_score: 0,
-        result: "draw",
-        recording_mode: "live",
+        target_frames: mode === "live" ? bestOf : Math.max(1, Math.max(uFrames, oFrames) * 2 - 1),
+        frames_played: mode === "live" ? 0 : uFrames + oFrames,
+        user_score: mode === "live" ? 0 : uFrames,
+        opponent_score: mode === "live" ? 0 : oFrames,
+        result: mode === "live" ? "draw" : result,
+        recording_mode: mode === "live" ? "live" : "manual",
         sync_status: "pending",
       });
-
-      navigation.navigate("LiveFrameScoring", { matchId: match.id });
-    } catch (error: any) {
-      if (isSubscriptionLimitError(error)) {
-        setShowPaywall(true);
-      } else {
-        showDialog("Could not start the match", "Something went wrong setting up live scoring. Have another go in a moment.", "danger");
-      }
+      if (mode === "live") navigation.replace("LiveFrameScoring", { matchId: created.id });
+      else navigation.replace("MatchDetail", { matchId: created.id });
+    } catch (error) {
+      if (isSubscriptionLimitError(error)) setShowPaywall(true);
+      else alert("Could not create the match", "Something went wrong. Check your connection and try again.");
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
-  const handleSaveManual = async () => {
-    if (!subscription.canCreateMatch) {
-      setShowPaywall(true);
-      return;
-    }
+  const Chip = ({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      style={({ pressed }) => [
+        styles.chip,
+        {
+          backgroundColor: selected ? colors.primary : colors.surface,
+          borderColor: selected ? colors.primary : colors.border,
+          opacity: pressed ? 0.8 : 1,
+        },
+      ]}
+    >
+      <Text style={[styles.chipText, { color: selected ? colors.onPrimary : colors.text }]}>{label}</Text>
+    </Pressable>
+  );
 
-    if (!opponentName.trim()) {
-      showDialog("Add an opponent first", "A match needs a name for the other side of the scoreboard.");
-      return;
-    }
-
-    const uScore = parseInt(userScore) || 0;
-    const oScore = parseInt(opponentScore) || 0;
-
-    if (uScore === 0 && oScore === 0) {
-      showDialog("Add a score first", "Enter at least one score so the match has a result.");
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      await addMatch({
-        user_id: "",
-        opponent_name: opponentName.trim(),
-        date: todayKey(),
-        location: location.trim() || undefined,
-        match_type: "casual",
-        format: "best_of",
-        target_frames: 1,
-        frames_played: 1,
-        user_score: uScore,
-        opponent_score: oScore,
-        result: getResult(),
-        recording_mode: "manual",
-        sync_status: "pending",
-      });
-      navigation.goBack();
-    } catch (error: any) {
-      if (isSubscriptionLimitError(error)) {
-        setShowPaywall(true);
-      } else {
-        showDialog("Could not save the match", "Something went wrong saving it. Have another go in a moment.", "danger");
-      }
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const autofillLastValues = () => {
-    if (lastOpponent) setOpponentName(lastOpponent);
-    if (lastLocation) setLocation(lastLocation);
-  };
+  const inputStyle = [
+    styles.input,
+    { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border },
+  ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <View style={[styles.modeCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.modeTitle, { color: colors.text }]}>How do you want to record?</Text>
-          <View style={styles.modeRow}>
-            <Pressable
-              style={[
-                styles.modeOption,
-                {
-                  backgroundColor: mode === "live" ? colors.primary : colors.surfaceMuted,
-                  borderColor: mode === "live" ? colors.primary : colors.border,
-                },
-              ]}
-              onPress={() => setMode("live")}
-            >
-              <MaterialCommunityIcons
-                name="play-circle-outline"
-                size={24}
-                color={mode === "live" ? colors.onPrimary : colors.primary}
-                style={styles.modeIcon}
-              />
-              <Text style={[styles.modeLabel, { color: mode === "live" ? colors.onPrimary : colors.text }]}>Live Match</Text>
-              <Text style={[styles.modeHint, { color: mode === "live" ? colors.onPrimary : colors.textMuted }]}>Track frame by frame</Text>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={90}
+    >
+      <ScrollView
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Who */}
+        <Text style={[styles.label, { color: colors.textMuted }]}>OPPONENT</Text>
+        <View
+          style={[
+            styles.opponentBox,
+            { backgroundColor: colors.surface, borderColor: focused ? colors.primary : colors.border },
+          ]}
+        >
+          <MaterialCommunityIcons name="account-outline" size={20} color={colors.textMuted} />
+          <TextInput
+            value={opponent}
+            onChangeText={(text) => {
+              setOpponent(text);
+              setFocused(true);
+            }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            placeholder="Who are you playing?"
+            placeholderTextColor={colors.textMuted}
+            style={[styles.opponentInput, { color: colors.text }]}
+            autoCapitalize="words"
+            autoCorrect={false}
+            autoFocus={!prefill?.opponentName}
+            returnKeyType="done"
+          />
+          {opponent ? (
+            <Pressable onPress={() => pick("")} accessibilityLabel="Clear the name" hitSlop={10}>
+              <MaterialCommunityIcons name="close-circle" size={18} color={colors.textMuted} />
             </Pressable>
-            <Pressable
-              style={[
-                styles.modeOption,
-                {
-                  backgroundColor: mode === "manual" ? colors.primary : colors.surfaceMuted,
-                  borderColor: mode === "manual" ? colors.primary : colors.border,
-                },
-              ]}
-              onPress={() => setMode("manual")}
-            >
-              <MaterialCommunityIcons
-                name="playlist-edit"
-                size={24}
-                color={mode === "manual" ? colors.onPrimary : colors.primary}
-                style={styles.modeIcon}
-              />
-              <Text style={[styles.modeLabel, { color: mode === "manual" ? colors.onPrimary : colors.text }]}>Manual Entry</Text>
-              <Text style={[styles.modeHint, { color: mode === "manual" ? colors.onPrimary : colors.textMuted }]}>Log a past result</Text>
-            </Pressable>
-          </View>
+          ) : null}
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Opponent</Text>
-            {recentOpponents.length > 0 && (
-              <Pressable onPress={autofillLastValues}>
-                <Text style={[styles.autofillBtn, { color: colors.primary }]}>Use last</Text>
+        {focused && suggestions.length ? (
+          <View style={[styles.suggestions, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {suggestions.map((item, index) => (
+              <Pressable
+                key={item.name}
+                onPress={() => pick(item.name)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.suggestion,
+                  index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border } : null,
+                  { backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
+                ]}
+              >
+                <View style={[styles.initial, { backgroundColor: colors.surfaceMuted }]}>
+                  <Text style={[styles.initialText, { color: colors.text }]}>{item.name.charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={styles.flex}>
+                  <Text style={[styles.suggestionName, { color: colors.text }]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={[styles.suggestionMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                    {item.played
+                      ? `${item.wins}–${item.losses} in ${item.played} ${item.played === 1 ? "match" : "matches"}`
+                      : "No results yet"}
+                    {` · last ${shortDate(item.lastPlayed)}`}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons name="arrow-top-left" size={18} color={colors.textMuted} />
               </Pressable>
-            )}
+            ))}
           </View>
+        ) : null}
 
-          <TextInput
-            style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-            value={opponentName}
-            onChangeText={setOpponentName}
-            placeholder="Enter opponent name"
-            placeholderTextColor={colors.textMuted}
-            autoFocus
-          />
-
-          {recentOpponents.length > 0 && !opponentName && (
-            <View style={styles.suggestionsRow}>
-              <Text style={[styles.suggestionsLabel, { color: colors.textMuted }]}>Recent:</Text>
-              {recentOpponents.slice(0, 3).map((opp) => (
-                <Pressable key={opp.name} style={[styles.suggestionChip, { backgroundColor: colors.surfaceMuted }]} onPress={() => setOpponentName(opp.name)}>
-                  <Text style={[styles.suggestionText, { color: colors.text }]}>{opp.name}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
-
-          {headToHead && (
-            <View style={[styles.h2hCard, { backgroundColor: colors.primary + "10", borderColor: colors.primary + "30" }]}>
-              <Text style={[styles.h2hTitle, { color: colors.text }]}>Head to Head</Text>
-              <Text style={[styles.h2hRecord, { color: colors.primary }]}>
-                {headToHead.wins}W · {headToHead.losses}L · {headToHead.draws}D
+        {match && !focused ? (
+          <View style={[styles.h2h, { backgroundColor: colors.board, borderColor: colors.boardRule }]}>
+            <View style={styles.flex}>
+              <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.h2hKicker, { color: colors.boardRule }]}>
+                HEAD TO HEAD
+              </Text>
+              <Text style={[styles.h2hMeta, { color: colors.boardMuted }]}>
+                Last played {shortDate(match.lastPlayed)}. Set up as last time.
               </Text>
             </View>
-          )}
-
-          <Text style={[styles.label, { color: colors.textMuted }]}>Location (optional)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-            value={location}
-            onChangeText={setLocation}
-            placeholder="e.g. Local Club"
-            placeholderTextColor={colors.textMuted}
-          />
-        </View>
-
-        {mode === "live" && (
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Match Format</Text>
-            <View style={styles.formatRow}>
-              {FORMAT_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt.value}
-                  style={[
-                    styles.formatOption,
-                    {
-                      backgroundColor: targetFrames === opt.value ? colors.primary + "20" : colors.surfaceMuted,
-                      borderColor: targetFrames === opt.value ? colors.primary : colors.border,
-                    },
-                  ]}
-                  onPress={() => setTargetFrames(opt.value)}
-                >
-                  <Text style={[styles.formatLabel, { color: targetFrames === opt.value ? colors.primary : colors.text }]}>{opt.label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.h2hScore, { color: colors.boardText }]}>
+              {match.wins}–{match.losses}
+            </Text>
           </View>
-        )}
+        ) : null}
 
-        {mode === "manual" && (
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Frame Score</Text>
-            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Enter the points for this frame. Higher points wins.</Text>
-            <View style={styles.scoreRow}>
-              <View style={styles.scoreCol}>
-                <Text style={[styles.scoreLabel, { color: colors.textMuted }]}>You</Text>
-                <TextInput
-                  style={[styles.scoreInput, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-                  value={userScore}
-                  onChangeText={setUserScore}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor={colors.textMuted}
+        {/* How */}
+        <Text style={[styles.label, { color: colors.textMuted }]}>RECORD</Text>
+        <View style={[styles.segment, { backgroundColor: colors.surfaceMuted }]}>
+          {(
+            [
+              { value: "live", label: "Score it live", icon: "play-circle-outline" },
+              { value: "result", label: "Enter the result", icon: "playlist-edit" },
+            ] as const
+          ).map((option) => {
+            const selected = mode === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => setMode(option.value)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                style={[styles.segmentItem, selected ? { backgroundColor: colors.surface } : null]}
+              >
+                <MaterialCommunityIcons
+                  name={option.icon}
+                  size={18}
+                  color={selected ? colors.primary : colors.textMuted}
                 />
-              </View>
-              <Text style={[styles.scoreVs, { color: colors.textMuted }]}>v</Text>
-              <View style={styles.scoreCol}>
-                <Text style={[styles.scoreLabel, { color: colors.textMuted }]}>{opponentName || "Opponent"}</Text>
-                <TextInput
-                  style={[styles.scoreInput, { borderColor: colors.border, backgroundColor: colors.surfaceMuted, color: colors.text }]}
-                  value={opponentScore}
-                  onChangeText={setOpponentScore}
-                  keyboardType="numeric"
-                  placeholder="0"
-                  placeholderTextColor={colors.textMuted}
-                />
-              </View>
-            </View>
-            {userScore && opponentScore && (
-              <View style={styles.resultPreview}>
-                <Text style={[styles.resultText, { color: colors.primary }]}>
-                  {(parseInt(userScore) || 0) > (parseInt(opponentScore) || 0)
-                    ? "You win the frame"
-                    : (parseInt(userScore) || 0) < (parseInt(opponentScore) || 0)
-                    ? "Opponent wins the frame"
-                    : "Draw"}
+                <Text style={[styles.segmentText, { color: selected ? colors.text : colors.textMuted }]}>
+                  {option.label}
                 </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {mode === "live" ? (
+          <>
+            <Text style={[styles.label, { color: colors.textMuted }]}>FORMAT</Text>
+            <View style={styles.chips}>
+              {FORMATS.map((value) => (
+                <Chip
+                  key={value}
+                  label={`Best of ${value}`}
+                  selected={bestOf === value}
+                  onPress={() => {
+                    touched.current.bestOf = true;
+                    setBestOf(value);
+                  }}
+                />
+              ))}
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.label, { color: colors.textMuted }]}>FRAMES WON</Text>
+            <View style={styles.scoreRow}>
+              <View style={styles.flex}>
+                <Text style={[styles.scoreName, { color: colors.textMuted }]}>You</Text>
+                <TextInput
+                  value={userFrames}
+                  onChangeText={setUserFrames}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={colors.textMuted}
+                  style={[inputStyle, styles.scoreInput]}
+                />
               </View>
-            )}
-          </View>
+              <Text style={[styles.vs, { color: colors.textMuted }]}>v</Text>
+              <View style={styles.flex}>
+                <Text style={[styles.scoreName, { color: colors.textMuted }]} numberOfLines={1}>
+                  {name || "Opponent"}
+                </Text>
+                <TextInput
+                  value={opponentFrames}
+                  onChangeText={setOpponentFrames}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={colors.textMuted}
+                  style={[inputStyle, styles.scoreInput]}
+                />
+              </View>
+            </View>
+          </>
         )}
 
-        <View style={styles.actionsCard}>
-          {mode === "live" ? (
-            <Pressable
-              style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: !opponentName.trim() || isSaving ? 0.6 : 1 }]}
-              onPress={handleStartLive}
-              disabled={!opponentName.trim() || isSaving}
-            >
-              <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
-                {isSaving ? "Starting..." : "Start Match"}
-              </Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: !opponentName.trim() || isSaving ? 0.6 : 1 }]}
-              onPress={handleSaveManual}
-              disabled={!opponentName.trim() || isSaving}
-            >
-              <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
-                {isSaving ? "Saving..." : "Save Match"}
-              </Text>
-            </Pressable>
-          )}
-
-          <Text style={[styles.cancelBtn, { color: colors.textMuted }]} onPress={() => navigation.goBack()}>
-            Cancel
-          </Text>
+        <Text style={[styles.label, { color: colors.textMuted }]}>KIND OF MATCH</Text>
+        <View style={styles.chips}>
+          {TYPES.map((option) => (
+            <Chip
+              key={option.value}
+              label={option.label}
+              selected={matchType === option.value}
+              onPress={() => {
+                touched.current.type = true;
+                setMatchType(option.value);
+              }}
+            />
+          ))}
         </View>
+
+        <Text style={[styles.label, { color: colors.textMuted }]}>VENUE</Text>
+        <TextInput
+          value={location}
+          onChangeText={(text) => {
+            touched.current.location = true;
+            setLocation(text);
+          }}
+          placeholder="Club or venue (optional)"
+          placeholderTextColor={colors.textMuted}
+          style={inputStyle}
+        />
+
+        <Pressable
+          onPress={start}
+          disabled={!ready || saving}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.start,
+            { backgroundColor: colors.primary, opacity: !ready || saving ? 0.5 : pressed ? 0.85 : 1 },
+          ]}
+        >
+          <MaterialCommunityIcons
+            name={mode === "live" ? "play" : "content-save-outline"}
+            size={20}
+            color={colors.onPrimary}
+          />
+          <Text style={[styles.startText, { color: colors.onPrimary }]}>
+            {saving ? "Setting up…" : mode === "live" ? (name ? `Start v ${name}` : "Start match") : "Save result"}
+          </Text>
+        </Pressable>
       </ScrollView>
 
       <TierPaywallModal
@@ -387,185 +380,88 @@ export const NewMatchScreen = () => {
         currentTier={subscription.tier}
         featureLabel="Monthly Match Limit"
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 24 },
-  modeCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 12,
-  },
-  modeTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  modeRow: {
+  flex: { flex: 1 },
+  content: { padding: SPACING.lg, gap: SPACING.sm },
+  label: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.2, marginTop: SPACING.md },
+  opponentBox: {
     flexDirection: "row",
-    gap: 10,
+    alignItems: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 8,
+    borderWidth: 1.5,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
   },
-  modeOption: {
+  opponentInput: { flex: 1, fontSize: 18, fontWeight: "700", paddingVertical: SPACING.sm },
+  suggestions: { borderWidth: 1, borderRadius: RADIUS.md, overflow: "hidden" },
+  suggestion: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 8,
+    paddingHorizontal: SPACING.md,
+  },
+  initial: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  initialText: { fontSize: 14, fontWeight: "800" },
+  suggestionName: { fontSize: 15, fontWeight: "700" },
+  suggestionMeta: { fontSize: 12 },
+  h2h: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+  },
+  h2hKicker: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.2 },
+  h2hMeta: { fontSize: 12, marginTop: 2 },
+  h2hScore: { fontFamily: FONTS.boardHeavy, fontSize: 32 },
+  segment: { flexDirection: "row", borderRadius: RADIUS.md, padding: 4, gap: 4 },
+  segmentItem: {
     flex: 1,
-    borderRadius: 12,
-    borderWidth: 2,
-    padding: 14,
-    alignItems: "center",
-  },
-  modeIcon: {
-    fontSize: 24,
-    marginBottom: 6,
-  },
-  modeLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  modeHint: {
-    fontSize: 11,
-    textAlign: "center",
-  },
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 12,
-  },
-  sectionHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    justifyContent: "center",
+    gap: 6,
+    minHeight: HIT_TARGET,
+    borderRadius: RADIUS.sm,
   },
-  autofillBtn: {
-    fontSize: 13,
-    fontWeight: "600",
+  segmentText: { fontSize: 14, fontWeight: "700" },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
+  chip: {
+    minHeight: 40,
+    paddingHorizontal: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  chipText: { fontSize: 14, fontWeight: "700" },
   input: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    marginTop: 6,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: 12,
-  },
-  suggestionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 8,
-  },
-  suggestionsLabel: {
-    fontSize: 12,
-  },
-  suggestionChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  suggestionText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  h2hCard: {
-    marginTop: 12,
-    borderRadius: 10,
+    minHeight: HIT_TARGET + 4,
     borderWidth: 1,
-    padding: 12,
-  },
-  h2hTitle: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  h2hRecord: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginTop: 4,
-  },
-  sectionTitle: {
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
     fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 10,
   },
-  sectionHint: {
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  formatRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  formatOption: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  formatLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  scoreRow: {
+  scoreRow: { flexDirection: "row", alignItems: "flex-end", gap: SPACING.md },
+  scoreName: { fontSize: 13, fontWeight: "700", marginBottom: 6 },
+  scoreInput: { fontSize: 28, fontWeight: "800", textAlign: "center", minHeight: 64 },
+  vs: { fontSize: 16, fontWeight: "700", paddingBottom: 20 },
+  start: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 10,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.lg,
   },
-  scoreCol: {
-    flex: 1,
-  },
-  scoreLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  scoreInput: {
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 24,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  scoreVs: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  resultPreview: {
-    marginTop: 12,
-    alignItems: "center",
-  },
-  resultText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  actionsCard: {
-    marginTop: 8,
-    alignItems: "center",
-  },
-  primaryButton: {
-    width: "100%",
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  cancelBtn: {
-    marginTop: 12,
-    fontSize: 14,
-    fontWeight: "600",
-  },
+  startText: { fontSize: 17, fontWeight: "800" },
 });

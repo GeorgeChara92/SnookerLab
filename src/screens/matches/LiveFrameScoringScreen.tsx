@@ -37,7 +37,8 @@ import {
   type LiveFrameState, lastBallFor } from "../../features/matches/liveFrameEngine";
 import { clearLiveFrame, loadLiveFrame, saveLiveFrame } from "../../features/matches/liveFrameStorage";
 import { RADIUS, SCRIM, SPACING, DISPLAY_TEXT_SCALE } from "../../constants";
-import { ShareMatchSheet } from "../../components/matches/ShareMatchSheet";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { nextFrameStakes } from "../../features/matches/matchStory";
 
 const BALL_META: Array<{ key: LiveBall; color: string; textColor: string }> = [
   { key: "red", color: "#C7343A", textColor: "#FFFFFF" },
@@ -106,7 +107,7 @@ const summarizeFrameStats = (state: LiveFrameState) => {
 
 export const LiveFrameScoringScreen = () => {
   const route = useRoute<RouteProp<MatchesStackParamList, "LiveFrameScoring">>();
-  const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
+  const navigation = useNavigation<NativeStackNavigationProp<MatchesStackParamList>>();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const { colors, isDark } = useAppTheme();
@@ -120,7 +121,6 @@ export const LiveFrameScoringScreen = () => {
   const frameRef = useRef(frame);
   const hasRestoredFrameRef = useRef(false);
   const [undoStack, setUndoStack] = useState<LiveFrameState[]>([]);
-  const [shareOpen, setShareOpen] = useState(false);
   const [isFoulOpen, setIsFoulOpen] = useState(false);
   const [foulValue, setFoulValue] = useState<4 | 5 | 6 | 7>(4);
   const [foulType, setFoulType] = useState<LiveFoulType>("other");
@@ -175,6 +175,17 @@ export const LiveFrameScoringScreen = () => {
     if (!firstToWins) return false;
     return matchFrameWins.user >= firstToWins || matchFrameWins.opponent >= firstToWins;
   }, [firstToWins, matchFrameWins.opponent, matchFrameWins.user]);
+
+  // Once the match is settled - by the frame just saved, or on opening a finished match - the
+  // overview takes this screen's place.
+  const showedOverview = useRef(false);
+  useEffect(() => {
+    if (!isMatchComplete || !match || showedOverview.current) return;
+    showedOverview.current = true;
+    setDialog(null);
+    navigation.replace("MatchComplete", { matchId: match.id });
+  }, [isMatchComplete, match, navigation]);
+  const stakes = nextFrameStakes(matchFrameWins, firstToWins);
 
   const frameStats = useMemo(() => summarizeFrameStats(frame), [frame]);
   const selectedSavedFrame = useMemo(() => frameRecords.find((record) => record.id === selectedSavedFrameId), [frameRecords, selectedSavedFrameId]);
@@ -524,20 +535,10 @@ export const LiveFrameScoringScreen = () => {
             ? opponentLabel
             : null;
 
-setDialog(
-        projectedMatchWinner
-          ? {
-              title: "Match complete",
-              message: `${projectedMatchWinner} wins it ${projectedWins.user}-${projectedWins.opponent}.`,
-              tone: "success",
-              icon: "trophy-outline",
-              confirmLabel: "Share result",
-              cancelLabel: "Back to match",
-              // iOS will not show one pop-up while another is still closing.
-              onConfirm: () => setTimeout(() => setShareOpen(true), 400),
-              onCancel: () => navigation.goBack(),
-            }
-          : {
+      // The match is over: the overview opens by itself once the frame is in the store.
+      if (projectedMatchWinner) return;
+      setDialog(
+        {
               title: abandoned ? "Frame abandoned" : "Frame saved",
               message: abandoned
                 ? "Saved for your records. It does not count for either player."
@@ -678,7 +679,10 @@ setDialog(
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: 12, paddingBottom: insets.bottom + 188 }]}> 
         <View style={[styles.scoreboard, { backgroundColor: ui.panel, borderColor: ui.border }]}>
           <View style={styles.scoreboardTop}>
-            <Text style={[styles.scoreboardFrame, { color: ui.textMuted }]}>FRAME {frame.frameNumber}</Text>
+            <Text style={[styles.scoreboardFrame, { color: ui.textMuted }]}>
+              FRAME {frame.frameNumber}
+              {stakes ? <Text style={{ color: ui.accent }}>{` · ${stakes}`}</Text> : null}
+            </Text>
             <Text style={[styles.scoreboardMatch, { color: ui.textMuted }]}>
               MATCH {matchFrameWins.user}-{matchFrameWins.opponent}
               {firstToWins ? ` · BEST OF ${bestOfFrames}` : ""}
@@ -779,11 +783,6 @@ setDialog(
             </View>
           ) : null}
 
-          {isMatchComplete ? (
-            <Text style={[styles.matchCompleteText, { color: ui.accent }]}>
-              Match complete: {matchFrameWins.user > matchFrameWins.opponent ? userLabel : opponentLabel} won.
-            </Text>
-          ) : null}
         </View>
 
         <View style={styles.tabRow}>
@@ -1071,16 +1070,6 @@ setDialog(
           </Pressable>
         </Pressable>
       </Modal>
-      {match ? (
-        <ShareMatchSheet
-          match={match}
-          visible={shareOpen}
-          onClose={() => {
-            setShareOpen(false);
-            navigation.goBack();
-          }}
-        />
-      ) : null}
     </View>
   );
 };
