@@ -9,9 +9,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0E2A21"
     },
     "ios": {
       "bundleIdentifier": "com.georgechara.snookerlab",
