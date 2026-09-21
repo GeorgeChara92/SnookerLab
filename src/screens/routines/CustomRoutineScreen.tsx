@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
@@ -10,6 +10,8 @@ import { useCustomRoutinesStore } from "../../store";
 import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { summarise } from "../../features/scanSnooker/position";
 import { arSupport } from "../../../modules/snooker-ar";
+import { toRoutine } from "../../features/customRoutines/customRoutine";
+import { RoutineProgressCard } from "../../components/routines/RoutineProgressCard";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /** One of the player's own routines: the table to set up, what it is, and a score to record. */
@@ -23,6 +25,7 @@ export const CustomRoutineScreen = () => {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const tableHeight = Math.round(Math.min(height * 0.5, (width - SPACING.lg * 2) * 1.95));
+  const asRoutine = useMemo(() => (routine ? toRoutine(routine) : null), [routine]);
 
   useEffect(() => {
     navigation.setOptions({ title: routine?.name ?? "Routine" });
@@ -73,6 +76,8 @@ export const CustomRoutineScreen = () => {
       {routine.description ? (
         <Text style={[styles.description, { color: colors.text }]}>{routine.description}</Text>
       ) : null}
+
+      {asRoutine ? <RoutineProgressCard routine={asRoutine} /> : null}
 
       {arSupport().available ? (
         <Pressable

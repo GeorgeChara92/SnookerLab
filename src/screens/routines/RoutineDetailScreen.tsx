@@ -12,6 +12,7 @@ import { getYoutubeThumbnailUrl, getYoutubeWatchUrl } from "../../utils/youtube"
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
 import { getGuidePlaybookByRoutineId } from "../../features/guides/guidePlaybooks";
+import { RoutineProgressCard } from "../../components/routines/RoutineProgressCard";
 
 const scoringTypeLabel = (type: ScoringType): string => {
   switch (type) {
@@ -336,6 +337,8 @@ export const RoutineDetailScreen = () => {
             ))}
           </View>
 
+          <RoutineProgressCard routine={routine} style={styles.progress} />
+
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Results</Text>
             {entries.length === 0 ? (
@@ -344,7 +347,7 @@ export const RoutineDetailScreen = () => {
               entries.map((entry) => (
                   <View key={entry.id} style={[styles.entryCard, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
                     <View style={styles.entryHeader}>
-                      <Text style={[styles.entryScore, { color: colors.text }]}>📈 {entry.score}</Text>
+                      <Text style={[styles.entryScore, { color: colors.text }]}>{entry.score}</Text>
                       <Text style={[styles.entryDate, { color: colors.textMuted }]}>{new Date(entry.recorded_at).toLocaleString()}</Text>
                     </View>
                     {entry.notes ? <Text style={[styles.entryNotes, { color: colors.textMuted }]}>{entry.notes}</Text> : null}
@@ -373,6 +376,9 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 28,
+  },
+  progress: {
+    marginBottom: 16,
   },
   heroCard: {
     borderRadius: 18,
