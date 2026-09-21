@@ -355,5 +355,6 @@ export type ProfileStackParamList = {
   Settings: undefined;
   SubscriptionPlans: undefined;
   Achievements: undefined;
+  AvatarPicker: undefined;
   EditProfileField: { field: "skill_level" | "country_code" | "cue_preference" };
 };

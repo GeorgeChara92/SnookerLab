@@ -1,613 +1,288 @@
-import React, { useMemo, useEffect, useRef } from "react";
-import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View, Easing } from "react-native";
+import React, { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useMatchesStore, useSessionsStore, useRoutineScoresStore, useRoutinesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { useSeenAchievements } from "../../hooks/useSeenAchievements";
-import { AppCard } from "../../components/ui/AppCard";
-import { ACHIEVEMENTS, getPlayerLevel, type Achievement, type AchievementCategory } from "../../constants/achievements";
-import type { Match, SessionLog, RoutineScoreEntry, Routine } from "../../types";
-import { RADIUS, SCRIM, SPACING } from "../../constants";
+import { useDialog } from "../../components/ui/DialogProvider";
+import { BoardPanel } from "../../components/scoreboard/Scoreboard";
+import { ACHIEVEMENTS, type Achievement, type AchievementCategory } from "../../constants/achievements";
+import { usePlayerProgress } from "../../features/profile/playerProgress";
+import { achievementCurrent } from "../../features/profile/playerStats";
+import { FONTS, RADIUS, SPACING } from "../../constants";
 
-type AchievementStats = {
-  matchesWon: number;
-  matchesPlayed: number;
-  sessionsLogged: number;
-  bestBreak: number;
-  centuries: number;
-  longestWinStreak: number;
-  playerLevel: number;
-};
+const CATEGORIES: Array<{ value: AchievementCategory | "all"; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "matches", label: "Matches" },
+  { value: "breaks", label: "Breaks" },
+  { value: "practice", label: "Practice" },
+  { value: "streaks", label: "Streaks" },
+  { value: "special", label: "Special" },
+];
 
-const getPlayerStats = (
-  matches: Match[],
-  sessions: SessionLog[],
-  entries: RoutineScoreEntry[],
-  routines: Routine[],
-  liveFramesByMatch: Record<string, { highest_break_user: number }[]>
-): AchievementStats => {
-  const matchesWon = matches.filter((m: Match) => m.result === "win").length;
-  const matchesPlayed = matches.length;
-  const sessionsLogged = sessions.length + entries.length;
-
-  let longestStreak = 0;
-  let currentStreak = 0;
-  const sortedMatches = [...matches].sort((a: Match, b: Match) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  for (const match of sortedMatches) {
-    if (match.result === "win") {
-      currentStreak++;
-      longestStreak = Math.max(longestStreak, currentStreak);
-    } else {
-      currentStreak = 0;
-    }
-  }
-
-  const allFrames = Object.values(liveFramesByMatch).flat();
-  const bestBreak = allFrames.reduce((max, frame) => Math.max(max, frame.highest_break_user ?? 0), 0);
-  const centuries = allFrames.filter((frame) => (frame.highest_break_user ?? 0) >= 100).length;
-
-  const xp = matchesWon * 10 + sessionsLogged * 5;
-  const playerLevel = getPlayerLevel(xp).level;
-
-  return {
-    matchesWon,
-    matchesPlayed,
-    sessionsLogged,
-    bestBreak,
-    centuries,
-    longestWinStreak: longestStreak,
-    playerLevel,
-  };
-};
-
-const CATEGORY_INFO: Record<AchievementCategory, { label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string }> = {
-  matches: { label: "Matches", icon: "trophy", color: "#F59E0B" },
-  breaks: { label: "Breaks", icon: "chart-line", color: "#10B981" },
-  practice: { label: "Practice", icon: "clipboard-check", color: "#3B82F6" },
-  streaks: { label: "Streaks", icon: "fire", color: "#EF4444" },
-  special: { label: "Special", icon: "star", color: "#8B5CF6" },
-};
-
-const TIER_COLORS: Record<string, string> = {
-  bronze: "#CD7F32",
-  silver: "#A8A8A8",
-  gold: "#FFD700",
-  platinum: "#B4E4FF",
-};
-
-const TIER_GRADIENTS: Record<string, string[]> = {
-  bronze: ["#CD7F32", "#8B4513"],
-  silver: ["#C0C0C0", "#808080"],
-  gold: ["#FFD700", "#FFA500"],
-  platinum: ["#E5E4E2", "#A0D2DB"],
+/** Metal tiers, a touch muted so they sit on the dark cards rather than glowing on them. */
+const TIER: Record<Achievement["tier"], { label: string; colour: string }> = {
+  bronze: { label: "Bronze", colour: "#B8784A" },
+  silver: { label: "Silver", colour: "#A9B4B8" },
+  gold: { label: "Gold", colour: "#D4A93C" },
+  platinum: { label: "Platinum", colour: "#9FD3E0" },
 };
 
 export const AchievementsScreen = () => {
   const { colors } = useAppTheme();
-  const matches = useMatchesStore((state) => state.matches);
-  const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
-  const sessions = useSessionsStore((state) => state.logs);
-  const entries = useRoutineScoresStore((state) => state.entries);
-  const routines = useRoutinesStore((state) => state.routines);
-  const totalFrames = useMemo(
-    () => Object.values(liveFramesByMatch).reduce((sum, frames) => sum + frames.length, 0),
-    [liveFramesByMatch]
-  );
-  const { seenAchievementIds, seenAchievementIdsOrdered } = useSeenAchievements(
-    `${matches.length}-${sessions.length}-${entries.length}-${totalFrames}`
-  );
+  const dialog = useDialog();
+  const { stats, unlocked, xp, level, nextGoal, recentUnlocks } = usePlayerProgress();
+  const [category, setCategory] = useState<AchievementCategory | "all">("all");
 
-  const [selectedCategory, setSelectedCategory] = React.useState<AchievementCategory | "all">("all");
-  const [selectedAchievement, setSelectedAchievement] = React.useState<Achievement | null>(null);
+  const isUnlocked = (achievement: Achievement) => unlocked.includes(achievement);
 
-  const xpAnim = useRef(new Animated.Value(0)).current;
-  const levelScaleAnim = useRef(new Animated.Value(1)).current;
-  const categoryAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    Animated.timing(xpAnim, {
-      toValue: 1,
-      duration: 800,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-
-    Animated.sequence([
-      Animated.spring(levelScaleAnim, {
-        toValue: 1.1,
-        friction: 3,
-        tension: 100,
-        useNativeDriver: true,
-      }),
-      Animated.spring(levelScaleAnim, {
-        toValue: 1,
-        friction: 3,
-        tension: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  const playerStats = useMemo(
-    () => getPlayerStats(matches, sessions, entries, routines, liveFramesByMatch),
-    [matches, sessions, entries, routines, liveFramesByMatch]
-  );
-
-  const unlockedAchievements = useMemo(() => {
-    return ACHIEVEMENTS.filter((a) => {
-      if (seenAchievementIds.has(a.id)) return true;
-
-      switch (a.requirement.type) {
-        case "matches_won":
-          return playerStats.matchesWon >= a.requirement.value;
-        case "matches_played":
-          return playerStats.matchesPlayed >= a.requirement.value;
-        case "sessions_logged":
-          return playerStats.sessionsLogged >= a.requirement.value;
-        case "win_streak":
-          return playerStats.longestWinStreak >= a.requirement.value;
-        case "best_break":
-          return playerStats.bestBreak >= a.requirement.value;
-        case "centuries":
-          return playerStats.centuries >= a.requirement.value;
-        default:
-          return false;
-      }
-    });
-  }, [playerStats, seenAchievementIds]);
-
-  const lockedAchievements = useMemo(() => {
-    return ACHIEVEMENTS.filter((a) => !unlockedAchievements.some((u) => u.id === a.id));
-  }, [unlockedAchievements]);
-
-  const xp = useMemo(
-    () => unlockedAchievements.reduce((sum, achievement) => sum + achievement.xpReward, 0),
-    [unlockedAchievements]
-  );
-  const levelInfo = getPlayerLevel(xp);
-
-  const nextAchievement = useMemo(() => {
-    const withProgress = lockedAchievements.map((a) => {
-      const req = a.requirement;
-      let current = 0;
-      switch (req.type) {
-        case "matches_won":
-          current = playerStats.matchesWon;
-          break;
-        case "matches_played":
-          current = playerStats.matchesPlayed;
-          break;
-        case "sessions_logged":
-          current = playerStats.sessionsLogged;
-          break;
-        case "win_streak":
-          current = playerStats.longestWinStreak;
-          break;
-        case "best_break":
-          current = playerStats.bestBreak;
-          break;
-        case "centuries":
-          current = playerStats.centuries;
-          break;
-      }
-      const progress = Math.min(1, current / req.value);
-      const remaining = req.value - current;
-      return { achievement: a, progress, remaining, current };
-    });
-
-    return withProgress.sort((a, b) => {
-      if (a.progress >= 1 && b.progress < 1) return -1;
-      if (a.progress < 1 && b.progress >= 1) return 1;
+  // Unlocked first, then the ones you are closest to.
+  const list = ACHIEVEMENTS.filter((achievement) => category === "all" || achievement.category === category)
+    .map((achievement) => {
+      const current = achievementCurrent(achievement, stats);
+      return { achievement, current, progress: Math.min(1, current / achievement.requirement.value) };
+    })
+    .sort((a, b) => {
+      const aDone = isUnlocked(a.achievement);
+      const bDone = isUnlocked(b.achievement);
+      if (aDone !== bDone) return aDone ? -1 : 1;
       return b.progress - a.progress;
-    })[0];
-  }, [lockedAchievements, playerStats]);
+    });
 
-  const recentUnlocks = useMemo(() => {
-    return seenAchievementIdsOrdered
-      .map((id) => ACHIEVEMENTS.find((achievement) => achievement.id === id))
-      .filter((achievement): achievement is Achievement => !!achievement)
-      .slice(-3)
-      .reverse();
-  }, [seenAchievementIdsOrdered]);
+  // Only offer categories that have something in them.
+  const categories = CATEGORIES.filter(
+    (item) => item.value === "all" || ACHIEVEMENTS.some((achievement) => achievement.category === item.value)
+  );
 
-  const filteredAchievements = selectedCategory === "all"
-    ? ACHIEVEMENTS
-    : ACHIEVEMENTS.filter((a) => a.category === selectedCategory);
-
-  const categories: (AchievementCategory | "all")[] = ["all", "matches", "breaks", "practice", "streaks", "special"];
-
-  const getProgress = (achievement: Achievement): number => {
-    const req = achievement.requirement;
-    switch (req.type) {
-      case "matches_won":
-        return Math.min(100, (playerStats.matchesWon / req.value) * 100);
-      case "matches_played":
-        return Math.min(100, (playerStats.matchesPlayed / req.value) * 100);
-      case "sessions_logged":
-        return Math.min(100, (playerStats.sessionsLogged / req.value) * 100);
-      case "win_streak":
-        return Math.min(100, (playerStats.longestWinStreak / req.value) * 100);
-      case "best_break":
-        return Math.min(100, (playerStats.bestBreak / req.value) * 100);
-      case "centuries":
-        return Math.min(100, (playerStats.centuries / req.value) * 100);
-      default:
-        return 0;
-    }
+  const openDetail = (achievement: Achievement, current: number) => {
+    const done = isUnlocked(achievement);
+    dialog.alert({
+      title: achievement.title,
+      message: done
+        ? `${achievement.description}. Unlocked, and worth ${achievement.xpReward} XP.`
+        : `${achievement.description}. You are on ${Math.min(current, achievement.requirement.value)} of ${
+            achievement.requirement.value
+          }, and it is worth ${achievement.xpReward} XP.`,
+      icon: achievement.icon,
+      tone: done ? "success" : "default",
+      confirmLabel: "Done",
+    });
   };
-
-  const getCurrentValue = (achievement: Achievement): string => {
-    const req = achievement.requirement;
-    switch (req.type) {
-      case "matches_won":
-        return `${playerStats.matchesWon}/${req.value}`;
-      case "matches_played":
-        return `${playerStats.matchesPlayed}/${req.value}`;
-      case "sessions_logged":
-        return `${playerStats.sessionsLogged}/${req.value}`;
-      case "win_streak":
-        return `${playerStats.longestWinStreak}/${req.value}`;
-      case "best_break":
-        return `${playerStats.bestBreak}/${req.value}`;
-      case "centuries":
-        return `${playerStats.centuries}/${req.value}`;
-      default:
-        return "0";
-    }
-  };
-
-  const animatedXpWidth = xpAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0%", `${levelInfo.xpToNext === Infinity ? 100 : Math.min(100, (xp / (xp + levelInfo.xpToNext)) * 100)}%`],
-  });
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      {/* Level Header */}
-      <AppCard style={styles.levelCard}>
-        <Animated.View style={[styles.levelHeader, { transform: [{ scale: levelScaleAnim }] }]}>
-          <View style={[styles.levelBadge, { backgroundColor: colors.primary }]}>
-            <MaterialCommunityIcons name="star" size={20} color={colors.onPrimary} />
-            <Text style={[styles.levelText, { color: colors.onPrimary }]}>Level {levelInfo.level}</Text>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ---------------------------------------------------------------- level */}
+      <BoardPanel kicker="YOUR LEVEL" aside={`${xp} XP`}>
+        <View style={styles.levelRow}>
+          <Text style={[styles.levelValue, { color: colors.boardText }]}>{level.level}</Text>
+          <View style={styles.levelText}>
+            <Text style={[styles.levelTitle, { color: colors.boardText }]}>{level.title.toUpperCase()}</Text>
+            <Text style={[styles.levelNext, { color: colors.boardMuted }]}>
+              {level.nextTitle ? `${level.xpToNext} XP TO ${level.nextTitle.toUpperCase()}` : "TOP LEVEL REACHED"}
+            </Text>
           </View>
-          <Text style={[styles.levelTitle, { color: colors.text }]}>{levelInfo.title}</Text>
-        </Animated.View>
-        <View style={styles.xpRow}>
-          <Text style={[styles.xpLabel, { color: colors.textMuted }]}>Total XP</Text>
-          <Text style={[styles.xpValue, { color: colors.text }]}>{xp}</Text>
-        </View>
-        <View style={styles.progressRow}>
-          <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceMuted }]}>
-            <Animated.View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: animatedXpWidth }]} />
+          <View style={styles.unlockedBox}>
+            <Text style={[styles.unlockedValue, { color: colors.boardText }]}>
+              {unlocked.length}
+              <Text style={{ color: colors.boardMuted }}>/{ACHIEVEMENTS.length}</Text>
+            </Text>
+            <Text style={[styles.unlockedLabel, { color: colors.boardMuted }]}>UNLOCKED</Text>
           </View>
         </View>
-        {levelInfo.xpToNext !== Infinity && (
-          <Text style={[styles.xpToNext, { color: colors.textMuted }]}>{levelInfo.xpToNext} XP to next level</Text>
-        )}
-      </AppCard>
+        <View style={[styles.track, { backgroundColor: colors.boardRaised }]}>
+          <View style={[styles.fill, { width: `${Math.round(level.progress * 100)}%`, backgroundColor: colors.primary }]} />
+        </View>
+      </BoardPanel>
 
-      {/* Recently Unlocked */}
-      {recentUnlocks.length > 0 && (
-        <View style={styles.recentSection}>
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>RECENTLY UNLOCKED</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.recentScroll}>
-            {recentUnlocks.map((achievement) => {
-              const tierColor = TIER_COLORS[achievement.tier];
-              return (
-                <View key={achievement.id} style={[styles.recentCard, { backgroundColor: colors.surface, borderColor: tierColor + "60" }]}>
-                  <View style={[styles.recentIcon, { backgroundColor: tierColor + "20" }]}>
-                    <MaterialCommunityIcons name={achievement.icon as any} size={24} color={tierColor} />
-                  </View>
-                  <Text style={[styles.recentTitle, { color: colors.text }]} numberOfLines={1}>{achievement.title}</Text>
-                  <Text style={[styles.recentXp, { color: colors.primary }]}>+{achievement.xpReward}</Text>
-                </View>
-              );
-            })}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Next Achievement */}
-      {nextAchievement && (
-        <AppCard style={styles.nextCard}>
-          <View style={styles.nextHeader}>
-            <MaterialCommunityIcons name="target" size={20} color={colors.primary} />
-            <Text style={[styles.nextLabel, { color: colors.text }]}>Next Goal</Text>
-          </View>
-          <View style={styles.nextContent}>
-            <View style={[styles.nextIcon, { backgroundColor: TIER_COLORS[nextAchievement.achievement.tier] + "20" }]}>
-              <MaterialCommunityIcons name={nextAchievement.achievement.icon as any} size={28} color={TIER_COLORS[nextAchievement.achievement.tier]} />
+      {/* ---------------------------------------------------------------- next up */}
+      {nextGoal ? (
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.kicker, { color: colors.textMuted }]}>NEXT UP</Text>
+          <View style={styles.nextRow}>
+            <View style={[styles.icon, { backgroundColor: colors.surfaceMuted }]}>
+              <MaterialCommunityIcons name={nextGoal.achievement.icon} size={24} color={colors.primary} />
             </View>
-            <View style={styles.nextInfo}>
-              <Text style={[styles.nextTitle, { color: colors.text }]}>{nextAchievement.achievement.title}</Text>
-              <Text style={[styles.nextDesc, { color: colors.textMuted }]}>{nextAchievement.achievement.description}</Text>
-              <View style={styles.nextProgress}>
-                <View style={[styles.nextProgressBar, { backgroundColor: colors.surfaceMuted }]}>
-                  <View style={[styles.nextProgressFill, { backgroundColor: TIER_COLORS[nextAchievement.achievement.tier], width: `${nextAchievement.progress * 100}%` }]} />
-                </View>
-                <Text style={[styles.nextProgressText, { color: colors.text }]}>
-                  {nextAchievement.current}/{nextAchievement.achievement.requirement.value}
+            <View style={styles.nextText}>
+              <Text style={[styles.title, { color: colors.text }]}>{nextGoal.achievement.title}</Text>
+              <Text style={[styles.description, { color: colors.textMuted }]}>{nextGoal.achievement.description}</Text>
+            </View>
+            <Text style={[styles.count, { color: colors.text }]}>
+              {Math.min(nextGoal.current, nextGoal.achievement.requirement.value)}/{nextGoal.achievement.requirement.value}
+            </Text>
+          </View>
+          <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
+            <View style={[styles.fill, { width: `${nextGoal.progress * 100}%`, backgroundColor: colors.primary }]} />
+          </View>
+        </View>
+      ) : null}
+
+      {/* ---------------------------------------------------------------- recent */}
+      {recentUnlocks.length ? (
+        <>
+          <Text style={[styles.groupLabel, { color: colors.textMuted }]}>RECENTLY UNLOCKED</Text>
+          <View style={styles.recent}>
+            {recentUnlocks.map((achievement) => (
+              <View
+                key={achievement.id}
+                style={[styles.recentItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <MaterialCommunityIcons name={achievement.icon} size={22} color={TIER[achievement.tier].colour} />
+                <Text style={[styles.recentTitle, { color: colors.text }]} numberOfLines={1}>
+                  {achievement.title}
                 </Text>
+                <Text style={[styles.recentXp, { color: colors.primary }]}>+{achievement.xpReward} XP</Text>
               </View>
-            </View>
+            ))}
           </View>
-        </AppCard>
-      )}
+        </>
+      ) : null}
 
-      {/* Stats Overview */}
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{unlockedAchievements.length}</Text>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Unlocked</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{ACHIEVEMENTS.length - unlockedAchievements.length}</Text>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Locked</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.statValue, { color: colors.primary }]}>{unlockedAchievements.reduce((sum, a) => sum + a.xpReward, 0)}</Text>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>XP Earned</Text>
-        </View>
-      </View>
-
-      {/* Category Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryTabs}>
-        {categories.map((cat) => {
-          const isActive = selectedCategory === cat;
-          const info = cat === "all" ? { label: "All", icon: "check-all" as const, color: colors.textMuted } : CATEGORY_INFO[cat];
+      {/* ---------------------------------------------------------------- everything */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+        {categories.map((item) => {
+          const selected = category === item.value;
           return (
             <Pressable
-              key={cat}
-              style={[styles.categoryTab, { backgroundColor: isActive ? colors.primary : colors.surfaceMuted }]}
-              onPress={() => setSelectedCategory(cat)}
+              key={item.value}
+              onPress={() => setCategory(item.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              style={[
+                styles.filter,
+                {
+                  backgroundColor: selected ? colors.primary : colors.surface,
+                  borderColor: selected ? colors.primary : colors.border,
+                },
+              ]}
             >
-              <MaterialCommunityIcons
-                name={info.icon}
-                size={16}
-                color={isActive ? colors.onPrimary : colors.textMuted}
-              />
-              <Text style={[styles.categoryTabText, { color: isActive ? colors.onPrimary : colors.textMuted }]}>
-                {info.label}
-              </Text>
+              <Text style={[styles.filterText, { color: selected ? colors.onPrimary : colors.text }]}>{item.label}</Text>
             </Pressable>
           );
         })}
       </ScrollView>
 
-      {/* Achievements List */}
-      <View style={styles.achievementsList}>
-        {filteredAchievements.map((achievement) => {
-          const isUnlocked = unlockedAchievements.some((a) => a.id === achievement.id);
-          const progress = getProgress(achievement);
-          const tierColor = TIER_COLORS[achievement.tier];
-          const tierGradient = TIER_GRADIENTS[achievement.tier];
+      {list.map(({ achievement, current, progress }) => {
+        const done = isUnlocked(achievement);
+        const tier = TIER[achievement.tier];
 
-          return (
-            <Pressable
-              key={achievement.id}
-              style={[
-                styles.achievementCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: isUnlocked ? tierColor : colors.border,
-                  opacity: isUnlocked ? 1 : 0.7,
-                },
-              ]}
-              onPress={() => setSelectedAchievement(achievement)}
-            >
-              {isUnlocked && <View style={[styles.unlockedGlow, { backgroundColor: tierColor + "10" }]} />}
-              <View style={styles.achievementHeader}>
-                <View style={[styles.achievementIcon, { backgroundColor: isUnlocked ? tierColor + "20" : colors.surfaceMuted }]}>
-                  <MaterialCommunityIcons
-                    name={achievement.icon as any}
-                    size={24}
-                    color={isUnlocked ? tierColor : colors.textMuted}
-                  />
-                  {isUnlocked && (
-                    <View style={[styles.checkBadge, { backgroundColor: tierColor }]}>
-                      <MaterialCommunityIcons name="check" size={10} color="#FFF" />
+        return (
+          <Pressable
+            key={achievement.id}
+            onPress={() => openDetail(achievement, current)}
+            accessibilityRole="button"
+            accessibilityLabel={`${achievement.title}, ${tier.label}, ${done ? "unlocked" : "locked"}`}
+            style={({ pressed }) => [
+              styles.item,
+              { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <View style={[styles.icon, { backgroundColor: done ? `${tier.colour}22` : colors.surfaceMuted }]}>
+              <MaterialCommunityIcons
+                name={done ? achievement.icon : "lock-outline"}
+                size={22}
+                color={done ? tier.colour : colors.textSubtle}
+              />
+            </View>
+
+            <View style={styles.itemBody}>
+              <View style={styles.itemHead}>
+                <Text style={[styles.title, { color: done ? colors.text : colors.textMuted }]} numberOfLines={1}>
+                  {achievement.title}
+                </Text>
+                <Text style={[styles.xp, { color: done ? colors.primary : colors.textSubtle }]}>
+                  {achievement.xpReward} XP
+                </Text>
+              </View>
+              <Text style={[styles.description, { color: colors.textMuted }]} numberOfLines={1}>
+                {achievement.description}
+              </Text>
+
+              <View style={styles.itemFoot}>
+                <Text style={[styles.tier, { color: tier.colour }]}>{tier.label.toUpperCase()}</Text>
+                {done ? (
+                  <Text style={[styles.status, { color: colors.primary }]}>UNLOCKED</Text>
+                ) : (
+                  <>
+                    <View style={[styles.miniTrack, { backgroundColor: colors.surfaceMuted }]}>
+                      <View style={[styles.fill, { width: `${progress * 100}%`, backgroundColor: colors.textMuted }]} />
                     </View>
-                  )}
-                  {!isUnlocked && (
-                    <View style={styles.lockBadge}>
-                      <MaterialCommunityIcons name="lock" size={10} color={colors.textMuted} />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.achievementInfo}>
-                  <Text style={[styles.achievementTitle, { color: isUnlocked ? colors.text : colors.textMuted }]}>
-                    {achievement.title}
-                  </Text>
-                  <Text style={[styles.achievementDescription, { color: colors.textMuted }]} numberOfLines={1}>
-                    {achievement.description}
-                  </Text>
-                </View>
+                    <Text style={[styles.status, { color: colors.textMuted }]}>
+                      {Math.min(current, achievement.requirement.value)}/{achievement.requirement.value}
+                    </Text>
+                  </>
+                )}
               </View>
-              {!isUnlocked && (
-                <View style={styles.progressContainer}>
-                  <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceMuted }]}>
-                    <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: tierColor }]} />
-                  </View>
-                  <Text style={[styles.progressText, { color: colors.textMuted }]}>{getCurrentValue(achievement)} ({Math.round(progress)}%)</Text>
-                </View>
-              )}
-              <View style={styles.achievementFooter}>
-                <View style={[styles.tierBadge, { backgroundColor: tierColor + "20" }]}>
-                  <Text style={[styles.tierText, { color: tierColor }]}>{achievement.tier.toUpperCase()}</Text>
-                </View>
-                <Text style={[styles.xpText, { color: isUnlocked ? colors.textMuted : colors.primary }]}>+{achievement.xpReward} XP</Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* Achievement Detail Modal */}
-      <Modal visible={!!selectedAchievement} transparent animationType="fade" onRequestClose={() => setSelectedAchievement(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setSelectedAchievement(null)} accessibilityLabel="Close">
-          {selectedAchievement && (
-            <Pressable
-              style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => null}
-              accessibilityViewIsModal
-            >
-              <View style={[styles.modalAccentBar, { backgroundColor: TIER_COLORS[selectedAchievement.tier] }]} />
-
-              <View style={styles.modalBody}>
-                <View
-                  style={[
-                    styles.modalIcon,
-                    {
-                      backgroundColor: colors.surfaceMuted,
-                      borderColor: unlockedAchievements.some((a) => a.id === selectedAchievement.id)
-                        ? TIER_COLORS[selectedAchievement.tier]
-                        : colors.border,
-                    },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={selectedAchievement.icon as any}
-                    size={34}
-                    color={unlockedAchievements.some((a) => a.id === selectedAchievement.id) ? TIER_COLORS[selectedAchievement.tier] : colors.textMuted}
-                  />
-                </View>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedAchievement.title}</Text>
-                <Text style={[styles.modalDescription, { color: colors.textMuted }]}>{selectedAchievement.description}</Text>
-                <View style={[styles.modalTier, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
-                  <Text style={[styles.modalTierText, { color: TIER_COLORS[selectedAchievement.tier] }]}>
-                    {selectedAchievement.tier.toUpperCase()}
-                  </Text>
-                </View>
-                <Text style={[styles.modalXp, { color: colors.primary }]}>+{selectedAchievement.xpReward} XP</Text>
-
-                <Pressable
-                  onPress={() => setSelectedAchievement(null)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Close"
-                  style={({ pressed }) => [
-                    styles.modalClose,
-                    { backgroundColor: colors.surfaceMuted, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
-                  ]}
-                >
-                  <Text style={[styles.modalCloseText, { color: colors.text }]}>Close</Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          )}
-        </Pressable>
-      </Modal>
+            </View>
+          </Pressable>
+        );
+      })}
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: SPACING.lg, paddingBottom: SPACING.xxl, gap: SPACING.md },
 
-  // Level Card
-  levelCard: { alignItems: "center", marginBottom: 16 },
-  levelHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
-  levelBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
-  levelText: { fontSize: 14, fontWeight: "800" },
-  levelTitle: { fontSize: 20, fontWeight: "700" },
-  xpRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  xpLabel: { fontSize: 13 },
-  xpValue: { fontSize: 18, fontWeight: "700" },
-  progressRow: { width: "100%", marginBottom: 8 },
-  progressBarBg: { height: 8, borderRadius: 4, overflow: "hidden" },
-  progressBarFill: { height: "100%", borderRadius: 4 },
-  xpToNext: { fontSize: 12 },
+  levelRow: { flexDirection: "row", alignItems: "center", gap: SPACING.md },
+  levelValue: { fontFamily: FONTS.boardHeavy, fontSize: 64, lineHeight: 70, fontVariant: ["tabular-nums"] },
+  levelText: { flex: 1, gap: 2 },
+  levelTitle: { fontFamily: FONTS.board, fontSize: 24, letterSpacing: 0.8 },
+  levelNext: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.2 },
+  unlockedBox: { alignItems: "flex-end" },
+  unlockedValue: { fontFamily: FONTS.board, fontSize: 26, fontVariant: ["tabular-nums"] },
+  unlockedLabel: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 1.4 },
+  track: { height: 6, borderRadius: 3, overflow: "hidden", marginTop: SPACING.md },
+  fill: { height: "100%", borderRadius: 3 },
 
-  // Recent Unlocks
-  recentSection: { marginBottom: 16 },
-  sectionTitle: { fontSize: 11, fontWeight: "700", letterSpacing: 1, marginBottom: 10 },
-  recentScroll: { marginHorizontal: -16, paddingHorizontal: 16 },
-  recentCard: { width: 110, borderRadius: 12, borderWidth: 1.5, padding: 12, alignItems: "center", marginRight: 10 },
-  recentIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-  recentTitle: { fontSize: 12, fontWeight: "700", textAlign: "center", marginBottom: 4 },
-  recentXp: { fontSize: 11, fontWeight: "600" },
+  card: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.lg },
+  kicker: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.6, marginBottom: SPACING.sm },
+  nextRow: { flexDirection: "row", alignItems: "center", gap: SPACING.md },
+  nextText: { flex: 1 },
+  count: { fontFamily: FONTS.board, fontSize: 22, fontVariant: ["tabular-nums"] },
 
-  // Next Achievement
-  nextCard: { marginBottom: 16 },
-  nextHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  nextLabel: { fontSize: 14, fontWeight: "700" },
-  nextContent: { flexDirection: "row", alignItems: "flex-start", gap: 14 },
-  nextIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
-  nextInfo: { flex: 1 },
-  nextTitle: { fontSize: 16, fontWeight: "800", marginBottom: 2 },
-  nextDesc: { fontSize: 13, marginBottom: 10 },
-  nextProgress: { flexDirection: "row", alignItems: "center", gap: 10 },
-  nextProgressBar: { flex: 1, height: 8, borderRadius: 4, overflow: "hidden" },
-  nextProgressFill: { height: "100%", borderRadius: 4 },
-  nextProgressText: { fontSize: 13, fontWeight: "600", minWidth: 50 },
+  icon: { width: 44, height: 44, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
+  title: { flexShrink: 1, fontSize: 15, fontWeight: "700" },
+  description: { fontSize: 13, marginTop: 1 },
 
-  // Stats Row
-  statsRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, borderRadius: 12, padding: 12, alignItems: "center" },
-  statValue: { fontSize: 24, fontWeight: "800" },
-  statLabel: { fontSize: 11, marginTop: 2 },
-
-  // Category Tabs
-  categoryTabs: { marginBottom: 16 },
-  categoryTab: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, marginRight: 8 },
-  categoryTabText: { fontSize: 13, fontWeight: "600" },
-
-  // Achievements List
-  achievementsList: { gap: 10 },
-  achievementCard: { borderRadius: 14, borderWidth: 1.5, padding: 14, overflow: "hidden" },
-  unlockedGlow: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
-  achievementHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
-  achievementIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", position: "relative" },
-  checkBadge: { position: "absolute", bottom: -2, right: -2, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  lockBadge: { position: "absolute", bottom: -2, right: -2, width: 16, height: 16, borderRadius: 8, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
-  achievementInfo: { flex: 1 },
-  achievementTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
-  achievementDescription: { fontSize: 12 },
-  progressContainer: { marginTop: 12 },
-  progressText: { fontSize: 11, marginTop: 4, textAlign: "right" },
-  achievementFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 },
-  tierBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 },
-  tierText: { fontSize: 10, fontWeight: "700" },
-  xpText: { fontSize: 13, fontWeight: "600" },
-
-  // Modal
-  modalOverlay: {
+  groupLabel: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.6, marginTop: SPACING.xs, marginBottom: -4 },
+  recent: { flexDirection: "row", gap: SPACING.sm },
+  recentItem: {
     flex: 1,
-    backgroundColor: SCRIM,
-    justifyContent: "center",
-    paddingHorizontal: SPACING.xl,
-  },
-  modalCard: { borderRadius: RADIUS.xl, borderWidth: 1, overflow: "hidden" },
-  modalAccentBar: { height: 4 },
-  modalBody: { padding: SPACING.xl, alignItems: "center" },
-  modalIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: SPACING.md,
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xs,
   },
-  modalTitle: { fontSize: 19, fontWeight: "800", textAlign: "center" },
-  modalDescription: { fontSize: 14, textAlign: "center", lineHeight: 20, marginTop: SPACING.sm },
-  modalTier: {
-    marginTop: SPACING.md,
+  recentTitle: { fontSize: 12, fontWeight: "700", textAlign: "center" },
+  recentXp: { fontFamily: FONTS.board, fontSize: 14 },
+
+  filters: { gap: SPACING.sm, paddingVertical: SPACING.xs },
+  filter: {
+    minHeight: 36,
+    justifyContent: "center",
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
+    borderWidth: 1,
     borderRadius: RADIUS.pill,
-    borderWidth: 1,
   },
-  modalTierText: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
-  modalXp: { fontSize: 16, fontWeight: "800", marginTop: SPACING.sm },
-  modalClose: {
-    alignSelf: "stretch",
-    minHeight: 48,
-    borderRadius: RADIUS.md,
+  filterText: { fontSize: 13, fontWeight: "700" },
+
+  item: {
+    flexDirection: "row",
+    gap: SPACING.md,
     borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: SPACING.xl,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
   },
-  modalCloseText: { fontSize: 15, fontWeight: "700" },
+  itemBody: { flex: 1 },
+  itemHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: SPACING.sm },
+  xp: { fontFamily: FONTS.board, fontSize: 14 },
+  itemFoot: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, marginTop: SPACING.sm },
+  tier: { fontFamily: FONTS.board, fontSize: 12, letterSpacing: 1.4 },
+  miniTrack: { flex: 1, height: 4, borderRadius: 2, overflow: "hidden" },
+  status: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1 },
 });

@@ -5,6 +5,7 @@ import { SettingsScreen } from "../screens/profile/SettingsScreen";
 import { SubscriptionPlansScreen } from "../screens/profile/SubscriptionPlansScreen";
 import { AchievementsScreen } from "../screens/profile/AchievementsScreen";
 import { EditProfileFieldScreen } from "../screens/profile/EditProfileFieldScreen";
+import { AvatarPickerScreen } from "../screens/profile/AvatarPickerScreen";
 import { ProfileStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 
@@ -16,14 +17,15 @@ export const ProfileNavigator = () => {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen name="ProfileHome" component={ProfileScreen} options={{ title: "Profile" }} />
-      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Account Settings" }} />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Account settings" }} />
       <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} options={{ title: "Plans" }} />
       <Stack.Screen name="Achievements" component={AchievementsScreen} options={{ title: "Achievements" }} />
+      <Stack.Screen name="AvatarPicker" component={AvatarPickerScreen} options={{ title: "Choose an avatar" }} />
       <Stack.Screen
         name="EditProfileField"
         component={EditProfileFieldScreen}
         options={({ route }) => ({
-          title: "Edit Profile",
+          title: "Edit profile",
           gestureEnabled: route.params.field !== "cue_preference",
         })}
       />

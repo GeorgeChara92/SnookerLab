@@ -1,933 +1,390 @@
-import React, { useMemo, useState } from "react";
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import React from "react";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useAuthStore, useMatchesStore, useSessionsStore, useRoutineScoresStore, useRoutinesStore } from "../../store";
+import { useAuthStore, useRoutinesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
-import { useSeenAchievements } from "../../hooks/useSeenAchievements";
-import { AppButton } from "../../components/ui/AppButton";
-import { AppCard } from "../../components/ui/AppCard";
 import { useDialog } from "../../components/ui/DialogProvider";
-import { SNOOKER_PRESET_AVATARS, isAvatarUnlocked, type PresetAvatar } from "../../constants/profileAvatars";
 import { SnookerPresetAvatar } from "../../components/profile/SnookerPresetAvatar";
-import { ACHIEVEMENTS, getPlayerLevel, type Achievement } from "../../constants/achievements";
+import { BoardPanel } from "../../components/scoreboard/Scoreboard";
+import { ACHIEVEMENTS } from "../../constants/achievements";
 import { getSkillLabel, getCuePreferenceLabel, getCountryByCode } from "../../constants/profileOptions";
-import type { Match, SessionLog, RoutineScoreEntry, Routine } from "../../types";
-import { RADIUS, SCRIM, SPACING } from "../../constants";
+import { usePlayerProgress } from "../../features/profile/playerProgress";
+import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
-type AchievementStats = {
-  matchesWon: number;
-  matchesLost: number;
-  matchesPlayed: number;
-  sessionsLogged: number;
-  bestBreak: number;
-  centuries: number;
-  longestWinStreak: number;
-  playerLevel: number;
-  winRate: number;
-  mostTrainedCategory: string | null;
-};
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookerlab.app";
 
-const getPlayerStats = (
-  matches: Match[],
-  sessions: SessionLog[],
-  entries: RoutineScoreEntry[],
-  routines: Routine[],
-  userId: string,
-  liveFramesByMatch: Record<string, { highest_break_user: number }[]>
-): AchievementStats => {
-  const matchesWon = matches.filter((m: Match) => m.result === "win").length;
-  const matchesLost = matches.filter((m: Match) => m.result === "loss").length;
-  const matchesPlayed = matches.length;
-  const sessionsLogged = sessions.length + entries.length;
-  const winRate = matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0;
-
-  let longestStreak = 0;
-  let currentStreak = 0;
-  const sortedMatches = [...matches].sort((a: Match, b: Match) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  for (const match of sortedMatches) {
-    if (match.result === "win") {
-      currentStreak++;
-      longestStreak = Math.max(longestStreak, currentStreak);
-    } else {
-      currentStreak = 0;
-    }
-  }
-
-  const categoryCounts = new Map<string, number>();
-  entries.forEach((entry: RoutineScoreEntry) => {
-    const routine = routines.find((r: Routine) => r.id === entry.routine_id);
-    if (routine?.category_id) {
-      categoryCounts.set(routine.category_id, (categoryCounts.get(routine.category_id) ?? 0) + 1);
-    }
-  });
-  let mostTrainedCategory: string | null = null;
-  let maxCount = 0;
-  categoryCounts.forEach((count: number, catId: string) => {
-    if (count > maxCount) {
-      maxCount = count;
-      mostTrainedCategory = catId;
-    }
-  });
-
-  const allFrames = Object.values(liveFramesByMatch).flat();
-  const bestBreak = allFrames.reduce((max, frame) => Math.max(max, frame.highest_break_user ?? 0), 0);
-  const centuries = allFrames.filter((frame) => (frame.highest_break_user ?? 0) >= 100).length;
-
-  const xp = matchesWon * 10 + sessionsLogged * 5;
-  const playerLevel = getPlayerLevel(xp).level;
-
-  return {
-    matchesWon,
-    matchesLost,
-    matchesPlayed,
-    sessionsLogged,
-    bestBreak,
-    centuries,
-    longestWinStreak: longestStreak,
-    playerLevel,
-    winRate,
-    mostTrainedCategory,
-  };
-};
-
-const getCategoryLabel = (categoryId: string | null): string => {
-  const labels: Record<string, string> = {
-    "cat-basics": "Fundamentals",
-    "cat-break-building": "Break Building",
-    "cat-safety": "Safety Play",
-    "cat-straight-cueing": "Straight Cueing",
-    "cat-cue-ball-control": "Cue Ball Control",
-    "cat-long-potting": "Long Potting",
-  };
-  return categoryId ? labels[categoryId] ?? categoryId : "None";
-};
+/** A win rate over fewer matches than this says nothing. */
+const MIN_FOR_WIN_RATE = 3;
 
 export const ProfileScreen = () => {
   const navigation = useNavigation<any>();
-  const { user, signOut, updateAvatarPreset } = useAuthStore();
+  const { user, signOut } = useAuthStore();
+  const categories = useRoutinesStore((state) => state.categories);
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const subscription = useSubscriptionAccess();
-  const { width } = useWindowDimensions();
+  const { stats, unlocked, level, nextGoal } = usePlayerProgress();
 
-  const matches = useMatchesStore((state) => state.matches);
-  const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
-  const sessions = useSessionsStore((state) => state.logs);
-  const entries = useRoutineScoresStore((state) => state.entries);
-  const routines = useRoutinesStore((state) => state.routines);
-  const categories = useRoutinesStore((state) => state.categories);
-  const totalFrames = useMemo(
-    () => Object.values(liveFramesByMatch).reduce((sum, frames) => sum + frames.length, 0),
-    [liveFramesByMatch]
-  );
-  const { seenAchievementIds } = useSeenAchievements(`${matches.length}-${sessions.length}-${entries.length}-${totalFrames}`);
+  const country = user?.country_code ? getCountryByCode(user.country_code) : null;
+  const mostPractised = categories.find((category) => category.id === stats.mostTrainedCategory)?.name ?? null;
 
-  const [activeGalleryPage, setActiveGalleryPage] = useState(0);
-  const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
-  const [lockedAvatar, setLockedAvatar] = useState<PresetAvatar | null>(null);
-
-  const playerStats = useMemo(
-    () => getPlayerStats(matches, sessions, entries, routines, user?.id ?? "", liveFramesByMatch),
-    [matches, sessions, entries, routines, user?.id, liveFramesByMatch]
-  );
-
-  const playerPresets = SNOOKER_PRESET_AVATARS.filter((preset) => preset.group === "player");
-  const snookerPresets = SNOOKER_PRESET_AVATARS.filter((preset) => preset.group !== "player");
-
-  const galleryPages = useMemo(() => {
-    const pages: typeof snookerPresets[] = [];
-    for (let index = 0; index < snookerPresets.length; index += 9) {
-      pages.push(snookerPresets.slice(index, index + 9));
-    }
-    return pages;
-  }, [snookerPresets]);
-
-  const galleryPageWidth = Math.max(270, width - 60);
-
-  const handleSignOut = async () => {
-    await signOut();
-  };
-
-  const handlePresetSelect = async (presetId: string) => {
+  const openSupport = async () => {
+    const url = `mailto:${SUPPORT_EMAIL}?subject=SnookerLab%20help`;
     try {
-      await updateAvatarPreset(presetId);
-    } catch {
-      dialog.alert({
-        title: "Could not change your avatar",
-        message: "Your avatar has been left as it was. Check your connection and try again.",
-        tone: "danger",
-        icon: "alert-outline",
-      });
-    }
-  };
-
-  const handleAvatarPress = (preset: PresetAvatar) => {
-    const unlocked = isAvatarUnlocked(preset, playerStats);
-    if (unlocked) {
-      handlePresetSelect(preset.id);
-    } else {
-      setLockedAvatar(preset);
-    }
-  };
-
-  const getUnlockConditionText = (avatar: PresetAvatar): string => {
-    if (!avatar.unlockCondition) return "Available from start";
-    const { type, value } = avatar.unlockCondition;
-    switch (type) {
-      case "matches_won":
-        return `Win ${value} match${value > 1 ? "es" : ""}`;
-      case "matches_played":
-        return `Play ${value} match${value > 1 ? "es" : ""}`;
-      case "sessions_logged":
-        return `Complete ${value} practice session${value > 1 ? "s" : ""}`;
-      case "best_break":
-        return `Record a break of ${value}+ points`;
-      case "win_streak":
-        return `Win ${value} matches in a row`;
-      case "level":
-        return `Reach Level ${value}`;
-      default:
-        return "Unlock condition unknown";
-    }
-  };
-
-  const getUnlockProgressText = (avatar: PresetAvatar): string => {
-    if (!avatar.unlockCondition) return "";
-    const { type, value } = avatar.unlockCondition;
-    const current: Record<string, number> = {
-      matches_won: playerStats.matchesWon,
-      matches_played: playerStats.matchesPlayed,
-      sessions_logged: playerStats.sessionsLogged,
-      best_break: playerStats.bestBreak,
-      win_streak: playerStats.longestWinStreak,
-      level: playerStats.playerLevel,
-    };
-    const progress = current[type] ?? 0;
-    return `${Math.min(progress, value)} / ${value}`;
-  };
-
-  const unlockedAchievements = useMemo(() => {
-    return ACHIEVEMENTS.filter((a) => {
-      if (seenAchievementIds.has(a.id)) return true;
-
-      switch (a.requirement.type) {
-        case "matches_won":
-          return playerStats.matchesWon >= a.requirement.value;
-        case "matches_played":
-          return playerStats.matchesPlayed >= a.requirement.value;
-        case "sessions_logged":
-          return playerStats.sessionsLogged >= a.requirement.value;
-        case "win_streak":
-          return playerStats.longestWinStreak >= a.requirement.value;
-        case "best_break":
-          return playerStats.bestBreak >= a.requirement.value;
-        case "centuries":
-          return playerStats.centuries >= a.requirement.value;
-        default:
-          return false;
+      if (await Linking.canOpenURL(url)) {
+        await Linking.openURL(url);
+        return;
       }
+    } catch {
+      // Fall through to the address in words.
+    }
+    dialog.alert({
+      title: "Get in touch",
+      message: `Write to us at ${SUPPORT_EMAIL} and we will get back to you.`,
+      icon: "email-outline",
+      confirmLabel: "Done",
     });
-  }, [playerStats, seenAchievementIds]);
-
-  const xp = useMemo(
-    () => unlockedAchievements.reduce((sum, achievement) => sum + achievement.xpReward, 0),
-    [unlockedAchievements]
-  );
-  const levelInfo = getPlayerLevel(xp);
-
-  const renderProgressBar = (current: number, max: number | null, label: string, color?: string) => {
-    const isUnlimited = max === null;
-    const percentage = max ? Math.min(100, (current / max) * 100) : 0;
-    const displayMax = max ?? "Unlimited";
-
-    return (
-      <View style={styles.progressRow}>
-        <View style={styles.progressLabelRow}>
-          <Text style={[styles.progressLabel, { color: colors.text }]}>{label}</Text>
-          <Text style={[styles.progressValue, { color: colors.textMuted }]}>
-            {current} / {displayMax}
-          </Text>
-        </View>
-        {isUnlimited ? null : (
-          <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceMuted }]}>
-            <View
-              style={[
-                styles.progressBarFill,
-                { width: `${percentage}%`, backgroundColor: color ?? colors.primary },
-              ]}
-            />
-          </View>
-        )}
-      </View>
-    );
   };
+
+  const confirmSignOut = () => {
+    dialog.confirm({
+      title: "Sign out?",
+      message: "Your data is saved to your account and comes back when you sign in again.",
+      icon: "logout",
+      confirmLabel: "Sign out",
+      cancelLabel: "Stay signed in",
+      onConfirm: () => {
+        void signOut();
+      },
+    });
+  };
+
+  const usage = [
+    { label: "Matches", used: subscription.usage.matches, limit: subscription.limits.matchesPerPeriod },
+    { label: "Tournaments", used: subscription.usage.tournaments, limit: subscription.limits.tournamentsPerPeriod },
+    { label: "AI analyses", used: subscription.usage.aiAnalyses, limit: subscription.limits.aiAnalysesPerPeriod },
+  ];
+
+  const Row = ({
+    icon,
+    label,
+    value,
+    onPress,
+    accessory,
+  }: {
+    icon: keyof typeof MaterialCommunityIcons.glyphMap;
+    label: string;
+    value?: string;
+    onPress?: () => void;
+    accessory?: React.ReactNode;
+  }) => (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={value ? `${label}: ${value}` : label}
+      style={({ pressed }) => [styles.row, { backgroundColor: pressed && onPress ? colors.surfaceMuted : "transparent" }]}
+    >
+      <MaterialCommunityIcons name={icon} size={20} color={colors.textMuted} />
+      <Text style={[styles.rowLabel, { color: colors.text }]}>{label}</Text>
+      {accessory}
+      {value ? (
+        <Text style={[styles.rowValue, { color: colors.textMuted }]} numberOfLines={1}>
+          {value}
+        </Text>
+      ) : null}
+      {onPress ? <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSubtle} /> : null}
+    </Pressable>
+  );
+
+  const Divider = () => <View style={[styles.divider, { backgroundColor: colors.border }]} />;
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      {/* Profile Header */}
-      <AppCard style={styles.profileHeader}>
-        <View style={styles.avatarContainer}>
-          <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.primary }]}>
-            {user?.profile_image_url ? (
-              <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
-            ) : (
-              <SnookerPresetAvatar presetId={user?.avatar_preset} size={80} />
-            )}
-          </View>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ---------------------------------------------------------------- the player */}
+      <BoardPanel kicker="PLAYER" aside={`${subscription.tierLabel.toUpperCase()} PLAN`}>
+        <View style={styles.identity}>
           <Pressable
-            onPress={() => navigation.navigate("SubscriptionPlans")}
-            style={[styles.tierBadge, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate("AvatarPicker")}
+            accessibilityRole="button"
+            accessibilityLabel="Change your avatar"
+            style={styles.avatarWrap}
           >
-            <MaterialCommunityIcons name="crown" size={12} color={colors.onPrimary} />
-            <Text style={[styles.tierText, { color: colors.onPrimary }]}>{subscription.tierLabel}</Text>
+            <View style={[styles.avatar, { borderColor: colors.boardRule, backgroundColor: colors.boardRaised }]}>
+              {user?.profile_image_url ? (
+                <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
+              ) : (
+                <SnookerPresetAvatar presetId={user?.avatar_preset} size={68} />
+              )}
+            </View>
+            <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.board }]}>
+              <MaterialCommunityIcons name="pencil" size={12} color={colors.onPrimary} />
+            </View>
           </Pressable>
-        </View>
 
-        <Text style={[styles.playerName, { color: colors.text }]}>{user?.username || "Snooker Player"}</Text>
-        <View style={styles.levelRow}>
-          <View style={[styles.levelBadge, { backgroundColor: colors.surfaceMuted }]}>
-            <MaterialCommunityIcons name="star" size={14} color={colors.primary} />
-            <Text style={[styles.levelText, { color: colors.text }]}>Lv. {levelInfo.level}</Text>
-          </View>
-          <Text style={[styles.levelTitle, { color: colors.primary }]}>{levelInfo.title}</Text>
-        </View>
-
-        <View style={styles.quickStats}>
-          <View style={styles.quickStatItem}>
-            <Text style={[styles.quickStatValue, { color: colors.text }]}>{playerStats.matchesWon}</Text>
-            <Text style={[styles.quickStatLabel, { color: colors.textMuted }]}>Wins</Text>
-          </View>
-          <View style={[styles.quickStatDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.quickStatItem}>
-            <Text style={[styles.quickStatValue, { color: colors.text }]}>{playerStats.winRate}%</Text>
-            <Text style={[styles.quickStatLabel, { color: colors.textMuted }]}>Win Rate</Text>
-          </View>
-          <View style={[styles.quickStatDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.quickStatItem}>
-            <Text style={[styles.quickStatValue, { color: colors.text }]}>{playerStats.sessionsLogged}</Text>
-            <Text style={[styles.quickStatLabel, { color: colors.textMuted }]}>Sessions</Text>
+          <View style={styles.identityText}>
+            <Text style={[styles.name, { color: colors.boardText }]} numberOfLines={1} adjustsFontSizeToFit>
+              {(user?.username || "Snooker player").toUpperCase()}
+            </Text>
+            <Text style={[styles.levelLine, { color: colors.boardRule }]}>
+              LEVEL {level.level} · {level.title.toUpperCase()}
+            </Text>
           </View>
         </View>
-      </AppCard>
 
-      {/* Performance Snapshot */}
-      <AppCard style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="chart-bar" size={20} color={colors.primary} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Performance Snapshot</Text>
-        </View>
-
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: colors.surfaceMuted }]}>
-            <MaterialCommunityIcons name="trophy" size={24} color={colors.primary} />
-            <Text style={[styles.statValue, { color: colors.text }]}>{playerStats.matchesWon}W - {playerStats.matchesLost}L</Text>
-            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Match Record</Text>
+        <View style={styles.xp}>
+          <View style={[styles.xpTrack, { backgroundColor: colors.boardRaised }]}>
+            <View style={[styles.xpFill, { width: `${Math.round(level.progress * 100)}%`, backgroundColor: colors.primary }]} />
           </View>
-
-          <View style={[styles.statCard, { backgroundColor: colors.surfaceMuted }]}>
-            <MaterialCommunityIcons name="fire" size={24} color="#F59E0B" />
-            <Text style={[styles.statValue, { color: colors.text }]}>{playerStats.longestWinStreak}</Text>
-            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Best Streak</Text>
-          </View>
-
-          <View style={[styles.statCard, { backgroundColor: colors.surfaceMuted }]}>
-            <MaterialCommunityIcons name="target" size={24} color="#10B981" />
-            <Text style={[styles.statValue, { color: colors.text }]}>{getCategoryLabel(playerStats.mostTrainedCategory)}</Text>
-            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Most Trained</Text>
-          </View>
-
-          <View style={[styles.statCard, { backgroundColor: colors.surfaceMuted }]}>
-            <MaterialCommunityIcons name="medal" size={24} color="#8B5CF6" />
-            <Text style={[styles.statValue, { color: colors.text }]}>{unlockedAchievements.length}</Text>
-            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Achievements</Text>
-          </View>
-        </View>
-      </AppCard>
-
-      {/* Achievements */}
-      <AppCard style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="medal-outline" size={20} color={colors.primary} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Achievements</Text>
-          <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
-            {unlockedAchievements.length}/{ACHIEVEMENTS.length}
+          <Text style={[styles.xpText, { color: colors.boardMuted }]}>
+            {level.nextTitle ? `${level.xpToNext} XP to ${level.nextTitle}` : "Top level reached"}
           </Text>
         </View>
 
-        <View style={styles.achievementsGrid}>
-          {ACHIEVEMENTS.slice(0, 8).map((achievement) => {
-            const isUnlocked = unlockedAchievements.some((a) => a.id === achievement.id);
-            return (
-              <Pressable
-                key={achievement.id}
-                style={[
-                  styles.achievementItem,
-                  { backgroundColor: isUnlocked ? colors.surfaceMuted : colors.surface, borderColor: isUnlocked ? colors.primary : colors.border },
-                ]}
-                onPress={() => setSelectedAchievement(achievement)}
-              >
-                <View style={[styles.achievementIcon, { opacity: isUnlocked ? 1 : 0.3 }]}>
-                  <MaterialCommunityIcons
-                    name={achievement.icon as any}
-                    size={24}
-                    color={isUnlocked ? colors.primary : colors.textMuted}
-                  />
-                </View>
-                {!isUnlocked && (
-                  <View style={styles.lockedOverlay}>
-                    <MaterialCommunityIcons name="lock" size={14} color={colors.textMuted} />
-                  </View>
-                )}
-                <Text
-                  style={[styles.achievementTitle, { color: isUnlocked ? colors.text : colors.textMuted }]}
-                  numberOfLines={1}
-                >
-                  {achievement.title}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.viewAllButton}>
-          <AppButton label="View All Achievements" variant="secondary" onPress={() => navigation.navigate("Achievements")} />
-        </View>
-      </AppCard>
-
-      {/* Avatars */}
-      <AppCard style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="account-circle" size={20} color={colors.primary} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Player Avatars</Text>
-        </View>
-        <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Unlock avatars by playing matches and practicing.</Text>
-
-        <Text style={[styles.subSectionTitle, { color: colors.text }]}>Progression Avatars</Text>
-        <View style={styles.playerRow}>
-          {playerPresets.map((preset) => {
-            const selected = user?.avatar_preset === preset.id;
-            const unlocked = isAvatarUnlocked(preset, playerStats);
-
-            return (
-              <Pressable
-                key={preset.id}
-                onPress={() => handleAvatarPress(preset)}
-                style={[
-                  styles.playerCard,
-                  {
-                    borderColor: selected ? colors.primary : colors.border,
-                    backgroundColor: selected ? colors.surfaceMuted : colors.surface,
-                    opacity: unlocked ? 1 : 0.5,
-                  },
-                ]}
-              >
-                <View style={!unlocked && styles.lockedAvatar}>
-                  <SnookerPresetAvatar presetId={preset.id} size={52} />
-                  {!unlocked && (
-                    <View style={styles.avatarLock}>
-                      <MaterialCommunityIcons name="lock" size={16} color={colors.textMuted} />
-                    </View>
-                  )}
-                </View>
-                <Text style={[styles.presetLabel, { color: colors.text }]}>{preset.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Text style={[styles.subSectionTitle, { color: colors.text }]}>Snooker Icons</Text>
-        <ScrollView
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          style={styles.galleryScroll}
-          contentContainerStyle={styles.galleryContent}
-          onMomentumScrollEnd={(event) => {
-            const page = Math.round(event.nativeEvent.contentOffset.x / galleryPageWidth);
-            setActiveGalleryPage(page);
-          }}
-        >
-          {galleryPages.map((page, pageIndex) => (
-            <View key={`gallery-page-${pageIndex}`} style={[styles.galleryPage, { width: galleryPageWidth }]}>
-              <View style={styles.galleryGrid}>
-                {page.map((preset) => {
-                  const selected = user?.avatar_preset === preset.id;
-                  const unlocked = isAvatarUnlocked(preset, playerStats);
-
-                  return (
-                    <Pressable
-                      key={preset.id}
-                      onPress={() => handleAvatarPress(preset)}
-                      style={[
-                        styles.presetCard,
-                        {
-                          borderColor: selected ? colors.primary : colors.border,
-                          backgroundColor: selected ? colors.surfaceMuted : colors.surface,
-                          opacity: unlocked ? 1 : 0.5,
-                        },
-                      ]}
-                    >
-                      <View style={!unlocked && styles.lockedAvatar}>
-                        <SnookerPresetAvatar presetId={preset.id} size={44} />
-                        {!unlocked && (
-                          <View style={styles.avatarLock}>
-                            <MaterialCommunityIcons name="lock" size={14} color={colors.textMuted} />
-                          </View>
-                        )}
-                      </View>
-                      <Text style={[styles.presetLabel, { color: colors.text }]}>{preset.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+        <View style={[styles.cells, { borderTopColor: colors.boardRaised }]}>
+          {[
+            { label: "WON", value: `${stats.matchesWon}` },
+            {
+              label: "WIN RATE",
+              value: stats.matchesPlayed >= MIN_FOR_WIN_RATE ? `${stats.winRate}%` : "–",
+            },
+            { label: "SESSIONS", value: `${stats.sessionsLogged}` },
+            { label: "BEST RUN", value: `${stats.longestWinStreak}` },
+          ].map((cell) => (
+            <View key={cell.label} style={styles.cell}>
+              <Text style={[styles.cellValue, { color: colors.boardText }]}>{cell.value}</Text>
+              <Text style={[styles.cellLabel, { color: colors.boardMuted }]}>{cell.label}</Text>
             </View>
           ))}
-        </ScrollView>
-        {galleryPages.length > 1 && (
-          <View style={styles.pageDotsRow}>
-            {galleryPages.map((_, index) => {
-              const active = index === activeGalleryPage;
-              return (
-                <View
-                  key={`gallery-dot-${index}`}
-                  style={[
-                    styles.pageDot,
-                    { backgroundColor: active ? colors.primary : colors.border, width: active ? 20 : 8 },
-                  ]}
-                />
-              );
-            })}
-          </View>
-        )}
-      </AppCard>
-
-      {/* Plan Usage */}
-      <AppCard style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="chart-timeline-variant" size={20} color={colors.primary} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Plan Usage</Text>
         </View>
-        {renderProgressBar(subscription.usage.matches, subscription.limits.matchesPerPeriod, "Matches", colors.primary)}
-        {renderProgressBar(subscription.usage.tournaments, subscription.limits.tournamentsPerPeriod, "Tournaments", "#F59E0B")}
-        {renderProgressBar(subscription.usage.aiAnalyses, subscription.limits.aiAnalysesPerPeriod, "AI Analyses", "#8B5CF6")}
-      </AppCard>
+      </BoardPanel>
 
-      {/* Global Profile */}
-      <AppCard style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="earth" size={20} color={colors.primary} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Player Profile</Text>
+      {/* ---------------------------------------------------------------- achievements */}
+      <Pressable
+        onPress={() => navigation.navigate("Achievements")}
+        accessibilityRole="button"
+        accessibilityLabel={`Achievements, ${unlocked.length} of ${ACHIEVEMENTS.length} unlocked`}
+        style={({ pressed }) => [
+          styles.card,
+          { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <View style={styles.cardHead}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Achievements</Text>
+          <Text style={[styles.cardCount, { color: colors.textMuted }]}>
+            {unlocked.length}/{ACHIEVEMENTS.length}
+          </Text>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSubtle} />
         </View>
-        <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Used across the app to tailor routines and to show your cue setup.</Text>
+        <View style={[styles.bar, { backgroundColor: colors.surfaceMuted }]}>
+          <View
+            style={[
+              styles.barFill,
+              { width: `${(unlocked.length / ACHIEVEMENTS.length) * 100}%`, backgroundColor: colors.primary },
+            ]}
+          />
+        </View>
 
-        <Pressable style={[styles.profileField, { borderColor: colors.border }]} onPress={() => navigation.navigate("EditProfileField", { field: "skill_level" })}>
-          <View style={styles.profileFieldLeft}>
-            <MaterialCommunityIcons name="star-outline" size={20} color={colors.textMuted} />
-            <Text style={[styles.profileFieldLabel, { color: colors.textMuted }]}>Skill Level</Text>
+        {nextGoal ? (
+          <View style={styles.goal}>
+            <View style={[styles.goalIcon, { backgroundColor: colors.surfaceMuted }]}>
+              <MaterialCommunityIcons name={nextGoal.achievement.icon} size={20} color={colors.primary} />
+            </View>
+            <View style={styles.goalText}>
+              <Text style={[styles.goalKicker, { color: colors.textMuted }]}>NEXT UP</Text>
+              <Text style={[styles.goalTitle, { color: colors.text }]} numberOfLines={1}>
+                {nextGoal.achievement.title}
+              </Text>
+              <Text style={[styles.goalMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                {nextGoal.achievement.description} · {Math.min(nextGoal.current, nextGoal.achievement.requirement.value)} of{" "}
+                {nextGoal.achievement.requirement.value}
+              </Text>
+            </View>
           </View>
-          <View style={styles.profileFieldRight}>
-            <Text style={[styles.profileFieldValue, { color: colors.text }]}>{getSkillLabel(user?.skill_level)}</Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-          </View>
-        </Pressable>
+        ) : null}
+      </Pressable>
 
-        <Pressable style={[styles.profileField, { borderColor: colors.border }]} onPress={() => navigation.navigate("EditProfileField", { field: "country_code" })}>
-          <View style={styles.profileFieldLeft}>
-            <MaterialCommunityIcons name="flag-outline" size={20} color={colors.textMuted} />
-            <Text style={[styles.profileFieldLabel, { color: colors.textMuted }]}>Country</Text>
-          </View>
-          <View style={styles.profileFieldRight}>
-            {user?.country_code && (
-              <Text style={styles.countryEmoji}>{getCountryByCode(user.country_code)?.emoji ?? ""}</Text>
-            )}
-            <Text style={[styles.profileFieldValue, { color: colors.text }]}>
-              {user?.country_code ? (getCountryByCode(user.country_code)?.name ?? user.country_code) : "Not set"}
-            </Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-          </View>
-        </Pressable>
-
-        <Pressable style={[styles.profileField, { borderColor: colors.border }]} onPress={() => navigation.navigate("EditProfileField", { field: "cue_preference" })}>
-          <View style={styles.profileFieldLeft}>
-            <MaterialCommunityIcons name="golf-tee" size={20} color={colors.textMuted} />
-            <Text style={[styles.profileFieldLabel, { color: colors.textMuted }]}>Cue Setup</Text>
-          </View>
-          <View style={styles.profileFieldRight}>
-            <Text style={[styles.profileFieldValue, { color: colors.text }]}>{getCuePreferenceLabel(user?.cue_preference)}</Text>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-          </View>
-        </Pressable>
-      </AppCard>
-
-      {/* Settings */}
-      <AppCard style={styles.sectionCard}>
-        <Pressable style={styles.menuItem} onPress={() => navigation.navigate("Settings")}>
-          <View style={styles.menuItemLeft}>
-            <MaterialCommunityIcons name="cog-outline" size={22} color={colors.text} />
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Account Settings</Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
-        </Pressable>
-
-        <Pressable style={styles.menuItem} onPress={() => navigation.navigate("SubscriptionPlans")}>
-          <View style={styles.menuItemLeft}>
-            <MaterialCommunityIcons name="credit-card-outline" size={22} color={colors.text} />
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Manage Subscription</Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
-        </Pressable>
-
-        <Pressable style={styles.menuItem} onPress={() => {}}>
-          <View style={styles.menuItemLeft}>
-            <MaterialCommunityIcons name="help-circle-outline" size={22} color={colors.text} />
-            <Text style={[styles.menuItemText, { color: colors.text }]}>Help & Support</Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
-        </Pressable>
-      </AppCard>
-
-      {/* Sign Out */}
-      <View style={styles.signOutContainer}>
-        <Pressable onPress={handleSignOut} style={styles.signOutButton}>
-          <Text style={[styles.signOutText, { color: colors.textMuted }]}>Sign Out</Text>
-        </Pressable>
+      {/* ---------------------------------------------------------------- your game */}
+      <Text style={[styles.groupLabel, { color: colors.textMuted }]}>YOUR GAME</Text>
+      <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Row
+          icon="star-outline"
+          label="Skill level"
+          value={getSkillLabel(user?.skill_level)}
+          onPress={() => navigation.navigate("EditProfileField", { field: "skill_level" })}
+        />
+        <Divider />
+        <Row
+          icon="flag-outline"
+          label="Country"
+          value={country ? `${country.emoji ?? ""} ${country.name}`.trim() : "Not set"}
+          onPress={() => navigation.navigate("EditProfileField", { field: "country_code" })}
+        />
+        <Divider />
+        <Row
+          icon="billiards"
+          label="Cue"
+          value={getCuePreferenceLabel(user?.cue_preference)}
+          onPress={() => navigation.navigate("EditProfileField", { field: "cue_preference" })}
+        />
+        {mostPractised ? (
+          <>
+            <Divider />
+            <Row icon="target" label="Most practised" value={mostPractised} />
+          </>
+        ) : null}
       </View>
 
-      {/* Achievement Detail Modal */}
-      <Modal visible={!!selectedAchievement} transparent animationType="fade" onRequestClose={() => setSelectedAchievement(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setSelectedAchievement(null)} accessibilityLabel="Close">
-          {selectedAchievement && (
-            <Pressable
-              style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => null}
-              accessibilityViewIsModal
-            >
-              <View style={[styles.modalAccentBar, { backgroundColor: colors.primary }]} />
+      {/* ---------------------------------------------------------------- plan */}
+      <Text style={[styles.groupLabel, { color: colors.textMuted }]}>PLAN</Text>
+      <Pressable
+        onPress={() => navigation.navigate("SubscriptionPlans")}
+        accessibilityRole="button"
+        accessibilityLabel={`${subscription.tierLabel} plan. Manage your plan`}
+        style={({ pressed }) => [
+          styles.card,
+          { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <View style={styles.cardHead}>
+          <MaterialCommunityIcons name="crown-outline" size={20} color={colors.accent} />
+          <Text style={[styles.cardTitle, { color: colors.text }]}>{subscription.tierLabel}</Text>
+          <Text style={[styles.cardLink, { color: colors.primary }]}>Manage</Text>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSubtle} />
+        </View>
 
-              <View style={styles.modalBody}>
-                <View style={[styles.modalIcon, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
-                  <MaterialCommunityIcons
-                    name={selectedAchievement.icon as any}
-                    size={30}
-                    color={unlockedAchievements.some((a) => a.id === selectedAchievement.id) ? colors.primary : colors.textMuted}
-                  />
-                </View>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>{selectedAchievement.title}</Text>
-                <Text style={[styles.modalDescription, { color: colors.textMuted }]}>{selectedAchievement.description}</Text>
-                <View style={[styles.modalTier, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
-                  <Text style={[styles.modalTierText, { color: colors.text }]}>{selectedAchievement.tier.toUpperCase()}</Text>
-                </View>
-                <Text style={[styles.modalXp, { color: colors.primary }]}>+{selectedAchievement.xpReward} XP</Text>
-
-                <Pressable
-                  onPress={() => setSelectedAchievement(null)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Close"
-                  style={({ pressed }) => [
-                    styles.modalClose,
-                    { backgroundColor: colors.surfaceMuted, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
-                  ]}
-                >
-                  <Text style={[styles.modalCloseText, { color: colors.text }]}>Close</Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          )}
-        </Pressable>
-      </Modal>
-
-      {/* Locked Avatar Modal */}
-      <Modal visible={!!lockedAvatar} transparent animationType="fade" onRequestClose={() => setLockedAvatar(null)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setLockedAvatar(null)} accessibilityLabel="Close">
-          {lockedAvatar && (
-            <Pressable
-              style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => null}
-              accessibilityViewIsModal
-            >
-              <View style={[styles.modalAccentBar, { backgroundColor: colors.accent }]} />
-
-              <View style={styles.modalBody}>
-              <View style={[styles.avatarModalIcon, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
-                <SnookerPresetAvatar presetId={lockedAvatar.id} size={56} />
-                <View style={styles.avatarModalLock}>
-                  <MaterialCommunityIcons name="lock" size={20} color={colors.textMuted} />
-                </View>
-              </View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>{lockedAvatar.label}</Text>
-              {lockedAvatar.tag && (
-                <View style={[styles.avatarTag, { backgroundColor: colors.primary + "15" }]}>
-                  <Text style={[styles.avatarTagText, { color: colors.primary }]}>{lockedAvatar.tag}</Text>
-                </View>
-              )}
-              <Text style={[styles.avatarUnlockLabel, { color: colors.textMuted }]}>How to unlock it</Text>
-              <Text style={[styles.avatarUnlockText, { color: colors.text }]}>{getUnlockConditionText(lockedAvatar)}</Text>
-              {lockedAvatar.unlockCondition && (() => {
-                const progressPercent = (() => {
-                  const type = lockedAvatar.unlockCondition!.type;
-                  const value = lockedAvatar.unlockCondition!.value;
-                  const current: Record<string, number> = {
-                    matches_won: playerStats.matchesWon,
-                    matches_played: playerStats.matchesPlayed,
-                    sessions_logged: playerStats.sessionsLogged,
-                    best_break: playerStats.bestBreak,
-                    win_streak: playerStats.longestWinStreak,
-                    level: playerStats.playerLevel,
-                  };
-                  const progress = current[type] ?? 0;
-                  return Math.min(100, (progress / value) * 100);
-                })();
-                return (
-                  <View style={[styles.avatarProgressBar, { backgroundColor: colors.surfaceMuted }]}>
-                    <View style={[styles.avatarProgressFill, { backgroundColor: colors.primary, width: `${progressPercent}%` }]} />
-                  </View>
-                );
-              })()}
-              <Text style={[styles.avatarProgressText, { color: colors.textMuted }]}>
-                {getUnlockProgressText(lockedAvatar)}
+        {usage.map((item) => (
+          <View key={item.label} style={styles.usage}>
+            <View style={styles.usageLine}>
+              <Text style={[styles.usageLabel, { color: colors.text }]}>{item.label}</Text>
+              <Text style={[styles.usageValue, { color: colors.textMuted }]}>
+                {item.limit === null ? "Unlimited" : `${item.used} of ${item.limit} this month`}
               </Text>
-              <Pressable
-                onPress={() => setLockedAvatar(null)}
-                accessibilityRole="button"
-                accessibilityLabel="Got it"
-                style={({ pressed }) => [
-                  styles.modalClose,
-                  { backgroundColor: colors.surfaceMuted, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
-                ]}
-              >
-                <Text style={[styles.modalCloseText, { color: colors.text }]}>Got it</Text>
-              </Pressable>
+            </View>
+            {item.limit !== null ? (
+              <View style={[styles.bar, { backgroundColor: colors.surfaceMuted }]}>
+                <View
+                  style={[
+                    styles.barFill,
+                    {
+                      width: `${Math.min(100, (item.used / Math.max(1, item.limit)) * 100)}%`,
+                      backgroundColor: item.used >= item.limit ? colors.danger : colors.primary,
+                    },
+                  ]}
+                />
               </View>
-            </Pressable>
-          )}
-        </Pressable>
-      </Modal>
+            ) : null}
+          </View>
+        ))}
+      </Pressable>
+
+      {/* ---------------------------------------------------------------- account */}
+      <Text style={[styles.groupLabel, { color: colors.textMuted }]}>ACCOUNT</Text>
+      <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Row icon="cog-outline" label="Account settings" onPress={() => navigation.navigate("Settings")} />
+        <Divider />
+        <Row icon="help-circle-outline" label="Help and support" onPress={() => void openSupport()} />
+      </View>
+
+      <Pressable
+        onPress={confirmSignOut}
+        accessibilityRole="button"
+        accessibilityLabel="Sign out"
+        style={styles.signOut}
+      >
+        <Text style={[styles.signOutText, { color: colors.textMuted }]}>Sign out</Text>
+      </Pressable>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: SPACING.lg, paddingBottom: SPACING.xxl, gap: SPACING.md },
 
-  // Profile Header
-  profileHeader: { alignItems: "center", paddingBottom: 20 },
-  avatarContainer: { alignItems: "center", marginBottom: 12 },
+  identity: { flexDirection: "row", alignItems: "center", gap: SPACING.lg },
+  avatarWrap: { position: "relative" },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    borderWidth: 3,
-    justifyContent: "center",
+    borderWidth: 2,
     alignItems: "center",
+    justifyContent: "center",
     overflow: "hidden",
   },
   avatarImage: { width: "100%", height: "100%" },
-  tierBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 999,
-    marginTop: 8,
-  },
-  tierText: { fontSize: 12, fontWeight: "800" },
-  playerName: { fontSize: 24, fontWeight: "800", marginTop: 8 },
-  levelRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
-  levelBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  levelText: { fontSize: 13, fontWeight: "700" },
-  levelTitle: { fontSize: 14, fontWeight: "600" },
-  quickStats: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 16,
-    gap: 8,
-  },
-  quickStatItem: { alignItems: "center", flex: 1 },
-  quickStatValue: { fontSize: 20, fontWeight: "800" },
-  quickStatLabel: { fontSize: 11, marginTop: 2 },
-  quickStatDivider: { width: 1, height: 30 },
-
-  // Section Styles
-  sectionCard: { marginTop: 12 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", flex: 1 },
-  sectionCount: { fontSize: 13, fontWeight: "600" },
-  sectionHint: { fontSize: 13, lineHeight: 18, marginBottom: 12 },
-  subSectionTitle: { marginTop: 12, marginBottom: 8, fontSize: 14, fontWeight: "700" },
-
-  // Stats Grid
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  statCard: {
-    width: "48%",
-    borderRadius: 12,
-    padding: 12,
-    alignItems: "center",
-  },
-  statValue: { fontSize: 16, fontWeight: "700", marginTop: 8 },
-  statLabel: { fontSize: 11, marginTop: 2 },
-
-  // Achievements
-  achievementsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  achievementItem: {
-    width: "23%",
-    aspectRatio: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 6,
-  },
-  achievementIcon: { alignItems: "center", justifyContent: "center" },
-  lockedOverlay: { position: "absolute", top: 4, right: 4 },
-  achievementTitle: { fontSize: 9, fontWeight: "700", marginTop: 4, textAlign: "center" },
-  viewAllButton: { marginTop: 12 },
-
-  // Avatars
-  playerRow: { flexDirection: "row", gap: 8 },
-  playerCard: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    alignItems: "center",
-  },
-  lockedAvatar: { position: "relative" },
-  avatarLock: {
+  editBadge: {
     position: "absolute",
-    top: "50%",
-    left: "50%",
-    marginTop: -8,
-    marginLeft: -8,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 8,
-    padding: 2,
-  },
-  galleryScroll: { marginHorizontal: -2 },
-  galleryContent: { paddingRight: 8 },
-  galleryPage: { paddingRight: 10 },
-  galleryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  pageDotsRow: { marginTop: 10, flexDirection: "row", alignSelf: "center", alignItems: "center", gap: 6 },
-  pageDot: { height: 8, borderRadius: 5 },
-  presetCard: {
-    width: "31%",
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    right: -2,
+    bottom: -2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
     alignItems: "center",
+    justifyContent: "center",
   },
-  presetLabel: { marginTop: 4, fontSize: 10, fontWeight: "700", textAlign: "center" },
+  identityText: { flex: 1, gap: 2 },
+  name: { fontFamily: FONTS.boardHeavy, fontSize: 32, letterSpacing: 0.6 },
+  levelLine: { fontFamily: FONTS.board, fontSize: 14, letterSpacing: 1.6 },
 
-  // Progress Bars
-  progressRow: { marginTop: 12 },
-  progressLabelRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  progressLabel: { fontSize: 13, fontWeight: "600" },
-  progressValue: { fontSize: 13 },
-  progressBarBg: { height: 6, borderRadius: 3, overflow: "hidden" },
-  progressBarFill: { height: "100%", borderRadius: 3 },
+  xp: { marginTop: SPACING.lg, gap: 6 },
+  xpTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
+  xpFill: { height: "100%", borderRadius: 3 },
+  xpText: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 0.8 },
 
-  // Profile Fields
-  profileField: {
+  cells: { flexDirection: "row", borderTopWidth: 1, marginTop: SPACING.lg, paddingTop: SPACING.md },
+  cell: { flex: 1, alignItems: "center", gap: 2 },
+  cellValue: { fontFamily: FONTS.board, fontSize: 24, fontVariant: ["tabular-nums"] },
+  cellLabel: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 1.4 },
+
+  card: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.lg, gap: SPACING.md },
+  cardHead: { flexDirection: "row", alignItems: "center", gap: SPACING.sm },
+  cardTitle: { flex: 1, fontSize: 16, fontWeight: "800" },
+  cardCount: { fontFamily: FONTS.board, fontSize: 18 },
+  cardLink: { fontSize: 14, fontWeight: "700" },
+  bar: { height: 5, borderRadius: 3, overflow: "hidden" },
+  barFill: { height: "100%", borderRadius: 3 },
+
+  goal: { flexDirection: "row", alignItems: "center", gap: SPACING.md },
+  goalIcon: { width: 40, height: 40, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
+  goalText: { flex: 1 },
+  goalKicker: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1.4 },
+  goalTitle: { fontSize: 15, fontWeight: "700" },
+  goalMeta: { fontSize: 12, fontWeight: "600", marginTop: 1 },
+
+  groupLabel: {
+    fontFamily: FONTS.boardLabel,
+    fontSize: 13,
+    letterSpacing: 1.6,
+    marginTop: SPACING.sm,
+    marginBottom: -4,
+    marginLeft: 2,
+  },
+  list: { borderWidth: 1, borderRadius: RADIUS.lg, overflow: "hidden" },
+  row: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+    gap: SPACING.md,
+    minHeight: 52,
+    paddingHorizontal: SPACING.lg,
   },
-  profileFieldLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  profileFieldLabel: { fontSize: 14 },
-  profileFieldRight: { flexDirection: "row", alignItems: "center", gap: 4 },
-  profileFieldValue: { fontSize: 14, fontWeight: "600" },
-  countryEmoji: { fontSize: 18, marginRight: 6 },
+  rowLabel: { fontSize: 15, fontWeight: "600" },
+  rowValue: { flex: 1, textAlign: "right", fontSize: 14, fontWeight: "600" },
+  divider: { height: 1, marginLeft: SPACING.lg + 20 + SPACING.md },
 
-  // Menu Items
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(0,0,0,0.1)",
-  },
-  menuItemLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  menuItemText: { fontSize: 15, fontWeight: "500" },
+  usage: { gap: 6 },
+  usageLine: { flexDirection: "row", justifyContent: "space-between" },
+  usageLabel: { fontSize: 14, fontWeight: "600" },
+  usageValue: { fontSize: 13, fontWeight: "600" },
 
-  // Sign Out
-  signOutContainer: { marginTop: 20, alignItems: "center" },
-  signOutButton: { paddingVertical: 10, paddingHorizontal: 20 },
-  signOutText: { fontSize: 14, fontWeight: "500" },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: SCRIM,
-    justifyContent: "center",
-    paddingHorizontal: SPACING.xl,
-  },
-  modalCard: { borderRadius: RADIUS.xl, borderWidth: 1, overflow: "hidden" },
-  modalAccentBar: { height: 4 },
-  modalBody: { padding: SPACING.xl, alignItems: "center" },
-  modalIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: SPACING.md,
-  },
-  modalTitle: { fontSize: 19, fontWeight: "800", textAlign: "center" },
-  modalDescription: { fontSize: 14, textAlign: "center", lineHeight: 20, marginTop: SPACING.sm },
-  modalTier: {
-    marginTop: SPACING.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-  },
-  modalTierText: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
-  modalXp: { fontSize: 16, fontWeight: "800", marginTop: SPACING.sm },
-  modalClose: {
-    alignSelf: "stretch",
-    minHeight: 48,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: SPACING.xl,
-  },
-  modalCloseText: { fontSize: 15, fontWeight: "700" },
-
-  // Avatar Modal
-  avatarModalIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: RADIUS.pill,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: SPACING.md,
-    position: "relative",
-  },
-  avatarModalLock: { position: "absolute", bottom: -4, right: -4, backgroundColor: SCRIM, borderRadius: RADIUS.md, padding: SPACING.xs },
-  avatarTag: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.xs, borderRadius: RADIUS.pill, marginTop: SPACING.sm },
-  avatarTagText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.6 },
-  avatarUnlockLabel: { fontSize: 11, fontWeight: "700", marginTop: SPACING.lg, marginBottom: SPACING.xs, textTransform: "uppercase", letterSpacing: 1.2 },
-  avatarUnlockText: { fontSize: 15, fontWeight: "700", textAlign: "center" },
-  avatarProgressBar: { alignSelf: "stretch", height: 8, borderRadius: RADIUS.pill, marginTop: SPACING.md, overflow: "hidden" },
-  avatarProgressFill: { height: "100%", borderRadius: RADIUS.pill },
-  avatarProgressText: { fontSize: 12, marginTop: 6 },
+  signOut: { alignItems: "center", justifyContent: "center", minHeight: HIT_TARGET, marginTop: SPACING.sm },
+  signOutText: { fontSize: 15, fontWeight: "700" },
 });

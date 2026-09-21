@@ -242,33 +242,42 @@ export const getAchievementsByCategory = (category: AchievementCategory): Achiev
   return ACHIEVEMENTS.filter((a) => a.category === category);
 };
 
+/** The XP each level starts at, and what a player at that level is called. */
+export const LEVELS = [
+  { xp: 0, title: "Rookie" },
+  { xp: 100, title: "Beginner" },
+  { xp: 250, title: "Club Player" },
+  { xp: 500, title: "Regular" },
+  { xp: 1000, title: "Skilled" },
+  { xp: 2000, title: "Advanced" },
+  { xp: 4000, title: "Expert" },
+  { xp: 7500, title: "Master" },
+  { xp: 12000, title: "Champion" },
+  { xp: 20000, title: "Legend" },
+] as const;
+
 export const getPlayerLevel = (xp: number): { level: number; title: string; xpToNext: number } => {
-  const levels = [
-    { xp: 0, title: "Rookie" },
-    { xp: 100, title: "Beginner" },
-    { xp: 250, title: "Club Player" },
-    { xp: 500, title: "Regular" },
-    { xp: 1000, title: "Skilled" },
-    { xp: 2000, title: "Advanced" },
-    { xp: 4000, title: "Expert" },
-    { xp: 7500, title: "Master" },
-    { xp: 12000, title: "Champion" },
-    { xp: 20000, title: "Legend" },
-  ];
+  let index = 0;
+  LEVELS.forEach((level, i) => {
+    if (xp >= level.xp) index = i;
+  });
+  const next = LEVELS[index + 1];
+  return { level: index + 1, title: LEVELS[index].title, xpToNext: next ? next.xp - xp : Infinity };
+};
 
-  let currentLevel = 0;
-  let currentTitle = levels[0].title;
-  let xpToNext = levels[1]?.xp ?? Infinity;
-
-  for (let i = 0; i < levels.length; i++) {
-    if (xp >= levels[i].xp) {
-      currentLevel = i + 1;
-      currentTitle = levels[i].title;
-      xpToNext = levels[i + 1]?.xp ? levels[i + 1].xp - xp : Infinity;
-    } else {
-      break;
-    }
-  }
-
-  return { level: currentLevel, title: currentTitle, xpToNext };
+/**
+ * How far through the current level a player is, 0 to 1. Measured from where the level starts,
+ * not from zero, so 450 XP at a level that runs 250 to 500 reads as 80% rather than 90%.
+ */
+export const levelProgress = (xp: number) => {
+  const { level, title, xpToNext } = getPlayerLevel(xp);
+  const start = LEVELS[level - 1].xp;
+  const next = LEVELS[level];
+  return {
+    level,
+    title,
+    xpToNext,
+    nextTitle: next?.title ?? null,
+    progress: next ? (xp - start) / (next.xp - start) : 1,
+  };
 };

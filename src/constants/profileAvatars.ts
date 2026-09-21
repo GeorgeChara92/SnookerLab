@@ -26,11 +26,11 @@ export const SNOOKER_PRESET_AVATARS: PresetAvatar[] = [
     group: "player",
     tag: "Progress",
     unlockCondition: { type: "sessions_logged", value: 5 },
-    description: "Complete5 practice sessions",
+    description: "Complete 5 practice sessions",
   },
   {
     id: "player-ace",
-    label: "Century Player",
+    label: "Half-Century Break",
     group: "player",
     tag: "Scoring",
     unlockCondition: { type: "best_break", value: 50 },
