@@ -253,3 +253,24 @@ describe("partial racks", () => {
     expect(Math.abs(middle - SPOTS.pink.x)).toBeLessThanOrEqual(TABLE.ball / 2 + 1);
   });
 });
+
+import { snapPoint } from "../position";
+
+describe("snapping balls level", () => {
+  it("lines a ball up with another ball when it is close, on either axis", () => {
+    const { point, guides } = snapPoint({ x: 720, y: 1488 }, [{ x: 400, y: 1500 }], 20);
+    expect(point).toEqual({ x: 720, y: 1500 });
+    expect(guides).toEqual({ x: null, y: 1500 });
+  });
+
+  it("uses the table's markings too: the centre line and the spots' levels", () => {
+    const { point, guides } = snapPoint({ x: SPOTS.blue.x + 9, y: SPOTS.pink.y - 12 }, [], 20);
+    expect(point).toEqual({ x: SPOTS.blue.x, y: SPOTS.pink.y });
+    expect(guides).toEqual({ x: SPOTS.blue.x, y: SPOTS.pink.y });
+  });
+
+  it("leaves a point alone when nothing is near, and picks the nearest when two are", () => {
+    expect(snapPoint({ x: 300, y: 700 }, [{ x: 1300, y: 2200 }], 20).guides).toEqual({ x: null, y: null });
+    expect(snapPoint({ x: 300, y: 700 }, [{ x: 312, y: 2000 }, { x: 305, y: 2400 }], 20).point.x).toBe(305);
+  });
+});

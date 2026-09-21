@@ -19,7 +19,7 @@ import {
   type BallColour,
   type Point,
 } from "../../features/scanSnooker/table";
-import { pointsAlongLine, type PlacedBall } from "../../features/scanSnooker/position";
+import { pointsAlongLine, snapPoint, type PlacedBall, type SnapGuides } from "../../features/scanSnooker/position";
 
 /**
  * A full-size table seen from above, drawn to scale, black end at the top. Positions go in and
@@ -61,6 +61,9 @@ const GRAB_MARGIN_PX = 5;
 const MIN_GRAB_PX = 11;
 const grabRadiusFor = (d: number) => Math.max(d / 2 + GRAB_MARGIN_PX, MIN_GRAB_PX);
 const MAX_ZOOM = 5;
+/** How near, on screen, a ball must come to lining up before it snaps level. */
+const SNAP_PX = 8;
+const GUIDE = "#E3C15A";
 /** A finger moving less than this is a tap, not a drag. */
 const TAP_SLOP = 6;
 
@@ -85,6 +88,8 @@ type Props = {
   lineMode?: boolean;
   lineCount?: number;
   onLine?: (start: Point, end: Point) => void;
+  /** Line balls up with each other and the spots as they are placed and moved, showing guides. */
+  snap?: boolean;
 };
 
 export const TableDiagram = ({
@@ -98,6 +103,7 @@ export const TableDiagram = ({
   lineMode = false,
   lineCount = 5,
   onLine,
+  snap = false,
 }: Props) => {
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View2>(FULL_VIEW);
@@ -106,6 +112,8 @@ export const TableDiagram = ({
   const [line, setLineState] = useState<{ start: Point; end: Point } | null>(null);
   // Also kept in a ref, so letting go reads the finished line without a state updater's side effects.
   const lineRef = useRef<{ start: Point; end: Point } | null>(null);
+  // What a ball being placed or moved has lined up with, drawn as guides while the finger is down.
+  const [guides, setGuides] = useState<SnapGuides>({ x: null, y: null });
   const setLine = (next: { start: Point; end: Point } | null) => {
     lineRef.current = next;
     setLineState(next);
@@ -193,6 +201,15 @@ export const TableDiagram = ({
 
   // ---------------------------------------------------------------- touch
   // The latest values, for the touch handlers created once below.
+  /** A point lined up with `others` if snapping is on and it is close; also shows what it lined up with. */
+  const snapTo = (point: Point, others: Point[]): Point => {
+    if (!snap || !fit) return clampToBed(point);
+    const result = snapPoint(point, others, SNAP_PX / fit.scale);
+    setGuides(result.guides);
+    return result.point;
+  };
+  const clearGuides = () => setGuides({ x: null, y: null });
+
   const live = useRef({
     fit,
     view,
@@ -206,6 +223,7 @@ export const TableDiagram = ({
     zoomAround,
     lineMode,
     onLine,
+    snapTo,
   });
   live.current = {
     fit,
@@ -220,6 +238,7 @@ export const TableDiagram = ({
     zoomAround,
     lineMode,
     onLine,
+    snapTo,
   };
 
   const touch = useRef<{
@@ -286,10 +305,10 @@ export const TableDiagram = ({
                 .sort((a, b) => a.gap - b.gap)[0]
             : undefined;
           if (current.lineMode) {
-            const start = clampToBed({
-              x: (at.x - current.fit.left) / current.fit.scale,
-              y: (at.y - current.fit.top) / current.fit.scale,
-            });
+            const start = current.snapTo(
+              { x: (at.x - current.fit.left) / current.fit.scale, y: (at.y - current.fit.top) / current.fit.scale },
+              current.balls
+            );
             setLine({ start, end: start });
           }
           touch.current = {
@@ -336,19 +355,25 @@ export const TableDiagram = ({
           if (!state.moved && Math.hypot(gesture.dx, gesture.dy) >= TAP_SLOP) state.moved = true;
           const moved = state.moved;
           if (state.mode === "line") {
-            const end = clampToBed({
-              x: (state.start.x + gesture.dx - current.fit.left) / current.fit.scale,
-              y: (state.start.y + gesture.dy - current.fit.top) / current.fit.scale,
-            });
+            const end = current.snapTo(
+              {
+                x: (state.start.x + gesture.dx - current.fit.left) / current.fit.scale,
+                y: (state.start.y + gesture.dy - current.fit.top) / current.fit.scale,
+              },
+              lineRef.current ? [...current.balls, lineRef.current.start] : current.balls
+            );
             if (lineRef.current) setLine({ ...lineRef.current, end });
             return;
           }
           if (state.mode === "ball" && state.id && current.onMove) {
             if (!moved) return;
-            const point = clampToBed({
-              x: (state.start.x + gesture.dx - current.fit.left) / current.fit.scale,
-              y: (state.start.y + gesture.dy - current.fit.top) / current.fit.scale,
-            });
+            const point = current.snapTo(
+              {
+                x: (state.start.x + gesture.dx - current.fit.left) / current.fit.scale,
+                y: (state.start.y + gesture.dy - current.fit.top) / current.fit.scale,
+              },
+              current.balls.filter((ball) => ball.id !== state.id)
+            );
             setDragging({ id: state.id, point });
             return;
           }
@@ -368,6 +393,7 @@ export const TableDiagram = ({
           const current = live.current;
           const state = touch.current;
           setDragging(null);
+          clearGuides();
           if (state.mode === "line") {
             const drawn = lineRef.current;
             setLine(null);
@@ -378,10 +404,17 @@ export const TableDiagram = ({
           const moved = state.moved;
 
           if (state.mode === "ball" && state.id && moved && current.onMove) {
-            current.onMove(state.id, {
-              x: (state.start.x + gesture.dx - current.fit.left) / current.fit.scale,
-              y: (state.start.y + gesture.dy - current.fit.top) / current.fit.scale,
-            });
+            current.onMove(
+              state.id,
+              current.snapTo(
+                {
+                  x: (state.start.x + gesture.dx - current.fit.left) / current.fit.scale,
+                  y: (state.start.y + gesture.dy - current.fit.top) / current.fit.scale,
+                },
+                current.balls.filter((ball) => ball.id !== state.id)
+              )
+            );
+            clearGuides();
             current.onSelect?.(state.id);
             return;
           }
@@ -396,12 +429,15 @@ export const TableDiagram = ({
             y: (state.start.y - current.fit.top) / current.fit.scale,
           };
           const onBed = point.x >= 0 && point.x <= TABLE.width && point.y >= 0 && point.y <= TABLE.length;
-          if (onBed && current.onPlace) current.onPlace(clampToBed(point));
-          else current.onSelect?.(null);
+          if (onBed && current.onPlace) {
+            current.onPlace(current.snapTo(point, current.balls));
+            clearGuides();
+          } else current.onSelect?.(null);
         },
         onPanResponderTerminate: () => {
           setDragging(null);
           setLine(null);
+          clearGuides();
         },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -506,6 +542,28 @@ export const TableDiagram = ({
             const p = toPx(spot);
             return <View key={index} style={[styles.abs, styles.spot, { left: p.x - 2, top: p.y - 2 }]} />;
           })}
+
+          {/* ------------------------------------------------ snap guides */}
+          {guides.x !== null || guides.y !== null ? (
+            <Svg style={StyleSheet.absoluteFill} width={box.width} height={box.height}>
+              {guides.x !== null ? (
+                <Path
+                  d={`M ${toPx({ x: guides.x, y: 0 }).x} ${fit.top} V ${fit.top + fit.bedL}`}
+                  stroke={GUIDE}
+                  strokeWidth={1.2}
+                  strokeDasharray="5 4"
+                />
+              ) : null}
+              {guides.y !== null ? (
+                <Path
+                  d={`M ${fit.left} ${toPx({ x: 0, y: guides.y }).y} H ${fit.left + fit.bedW}`}
+                  stroke={GUIDE}
+                  strokeWidth={1.2}
+                  strokeDasharray="5 4"
+                />
+              ) : null}
+            </Svg>
+          ) : null}
 
           {/* ------------------------------------------------ the line being drawn */}
           {line ? (

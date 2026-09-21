@@ -70,6 +70,9 @@ export const CustomRoutineBuilderScreen = () => {
   const [rackOpen, setRackOpen] = useState(false);
   // Moving a ball already on the table: pick it, then tap where it goes or nudge it.
   const [moveMode, setMoveMode] = useState(false);
+  // Balls line up with each other and the spots when close. On by default, since level balls are
+  // nearly always what a routine wants.
+  const [snapOn, setSnapOn] = useState(true);
   const saved = useRef(false);
 
   useEffect(() => {
@@ -231,7 +234,7 @@ export const CustomRoutineBuilderScreen = () => {
             ? "Drag across the table to lay reds along a line. Pinch or use + to zoom in for a precise line."
             : moveMode
               ? "Tap a ball to pick it up, then tap where it goes, or nudge it with the arrows."
-              : "Choose a ball and tap to place it. Drag a ball to move it. Pinch or use + to zoom in."}
+              : "Choose a ball and tap to place it. Drag a ball to move it; it snaps level with others nearby."}
         </Text>
 
         <View style={styles.flex}>
@@ -245,6 +248,7 @@ export const CustomRoutineBuilderScreen = () => {
             lineMode={lineMode}
             lineCount={lineCount}
             onLine={layLine}
+            snap={snapOn}
           />
         </View>
 
@@ -277,6 +281,12 @@ export const CustomRoutineBuilderScreen = () => {
             <Text style={[styles.summary, { color: notice ? colors.danger : colors.textMuted }]} numberOfLines={2}>
               {notice ?? summarise(balls)}
             </Text>
+            <IconTool
+              icon="magnet"
+              label={snapOn ? "Snap to line is on. Turn it off" : "Snap to line is off. Turn it on"}
+              onPress={() => setSnapOn((value) => !value)}
+              active={snapOn}
+            />
             <IconTool icon="undo" label="Undo" onPress={undo} disabled={!history.length} />
             <IconTool
               icon="delete-sweep-outline"
@@ -514,31 +524,34 @@ const IconTool = ({
   label,
   onPress,
   disabled,
+  active,
 }: {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  /** For a switch, such as snapping: filled while it is on. */
+  active?: boolean;
 }) => {
   const { colors } = useAppTheme();
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      accessibilityRole="button"
+      accessibilityRole={active === undefined ? "button" : "switch"}
       accessibilityLabel={label}
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, checked: active }}
       hitSlop={4}
       style={({ pressed }) => [
         styles.iconTool,
         {
-          borderColor: colors.border,
-          backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+          borderColor: active ? colors.primary : colors.border,
+          backgroundColor: active ? colors.primary : pressed ? colors.surfaceMuted : colors.surface,
           opacity: disabled ? 0.4 : 1,
         },
       ]}
     >
-      <MaterialCommunityIcons name={icon} size={20} color={colors.text} />
+      <MaterialCommunityIcons name={icon} size={20} color={active ? colors.onPrimary : colors.text} />
     </Pressable>
   );
 };

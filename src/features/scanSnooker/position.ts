@@ -179,3 +179,34 @@ export const rackReds = (balls: PlacedBall[], count: number = 15): PlacedBall[] 
 
 /** The table set for a frame: all fifteen reds racked, and the colours on their spots. */
 export const fullRack = (balls: PlacedBall[]): PlacedBall[] => rackReds(balls, 15);
+
+/** What a point snapped to: the level (y) and line (x) it now shares with a ball or a spot. */
+export type SnapGuides = { x: number | null; y: number | null };
+
+/**
+ * Lines a point up with the balls already on the table and with the table's own markings, when
+ * it is close: level with another ball or a spot (the same distance from the black end), or on
+ * the same line up the table (the same distance from the left cushion) - the centre line through
+ * the spots, the green's and the yellow's, or another ball's. `withinMm` is how close counts;
+ * the diagram passes a few screen pixels' worth, so it feels the same at every zoom.
+ */
+export const snapPoint = (point: Point, others: Point[], withinMm: number): { point: Point; guides: SnapGuides } => {
+  const spots = Object.values(SPOTS);
+  const xs = [...others.map((ball) => ball.x), ...spots.map((spot) => spot.x)];
+  const ys = [...others.map((ball) => ball.y), ...spots.map((spot) => spot.y)];
+  const nearest = (value: number, candidates: number[]) => {
+    let best: number | null = null;
+    for (const candidate of candidates) {
+      if (
+        Math.abs(candidate - value) <= withinMm &&
+        (best === null || Math.abs(candidate - value) < Math.abs(best - value))
+      ) {
+        best = candidate;
+      }
+    }
+    return best;
+  };
+  const x = nearest(point.x, xs);
+  const y = nearest(point.y, ys);
+  return { point: clampToBed({ x: x ?? point.x, y: y ?? point.y }), guides: { x, y } };
+};
