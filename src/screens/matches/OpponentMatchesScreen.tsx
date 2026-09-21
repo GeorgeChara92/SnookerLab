@@ -1,25 +1,16 @@
 import React, { useMemo, useState } from "react";
 import { LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIManager, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import {
-  useNavigation,
-  useRoute,
-  type NavigationProp,
-  type RouteProp,
-} from "@react-navigation/native";
+import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useMatchesStore } from "../../store";
 import type { MatchesStackParamList } from "../../types";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import { BoardPanel, ScoreStrip, TaleOfTheTape } from "../../components/scoreboard/Scoreboard";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
+import { SwipeToDelete } from "../../components/ui/SwipeToDelete";
 import { FormStrip, MatchRow, SectionHeader } from "../../components/matches/MatchRows";
-import {
-  byNewest,
-  getRecordingMode,
-  relativeDate,
-  summariseMatches,
-} from "../../features/matches/matchSummary";
+import { byNewest, getRecordingMode, relativeDate, summariseMatches } from "../../features/matches/matchSummary";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -53,7 +44,10 @@ export const OpponentMatchesScreen = () => {
       opponentMatches.reduce(
         (total, match) => {
           if (getRecordingMode(match) === "manual") {
-            return { for: total.for + match.user_score, against: total.against + match.opponent_score };
+            return {
+              for: total.for + match.user_score,
+              against: total.against + match.opponent_score,
+            };
           }
           const frames = getFrameRecordsByMatchId(match.id);
           return {
@@ -85,11 +79,15 @@ export const OpponentMatchesScreen = () => {
   const tapeRows = [
     { label: "Matches won", left: record.wins, right: record.losses },
     { label: "Frames won", left: record.framesWon, right: record.framesLost },
-    ...(points.for + points.against > 0
-      ? [{ label: "Points scored", left: points.for, right: points.against }]
-      : []),
+    ...(points.for + points.against > 0 ? [{ label: "Points scored", left: points.for, right: points.against }] : []),
     ...(highestBreaks.you + highestBreaks.them > 0
-      ? [{ label: "Highest break", left: highestBreaks.you, right: highestBreaks.them }]
+      ? [
+          {
+            label: "Highest break",
+            left: highestBreaks.you,
+            right: highestBreaks.them,
+          },
+        ]
       : []),
   ];
 
@@ -136,6 +134,27 @@ export const OpponentMatchesScreen = () => {
     });
   };
 
+  const confirmDeleteOne = (matchId: string) =>
+    dialog.confirm({
+      tone: "danger",
+      icon: "trash-can-outline",
+      title: "Delete this match?",
+      message: "Its frames and breaks go too, and this cannot be undone.",
+      confirmLabel: "Delete match",
+      cancelLabel: "Keep it",
+      onConfirm: () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        deleteMatch(matchId).catch(() =>
+          dialog.alert({
+            title: "Could not delete the match",
+            message: "Check your connection and try again.",
+            tone: "danger",
+            icon: "wifi-off",
+          })
+        );
+      },
+    });
+
   const lead = record.wins - record.losses;
   const headToHead =
     record.played === 0
@@ -157,7 +176,11 @@ export const OpponentMatchesScreen = () => {
           <ScoreStrip
             size="hero"
             left={{ name: "You", score: record.wins, leading: lead > 0 }}
-            right={{ name: opponentName, score: record.losses, leading: lead < 0 }}
+            right={{
+              name: opponentName,
+              score: record.losses,
+              leading: lead < 0,
+            }}
             middle={`(${record.played})`}
             style={styles.heroStrip}
           />
@@ -206,7 +229,7 @@ export const OpponentMatchesScreen = () => {
 
         {opponentMatches.map((match) => {
           const selected = selectedMatchIds.includes(match.id);
-          return (
+          const row = (
             <MatchRow
               key={match.id}
               match={match}
@@ -218,16 +241,30 @@ export const OpponentMatchesScreen = () => {
                 setSelectedMatchIds([match.id]);
               }}
               onPress={() =>
-                isSelectionMode
-                  ? toggleSelection(match.id)
-                  : navigation.navigate("MatchDetail", { matchId: match.id })
+                isSelectionMode ? toggleSelection(match.id) : navigation.navigate("MatchDetail", { matchId: match.id })
               }
             />
+          );
+          // Swiping deletes one at a time; while selecting, a tap is all a row needs to do.
+          return isSelectionMode ? (
+            row
+          ) : (
+            <SwipeToDelete
+              key={match.id}
+              onDelete={() => confirmDeleteOne(match.id)}
+              deleteLabel={`Delete the match from ${relativeDate(match.date)}`}
+              radius={RADIUS.sm}
+              gapBelow={SPACING.md}
+            >
+              {row}
+            </SwipeToDelete>
           );
         })}
 
         {!isSelectionMode && opponentMatches.length > 1 ? (
-          <Text style={[styles.tip, { color: colors.textMuted }]}>Press and hold a match to select it.</Text>
+          <Text style={[styles.tip, { color: colors.textMuted }]}>
+            Swipe a match left to delete it, or press and hold to select several.
+          </Text>
         ) : null}
       </ScrollView>
 
@@ -241,7 +278,9 @@ export const OpponentMatchesScreen = () => {
             disabled={!selectedMatchIds.length || isDeleting}
             accessibilityRole="button"
             accessibilityLabel={`Delete ${selectedMatchIds.length} selected ${selectedMatchIds.length === 1 ? "match" : "matches"}`}
-            accessibilityState={{ disabled: !selectedMatchIds.length || isDeleting }}
+            accessibilityState={{
+              disabled: !selectedMatchIds.length || isDeleting,
+            }}
             style={({ pressed }) => [
               styles.deleteButton,
               {
@@ -255,7 +294,14 @@ export const OpponentMatchesScreen = () => {
               size={18}
               color={selectedMatchIds.length ? colors.onDanger : colors.textMuted}
             />
-            <Text style={[styles.deleteText, { color: selectedMatchIds.length ? colors.onDanger : colors.textMuted }]}>
+            <Text
+              style={[
+                styles.deleteText,
+                {
+                  color: selectedMatchIds.length ? colors.onDanger : colors.textMuted,
+                },
+              ]}
+            >
               {isDeleting ? "Deleting…" : "Delete"}
             </Text>
           </Pressable>
@@ -310,7 +356,12 @@ const styles = StyleSheet.create({
   newMatchText: { flexShrink: 1, fontSize: 16, fontWeight: "800" },
 
   selectHint: { fontSize: 13, fontWeight: "600", marginBottom: SPACING.sm },
-  tip: { fontSize: 12, fontWeight: "600", textAlign: "center", marginTop: SPACING.sm },
+  tip: {
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: SPACING.sm,
+  },
 
   selectionBar: {
     position: "absolute",

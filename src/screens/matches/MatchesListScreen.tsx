@@ -3,6 +3,8 @@ import { LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIM
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { SyncBanner } from "../../components/ui/SyncBanner";
+import { SwipeToDelete } from "../../components/ui/SwipeToDelete";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { FormStrip, MatchRow, SectionHeader } from "../../components/matches/MatchRows";
 import { TierPaywallModal } from "../../components/subscription";
 import { useMatchesStore, useTournamentsStore } from "../../store";
@@ -46,12 +48,17 @@ const tournamentChampion = (tournament: Tournament): string | null => {
 
 export const MatchesListScreen = () => {
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
-  const { matches } = useMatchesStore();
-  const { tournaments } = useTournamentsStore();
+  const { matches, deleteMatch } = useMatchesStore();
+  const { tournaments, deleteTournament } = useTournamentsStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const subscription = useSubscriptionAccess();
   const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState({ matches: false, tournaments: false, opponents: false });
+  const [expanded, setExpanded] = useState({
+    matches: false,
+    tournaments: false,
+    opponents: false,
+  });
 
   const sortedMatches = useMemo(() => [...matches].sort(byNewest), [matches]);
   const record = useMemo(() => summariseMatches(matches), [matches]);
@@ -76,6 +83,55 @@ export const MatchesListScreen = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  const removeSmoothly = (work: () => Promise<unknown>, what: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    work().catch(() =>
+      dialog.alert({
+        title: `Could not delete ${what}`,
+        message: "Check your connection and try again.",
+        tone: "danger",
+        icon: "wifi-off",
+      })
+    );
+  };
+
+  const confirmDeleteMatch = (match: (typeof matches)[number]) =>
+    dialog.confirm({
+      tone: "danger",
+      icon: "trash-can-outline",
+      title: `Delete the match against ${match.opponent_name}?`,
+      message: "Its frames and breaks go too, and this cannot be undone.",
+      confirmLabel: "Delete match",
+      cancelLabel: "Keep it",
+      onConfirm: () => removeSmoothly(() => deleteMatch(match.id), "the match"),
+    });
+
+  const confirmDeleteOpponent = (name: string) => {
+    const theirs = matches.filter((match) => match.opponent_name.trim() === name.trim());
+    const count = theirs.length;
+    dialog.confirm({
+      tone: "danger",
+      icon: "account-remove-outline",
+      title: `Delete ${name}?`,
+      message: `This deletes ${count === 1 ? "your 1 match" : `all ${count} matches`} against ${name}, with their frames and breaks. It cannot be undone.`,
+      confirmLabel: count === 1 ? "Delete 1 match" : `Delete ${count} matches`,
+      cancelLabel: "Keep them",
+      onConfirm: () =>
+        removeSmoothly(() => Promise.all(theirs.map((match) => deleteMatch(match.id))), `every match against ${name}`),
+    });
+  };
+
+  const confirmDeleteTournament = (tournament: Tournament) =>
+    dialog.confirm({
+      tone: "danger",
+      icon: "trash-can-outline",
+      title: `Delete ${tournament.name}?`,
+      message: "Its fixtures and results go too, and this cannot be undone.",
+      confirmLabel: tournament.tournament_type === "knockout" ? "Delete knockout" : "Delete league",
+      cancelLabel: "Keep it",
+      onConfirm: () => removeSmoothly(() => deleteTournament(tournament.id), tournament.name),
+    });
 
   const startMatch = () =>
     subscription.canCreateMatch ? navigation.navigate("NewMatch") : setPaywallFeature("Monthly Match Limit");
@@ -135,7 +191,9 @@ export const MatchesListScreen = () => {
           <Text
             style={[
               styles.primaryActionText,
-              { color: subscription.canCreateMatch ? colors.onPrimary : colors.textMuted },
+              {
+                color: subscription.canCreateMatch ? colors.onPrimary : colors.textMuted,
+              },
             ]}
           >
             New match
@@ -150,7 +208,10 @@ export const MatchesListScreen = () => {
           }
           style={({ pressed }) => [
             styles.secondaryAction,
-            { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+            {
+              backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+              borderColor: colors.border,
+            },
           ]}
         >
           <MaterialCommunityIcons
@@ -176,8 +237,8 @@ export const MatchesListScreen = () => {
           </View>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>No matches yet</Text>
           <Text style={[styles.emptyBody, { color: colors.textMuted }]}>
-            Score one live, frame by frame, or enter a result after you have played. Your record and
-            head-to-heads build from there.
+            Score one live, frame by frame, or enter a result after you have played. Your record and head-to-heads build
+            from there.
           </Text>
         </View>
       ) : (
@@ -196,8 +257,16 @@ export const MatchesListScreen = () => {
           {/* Won and lost either side, matches played in the middle: read it as "2 (2) 0". */}
           <ScoreStrip
             size="hero"
-            left={{ name: "Won", score: record.wins, leading: record.wins >= record.losses && record.wins > 0 }}
-            right={{ name: "Lost", score: record.losses, leading: record.losses > record.wins }}
+            left={{
+              name: "Won",
+              score: record.wins,
+              leading: record.wins >= record.losses && record.wins > 0,
+            }}
+            right={{
+              name: "Lost",
+              score: record.losses,
+              leading: record.losses > record.wins,
+            }}
             middle={`(${record.played})`}
             style={styles.careerStrip}
           />
@@ -219,9 +288,7 @@ export const MatchesListScreen = () => {
             </View>
           </View>
 
-          {insight ? (
-            <Text style={[styles.insight, { color: colors.boardMuted }]}>{insight}</Text>
-          ) : null}
+          {insight ? <Text style={[styles.insight, { color: colors.boardMuted }]}>{insight}</Text> : null}
         </BoardPanel>
       )}
 
@@ -240,11 +307,15 @@ export const MatchesListScreen = () => {
             onAction={() => toggle("matches")}
           />
           {visibleMatches.map((match) => (
-            <MatchRow
+            <SwipeToDelete
               key={match.id}
-              match={match}
-              onPress={() => navigation.navigate("MatchDetail", { matchId: match.id })}
-            />
+              onDelete={() => confirmDeleteMatch(match)}
+              deleteLabel={`Delete the match against ${match.opponent_name}`}
+              radius={RADIUS.sm}
+              gapBelow={SPACING.md}
+            >
+              <MatchRow match={match} onPress={() => navigation.navigate("MatchDetail", { matchId: match.id })} />
+            </SwipeToDelete>
           ))}
         </>
       ) : null}
@@ -270,61 +341,77 @@ export const MatchesListScreen = () => {
             const progress = total ? done / total : 0;
 
             return (
-              <Pressable
+              <SwipeToDelete
                 key={tournament.id}
-                onPress={() => navigation.navigate("TournamentDetail", { tournamentId: tournament.id })}
-                accessibilityRole="button"
-                accessibilityLabel={`${tournament.name}, ${tournament.tournament_type}, ${done} of ${total} played`}
-                style={({ pressed }) => [
-                  styles.tournamentRow,
-                  { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
-                ]}
+                onDelete={() => confirmDeleteTournament(tournament)}
+                deleteLabel={`Delete ${tournament.name}`}
+                gapBelow={SPACING.sm}
               >
-                <View
-                  style={[
-                    styles.tournamentIcon,
-                    { backgroundColor: complete ? colors.accentWash : colors.surfaceMuted },
+                <Pressable
+                  onPress={() =>
+                    navigation.navigate("TournamentDetail", {
+                      tournamentId: tournament.id,
+                    })
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`${tournament.name}, ${tournament.tournament_type}, ${done} of ${total} played`}
+                  style={({ pressed }) => [
+                    styles.tournamentRow,
+                    {
+                      backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+                      borderColor: colors.border,
+                    },
                   ]}
                 >
-                  <MaterialCommunityIcons
-                    name={complete ? "trophy" : tournament.tournament_type === "knockout" ? "tournament" : "table-large"}
-                    size={20}
-                    color={complete ? colors.accent : colors.primary}
-                  />
-                </View>
-
-                <View style={styles.tournamentBody}>
-                  <View style={styles.tournamentTitleRow}>
-                    <Text style={[styles.tournamentName, { color: colors.text }]} numberOfLines={1}>
-                      {tournament.name}
-                    </Text>
-                    <Text style={[styles.tournamentDate, { color: colors.textMuted }]}>
-                      {relativeDate(tournament.created_at)}
-                    </Text>
+                  <View
+                    style={[
+                      styles.tournamentIcon,
+                      {
+                        backgroundColor: complete ? colors.accentWash : colors.surfaceMuted,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={
+                        complete ? "trophy" : tournament.tournament_type === "knockout" ? "tournament" : "table-large"
+                      }
+                      size={20}
+                      color={complete ? colors.accent : colors.primary}
+                    />
                   </View>
-                  <Text style={[styles.tournamentMeta, { color: colors.textMuted }]} numberOfLines={1}>
-                    {tournament.tournament_type === "knockout" ? "Knockout" : "League"} ·{" "}
-                    {tournament.participants.filter((name) => !/^BYE\b/i.test(name)).length} players ·{" "}
-                    {complete
-                      ? champion
-                        ? `Won by ${champion}`
-                        : "Complete"
-                      : `${done} of ${total} played`}
-                  </Text>
-                  {!complete ? (
-                    <View style={[styles.progressTrack, { backgroundColor: colors.surfaceMuted }]}>
-                      <View
-                        style={[
-                          styles.progressFill,
-                          { backgroundColor: colors.primary, width: `${Math.round(progress * 100)}%` },
-                        ]}
-                      />
-                    </View>
-                  ) : null}
-                </View>
 
-                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-              </Pressable>
+                  <View style={styles.tournamentBody}>
+                    <View style={styles.tournamentTitleRow}>
+                      <Text style={[styles.tournamentName, { color: colors.text }]} numberOfLines={1}>
+                        {tournament.name}
+                      </Text>
+                      <Text style={[styles.tournamentDate, { color: colors.textMuted }]}>
+                        {relativeDate(tournament.created_at)}
+                      </Text>
+                    </View>
+                    <Text style={[styles.tournamentMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                      {tournament.tournament_type === "knockout" ? "Knockout" : "League"} ·{" "}
+                      {tournament.participants.filter((name) => !/^BYE\b/i.test(name)).length} players ·{" "}
+                      {complete ? (champion ? `Won by ${champion}` : "Complete") : `${done} of ${total} played`}
+                    </Text>
+                    {!complete ? (
+                      <View style={[styles.progressTrack, { backgroundColor: colors.surfaceMuted }]}>
+                        <View
+                          style={[
+                            styles.progressFill,
+                            {
+                              backgroundColor: colors.primary,
+                              width: `${Math.round(progress * 100)}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+                </Pressable>
+              </SwipeToDelete>
             );
           })}
         </>
@@ -347,45 +434,68 @@ export const MatchesListScreen = () => {
           {visibleOpponents.map((opponent) => {
             const diff = opponent.framesWon - opponent.framesLost;
             return (
-              <Pressable
+              <SwipeToDelete
                 key={opponent.name}
-                onPress={() => navigation.navigate("OpponentMatches", { opponentName: opponent.name })}
-                accessibilityRole="button"
-                accessibilityLabel={`${opponent.name}: won ${opponent.wins}, lost ${opponent.losses}, drawn ${opponent.draws}`}
-                style={({ pressed }) => [
-                  styles.opponentRow,
-                  { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
-                ]}
+                onDelete={() => confirmDeleteOpponent(opponent.name)}
+                deleteLabel={`Delete every match against ${opponent.name}`}
+                gapBelow={SPACING.sm}
               >
-                <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
-                  <Text style={[styles.avatarText, { color: colors.text }]}>{initialsOf(opponent.name)}</Text>
-                </View>
-
-                <View style={styles.opponentBody}>
-                  <Text style={[styles.opponentName, { color: colors.text }]} numberOfLines={1}>
-                    {opponent.name}
-                  </Text>
-                  <Text style={[styles.opponentMeta, { color: colors.textMuted }]} numberOfLines={1}>
-                    {opponent.played} {opponent.played === 1 ? "match" : "matches"}
-                    {opponent.lastPlayed ? ` · last ${relativeDate(opponent.lastPlayed).toLowerCase()}` : ""}
-                  </Text>
-                </View>
-
-                <View style={styles.opponentRecord}>
-                  <Text style={[styles.opponentScore, { color: colors.text }]}>
-                    {opponent.wins}–{opponent.losses}
-                    {opponent.draws ? `–${opponent.draws}` : ""}
-                  </Text>
-                  <Text
+                <Pressable
+                  onPress={() =>
+                    navigation.navigate("OpponentMatches", {
+                      opponentName: opponent.name,
+                    })
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`${opponent.name}: won ${opponent.wins}, lost ${opponent.losses}, drawn ${opponent.draws}`}
+                  style={({ pressed }) => [
+                    styles.opponentRow,
+                    {
+                      backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <View
                     style={[
-                      styles.opponentDiff,
-                      { color: diff > 0 ? colors.primary : diff < 0 ? colors.danger : colors.textMuted },
+                      styles.avatar,
+                      {
+                        backgroundColor: colors.surfaceMuted,
+                        borderColor: colors.border,
+                      },
                     ]}
                   >
-                    {diff > 0 ? `+${diff}` : diff} frames
-                  </Text>
-                </View>
-              </Pressable>
+                    <Text style={[styles.avatarText, { color: colors.text }]}>{initialsOf(opponent.name)}</Text>
+                  </View>
+
+                  <View style={styles.opponentBody}>
+                    <Text style={[styles.opponentName, { color: colors.text }]} numberOfLines={1}>
+                      {opponent.name}
+                    </Text>
+                    <Text style={[styles.opponentMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                      {opponent.played} {opponent.played === 1 ? "match" : "matches"}
+                      {opponent.lastPlayed ? ` · last ${relativeDate(opponent.lastPlayed).toLowerCase()}` : ""}
+                    </Text>
+                  </View>
+
+                  <View style={styles.opponentRecord}>
+                    <Text style={[styles.opponentScore, { color: colors.text }]}>
+                      {opponent.wins}–{opponent.losses}
+                      {opponent.draws ? `–${opponent.draws}` : ""}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.opponentDiff,
+                        {
+                          color: diff > 0 ? colors.primary : diff < 0 ? colors.danger : colors.textMuted,
+                        },
+                      ]}
+                    >
+                      {diff > 0 ? `+${diff}` : diff} frames
+                    </Text>
+                  </View>
+                </Pressable>
+              </SwipeToDelete>
             );
           })}
         </>
@@ -463,7 +573,11 @@ const styles = StyleSheet.create({
   footCell: { flex: 1, gap: 4 },
   footForm: { flex: 1.4, alignItems: "flex-end" },
   footLabel: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1.6 },
-  footValue: { fontFamily: FONTS.board, fontSize: 22, fontVariant: ["tabular-nums"] },
+  footValue: {
+    fontFamily: FONTS.board,
+    fontSize: 22,
+    fontVariant: ["tabular-nums"],
+  },
   insight: {
     fontSize: 13,
     fontWeight: "600",
@@ -490,11 +604,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tournamentBody: { flex: 1 },
-  tournamentTitleRow: { flexDirection: "row", alignItems: "baseline", gap: SPACING.sm },
+  tournamentTitleRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: SPACING.sm,
+  },
   tournamentName: { flexShrink: 1, fontSize: 16, fontWeight: "700" },
   tournamentDate: { fontSize: 12, fontWeight: "600" },
   tournamentMeta: { fontSize: 12, fontWeight: "600", marginTop: 3 },
-  progressTrack: { height: 4, borderRadius: 2, overflow: "hidden", marginTop: SPACING.sm },
+  progressTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+    marginTop: SPACING.sm,
+  },
   progressFill: { height: "100%", borderRadius: 2 },
 
   opponentRow: {
@@ -521,6 +644,15 @@ const styles = StyleSheet.create({
   opponentName: { fontSize: 16, fontWeight: "700" },
   opponentMeta: { fontSize: 12, fontWeight: "600", marginTop: 3 },
   opponentRecord: { alignItems: "flex-end" },
-  opponentScore: { fontFamily: FONTS.board, fontSize: 24, fontVariant: ["tabular-nums"] },
-  opponentDiff: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 0.8, marginTop: -2 },
+  opponentScore: {
+    fontFamily: FONTS.board,
+    fontSize: 24,
+    fontVariant: ["tabular-nums"],
+  },
+  opponentDiff: {
+    fontFamily: FONTS.boardLabel,
+    fontSize: 12,
+    letterSpacing: 0.8,
+    marginTop: -2,
+  },
 });

@@ -6,6 +6,7 @@ import { useAuthStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { PlayerAvatar } from "../../components/profile/PlayerAvatar";
+import { FacePickerSheet } from "../../components/profile/FacePickerSheet";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
 import {
   BALLS,
@@ -25,6 +26,8 @@ import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
  * Building your avatar: pick a face, dress it, and choose the ball colour for the ring. Outfits
  * and colours are earned by level, so the picker also shows what the next few levels bring.
  */
+const QUICK_FACES = 8;
+
 export const AvatarPickerScreen = () => {
   const navigation = useNavigation();
   const { user, updateAvatarPreset } = useAuthStore();
@@ -35,16 +38,24 @@ export const AvatarPickerScreen = () => {
 
   const initial = useMemo<AvatarSpec>(() => {
     if (isGeneratedAvatar(user?.avatar_preset)) return parseAvatar(user?.avatar_preset, name);
-    return { seed: faceSeeds(name, 0)[0], outfit: "casual", ball: topBallFor(level.level) };
+    return {
+      seed: faceSeeds(name, 0)[0],
+      outfit: "casual",
+      ball: topBallFor(level.level),
+    };
     // Only the first render decides where the draft starts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [draft, setDraft] = useState<AvatarSpec>(initial);
-  const [round, setRound] = useState(0);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const seeds = useMemo(() => faceSeeds(name, round), [name, round]);
+  // A short row to pick from here, always led by the face in use; the sheet has the rest.
+  const seeds = useMemo(
+    () => [draft.seed, ...faceSeeds(name, 0, QUICK_FACES).filter((seed) => seed !== draft.seed)].slice(0, QUICK_FACES),
+    [draft.seed, name]
+  );
   const changed = encodeAvatar(draft) !== user?.avatar_preset;
   const ball = BALLS.find((item) => item.id === draft.ball);
 
@@ -87,19 +98,7 @@ export const AvatarPickerScreen = () => {
         </View>
 
         {/* ---------------------------------------------------------------- face */}
-        <View style={styles.sectionHead}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Face</Text>
-          <Pressable
-            onPress={() => setRound((value) => value + 1)}
-            accessibilityRole="button"
-            accessibilityLabel="Show different faces"
-            hitSlop={10}
-            style={styles.more}
-          >
-            <MaterialCommunityIcons name="shuffle-variant" size={16} color={colors.primary} />
-            <Text style={[styles.moreText, { color: colors.primary }]}>More faces</Text>
-          </Pressable>
-        </View>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Face</Text>
         <View style={styles.faces}>
           {seeds.map((seed) => {
             const selected = draft.seed === seed;
@@ -112,7 +111,10 @@ export const AvatarPickerScreen = () => {
                 accessibilityLabel="Use this face"
                 style={[
                   styles.faceTile,
-                  { borderColor: selected ? colors.primary : "transparent", backgroundColor: colors.surface },
+                  {
+                    borderColor: selected ? colors.primary : "transparent",
+                    backgroundColor: colors.surface,
+                  },
                 ]}
               >
                 <PlayerAvatar spec={{ ...draft, seed }} size={64} showRing={false} />
@@ -120,6 +122,21 @@ export const AvatarPickerScreen = () => {
             );
           })}
         </View>
+        <Pressable
+          onPress={() => setSheetOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Show more faces"
+          style={({ pressed }) => [
+            styles.moreButton,
+            {
+              borderColor: colors.border,
+              backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+            },
+          ]}
+        >
+          <MaterialCommunityIcons name="emoticon-outline" size={18} color={colors.primary} />
+          <Text style={[styles.moreText, { color: colors.primary }]}>More faces</Text>
+        </Pressable>
 
         {/* ---------------------------------------------------------------- outfit */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Outfit</Text>
@@ -179,7 +196,9 @@ export const AvatarPickerScreen = () => {
               <Pressable
                 key={item.id}
                 onPress={() =>
-                  open ? setDraft((prev) => ({ ...prev, ball: item.id })) : locked(`The ${item.label.toLowerCase()} ring`, item.level)
+                  open
+                    ? setDraft((prev) => ({ ...prev, ball: item.id }))
+                    : locked(`The ${item.label.toLowerCase()} ring`, item.level)
                 }
                 accessibilityRole="button"
                 accessibilityState={{ selected, disabled: !open }}
@@ -207,6 +226,14 @@ export const AvatarPickerScreen = () => {
           })}
         </View>
       </ScrollView>
+
+      <FacePickerSheet
+        visible={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        name={name}
+        draft={draft}
+        onPick={(seed) => setDraft((prev) => ({ ...prev, seed }))}
+      />
 
       <View style={[styles.saveBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <Pressable
@@ -241,15 +268,33 @@ const styles = StyleSheet.create({
   content: { padding: SPACING.lg, paddingBottom: 120 },
 
   preview: { alignItems: "center", gap: SPACING.md, marginBottom: SPACING.lg },
-  previewLine: { fontFamily: FONTS.boardLabel, fontSize: 14, letterSpacing: 1.6 },
+  previewLine: {
+    fontFamily: FONTS.boardLabel,
+    fontSize: 14,
+    letterSpacing: 1.6,
+  },
 
-  sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sectionTitle: { fontSize: 18, fontWeight: "800", marginTop: SPACING.lg },
   sectionHint: { fontSize: 13, marginTop: 2, marginBottom: SPACING.md },
-  more: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: SPACING.lg },
+  moreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.md,
+  },
   moreText: { fontSize: 14, fontWeight: "700" },
 
-  faces: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm, marginTop: SPACING.md },
+  faces: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
   faceTile: { borderWidth: 2, borderRadius: 40, padding: 3 },
 
   outfits: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
@@ -262,7 +307,11 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   outfitLabel: { fontSize: 14, fontWeight: "700", marginTop: SPACING.xs },
-  outfitMeta: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1.2 },
+  outfitMeta: {
+    fontFamily: FONTS.boardLabel,
+    fontSize: 12,
+    letterSpacing: 1.2,
+  },
   lock: {
     position: "absolute",
     top: 8,
@@ -276,7 +325,13 @@ const styles = StyleSheet.create({
 
   balls: { flexDirection: "row", justifyContent: "space-between" },
   ballCell: { alignItems: "center", gap: 4, minWidth: 36 },
-  ball: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  ball: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   ballLevel: { fontFamily: FONTS.boardLabel, fontSize: 12 },
 
   saveBar: {
@@ -289,6 +344,11 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.md,
     paddingBottom: SPACING.lg,
   },
-  save: { minHeight: HIT_TARGET + 4, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
+  save: {
+    minHeight: HIT_TARGET + 4,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   saveText: { fontSize: 16, fontWeight: "800" },
 });
