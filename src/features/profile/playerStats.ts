@@ -96,3 +96,17 @@ export const isAchievementEarned = (
   stats: Omit<PlayerStats, "playerLevel">,
   seen: Set<string>
 ) => seen.has(achievement.id) || achievementCurrent(achievement, stats) >= achievement.requirement.value;
+
+/**
+ * XP short enough for a header: 450, 4.5K, 20.4K, 120K. Rounds down, so it never claims XP
+ * the player has not reached yet.
+ */
+export const compactXp = (xp: number) => {
+  const value = Math.max(0, Math.floor(xp));
+  if (value < 1000) return `${value}`;
+  if (value < 100000) {
+    const thousands = Math.floor(value / 100) / 10;
+    return `${Number.isInteger(thousands) ? thousands : thousands.toFixed(1)}K`;
+  }
+  return `${Math.floor(value / 1000)}K`;
+};

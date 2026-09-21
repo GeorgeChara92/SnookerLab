@@ -1,11 +1,20 @@
 import { levelProgress } from "../../../constants/achievements";
-import { computePlayerStats } from "../playerStats";
+import { compactXp, computePlayerStats } from "../playerStats";
 import type { Match, Routine, SessionLog } from "../../../types";
 
 const match = (id: string, date: string, result: Match["result"]): Match =>
   ({ id, date, result, opponent_name: "John", user_score: 1, opponent_score: 0 }) as Match;
 
 describe("player progress", () => {
+  it("shortens large XP for the header without rounding up", () => {
+    expect(compactXp(450)).toBe("450");
+    expect(compactXp(1000)).toBe("1K");
+    expect(compactXp(4580)).toBe("4.5K");
+    expect(compactXp(20450)).toBe("20.4K");
+    expect(compactXp(99999)).toBe("99.9K");
+    expect(compactXp(120450)).toBe("120K");
+  });
+
   it("measures the level bar from where the level starts", () => {
     // Level 3 runs from 250 to 500 XP.
     const progress = levelProgress(450);

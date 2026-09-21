@@ -7,6 +7,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
+import { compactXp } from "../../features/profile/playerStats";
 import { FONTS } from "../../constants";
 
 /**
@@ -24,7 +25,9 @@ export const HeaderProfileButton = () => {
   const user = useAuthStore((state) => state.user);
   const subscription = useSubscriptionAccess();
   const { xp, level } = usePlayerProgress();
-  const pro = subscription.tier !== "free";
+  // Both paid plans wear brass; the name says which one.
+  const paid = subscription.tier !== "free";
+  const plan = subscription.tierLabel.toUpperCase();
 
   return (
     <Pressable
@@ -33,7 +36,7 @@ export const HeaderProfileButton = () => {
       accessibilityRole="button"
       accessibilityLabel={`Your profile. Level ${level.level}, ${xp} XP${
         level.nextTitle ? `, ${level.xpToNext} to level ${level.level + 1}` : ""
-      }. ${pro ? "Pro plan" : "Free plan"}.`}
+      }. ${subscription.tierLabel} plan.`}
       style={({ pressed }) => [styles.container, { opacity: pressed ? 0.8 : 1 }]}
     >
       {user?.profile_image_url ? (
@@ -51,7 +54,7 @@ export const HeaderProfileButton = () => {
           <Text style={[styles.levelLabel, { color: colors.textMuted }]}>LV</Text>
           <Text style={[styles.levelNumber, { color: colors.text }]}>{level.level}</Text>
           <Text style={[styles.xp, { color: colors.textMuted }]} numberOfLines={1}>
-            {xp} XP
+            {compactXp(xp)} XP
           </Text>
         </View>
         <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
@@ -64,17 +67,17 @@ export const HeaderProfileButton = () => {
         </View>
       </View>
 
-      {/* Brass is kept for what is earned or paid for, so Pro wears it and Free does not. */}
+      {/* Brass is kept for what is earned or paid for, so the paid plans wear it and Free does not. */}
       <View
         style={[
           styles.plan,
-          pro
+          paid
             ? { backgroundColor: colors.accentWash, borderColor: colors.accent }
             : { backgroundColor: "transparent", borderColor: colors.border },
         ]}
       >
-        {pro ? <MaterialCommunityIcons name="crown" size={11} color={colors.accent} /> : null}
-        <Text style={[styles.planText, { color: pro ? colors.accent : colors.textMuted }]}>{pro ? "PRO" : "FREE"}</Text>
+        {paid ? <MaterialCommunityIcons name="crown" size={11} color={colors.accent} /> : null}
+        <Text style={[styles.planText, { color: paid ? colors.accent : colors.textMuted }]}>{plan}</Text>
       </View>
     </Pressable>
   );
@@ -84,11 +87,11 @@ const styles = StyleSheet.create({
   container: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40 },
   photo: { width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2, borderWidth: 2 },
 
-  meta: { width: BAR + 12, gap: 3 },
+  meta: { minWidth: BAR, gap: 3 },
   levelLine: { flexDirection: "row", alignItems: "baseline", gap: 3 },
   levelLabel: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 1 },
   levelNumber: { fontFamily: FONTS.boardHeavy, fontSize: 17, lineHeight: 18 },
-  xp: { flexShrink: 1, fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 0.6, marginLeft: 2 },
+  xp: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 0.6, marginLeft: 2 },
   track: { width: BAR, height: 3, borderRadius: 2, overflow: "hidden" },
   fill: { height: "100%", borderRadius: 2 },
 
@@ -101,5 +104,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  planText: { fontFamily: FONTS.board, fontSize: 12, letterSpacing: 1.2 },
+  planText: { fontFamily: FONTS.board, fontSize: 12, letterSpacing: 0.9 },
 });
