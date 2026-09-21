@@ -2,152 +2,144 @@ import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { AppCard } from "../../components/ui/AppCard";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAIAnalysesStore } from "../../store";
-import type { AICoachStackParamList, AnalysisStatus, AnalysisType } from "../../types";
+import type { AICoachStackParamList, AnalysisType } from "../../types";
+import { AnalysisRow } from "../../components/ai/AnalysisRow";
+import { FONTS, RADIUS, SPACING } from "../../constants";
+import { ANALYSIS_TYPES, ANALYSIS_TYPE_ORDER } from "../../features/ai/analysisLabels";
 
-const STATUS_FILTERS: { label: string; value: AnalysisStatus | "all" }[] = [
-  { label: "All", value: "all" },
-  { label: "Completed", value: "completed" },
-  { label: "Processing", value: "processing" },
-  { label: "Pending", value: "pending" },
-  { label: "Failed", value: "failed" },
-];
+type StatusFilter = "all" | "ready" | "working" | "failed";
 
-const TYPE_FILTERS: { label: string; value: AnalysisType | "all" }[] = [
-  { label: "All types", value: "all" },
-  { label: "Shot", value: "shot" },
-  { label: "Stance", value: "stance" },
-  { label: "Technique", value: "technique" },
-  { label: "Tactical", value: "tactical" },
-  { label: "Full session", value: "full_session" },
+const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "ready", label: "Ready" },
+  { value: "working", label: "In progress" },
+  { value: "failed", label: "Failed" },
 ];
 
 export const AnalysisHistoryScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AICoachStackParamList>>();
   const { colors } = useAppTheme();
   const { analyses } = useAIAnalysesStore();
-  const [statusFilter, setStatusFilter] = useState<AnalysisStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [typeFilter, setTypeFilter] = useState<AnalysisType | "all">("all");
 
-  const filtered = useMemo(() => {
-    return analyses.filter((item) => {
-      const statusOk = statusFilter === "all" || item.status === statusFilter;
-      const typeOk = typeFilter === "all" || item.analysis_type === typeFilter;
-      return statusOk && typeOk;
-    });
-  }, [analyses, statusFilter, typeFilter]);
+  const sorted = useMemo(
+    () => [...analyses].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [analyses]
+  );
+
+  // Only offer the filters that would show something.
+  const typesPresent = ANALYSIS_TYPE_ORDER.filter((type) => sorted.some((item) => item.analysis_type === type));
+  const statusesPresent = STATUS_FILTERS.filter(
+    (filter) =>
+      filter.value === "all" ||
+      sorted.some((item) =>
+        filter.value === "ready"
+          ? item.status === "completed"
+          : filter.value === "failed"
+            ? item.status === "failed"
+            : item.status === "processing" || item.status === "pending"
+      )
+  );
+
+  const filtered = sorted.filter((item) => {
+    const statusOk =
+      statusFilter === "all" ||
+      (statusFilter === "ready" && item.status === "completed") ||
+      (statusFilter === "failed" && item.status === "failed") ||
+      (statusFilter === "working" && (item.status === "processing" || item.status === "pending"));
+    const typeOk = typeFilter === "all" || item.analysis_type === typeFilter;
+    return statusOk && typeOk;
+  });
+
+  const Chip = ({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      style={[
+        styles.chip,
+        {
+          backgroundColor: selected ? colors.primary : colors.surface,
+          borderColor: selected ? colors.primary : colors.border,
+        },
+      ]}
+    >
+      <Text style={[styles.chipText, { color: selected ? colors.onPrimary : colors.text }]}>{label}</Text>
+    </Pressable>
+  );
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.title, { color: colors.text }]}>Analysis History</Text>
-      <Text style={[styles.subtitle, { color: colors.textMuted }]}>Filter by status and type to find previous reports quickly.</Text>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {typesPresent.length > 1 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          <Chip label="All types" selected={typeFilter === "all"} onPress={() => setTypeFilter("all")} />
+          {typesPresent.map((type) => (
+            <Chip
+              key={type}
+              label={ANALYSIS_TYPES[type].label}
+              selected={typeFilter === type}
+              onPress={() => setTypeFilter(type)}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
 
-      <AppCard style={styles.card}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Status</Text>
-        <View style={styles.chipsWrap}>
-          {STATUS_FILTERS.map((filter) => {
-            const selected = statusFilter === filter.value;
-            return (
-              <Pressable
-                key={filter.value}
-                onPress={() => setStatusFilter(filter.value)}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? colors.primary : colors.border,
-                    backgroundColor: selected ? colors.surfaceMuted : colors.surface,
-                  },
-                ]}
-              >
-                <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{filter.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+      {statusesPresent.length > 2 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {statusesPresent.map((filter) => (
+            <Chip
+              key={filter.value}
+              label={filter.label}
+              selected={statusFilter === filter.value}
+              onPress={() => setStatusFilter(filter.value)}
+            />
+          ))}
+        </ScrollView>
+      ) : null}
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Type</Text>
-        <View style={styles.chipsWrap}>
-          {TYPE_FILTERS.map((filter) => {
-            const selected = typeFilter === filter.value;
-            return (
-              <Pressable
-                key={filter.value}
-                onPress={() => setTypeFilter(filter.value)}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? colors.primary : colors.border,
-                    backgroundColor: selected ? colors.surfaceMuted : colors.surface,
-                  },
-                ]}
-              >
-                <Text style={[styles.chipText, { color: selected ? colors.primary : colors.text }]}>{filter.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </AppCard>
+      <Text style={[styles.count, { color: colors.textMuted }]}>
+        {filtered.length} {filtered.length === 1 ? "REPORT" : "REPORTS"}
+      </Text>
 
-      <AppCard style={styles.card}>
-        <View style={styles.resultsHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Results</Text>
-          <Text style={[styles.resultsCount, { color: colors.textMuted }]}>{filtered.length} items</Text>
+      {filtered.length ? (
+        filtered.map((item) => (
+          <AnalysisRow
+            key={item.id}
+            analysis={item}
+            onPress={() => navigation.navigate("AnalysisDetail", { analysisId: item.id })}
+          />
+        ))
+      ) : (
+        <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+            {sorted.length ? "Nothing matches those filters." : "No reports yet. Upload a clip from the AI Coach tab."}
+          </Text>
         </View>
-        {filtered.length === 0 ? (
-          <Text style={[styles.empty, { color: colors.textMuted }]}>No analyses match the current filters.</Text>
-        ) : (
-          filtered.map((item) => (
-            <Pressable
-              key={item.id}
-              onPress={() => navigation.navigate("AnalysisDetail", { analysisId: item.id })}
-              style={[styles.row, { borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-            >
-              <View style={styles.rowMeta}>
-                <Text style={[styles.rowType, { color: colors.text }]}>{item.analysis_type.replace("_", " ").toUpperCase()}</Text>
-                <Text
-                  style={[
-                    styles.rowStatus,
-                    { color: item.status === "completed" ? colors.primary : item.status === "failed" ? colors.danger : colors.textMuted },
-                  ]}
-                >
-                  {item.status.toUpperCase()}
-                </Text>
-              </View>
-              <Text style={[styles.rowDate, { color: colors.textMuted }]}>{new Date(item.created_at).toLocaleString()}</Text>
-              {item.report_json?.summary ? (
-                <Text style={[styles.rowSummary, { color: colors.text }]} numberOfLines={2}>{item.report_json.summary}</Text>
-              ) : item.feedback ? (
-                <Text style={[styles.rowSummary, { color: colors.text }]} numberOfLines={2}>{item.feedback}</Text>
-              ) : null}
-              <Text style={[styles.openHint, { color: colors.primary }]}>Open analysis</Text>
-            </Pressable>
-          ))
-        )}
-      </AppCard>
+      )}
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingBottom: 28 },
-  title: { fontSize: 24, fontWeight: "800" },
-  subtitle: { fontSize: 14, marginTop: 6, marginBottom: 14, lineHeight: 20 },
-  card: { marginBottom: 12 },
-  sectionTitle: { fontSize: 14, fontWeight: "800", marginBottom: 8, marginTop: 4 },
-  resultsHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  resultsCount: { fontSize: 12, fontWeight: "700" },
-  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  chipText: { fontSize: 12, fontWeight: "700" },
-  empty: { fontSize: 13 },
-  row: { borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 8 },
-  rowMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  rowType: { fontSize: 12, fontWeight: "800" },
-  rowStatus: { fontSize: 11, fontWeight: "700" },
-  rowDate: { marginTop: 4, fontSize: 11 },
-  rowSummary: { marginTop: 6, fontSize: 12, lineHeight: 18 },
-  openHint: { marginTop: 8, fontSize: 12, fontWeight: "700" },
+  content: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
+  chips: { gap: SPACING.sm, paddingBottom: SPACING.sm },
+  chip: {
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
+  },
+  chipText: { fontSize: 13, fontWeight: "700" },
+  count: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.6, marginVertical: SPACING.sm },
+  empty: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.lg },
+  emptyText: { fontSize: 14, lineHeight: 20, textAlign: "center" },
 });

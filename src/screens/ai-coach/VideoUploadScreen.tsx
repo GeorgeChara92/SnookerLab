@@ -13,23 +13,17 @@ import { supabase } from "../../api/supabase";
 import type { AICoachStackParamList, AnalysisType } from "../../types";
 import { TierPaywallModal } from "../../components/subscription";
 import { isSubscriptionLimitError } from "../../constants";
+import {
+  ANALYSIS_TYPES as ANALYSIS_TYPE_INFO,
+  ANALYSIS_TYPE_ORDER,
+  CONTEXT_TAGS,
+} from "../../features/ai/analysisLabels";
 
-const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = [
-  { label: "Shot", value: "shot" },
-  { label: "Stance", value: "stance" },
-  { label: "Technique", value: "technique" },
-  { label: "Tactical", value: "tactical" },
-  { label: "Full Session", value: "full_session" },
-];
-
-const CONTEXT_TAGS = [
-  { value: "practice", label: "Practice" },
-  { value: "match", label: "Match" },
-  { value: "break-building", label: "Break Building" },
-  { value: "safety", label: "Safety" },
-  { value: "long-pot", label: "Long Pot" },
-  { value: "cue-action", label: "Cue Action" },
-];
+// One vocabulary for the whole AI Coach, so what you pick here is what the report calls it.
+const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = ANALYSIS_TYPE_ORDER.map((value) => ({
+  value,
+  label: ANALYSIS_TYPE_INFO[value].label,
+}));
 
 const ENABLE_AI_STORAGE_UPLOAD = process.env.EXPO_PUBLIC_ENABLE_AI_STORAGE_UPLOAD !== "0";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
@@ -114,8 +108,10 @@ export const VideoUploadScreen = () => {
 
     if (seconds < 10 || seconds > 20) {
       dialog.alert({
-        title: "Clip is the wrong length",
-        message: "Analysis works best on a clip between 10 and 20 seconds. Pick a shorter or longer clip and try again.",
+        title: seconds < 10 ? "That clip is too short" : "That clip is too long",
+        message: `It runs for ${Math.round(seconds)} seconds. The coach needs between 10 and 20, so ${
+          seconds < 10 ? "record a little more of the shot" : "trim it down to the one shot"
+        } and try again.`,
         icon: "timer-outline",
       });
       return false;
@@ -294,7 +290,7 @@ export const VideoUploadScreen = () => {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={[styles.headerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-        <Text style={[styles.title, { color: colors.text }]}>New Analysis</Text>
+        <Text style={[styles.title, { color: colors.text }]}>New analysis</Text>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>
           Upload a 10-20 second clip for personalised coaching feedback.
         </Text>
@@ -305,9 +301,9 @@ export const VideoUploadScreen = () => {
 
       {!video ? (
         <View style={[styles.uploadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <AppButton label="Upload from Library" onPress={pickVideo} />
+          <AppButton label="Choose from your library" onPress={pickVideo} />
           <View style={styles.buttonSpacer} />
-          <AppButton label="Record Video" onPress={recordVideo} variant="secondary" />
+          <AppButton label="Record a clip" onPress={recordVideo} variant="secondary" />
           <Text style={[styles.hintText, { color: colors.textMuted }]}>
             Select a 10-20 second clip
           </Text>
@@ -327,7 +323,7 @@ export const VideoUploadScreen = () => {
           </View>
 
           <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Analysis Type</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>What should the coach look at?</Text>
             <View style={styles.chipsRow}>
               {ANALYSIS_TYPES.slice(0, 3).map((item) => {
                 const selected = analysisType === item.value;
@@ -359,8 +355,8 @@ export const VideoUploadScreen = () => {
           </View>
 
           <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Context Tags</Text>
-            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Optional · helps focus the analysis</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Tags</Text>
+            <Text style={[styles.sectionHint, { color: colors.textMuted }]}>Optional. They help the coach focus.</Text>
             <View style={styles.chipsRow}>
               {CONTEXT_TAGS.slice(0, 3).map((tag) => {
                 const selected = selectedTags.includes(tag.value);
@@ -422,7 +418,7 @@ export const VideoUploadScreen = () => {
             </View>
           ) : (
             <View style={styles.uploadActions}>
-              <AppButton label="Upload for Analysis" onPress={uploadVideo} />
+              <AppButton label="Send for analysis" onPress={uploadVideo} />
             </View>
           )}
         </>

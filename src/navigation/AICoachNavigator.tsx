@@ -15,9 +15,9 @@ export const AICoachNavigator = () => {
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen name="AIDashboard" component={AIDashboardScreen} options={{ title: "AI Coach" }} />
-      <Stack.Screen name="VideoUpload" component={VideoUploadScreen} options={{ title: "Upload Video" }} />
-      <Stack.Screen name="AnalysisHistory" component={AnalysisHistoryScreen} options={{ title: "All Analyses" }} />
-      <Stack.Screen name="AnalysisDetail" component={AnalysisDetailScreen} options={{ title: "Analysis Detail" }} />
+      <Stack.Screen name="VideoUpload" component={VideoUploadScreen} options={{ title: "Upload a clip" }} />
+      <Stack.Screen name="AnalysisHistory" component={AnalysisHistoryScreen} options={{ title: "All reports" }} />
+      <Stack.Screen name="AnalysisDetail" component={AnalysisDetailScreen} options={{ title: "Coaching report" }} />
     </Stack.Navigator>
   );
 };
