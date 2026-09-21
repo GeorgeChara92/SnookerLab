@@ -3,6 +3,7 @@ import {
   AccessibilityInfo,
   Animated,
   Easing,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -258,9 +259,12 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
     if (finished.current) return;
     finished.current = true;
     loadApp();
-    Animated.timing(leave, { toValue: 0, duration: T.fade, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(
-      () => onFinish()
-    );
+    Animated.timing(leave, {
+      toValue: 0,
+      duration: T.fade,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => onFinish());
   };
 
   useEffect(() => {
@@ -328,148 +332,170 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
   const cueLength = Math.max(height * 0.55, 320);
   const cueW = Math.max(7, d * 0.5);
 
+  // Shown in a modal, which sits above everything - including the header and tab bar the
+  // navigation draws natively. As a plain overlay, those poked through once the app started
+  // loading underneath.
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, styles.root, { opacity: leave }]}>
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={finish}
-        accessibilityRole="button"
-        accessibilityLabel="Snooker Lab. Tap to skip the opening."
-      >
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: tableIn }]}>
-          {/* ------------------------------------------------ the baize, lit from above */}
-          <View
-            style={{
-              position: "absolute",
-              width: bedW * 1.5,
-              height: bedL * 0.95,
-              borderRadius: bedW,
-              left: cx - bedW * 0.75,
-              top: top + bedL * 0.03,
-              backgroundColor: BAIZE_LIGHT,
-              opacity: 0.5,
-            }}
-          />
-          <View style={[styles.edgeShade, { top: 0, height: height * 0.08 }]} />
-          <View style={[styles.edgeShade, { bottom: 0, height: height * 0.08 }]} />
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={finish}
+    >
+      <Animated.View style={[StyleSheet.absoluteFill, styles.root, { opacity: leave }]}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={finish}
+          accessibilityRole="button"
+          accessibilityLabel="Snooker Lab. Tap to skip the opening."
+        >
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: tableIn }]}>
+            {/* ------------------------------------------------ the baize, lit from above */}
+            <View
+              style={{
+                position: "absolute",
+                width: bedW * 1.5,
+                height: bedL * 0.95,
+                borderRadius: bedW,
+                left: cx - bedW * 0.75,
+                top: top + bedL * 0.03,
+                backgroundColor: BAIZE_LIGHT,
+                opacity: 0.5,
+              }}
+            />
+            <View style={[styles.edgeShade, { top: 0, height: height * 0.08 }]} />
+            <View style={[styles.edgeShade, { bottom: 0, height: height * 0.08 }]} />
 
-          {/* ------------------------------------------------ the baulk line and the D */}
-          <View style={[styles.line, { left: 0, right: 0, top: baulkY - 0.5 }]} />
-          {/* Drawn as an arc so it meets the baulk line at both ends. */}
-          <Svg style={{ position: "absolute", left: cx - dR - 1, top: baulkY - 1 }} width={dR * 2 + 2} height={dR + 2}>
-            <Path d={`M 1 1 A ${dR} ${dR} 0 0 0 ${dR * 2 + 1} 1`} stroke={LINE} strokeWidth={1} fill="none" />
-          </Svg>
+            {/* ------------------------------------------------ the baulk line and the D */}
+            <View style={[styles.line, { left: 0, right: 0, top: baulkY - 0.5 }]} />
+            {/* Drawn as an arc so it meets the baulk line at both ends. */}
+            <Svg
+              style={{ position: "absolute", left: cx - dR - 1, top: baulkY - 1 }}
+              width={dR * 2 + 2}
+              height={dR + 2}
+            >
+              <Path d={`M 1 1 A ${dR} ${dR} 0 0 0 ${dR * 2 + 1} 1`} stroke={LINE} strokeWidth={1} fill="none" />
+            </Svg>
 
-          {/* ------------------------------------------------ the colours on their spots */}
-          {(Object.keys(colours) as Array<keyof typeof colours>).map((key) => (
-            <View key={key} style={[styles.at, { left: colours[key].x - d / 2, top: colours[key].y - d / 2 }]}>
-              <Ball size={d} colours={BALL[key]} />
-            </View>
-          ))}
+            {/* ------------------------------------------------ the colours on their spots */}
+            {(Object.keys(colours) as Array<keyof typeof colours>).map((key) => (
+              <View key={key} style={[styles.at, { left: colours[key].x - d / 2, top: colours[key].y - d / 2 }]}>
+                <Ball size={d} colours={BALL[key]} />
+              </View>
+            ))}
 
-          {/* ------------------------------------------------ the contact */}
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.ripple,
-              {
-                width: d * 2,
-                height: d * 2,
-                borderRadius: d,
-                left: contact.x - d,
-                top: contact.y - d,
-                opacity: ripple.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.55, 0] }),
-                transform: [{ scale: ripple.interpolate({ inputRange: [0, 1], outputRange: [0.5, 2.6] }) }],
-              },
-            ]}
-          />
-
-          {/* ------------------------------------------------ the reds */}
-          {reds.map((red, index) => (
+            {/* ------------------------------------------------ the contact */}
             <Animated.View
-              key={index}
+              pointerEvents="none"
+              style={[
+                styles.ripple,
+                {
+                  width: d * 2,
+                  height: d * 2,
+                  borderRadius: d,
+                  left: contact.x - d,
+                  top: contact.y - d,
+                  opacity: ripple.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.55, 0] }),
+                  transform: [{ scale: ripple.interpolate({ inputRange: [0, 1], outputRange: [0.5, 2.6] }) }],
+                },
+              ]}
+            />
+
+            {/* ------------------------------------------------ the reds */}
+            {reds.map((red, index) => (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.at,
+                  {
+                    left: red.x - d / 2,
+                    top: red.y - d / 2,
+                    transform: [
+                      { translateX: redMoves[index].interpolate({ inputRange: [0, 1], outputRange: [0, red.move.x] }) },
+                      { translateY: redMoves[index].interpolate({ inputRange: [0, 1], outputRange: [0, red.move.y] }) },
+                    ],
+                  },
+                ]}
+              >
+                <Ball size={d} colours={BALL.red} />
+              </Animated.View>
+            ))}
+
+            {/* ------------------------------------------------ the cue ball */}
+            <Animated.View
               style={[
                 styles.at,
                 {
-                  left: red.x - d / 2,
-                  top: red.y - d / 2,
-                  transform: [
-                    { translateX: redMoves[index].interpolate({ inputRange: [0, 1], outputRange: [0, red.move.x] }) },
-                    { translateY: redMoves[index].interpolate({ inputRange: [0, 1], outputRange: [0, red.move.y] }) },
-                  ],
+                  left: cueStart.x - d / 2,
+                  top: cueStart.y - d / 2,
+                  transform: [{ translateX: cueBallX }, { translateY: cueBallY }],
                 },
               ]}
             >
-              <Ball size={d} colours={BALL.red} />
+              <Ball size={d} colours={BALL.cue} />
             </Animated.View>
-          ))}
 
-          {/* ------------------------------------------------ the cue ball */}
-          <Animated.View
-            style={[
-              styles.at,
-              {
-                left: cueStart.x - d / 2,
-                top: cueStart.y - d / 2,
-                transform: [{ translateX: cueBallX }, { translateY: cueBallY }],
-              },
-            ]}
-          >
-            <Ball size={d} colours={BALL.cue} />
+            {/* ------------------------------------------------ the cue */}
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.cuePivot,
+                { left: cueStart.x, top: cueStart.y, opacity: cueOpacity, transform: [{ rotate: `${cueAngle}deg` }] },
+              ]}
+            >
+              <Animated.View
+                style={{ position: "absolute", left: -cueW / 2, top: 0, transform: [{ translateY: tipGap }] }}
+              >
+                <Svg width={cueW} height={cueLength}>
+                  <Defs>
+                    <LinearGradient id="shaft" x1="0" y1="0" x2="0" y2="1">
+                      <Stop offset="0" stopColor="#EBD6AA" />
+                      <Stop offset="0.6" stopColor="#C99B5E" />
+                      <Stop offset="0.64" stopColor="#2A1A10" />
+                      <Stop offset="1" stopColor="#1A100A" />
+                    </LinearGradient>
+                  </Defs>
+                  {/* Tapered from the tip to the butt, with a ferrule and a chalked tip. */}
+                  <Polygon
+                    points={`${cueW * 0.3},0 ${cueW * 0.7},0 ${cueW},${cueLength} 0,${cueLength}`}
+                    fill="url(#shaft)"
+                  />
+                  <Rect x={cueW * 0.3} y={0} width={cueW * 0.4} height={3} fill="#2B4E8C" />
+                  <Rect x={cueW * 0.28} y={3} width={cueW * 0.44} height={5} fill="#F2EEE2" />
+                </Svg>
+              </Animated.View>
+            </Animated.View>
           </Animated.View>
 
-          {/* ------------------------------------------------ the cue */}
+          {/* ------------------------------------------------ the name */}
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dim, { opacity: dim }]} />
           <Animated.View
             pointerEvents="none"
             style={[
-              styles.cuePivot,
-              { left: cueStart.x, top: cueStart.y, opacity: cueOpacity, transform: [{ rotate: `${cueAngle}deg` }] },
+              styles.nameBlock,
+              {
+                top: height * 0.5 - 42,
+                opacity: name,
+                transform: [{ translateY: name.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+              },
             ]}
           >
-            <Animated.View style={{ position: "absolute", left: -cueW / 2, top: 0, transform: [{ translateY: tipGap }] }}>
-              <Svg width={cueW} height={cueLength}>
-                <Defs>
-                  <LinearGradient id="shaft" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0" stopColor="#EBD6AA" />
-                    <Stop offset="0.6" stopColor="#C99B5E" />
-                    <Stop offset="0.64" stopColor="#2A1A10" />
-                    <Stop offset="1" stopColor="#1A100A" />
-                  </LinearGradient>
-                </Defs>
-                {/* Tapered from the tip to the butt, with a ferrule and a chalked tip. */}
-                <Polygon points={`${cueW * 0.3},0 ${cueW * 0.7},0 ${cueW},${cueLength} 0,${cueLength}`} fill="url(#shaft)" />
-                <Rect x={cueW * 0.3} y={0} width={cueW * 0.4} height={3} fill="#2B4E8C" />
-                <Rect x={cueW * 0.28} y={3} width={cueW * 0.44} height={5} fill="#F2EEE2" />
-              </Svg>
-            </Animated.View>
+            <Text
+              maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+              style={[styles.name, fontsReady ? { fontFamily: FONTS.boardHeavy } : styles.nameFallback]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              accessibilityElementsHidden
+            >
+              SNOOKER LAB
+            </Text>
+            <View style={styles.rule} />
           </Animated.View>
-        </Animated.View>
-
-        {/* ------------------------------------------------ the name */}
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dim, { opacity: dim }]} />
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.nameBlock,
-            {
-              top: height * 0.5 - 42,
-              opacity: name,
-              transform: [{ translateY: name.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-            },
-          ]}
-        >
-          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
-            style={[styles.name, fontsReady ? { fontFamily: FONTS.boardHeavy } : styles.nameFallback]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            accessibilityElementsHidden
-          >
-            SNOOKER LAB
-          </Text>
-          <View style={styles.rule} />
-        </Animated.View>
-      </Pressable>
-    </Animated.View>
+        </Pressable>
+      </Animated.View>
+    </Modal>
   );
 };
 
