@@ -9,6 +9,7 @@ import { useDialog } from "../../components/ui/DialogProvider";
 import { useCustomRoutinesStore } from "../../store";
 import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { summarise } from "../../features/scanSnooker/position";
+import { arSupport } from "../../../modules/snooker-ar";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /** One of the player's own routines: the table to set up, what it is, and a score to record. */
@@ -71,6 +72,26 @@ export const CustomRoutineScreen = () => {
 
       {routine.description ? (
         <Text style={[styles.description, { color: colors.text }]}>{routine.description}</Text>
+      ) : null}
+
+      {arSupport().available ? (
+        <Pressable
+          onPress={() => navigation.navigate("RoutineAR", { routineId: routine.id })}
+          accessibilityRole="button"
+          accessibilityLabel="Set up the routine on the table with the camera"
+          style={({ pressed }) => [
+            styles.primary,
+            {
+              backgroundColor: colors.surface,
+              borderWidth: 1.5,
+              borderColor: colors.primary,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <MaterialCommunityIcons name="camera-outline" size={20} color={colors.primary} />
+          <Text style={[styles.primaryText, { color: colors.primary }]}>Set up with the camera</Text>
+        </Pressable>
       ) : null}
 
       <Pressable

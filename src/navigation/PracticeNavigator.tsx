@@ -6,6 +6,7 @@ import { RoutineDetailScreen } from "../screens/routines/RoutineDetailScreen";
 import { RecordRoutineScoreScreen } from "../screens/routines/RecordRoutineScoreScreen";
 import { CustomRoutineScreen } from "../screens/routines/CustomRoutineScreen";
 import { CustomRoutineBuilderScreen } from "../screens/routines/CustomRoutineBuilderScreen";
+import { RoutineARScreen } from "../screens/routines/RoutineARScreen";
 import { PracticeStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 
@@ -22,6 +23,7 @@ export const PracticeNavigator = () => {
       <Stack.Screen name="RecordRoutineScore" component={RecordRoutineScoreScreen} options={{ title: "Record Score" }} />
       <Stack.Screen name="CustomRoutine" component={CustomRoutineScreen} options={{ title: "Routine" }} />
       <Stack.Screen name="CustomRoutineBuilder" component={CustomRoutineBuilderScreen} options={{ title: "New routine" }} />
+      <Stack.Screen name="RoutineAR" component={RoutineARScreen} options={{ title: "Set up" }} />
     </Stack.Navigator>
   );
 };

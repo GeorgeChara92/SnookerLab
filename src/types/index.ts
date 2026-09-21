@@ -314,6 +314,8 @@ export type PracticeStackParamList = {
   CustomRoutine: { routineId: string };
   /** Building a new routine, or editing one when given its id. */
   CustomRoutineBuilder: { routineId?: string } | undefined;
+  /** Setting a routine up on the real table with the camera. */
+  RoutineAR: { routineId: string };
 };
 
 export type MatchesStackParamList = {

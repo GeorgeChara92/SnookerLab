@@ -75,9 +75,14 @@ type Props = {
   onClose: () => void;
   /** Throw away the recorded snooker, to scan a new one. */
   onDiscard: () => void;
+  /**
+   * "snooker" puts balls back after a miss; "routine" sets a routine up on the real table. Both
+   * show the balls as ghosts - only the words differ, and a routine cannot be re-scanned.
+   */
+  purpose?: "snooker" | "routine";
 };
 
-export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard }: Props) => {
+export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard, purpose = "snooker" }: Props) => {
   const dialog = useDialog();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -221,10 +226,15 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
           tip: "Choose a ball, put the cross on its middle and tap the button, or tap the ball on screen.",
         };
       default:
-        return {
-          title: "Put the balls back",
-          tip: "Choose a ball and aim at the real one to see which way to move it.",
-        };
+        return purpose === "routine"
+          ? {
+              title: "Set up the routine",
+              tip: "Place a real ball in each ghost. Choose a ball and aim at it to see which way to move it.",
+            }
+          : {
+              title: "Put the balls back",
+              tip: "Choose a ball and aim at the real one to see which way to move it.",
+            };
     }
   })();
 
@@ -425,7 +435,7 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
               >
                 <MaterialCommunityIcons name="undo" size={22} color="#FFFFFF" />
               </Pressable>
-            ) : phase === "replace" ? (
+            ) : phase === "replace" && purpose === "snooker" ? (
               // A new snooker: forget the old one and scan straight away - the table is still calibrated.
               <Pressable
                 onPress={() =>

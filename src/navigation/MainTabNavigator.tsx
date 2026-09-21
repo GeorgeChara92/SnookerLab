@@ -15,7 +15,7 @@ import { useAppTheme } from "../hooks/useAppTheme";
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 /** Screens inside a tab that take the whole screen, tab bar and all. */
-const FULL_SCREEN_ROUTES = new Set(["ScanSnooker"]);
+const FULL_SCREEN_ROUTES = new Set(["ScanSnooker", "RoutineAR"]);
 
 export const MainTabNavigator = () => {
   const insets = useSafeAreaInsets();
@@ -58,11 +58,14 @@ export const MainTabNavigator = () => {
       <Tab.Screen
         name="Practice"
         component={PracticeNavigator}
-        options={{
+        options={({ route }) => ({
           tabBarLabel: "Practice",
           popToTopOnBlur: true,
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="bullseye-arrow" size={size} color={color} />,
-        }}
+          ...(FULL_SCREEN_ROUTES.has(getFocusedRouteNameFromRoute(route) ?? "")
+            ? { tabBarStyle: { display: "none" as const } }
+            : {}),
+        })}
       />
       <Tab.Screen
         name="Sessions"
