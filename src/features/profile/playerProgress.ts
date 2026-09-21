@@ -11,6 +11,12 @@ import { achievementCurrent, computePlayerStats, isAchievementEarned, type Playe
 
 export type { PlayerStats } from "./playerStats";
 
+/**
+ * Extra XP for testing what higher levels unlock, set with EXPO_PUBLIC_DEV_XP in .env. Only read
+ * in development builds: a release build always ignores it, whatever the .env says.
+ */
+const DEV_XP = __DEV__ ? Math.max(0, Number(process.env.EXPO_PUBLIC_DEV_XP ?? 0) || 0) : 0;
+
 export const usePlayerProgress = () => {
   const matches = useMatchesStore((state) => state.matches);
   const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
@@ -29,7 +35,7 @@ export const usePlayerProgress = () => {
   return useMemo(() => {
     const base = computePlayerStats(matches, sessions, entries, routines, liveFramesByMatch);
     const unlocked = ACHIEVEMENTS.filter((achievement) => isAchievementEarned(achievement, base, seenAchievementIds));
-    const xp = unlocked.reduce((sum, achievement) => sum + achievement.xpReward, 0);
+    const xp = unlocked.reduce((sum, achievement) => sum + achievement.xpReward, 0) + DEV_XP;
     const level = levelProgress(xp);
     const stats: PlayerStats = { ...base, playerLevel: level.level };
 
