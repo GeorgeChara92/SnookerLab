@@ -45,9 +45,11 @@ type Props = {
   onPlace?: (point: Point) => void;
   onMove?: (id: string, point: Point) => void;
   onSelect?: (id: string | null) => void;
+  /** A picture only: touches pass through, e.g. to a button wrapped round it. */
+  readOnly?: boolean;
 };
 
-export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect }: Props) => {
+export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, readOnly = false }: Props) => {
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [dragging, setDragging] = useState<{ id: string; point: Point } | null>(null);
 
@@ -140,7 +142,7 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect }: P
   };
 
   return (
-    <View style={styles.box} onLayout={onLayout} {...responder.panHandlers}>
+    <View style={styles.box} onLayout={onLayout} pointerEvents={readOnly ? "none" : "auto"} {...(readOnly ? {} : responder.panHandlers)}>
       {fit ? (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           {/* ------------------------------------------------ rail, bed and pockets */}

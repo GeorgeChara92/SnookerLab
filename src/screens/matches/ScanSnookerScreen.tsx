@@ -7,6 +7,8 @@ import type { MatchesStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { useScanSnookerStore } from "../../store/scanSnookerStore";
+import { ARScan } from "../../components/scanSnooker/ARScan";
+import { arSupport } from "../../../modules/snooker-ar";
 import { BALL_LOOK, TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { BALL_LIMIT, describePosition, type BallColour } from "../../features/scanSnooker/table";
 import {
@@ -22,8 +24,12 @@ import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../co
 
 /**
  * Scan Snooker: record where the balls are before a snookered player plays, then put them back
- * after a miss. This is the diagram version, which works on any phone; the camera version will
- * show the same recorded position on the real table.
+ * after a miss.
+ *
+ * The camera is the main way in: scan the table and the balls, and see the recorded position as
+ * ghosts on the real table afterwards. The diagram is the same position drawn flat - a preview of
+ * what was scanned, a way to tweak it, and the whole feature on phones that cannot run the camera
+ * version (Android, older iPhones).
  */
 
 type Mode = "record" | "replace";
@@ -42,6 +48,60 @@ export const ScanSnookerScreen = () => {
   const route = useRoute<RouteProp<MatchesStackParamList, "ScanSnooker">>();
   const navigation = useNavigation();
   const { matchId, frameNumber } = route.params;
+  const support = useMemo(() => arSupport(), []);
+  const saved = useScanSnookerStore((state) => state.getPosition(matchId, frameNumber));
+  const savePosition = useScanSnookerStore((state) => state.savePosition);
+  const [view, setView] = useState<"camera" | "diagram">(support.available ? "camera" : "diagram");
+  // Bumped to start the camera afresh, e.g. to scan again after saving.
+  const [cameraRun, setCameraRun] = useState(0);
+  const [intent, setIntent] = useState<"record" | "replace">(saved ? "replace" : "record");
+
+  useEffect(() => {
+    navigation.setOptions({ title: `Scan snooker · Frame ${frameNumber}` });
+  }, [frameNumber, navigation]);
+
+  if (view === "camera" && support.available) {
+    return (
+      <ARScan
+        key={`${intent}-${cameraRun}`}
+        intent={intent}
+        saved={saved}
+        onSave={(balls) => {
+          savePosition(matchId, frameNumber, balls);
+          // Straight to the diagram of what was scanned, which is where it is checked and tweaked.
+          setView("diagram");
+        }}
+        onUseDiagram={() => setView("diagram")}
+      />
+    );
+  }
+
+  return (
+    <DiagramScan
+      matchId={matchId}
+      frameNumber={frameNumber}
+      cameraAvailable={support.available}
+      onUseCamera={(next) => {
+        setIntent(next);
+        setCameraRun((value) => value + 1);
+        setView("camera");
+      }}
+    />
+  );
+};
+
+/** The recorded position on a flat table: preview, tweak, and the fallback without a camera. */
+const DiagramScan = ({
+  matchId,
+  frameNumber,
+  cameraAvailable,
+  onUseCamera,
+}: {
+  matchId: string;
+  frameNumber: number;
+  cameraAvailable: boolean;
+  onUseCamera: (intent: "record" | "replace") => void;
+}) => {
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
@@ -56,10 +116,6 @@ export const ScanSnookerScreen = () => {
   const [colour, setColour] = useState<BallColour>("cue");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(() => {
-    navigation.setOptions({ title: `Scan snooker · Frame ${frameNumber}` });
-  }, [frameNumber, navigation]);
 
   const shown = mode === "replace" && saved ? saved.balls : balls;
   const selected = shown.find((ball) => ball.id === selectedId) ?? null;
@@ -147,9 +203,26 @@ export const ScanSnookerScreen = () => {
         })}
       </View>
 
+      {cameraAvailable ? (
+        <Pressable
+          onPress={() => onUseCamera(mode === "replace" && saved ? "replace" : "record")}
+          accessibilityRole="button"
+          style={[styles.camera, { backgroundColor: colors.primary }]}
+        >
+          <MaterialCommunityIcons name="camera-outline" size={18} color={colors.onPrimary} />
+          <Text style={[styles.cameraText, { color: colors.onPrimary }]}>
+            {mode === "replace" && saved ? "Put the balls back with the camera" : saved ? "Scan again with the camera" : "Scan with the camera"}
+          </Text>
+        </Pressable>
+      ) : (
+        <Text style={[styles.hint, { color: colors.textMuted }]}>
+          Scanning with the camera needs an iPhone with ARKit. You can record the position on the diagram instead.
+        </Text>
+      )}
+
       <Text style={[styles.hint, { color: colors.textMuted }]}>
         {mode === "record"
-          ? "Before the snookered player plays: choose a ball below and tap where it is. Drag to adjust."
+          ? "Choose a ball below and tap where it is on the table. Drag to adjust."
           : saved
             ? `Recorded ${minutesAgo(saved.recordedAt)} · ${summarise(saved.balls)}. Tap a ball for where it goes.`
             : ""}
@@ -281,6 +354,17 @@ const styles = StyleSheet.create({
   },
   modeText: { fontSize: 14, fontWeight: "700" },
   hint: { fontSize: 13, lineHeight: 18, marginTop: SPACING.sm, marginBottom: SPACING.xs },
+  camera: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+  },
+  cameraText: { fontSize: 15, fontWeight: "800" },
 
   table: { flex: 1, marginVertical: SPACING.xs },
 

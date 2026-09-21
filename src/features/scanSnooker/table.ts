@@ -187,15 +187,18 @@ export const frameFromLandmarks = (
   return { origin, angle, height: (first.world.y + second.world.y) / 2, errorMm: Math.abs(measured - expected) };
 };
 
-/** A table position to the world, with the point raised to the centre of a ball. */
-export const tableToWorld = (frame: TableFrame, point: Point): WorldPoint => {
+/**
+ * A table position to the world. Raised to the centre of a ball by default; pass 0 for a point
+ * on the cloth itself, such as the table lines.
+ */
+export const tableToWorld = (frame: TableFrame, point: Point, raiseMm: number = BALL_RADIUS): WorldPoint => {
   const cos = Math.cos(frame.angle);
   const sin = Math.sin(frame.angle);
   const tx = point.x / MM_PER_METRE;
   const ty = point.y / MM_PER_METRE;
   return {
     x: frame.origin.x + tx * cos - ty * sin,
-    y: frame.height + BALL_RADIUS / MM_PER_METRE,
+    y: frame.height + raiseMm / MM_PER_METRE,
     z: frame.origin.z + tx * sin + ty * cos,
   };
 };

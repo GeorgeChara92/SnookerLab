@@ -13,6 +13,7 @@ import {
   worldToTable,
   type Point,
 } from "../table";
+import { ballFromRay, clothFromAim, onTable, rayAtHeight, tableLines } from "../ar";
 import { coloursOnSpots, countOf, moveBall, placeBall, separate, summarise, type PlacedBall } from "../position";
 
 const near = (a: Point, b: Point, mm = 0.5) => expect(distance(a, b)).toBeLessThan(mm);
@@ -126,5 +127,59 @@ describe("placing balls", () => {
     balls = placeBall(balls, "red", { x: 300, y: 600 }).balls;
     expect(summarise(balls)).toBe("Cue ball, 1 red and 6 colours");
     expect(summarise([])).toBe("No balls placed");
+  });
+});
+
+
+describe("reading the table through the camera", () => {
+  // The same turned table as above.
+  const angle = Math.PI / 6;
+  const at = (p: { x: number; y: number }, height = 0.8) => ({
+    x: 2 + (p.x / 1000) * Math.cos(angle) - (p.y / 1000) * Math.sin(angle),
+    y: height,
+    z: -3 + (p.x / 1000) * Math.sin(angle) + (p.y / 1000) * Math.cos(angle),
+  });
+  const frame = frameFromLandmarks(
+    { table: SPOTS.black, world: at(SPOTS.black) },
+    { table: SPOTS.brown, world: at(SPOTS.brown) }
+  );
+
+  it("follows a ray to a height, and not backwards", () => {
+    const ray = { origin: { x: 0, y: 1.5, z: 0 }, direction: { x: 0, y: -1, z: 1 } };
+    expect(rayAtHeight(ray, 0.5)).toEqual({ x: 0, y: 0.5, z: 1 });
+    expect(rayAtHeight({ ...ray, direction: { x: 0, y: 1, z: 0 } }, 0.5)).toBeNull();
+  });
+
+  it("finds a ball's centre from aiming at it, not the spot behind it on the cloth", () => {
+    const ball = { x: 1100, y: 1500 };
+    const centre = at(ball, 0.8 + BALL_RADIUS / 1000);
+    // Standing at the baulk end, phone at head height, aimed at the ball's centre.
+    const eye = { x: centre.x + 0.3, y: 1.6, z: centre.z + 1.4 };
+    const length = Math.hypot(centre.x - eye.x, centre.y - eye.y, centre.z - eye.z);
+    const ray = {
+      origin: eye,
+      direction: { x: (centre.x - eye.x) / length, y: (centre.y - eye.y) / length, z: (centre.z - eye.z) / length },
+    };
+    near(ballFromRay(frame, ray)!, ball, 0.5);
+    // Following the same ray down to the cloth would be well out.
+    const cloth = worldToTable(frame, rayAtHeight(ray, 0.8)!);
+    expect(distance(cloth, ball)).toBeGreaterThan(40);
+  });
+
+  it("uses the surface the camera found, or the cloth's level when it found none", () => {
+    expect(clothFromAim({ hit: { x: 1, y: 0.8, z: 2 } })).toEqual({ x: 1, y: 0.8, z: 2 });
+    const fromRay = clothFromAim({ origin: { x: 0, y: 1.8, z: 0 }, direction: { x: 0, y: -1, z: 0 } }, 0.8);
+    expect(fromRay!.y).toBeCloseTo(0.8);
+    expect(clothFromAim({})).toBeNull();
+  });
+
+  it("draws the table's outline where the real one is", () => {
+    const [cushions, baulk, d] = tableLines(frame);
+    expect(cushions.points).toHaveLength(5);
+    near(worldToTable(frame, cushions.points[2]), { x: TABLE.width, y: TABLE.length });
+    near(worldToTable(frame, baulk.points[0]), { x: 0, y: 2832 });
+    near(worldToTable(frame, d.points[12]), { x: SPOTS.brown.x, y: 2832 + TABLE.dRadius });
+    expect(onTable({ x: -30, y: 100 })).toBe(true);
+    expect(onTable({ x: -300, y: 100 })).toBe(false);
   });
 });
