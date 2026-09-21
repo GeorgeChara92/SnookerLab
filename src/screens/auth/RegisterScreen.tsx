@@ -1,260 +1,336 @@
-import React, { useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useMemo, useRef, useState } from "react";
+import { FlatList, Linking, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../../store";
 import type { AuthStackParamList, SkillLevel } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
+import { AuthBanner, AuthShell } from "../../components/auth/AuthShell";
+import { AuthField } from "../../components/auth/AuthField";
 import { COUNTRIES, getCountryByCode, SKILL_LEVELS } from "../../constants/profileOptions";
+import { getAuthErrorMessage } from "../../utils/authErrors";
+import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Register">;
+type Field = "username" | "email" | "password";
+
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snooker-lab.vercel.app/privacy";
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snooker-lab.vercel.app/terms";
+
+const looksLikeEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
 
 export const RegisterScreen = ({ navigation }: Props) => {
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [username, setUsername] = useState("");
   const [skillLevel, setSkillLevel] = useState<SkillLevel | "">("");
   const [countryCode, setCountryCode] = useState("");
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [countrySearch, setCountrySearch] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [pickingCountry, setPickingCountry] = useState(false);
+  const [problem, setProblem] = useState<{ field?: Field; message: string } | null>(null);
   const { signUp, isLoading } = useAuthStore();
-  const { colors, isDark } = useAppTheme();
+  const { colors } = useAppTheme();
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
-  const filteredCountries = countrySearch
-    ? COUNTRIES.filter(
-        (c) =>
-          c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-          c.code.toLowerCase().includes(countrySearch.toLowerCase())
-      )
-    : COUNTRIES.slice(0, 20);
+  const country = countryCode ? getCountryByCode(countryCode) : null;
 
   const handleRegister = async () => {
-    const cleanEmail = email.trim();
     const cleanUsername = username.trim();
+    const cleanEmail = email.trim();
     if (cleanUsername.length < 2) {
-      setErrorMessage("Username must be at least 2 characters.");
+      setProblem({ field: "username", message: "Choose a username of at least 2 characters." });
       return;
     }
-    if (!cleanEmail || !cleanEmail.includes("@")) {
-      setErrorMessage("Enter a valid email address.");
+    if (!looksLikeEmail(cleanEmail)) {
+      setProblem({ field: "email", message: "Enter an email address you can open: we send a link to confirm it." });
+      emailRef.current?.focus();
       return;
     }
     if (password.length < 6) {
-      setErrorMessage("Password must be at least 6 characters.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match.");
+      setProblem({ field: "password", message: "Choose a password of at least 6 characters." });
+      passwordRef.current?.focus();
       return;
     }
 
-    setErrorMessage("");
-
+    setProblem(null);
     try {
       await signUp(cleanEmail, password, cleanUsername, skillLevel || undefined, countryCode || undefined);
       navigation.navigate("ConfirmEmail", { email: cleanEmail });
     } catch (error: any) {
-      const message = error?.message ?? "Unable to create account.";
-      setErrorMessage(message);
+      setProblem({ message: getAuthErrorMessage(error, "sign-up") });
     }
   };
 
-  const selectedCountry = countryCode ? getCountryByCode(countryCode) : null;
+  return (
+    <AuthShell
+      strapline="EVERY FRAME COUNTS FROM HERE"
+      title="Create your account"
+      subtitle="Free to start. Your matches, practice and coaching, on every device you sign in on."
+    >
+      {problem ? <AuthBanner tone="danger" message={problem.message} /> : null}
+
+      <AuthField
+        label="Username"
+        icon="account-outline"
+        value={username}
+        onChangeText={setUsername}
+        placeholder="What other players see"
+        autoCapitalize="none"
+        autoCorrect={false}
+        textContentType="username"
+        autoComplete="username-new"
+        returnKeyType="next"
+        onSubmitEditing={() => emailRef.current?.focus()}
+        invalid={problem?.field === "username"}
+      />
+      <AuthField
+        ref={emailRef}
+        label="Email"
+        icon="email-outline"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="you@example.com"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        textContentType="emailAddress"
+        autoComplete="email"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        invalid={problem?.field === "email"}
+      />
+      <AuthField
+        ref={passwordRef}
+        label="Password"
+        icon="lock-outline"
+        value={password}
+        onChangeText={setPassword}
+        revealable
+        // Lets iOS suggest a strong password and save it to the keychain.
+        textContentType="newPassword"
+        autoComplete="new-password"
+        passwordRules="minlength: 6;"
+        returnKeyType="done"
+        hint="At least 6 characters. Tap the eye to check what you typed."
+        invalid={problem?.field === "password"}
+      />
+
+      {/* ------------------------------------------------ about your game */}
+      <View style={styles.sectionHead}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>About your game</Text>
+        <Text style={[styles.optional, { color: colors.textMuted }]}>Optional</Text>
+      </View>
+      <Text style={[styles.sectionText, { color: colors.textMuted }]}>
+        Helps us pitch practice routines at your level. You can change these later.
+      </Text>
+
+      <View style={styles.levels}>
+        {SKILL_LEVELS.map((level) => {
+          const selected = skillLevel === level.value;
+          return (
+            <Pressable
+              key={level.value}
+              onPress={() => setSkillLevel(selected ? "" : level.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected }}
+              style={[
+                styles.level,
+                {
+                  backgroundColor: selected ? colors.primary : colors.surface,
+                  borderColor: selected ? colors.primary : colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.levelText, { color: selected ? colors.onPrimary : colors.text }]}>{level.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Pressable
+        onPress={() => setPickingCountry(true)}
+        accessibilityRole="button"
+        accessibilityLabel={country ? `Country: ${country.name}. Change` : "Choose your country"}
+        style={[styles.countryButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      >
+        {country ? <Text style={styles.flag}>{country.emoji}</Text> : (
+          <MaterialCommunityIcons name="earth" size={20} color={colors.textMuted} />
+        )}
+        <Text style={[styles.countryText, { color: country ? colors.text : colors.textMuted }]}>
+          {country ? country.name : "Country"}
+        </Text>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+      </Pressable>
+
+      <View style={styles.submit}>
+        <AppButton label="Create account" onPress={handleRegister} loading={isLoading} />
+      </View>
+
+      <Pressable onPress={() => navigation.navigate("Login")} accessibilityRole="button" style={styles.switch}>
+        <Text style={[styles.quiet, { color: colors.textMuted }]}>
+          Already have an account? <Text style={[styles.link, { color: colors.primary }]}>Sign in</Text>
+        </Text>
+      </Pressable>
+
+      <Text style={[styles.legal, { color: colors.textMuted }]}>
+        By creating an account you agree to the{" "}
+        <Text style={[styles.legalLink, { color: colors.text }]} onPress={() => void Linking.openURL(TERMS_URL)}>
+          Terms of Use
+        </Text>{" "}
+        and{" "}
+        <Text style={[styles.legalLink, { color: colors.text }]} onPress={() => void Linking.openURL(PRIVACY_URL)}>
+          Privacy Policy
+        </Text>
+        .
+      </Text>
+
+      <CountrySheet
+        visible={pickingCountry}
+        selected={countryCode}
+        onClose={() => setPickingCountry(false)}
+        onPick={(code) => {
+          setCountryCode(code);
+          setPickingCountry(false);
+        }}
+      />
+    </AuthShell>
+  );
+};
+
+/** Every country, searchable by name or code. */
+const CountrySheet = ({
+  visible,
+  selected,
+  onClose,
+  onPick,
+}: {
+  visible: boolean;
+  selected: string;
+  onClose: () => void;
+  onPick: (code: string) => void;
+}) => {
+  const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const [search, setSearch] = useState("");
+
+  const countries = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return COUNTRIES;
+    return COUNTRIES.filter(
+      (item) => item.name.toLowerCase().includes(query) || item.code.toLowerCase() === query
+    );
+  }, [search]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.backgroundOrbTop,
-          { backgroundColor: isDark ? colors.primary : "#D5E9DF", opacity: isDark ? 0.25 : 0.7 },
-        ]}
-      />
-      <View
-        style={[
-          styles.backgroundOrbBottom,
-          { backgroundColor: isDark ? "#2A5648" : "#C6DED3", opacity: isDark ? 0.2 : 0.65 },
-        ]}
-      />
-
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.content}>
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.brand, { color: colors.primary }]}>SNOOKERLAB</Text>
-            <Text style={[styles.title, { color: colors.text }]}>Create account</Text>
-            <Text style={[styles.subtitle, { color: colors.textMuted }]}>Start tracking every session, match and improvement trend.</Text>
-
-            {errorMessage ? <Text style={[styles.errorText, { color: colors.danger }]}>{errorMessage}</Text> : null}
-
-            <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-              placeholder="Username"
-              placeholderTextColor={colors.textMuted}
-              value={username}
-              onChangeText={setUsername}
-              autoCorrect={false}
-              returnKeyType="next"
-            />
-            <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-              placeholder="Email"
-              placeholderTextColor={colors.textMuted}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoCorrect={false}
-              returnKeyType="next"
-            />
-            <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-              placeholder="Password"
-              placeholderTextColor={colors.textMuted}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              returnKeyType="next"
-            />
-            <TextInput
-              style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-              placeholder="Confirm password"
-              placeholderTextColor={colors.textMuted}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-              returnKeyType="done"
-            />
-
-            {/* Skill Level */}
-            <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Skill Level (optional)</Text>
-            <View style={styles.optionsRow}>
-              {SKILL_LEVELS.map((level) => {
-                const isSelected = skillLevel === level.value;
-                return (
-                  <Pressable
-                    key={level.value}
-                    style={[
-                      styles.optionChip,
-                      {
-                        backgroundColor: isSelected ? colors.primary + "20" : colors.surfaceMuted,
-                        borderColor: isSelected ? colors.primary : colors.border,
-                      },
-                    ]}
-                    onPress={() => setSkillLevel(isSelected ? "" : level.value)}
-                  >
-                    <Text style={[styles.optionChipText, { color: isSelected ? colors.primary : colors.text }]}>{level.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {/* Country */}
-            <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Country (optional)</Text>
-            <Pressable
-              style={[styles.countryPicker, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
-              onPress={() => setShowCountryPicker(!showCountryPicker)}
-            >
-              {selectedCountry ? (
-                <View style={styles.selectedCountryRow}>
-                  <Text style={styles.countryEmoji}>{selectedCountry.emoji}</Text>
-                  <Text style={[styles.countryText, { color: colors.text }]}>{selectedCountry.name}</Text>
-                </View>
-              ) : (
-                <Text style={[styles.countryText, { color: colors.textMuted }]}>Select your country</Text>
-              )}
-              <MaterialCommunityIcons name={showCountryPicker ? "chevron-up" : "chevron-down"} size={20} color={colors.textMuted} />
-            </Pressable>
-
-            {showCountryPicker && (
-              <View style={[styles.countryDropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <TextInput
-                  style={[styles.countrySearch, { backgroundColor: colors.surfaceMuted, color: colors.text, borderColor: colors.border }]}
-                  placeholder="Search countries..."
-                  placeholderTextColor={colors.textMuted}
-                  value={countrySearch}
-                  onChangeText={setCountrySearch}
-                />
-                <ScrollView style={styles.countryList} nestedScrollEnabled>
-                  {filteredCountries.map((country) => {
-                    const isSelected = countryCode === country.code;
-                    return (
-                      <Pressable
-                        key={country.code}
-                        style={[styles.countryItem, { backgroundColor: isSelected ? colors.primary + "10" : "transparent" }]}
-                        onPress={() => {
-                          setCountryCode(isSelected ? "" : country.code);
-                          setShowCountryPicker(false);
-                          setCountrySearch("");
-                        }}
-                      >
-                        <Text style={styles.countryEmoji}>{country.emoji}</Text>
-                        <Text style={[styles.countryItemText, { color: colors.text }]}>{country.name}</Text>
-                        {isSelected && <MaterialCommunityIcons name="check" size={18} color={colors.primary} />}
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            )}
-
-            <View style={styles.spacer} />
-
-            <AppButton label="Create Account" onPress={handleRegister} loading={isLoading} />
-
-            <Pressable style={styles.switchWrap} onPress={() => navigation.navigate("Login")}>
-              <Text style={[styles.switchText, { color: colors.textMuted }]}>
-                Already registered? <Text style={[styles.switchTextStrong, { color: colors.primary }]}>Sign in</Text>
-              </Text>
-            </Pressable>
-
-            <Text style={[styles.footnote, { color: colors.textMuted }]}>By continuing, you agree to future Terms and Privacy updates.</Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[styles.countrySheet, { backgroundColor: colors.background }]}>
+        <View style={[styles.countryHeader, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.countryTitle, { color: colors.text }]}>Your country</Text>
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" hitSlop={10}>
+            <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        <View style={styles.countrySearch}>
+          <AuthField
+            label="Search"
+            icon="magnify"
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Country name"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+        </View>
+        <FlatList
+          data={countries}
+          keyExtractor={(item) => item.code}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: insets.bottom + SPACING.lg }}
+          renderItem={({ item }) => {
+            const isSelected = item.code === selected;
+            return (
+              <Pressable
+                onPress={() => onPick(isSelected ? "" : item.code)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isSelected }}
+                style={({ pressed }) => [
+                  styles.countryRow,
+                  { backgroundColor: pressed ? colors.surfaceMuted : "transparent", borderBottomColor: colors.border },
+                ]}
+              >
+                <Text style={styles.flag}>{item.emoji}</Text>
+                <Text style={[styles.countryRowText, { color: colors.text }]}>{item.name}</Text>
+                {isSelected ? <MaterialCommunityIcons name="check" size={20} color={colors.primary} /> : null}
+              </Pressable>
+            );
+          }}
+          ListEmptyComponent={
+            <Text style={[styles.empty, { color: colors.textMuted }]}>No country matches "{search.trim()}".</Text>
+          }
+        />
+      </View>
+    </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  content: { flex: 1 },
-  scrollContent: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 18, paddingVertical: 20 },
-  backgroundOrbTop: { position: "absolute", top: -80, left: -70, width: 250, height: 250, borderRadius: 125 },
-  backgroundOrbBottom: { position: "absolute", bottom: -90, right: -70, width: 260, height: 260, borderRadius: 130 },
-  card: { borderRadius: 20, borderWidth: 1, padding: 24 },
-  brand: { fontSize: 12, letterSpacing: 2, marginBottom: 8, textTransform: "uppercase", fontWeight: "800" },
-  title: { fontSize: 31, fontWeight: "800" },
-  subtitle: { marginTop: 6, marginBottom: 16, fontSize: 14, lineHeight: 20 },
-  errorText: { marginBottom: 10, fontSize: 13, fontWeight: "600" },
-  input: { borderWidth: 1, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 12, borderRadius: 12, fontSize: 16 },
-  fieldLabel: { fontSize: 13, fontWeight: "600", marginBottom: 8, marginTop: 8 },
-  optionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-  optionChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5 },
-  optionChipText: { fontSize: 13, fontWeight: "600" },
-  countryPicker: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderWidth: 1, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, marginBottom: 8 },
-  selectedCountryRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  countryText: { fontSize: 15 },
-  countryEmoji: { fontSize: 20 },
-  countryDropdown: { borderWidth: 1, borderRadius: 12, marginTop: -4, marginBottom: 12, maxHeight: 200 },
-  countrySearch: { borderWidth: 1, margin: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, fontSize: 14 },
-  countryList: { maxHeight: 150 },
-  countryItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12 },
-  countryItemText: { fontSize: 14, flex: 1 },
-  spacer: { height: 12 },
-  switchWrap: { marginTop: 14 },
-  switchText: { textAlign: "center", fontSize: 14 },
-  switchTextStrong: { fontWeight: "700" },
-  footnote: { marginTop: 14, textAlign: "center", fontSize: 12 },
+  sectionHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginTop: SPACING.lg },
+  sectionTitle: { fontSize: 17, fontWeight: "800" },
+  optional: { fontSize: 13, fontWeight: "600" },
+  sectionText: { fontSize: 13, lineHeight: 18, marginTop: 2, marginBottom: SPACING.md },
+
+  levels: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm, marginBottom: SPACING.md },
+  level: {
+    width: "48.5%",
+    minHeight: HIT_TARGET,
+    borderWidth: 1.5,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  levelText: { fontSize: 15, fontWeight: "700" },
+
+  countryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    minHeight: 52,
+    borderWidth: 1.5,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+  },
+  flag: { fontSize: 20 },
+  countryText: { flex: 1, fontSize: 16 },
+
+  submit: { marginTop: SPACING.xl },
+  switch: { marginTop: SPACING.lg, minHeight: HIT_TARGET, justifyContent: "center" },
+  quiet: { fontSize: 14, textAlign: "center" },
+  link: { fontSize: 14, fontWeight: "700" },
+  legal: { fontSize: 12, lineHeight: 18, textAlign: "center", marginTop: SPACING.sm },
+  legalLink: { fontWeight: "700", textDecorationLine: "underline" },
+
+  countrySheet: { flex: 1 },
+  countryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  countryTitle: { fontSize: 20, fontWeight: "800" },
+  countrySearch: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md },
+  countryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    minHeight: 52,
+    paddingHorizontal: SPACING.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  countryRowText: { flex: 1, fontSize: 16 },
+  empty: { fontSize: 14, textAlign: "center", padding: SPACING.xl },
 });

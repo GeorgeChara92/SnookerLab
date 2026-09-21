@@ -1,129 +1,85 @@
 import React, { useState } from "react";
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, Text } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { AppButton } from "../../components/ui/AppButton";
-import { useDialog } from "../../components/ui/DialogProvider";
+import { AuthBanner, AuthShell } from "../../components/auth/AuthShell";
+import { AuthField } from "../../components/auth/AuthField";
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
+import { HIT_TARGET, SPACING } from "../../constants";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "ForgotPassword">;
 
+const looksLikeEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
+
 export const ForgotPasswordScreen = ({ navigation }: Props) => {
   const [email, setEmail] = useState("");
+  const [problem, setProblem] = useState("");
+  const [sentTo, setSentTo] = useState("");
   const { colors } = useAppTheme();
   const { resetPassword, isLoading } = useAuthStore();
-  const dialog = useDialog();
 
   const handleReset = async () => {
     const cleanEmail = email.trim();
-    if (!cleanEmail || !cleanEmail.includes("@")) {
-      dialog.alert({
-        title: "Check your email address",
-        message: "Enter the email address you signed up with, including the @.",
-        icon: "email-outline",
-      });
+    if (!looksLikeEmail(cleanEmail)) {
+      setProblem("Enter the email address you signed up with.");
       return;
     }
-
+    setProblem("");
     try {
       await resetPassword(cleanEmail);
-      dialog.alert({
-        title: "Check your inbox",
-        message: "If an account uses this address, we have sent a link to reset your password.",
-        tone: "success",
-        icon: "email-outline",
-        confirmLabel: "Back to sign in",
-        onConfirm: () => navigation.navigate("Login"),
-      });
+      setSentTo(cleanEmail);
     } catch (error: any) {
-      dialog.alert({
-        title: "Could not send the link",
-        message: getAuthEmailActionErrorMessage(error),
-        tone: "danger",
-        icon: "email-alert-outline",
-        confirmLabel: "Try again",
-      });
+      setProblem(getAuthEmailActionErrorMessage(error));
     }
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.title, { color: colors.text }]}>Reset password</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Enter your account email to receive a reset link.</Text>
+    <AuthShell
+      strapline="BACK TO THE TABLE"
+      title="Reset your password"
+      subtitle="Enter your account email and we will send you a link to choose a new password."
+    >
+      {sentTo ? (
+        <AuthBanner
+          tone="info"
+          message={`If an account uses ${sentTo}, a reset link is on its way. Check your inbox, and your spam folder too.`}
+        />
+      ) : null}
+      {problem ? <AuthBanner tone="danger" message={problem} /> : null}
 
-          <TextInput
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
-            placeholder="Email"
-            placeholderTextColor={colors.textMuted}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={handleReset}
-          />
+      <AuthField
+        label="Email"
+        icon="email-outline"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="you@example.com"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        textContentType="emailAddress"
+        autoComplete="email"
+        returnKeyType="send"
+        onSubmitEditing={handleReset}
+        invalid={!!problem}
+      />
 
-          <AppButton label="Send Reset Link" onPress={handleReset} loading={isLoading} />
+      <AppButton label={sentTo ? "Send the link again" : "Send reset link"} onPress={handleReset} loading={isLoading} />
 
-          <Pressable style={styles.backLink} onPress={() => navigation.navigate("Login")}>
-            <Text style={[styles.backText, { color: colors.primary }]}>Back to Sign In</Text>
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <Pressable
+        onPress={() => navigation.navigate("Login", sentTo ? { prefillEmail: sentTo } : undefined)}
+        accessibilityRole="button"
+        style={styles.back}
+      >
+        <Text style={[styles.link, { color: colors.primary }]}>Back to sign in</Text>
+      </Pressable>
+    </AuthShell>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 20,
-  },
-  card: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-  },
-  subtitle: {
-    marginTop: 8,
-    marginBottom: 18,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  backLink: {
-    marginTop: 14,
-    alignSelf: "center",
-  },
-  backText: {
-    fontWeight: "700",
-    fontSize: 14,
-  },
+  back: { marginTop: SPACING.lg, minHeight: HIT_TARGET, alignItems: "center", justifyContent: "center" },
+  link: { fontSize: 15, fontWeight: "700" },
 });

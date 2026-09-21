@@ -16,3 +16,34 @@ export const getAuthEmailActionErrorMessage = (error: any) => {
 
   return "Something went wrong at our end. Have another go in a moment.";
 };
+
+/** What went wrong signing in or signing up, in words a player can act on. */
+export const getAuthErrorMessage = (error: any, action: "sign-in" | "sign-up") => {
+  const raw = typeof error?.message === "string" ? error.message : "";
+  const msg = raw.toLowerCase();
+
+  if (msg.includes("invalid login credentials")) {
+    return "That email and password do not match an account. Check them and try again.";
+  }
+  if (/confirm|verif/.test(msg)) {
+    return "Confirm your email address first: open the link we sent you, then sign in.";
+  }
+  if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("user already exists")) {
+    return "There is already an account with that email. Sign in instead, or reset your password.";
+  }
+  if (msg.includes("password") && (msg.includes("at least") || msg.includes("weak") || msg.includes("short"))) {
+    return "Choose a longer password: at least 6 characters.";
+  }
+  if (msg.includes("rate limit") || msg.includes("too many")) {
+    return "Too many attempts in a short time. Wait a minute, then try again.";
+  }
+  if (msg.includes("network") || msg.includes("fetch") || msg.includes("timed out") || msg.includes("offline")) {
+    return "Could not reach Snooker Lab. Check your connection and try again.";
+  }
+  if (msg.includes("invalid email") || msg.includes("email address") && msg.includes("invalid")) {
+    return "That email address does not look right. Check it and try again.";
+  }
+  return action === "sign-in"
+    ? "Could not sign you in. Try again in a moment."
+    : "Could not create your account. Try again in a moment.";
+};
