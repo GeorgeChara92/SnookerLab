@@ -7,14 +7,18 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { PlayerAvatar } from "../../components/profile/PlayerAvatar";
 import { FacePickerSheet } from "../../components/profile/FacePickerSheet";
+import { RingColourSheet } from "../../components/profile/RingColourSheet";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
 import {
   BALLS,
+  CUSTOM_RING_LEVEL,
   OUTFITS,
   ballUnlocked,
   encodeAvatar,
   faceSeeds,
   isGeneratedAvatar,
+  isHexColour,
+  ringLabel,
   outfitUnlocked,
   parseAvatar,
   topBallFor,
@@ -54,6 +58,7 @@ export const AvatarPickerScreen = () => {
 
   const [draft, setDraft] = useState<AvatarSpec>(initial);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [colourOpen, setColourOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // A short row to pick from here, always led by the face in use; the sheet has the rest.
@@ -62,7 +67,8 @@ export const AvatarPickerScreen = () => {
     [draft.seed, name]
   );
   const changed = encodeAvatar(draft) !== user?.avatar_preset;
-  const ball = BALLS.find((item) => item.id === draft.ball);
+  const customOpen = level.level >= CUSTOM_RING_LEVEL;
+  const customSelected = isHexColour(draft.ball);
 
   const locked = (what: string, needed: number) =>
     dialog.alert({
@@ -98,7 +104,7 @@ export const AvatarPickerScreen = () => {
         <View style={styles.preview}>
           <PlayerAvatar spec={draft} size={128} />
           <Text style={[styles.previewLine, { color: colors.textMuted }]}>
-            LEVEL {level.level} · {ball?.label.toUpperCase()} RING
+            LEVEL {level.level} · {ringLabel(draft.ball).toUpperCase()} RING
           </Text>
         </View>
 
@@ -192,7 +198,8 @@ export const AvatarPickerScreen = () => {
         {/* ---------------------------------------------------------------- ring */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Ring</Text>
         <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
-          A new colour every level, in the order they come off the table.
+          A new colour every level, in the order they come off the table. Clear the black and the last one is yours to
+          colour.
         </Text>
         <View style={styles.balls}>
           {BALLS.map((item) => {
@@ -230,8 +237,52 @@ export const AvatarPickerScreen = () => {
               </Pressable>
             );
           })}
+
+          {/* After the black: any colour you like. */}
+          <Pressable
+            onPress={() => (customOpen ? setColourOpen(true) : locked("A ring in your own colour", CUSTOM_RING_LEVEL))}
+            accessibilityRole="button"
+            accessibilityState={{ selected: customSelected, disabled: !customOpen }}
+            accessibilityLabel={
+              customOpen
+                ? `Your own colour${customSelected ? `, ${draft.ball}` : ""}`
+                : `Your own colour, unlocks at level ${CUSTOM_RING_LEVEL}`
+            }
+            style={styles.ballCell}
+          >
+            <View
+              style={[
+                styles.ball,
+                {
+                  backgroundColor: customSelected ? draft.ball : colors.surfaceMuted,
+                  opacity: customOpen ? 1 : 0.4,
+                  borderColor: customSelected ? colors.text : colors.border,
+                  borderWidth: customSelected ? 3 : 1,
+                },
+              ]}
+            >
+              {customOpen ? (
+                customSelected ? null : (
+                  <MaterialCommunityIcons name="palette" size={16} color={colors.primary} />
+                )
+              ) : (
+                <MaterialCommunityIcons name="lock" size={12} color={colors.textMuted} />
+              )}
+            </View>
+            <Text style={[styles.ballLevel, { color: customSelected ? colors.text : colors.textMuted }]}>
+              {CUSTOM_RING_LEVEL}
+            </Text>
+          </Pressable>
         </View>
       </ScrollView>
+
+      <RingColourSheet
+        visible={colourOpen}
+        onClose={() => setColourOpen(false)}
+        draft={draft}
+        initial={isHexColour(draft.ball) ? draft.ball : "#C9A44C"}
+        onPick={(colour) => setDraft((prev) => ({ ...prev, ball: colour }))}
+      />
 
       <FacePickerSheet
         visible={sheetOpen}
@@ -324,11 +375,11 @@ const styles = StyleSheet.create({
   },
 
   balls: { flexDirection: "row", justifyContent: "space-between" },
-  ballCell: { alignItems: "center", gap: 4, minWidth: 36 },
+  ballCell: { alignItems: "center", gap: 4, minWidth: 32 },
   ball: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },

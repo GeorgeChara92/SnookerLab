@@ -11,6 +11,7 @@ import {
   isGeneratedAvatar,
   outfitBody,
   parseAvatar,
+  ringNeedsOutline,
   topBallFor,
   type AvatarSpec,
 } from "../../features/profile/avatarSpec";
@@ -93,8 +94,8 @@ export const PlayerAvatar = ({ preset, name = "", size = 44, level = 1, spec, sh
           borderRadius: size / 2,
           padding: ring,
           backgroundColor: showRing ? colour : "transparent",
-          // A black ring disappears on a dark screen without a hairline around it.
-          borderWidth: showRing && chosen.ball === "black" ? 1 : 0,
+          // A black (or very dark) ring disappears on a dark screen without a hairline around it.
+          borderWidth: showRing && ringNeedsOutline(colour) ? 1 : 0,
           borderColor: colors.boardMuted,
         },
       ]}

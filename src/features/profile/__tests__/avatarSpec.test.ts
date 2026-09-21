@@ -1,5 +1,10 @@
 import {
+  ballColour,
   ballUnlocked,
+  hexToHsl,
+  hslToHex,
+  parseHex,
+  ringNeedsOutline,
   encodeAvatar,
   faceSeeds,
   isGeneratedAvatar,
@@ -43,6 +48,40 @@ describe("player avatar", () => {
     expect(outfitUnlocked("shirtAndTie", 2)).toBe(true);
     expect(outfitUnlocked("waistcoat", 5)).toBe(false);
     expect(outfitUnlocked("waistcoat", 6)).toBe(true);
+  });
+
+  it("keeps a colour of your own, and saves it for after the black", () => {
+    const stored = encodeAvatar({ seed: "Sam", outfit: "waistcoat", ball: "#3a7bd5" });
+    expect(parseAvatar(stored, "x").ball).toBe("#3A7BD5");
+    expect(ballColour("#3A7BD5")).toBe("#3A7BD5");
+    expect(ballUnlocked("#3A7BD5", 8)).toBe(false);
+    expect(ballUnlocked("#3A7BD5", 9)).toBe(true);
+    expect(parseAvatar("nt:Sam|casual|#12345", "x").ball).toBe("cue");
+  });
+
+  it("reads a hex code however it is typed", () => {
+    expect(parseHex("3a7bd5")).toBe("#3A7BD5");
+    expect(parseHex(" #fff ")).toBe("#FFFFFF");
+    expect(parseHex("#12345")).toBeNull();
+    expect(parseHex("purple")).toBeNull();
+  });
+
+  it("converts between the sliders and hex without drifting", () => {
+    expect(hslToHex(0, 100, 50)).toBe("#FF0000");
+    expect(hslToHex(120, 100, 25)).toBe("#008000");
+    expect(hexToHsl("#FF0000")).toEqual({ h: 0, s: 100, l: 50 });
+    expect(hexToHsl("#808080")).toMatchObject({ h: 0, s: 0 });
+    for (const hex of ["#3A7BD5", "#C9A44C", "#1BA39C", "#14181A"] as const) {
+      const { h, s, l } = hexToHsl(hex);
+      expect(hslToHex(h, s, l)).toBe(hex);
+    }
+    const { h, s, l } = hexToHsl("#3A7BD5");
+    expect(hslToHex(h, s, l)).toBe("#3A7BD5");
+  });
+
+  it("outlines a ring that would vanish on a dark screen", () => {
+    expect(ringNeedsOutline("#14181A")).toBe(true);
+    expect(ringNeedsOutline("#E8B10B")).toBe(false);
   });
 
   it("gives a stable, fresh set of faces each round", () => {
