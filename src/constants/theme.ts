@@ -45,15 +45,18 @@ export type AppColors = {
   tabInactive: string;
   balls: Record<BallColourName, BallColour>;
   /**
-   * The broadcast scoreboard. It is dark in both themes on purpose: the graphic at the bottom
-   * of a snooker broadcast is always a dark strip with a gold rule, and that is the look.
+   * The broadcast scoreboard: a deep green strip in both themes, a step darker and richer than
+   * the cards around it, so a score always reads as a scoreboard.
    */
   board: string;
   /** The best-of cell in the middle of the scoreboard, a step lighter than the strip. */
   boardRaised: string;
   boardText: string;
   boardMuted: string;
-  /** The thin gold line along the top and bottom of the strip. */
+  /**
+   * The line along the top and bottom of the strip, and the scoreboard's accent: the kicker, the
+   * winner's marker and a practised day. Brass on the light theme, mint on the dark one.
+   */
   boardRule: string;
 };
 
@@ -133,11 +136,13 @@ export const DARK_COLORS: AppColors = {
   tabBar: "#13211D",
   tabInactive: "#8FA59D",
   balls: DARK_BALLS,
-  board: "#060D0B",
-  boardRaised: "#122420",
+  // Deep baize rather than black, with a mint rule: on a dark screen, black and gold read as
+  // a different brand. This keeps the scoreboard inside the app's own colours.
+  board: "#0E2A21",
+  boardRaised: "#17392E",
   boardText: "#F4F1E8",
-  boardMuted: "#7F948C",
-  boardRule: "#9C7C30",
+  boardMuted: "#8FAAA0",
+  boardRule: "#3E9A77",
 };
 
 export const getThemeColors = (isDark: boolean) => (isDark ? DARK_COLORS : LIGHT_COLORS);

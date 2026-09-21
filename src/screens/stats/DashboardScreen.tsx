@@ -398,8 +398,9 @@ export const DashboardScreen = () => {
     const busiest = Math.max(1, ...weeks.flat().map((day) => day.count));
     const gap = 5;
     const labelColumn = 16;
-    const available = width - SPACING.lg * 2 - SPACING.lg * 2 - labelColumn - gap;
-    const cell = Math.max(14, Math.min(30, Math.floor((available - gap * 7) / 8)));
+    // Screen minus the page padding and the card's own padding and border, then the day letters.
+    const available = width - SPACING.lg * 2 - SPACING.lg * 2 - 2 - labelColumn - gap;
+    const cell = Math.max(14, Math.min(32, Math.floor((available - gap * 7) / 8)));
 
     const shade = (count: number) => {
       if (!count) return colors.surfaceMuted;
@@ -434,7 +435,7 @@ export const DashboardScreen = () => {
             const showMonth = column === 0 || monthOf(days[0].key) !== monthOf(weeks[column - 1][0].key);
             return (
               <View key={days[0].key} style={{ gap }}>
-                <Text style={[styles.calendarMonth, { color: colors.textSubtle, width: cell + 14 }]} numberOfLines={1}>
+                <Text style={[styles.calendarMonth, { color: colors.textSubtle, width: cell }]} numberOfLines={1}>
                   {showMonth ? monthOf(days[0].key) : ""}
                 </Text>
                 {days.map((day) => (
@@ -495,7 +496,8 @@ export const DashboardScreen = () => {
                       styles.barFill,
                       {
                         height: `${Math.max(value ? 8 : 0, (value / max) * 100)}%`,
-                        backgroundColor: index === series.values.length - 1 ? colors.accent : colors.primary,
+                        backgroundColor:
+                          index === series.values.length - 1 ? colors.primary : `${colors.primary}99`,
                       },
                     ]}
                   />
@@ -518,7 +520,7 @@ export const DashboardScreen = () => {
             key={insight.title}
             style={[styles.insight, index > 0 ? { borderTopWidth: 1, borderTopColor: colors.border } : null]}
           >
-            <View style={[styles.insightDot, { backgroundColor: colors.accent }]} />
+            <View style={[styles.insightDot, { backgroundColor: colors.primary }]} />
             <View style={styles.insightBody}>
               <Text style={[styles.insightTitle, { color: colors.text }]}>{insight.title}</Text>
               <Text style={[styles.insightMessage, { color: colors.textMuted }]}>{insight.message}</Text>
@@ -633,7 +635,7 @@ export const DashboardScreen = () => {
             <Text style={[styles.cardTitle, { color: colors.text }]}>Most practised</Text>
             {analytics.topRoutines.map((routine, index) => (
               <View key={routine.routineId} style={styles.rankRow}>
-                <Text style={[styles.rank, { color: index === 0 ? colors.accent : colors.textSubtle }]}>{index + 1}</Text>
+                <Text style={[styles.rank, { color: index === 0 ? colors.primary : colors.textSubtle }]}>{index + 1}</Text>
                 <View style={styles.rankBody}>
                   <View style={styles.rankLine}>
                     <Text style={[styles.rankName, { color: colors.text }]} numberOfLines={1}>
@@ -645,7 +647,10 @@ export const DashboardScreen = () => {
                     <View
                       style={[
                         styles.rankFill,
-                        { width: `${(routine.count / most) * 100}%`, backgroundColor: index === 0 ? colors.accent : colors.primary },
+                        {
+                          width: `${(routine.count / most) * 100}%`,
+                          backgroundColor: index === 0 ? colors.primary : `${colors.primary}99`,
+                        },
                       ]}
                     />
                   </View>
