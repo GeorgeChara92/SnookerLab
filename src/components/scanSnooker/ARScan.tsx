@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SnookerARView, arSupport, type ARAim, type ARBallProp, type ARTracking } from "../../../modules/snooker-ar";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useDialog } from "../ui/DialogProvider";
 import { BALL_LOOK, TableDiagram } from "./TableDiagram";
 import {
   BALL_LIMIT,
@@ -72,9 +73,12 @@ type Props = {
   onUseDiagram: () => void;
   /** Back to the match. */
   onClose: () => void;
+  /** Throw away the recorded snooker, to scan a new one. */
+  onDiscard: () => void;
 };
 
-export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose }: Props) => {
+export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard }: Props) => {
+  const dialog = useDialog();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   // Eight balls in the tray on any phone: 30pt where there is room, smaller on an SE.
@@ -420,6 +424,31 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose }: Props) 
                 style={[styles.round, { opacity: balls.length ? 1 : 0.35 }]}
               >
                 <MaterialCommunityIcons name="undo" size={22} color="#FFFFFF" />
+              </Pressable>
+            ) : phase === "replace" ? (
+              // A new snooker: forget the old one and scan straight away - the table is still calibrated.
+              <Pressable
+                onPress={() =>
+                  dialog.confirm({
+                    title: "Start a new scan?",
+                    message: "This replaces the snooker you recorded earlier in this frame.",
+                    icon: "camera-retake-outline",
+                    confirmLabel: "New scan",
+                    cancelLabel: "Keep it",
+                    onConfirm: () => {
+                      onDiscard();
+                      setBalls([]);
+                      setColour("cue");
+                      setNotice(null);
+                      setPhase("scan");
+                    },
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Start a new scan, replacing the recorded snooker"
+                style={styles.round}
+              >
+                <MaterialCommunityIcons name="camera-retake-outline" size={22} color="#FFFFFF" />
               </Pressable>
             ) : phase === "check" ? (
               <Pressable

@@ -51,6 +51,7 @@ export const ScanSnookerScreen = () => {
   const support = useMemo(() => arSupport(), []);
   const saved = useScanSnookerStore((state) => state.getPosition(matchId, frameNumber));
   const savePosition = useScanSnookerStore((state) => state.savePosition);
+  const clearPosition = useScanSnookerStore((state) => state.clearPosition);
   const [view, setView] = useState<"camera" | "diagram">(support.available ? "camera" : "diagram");
   // Bumped to start the camera afresh, e.g. to scan again after saving.
   const [cameraRun, setCameraRun] = useState(0);
@@ -75,6 +76,7 @@ export const ScanSnookerScreen = () => {
         }}
         onUseDiagram={() => setView("diagram")}
         onClose={() => navigation.goBack()}
+        onDiscard={() => clearPosition(matchId, frameNumber)}
       />
     );
   }
