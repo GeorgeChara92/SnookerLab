@@ -145,8 +145,8 @@ export const placeLine = (balls: PlacedBall[], start: Point, end: Point, count: 
   return { balls: current, placed, notice: reason };
 };
 
-/** The rack sizes offered: a partial rack for shorter routines, up to the full fifteen. */
-export const RACK_SIZES = [6, 9, 10, 15] as const;
+/** The rack sizes offered: the complete triangles, from a short rack up to the full fifteen. */
+export const RACK_SIZES = [6, 10, 15] as const;
 
 /**
  * Reds racked in a triangle behind the pink, as close to it as they can be without touching,

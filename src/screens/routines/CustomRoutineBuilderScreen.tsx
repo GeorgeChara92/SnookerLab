@@ -19,6 +19,7 @@ import { useDialog } from "../../components/ui/DialogProvider";
 import { useCustomRoutinesStore } from "../../store";
 import { BALL_LOOK, TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { BallTray } from "../../components/scanSnooker/BallTray";
+import { ToolGlyph, type ToolGlyphName } from "../../components/scanSnooker/ToolGlyph";
 import { describePosition, type BallColour } from "../../features/scanSnooker/table";
 import {
   RACK_SIZES,
@@ -67,6 +68,8 @@ export const CustomRoutineBuilderScreen = () => {
   const [lineCount, setLineCount] = useState(5);
   // Choosing how many reds to rack.
   const [rackOpen, setRackOpen] = useState(false);
+  // Moving a ball already on the table: pick it, then tap where it goes or nudge it.
+  const [moveMode, setMoveMode] = useState(false);
   const saved = useRef(false);
 
   useEffect(() => {
@@ -128,6 +131,15 @@ export const CustomRoutineBuilderScreen = () => {
   };
 
   const place = (point: { x: number; y: number }) => {
+    if (moveMode) {
+      if (!selectedId) {
+        setNotice("Tap a ball to pick it up first.");
+        return;
+      }
+      setNotice(null);
+      change(moveBall(balls, selectedId, point));
+      return;
+    }
     const result = placeBall(balls, colour, point);
     if (result.refused) {
       setNotice(result.refused);
@@ -146,8 +158,23 @@ export const CustomRoutineBuilderScreen = () => {
     setSelectedId(null);
   };
 
+  /** Moves the picked ball a centimetre at a time. */
+  const nudge = (dx: number, dy: number) => {
+    const ball = balls.find((item) => item.id === selectedId);
+    if (!ball) return;
+    change(moveBall(balls, ball.id, { x: ball.x + dx, y: ball.y + dy }));
+  };
+
+  const toggleMove = () => {
+    setMoveMode((value) => !value);
+    setLineMode(false);
+    setRackOpen(false);
+    setNotice(null);
+  };
+
   const toggleLine = () => {
     setLineMode((value) => !value);
+    setMoveMode(false);
     setRackOpen(false);
     setSelectedId(null);
     setNotice(null);
@@ -156,6 +183,7 @@ export const CustomRoutineBuilderScreen = () => {
   const toggleRack = () => {
     setRackOpen((value) => !value);
     setLineMode(false);
+    setMoveMode(false);
     setSelectedId(null);
     setNotice(null);
   };
@@ -201,7 +229,9 @@ export const CustomRoutineBuilderScreen = () => {
         <Text style={[styles.hint, { color: colors.textMuted }]}>
           {lineMode
             ? "Drag across the table to lay reds along a line. Pinch or use + to zoom in for a precise line."
-            : "Choose a ball and tap to place it. Drag a ball to move it. Pinch or use + to zoom in."}
+            : moveMode
+              ? "Tap a ball to pick it up, then tap where it goes, or nudge it with the arrows."
+              : "Choose a ball and tap to place it. Drag a ball to move it. Pinch or use + to zoom in."}
         </Text>
 
         <View style={styles.flex}>
@@ -278,6 +308,30 @@ export const CustomRoutineBuilderScreen = () => {
               disabled={lineCount >= 15}
             />
           </View>
+        ) : moveMode ? (
+          <View style={[styles.lineBar, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+            {selected ? (
+              <>
+                <View
+                  style={[
+                    styles.lineBall,
+                    { backgroundColor: BALL_LOOK[selected.colour].fill, borderColor: BALL_LOOK[selected.colour].edge },
+                  ]}
+                />
+                <Text style={[styles.lineLabel, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
+                  Nudge 1 cm
+                </Text>
+                <IconTool icon="arrow-left" label="Nudge left" onPress={() => nudge(-10, 0)} />
+                <IconTool icon="arrow-up" label="Nudge towards the black" onPress={() => nudge(0, -10)} />
+                <IconTool icon="arrow-down" label="Nudge towards baulk" onPress={() => nudge(0, 10)} />
+                <IconTool icon="arrow-right" label="Nudge right" onPress={() => nudge(10, 0)} />
+              </>
+            ) : (
+              <Text style={[styles.lineLabel, { color: colors.textMuted }]}>
+                Tap a ball on the table to pick it up.
+              </Text>
+            )}
+          </View>
         ) : rackOpen ? (
           <View style={[styles.lineBar, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
             <Text style={[styles.lineLabel, { color: colors.text }]}>Rack reds</Text>
@@ -301,9 +355,33 @@ export const CustomRoutineBuilderScreen = () => {
         )}
 
         <View style={styles.tools}>
-          <Tool icon="dots-horizontal" label={lineMode ? "Done" : "Line"} onPress={toggleLine} active={lineMode} />
-          <Tool icon="triangle-outline" label={rackOpen ? "Close" : "Rack"} onPress={toggleRack} active={rackOpen} />
-          <Tool icon="circle-multiple-outline" label="Colours on spots" onPress={() => change(coloursOnSpots(balls))} />
+          <Tool
+            glyph="move"
+            label={moveMode ? "Done" : "Move"}
+            accessibilityLabel="Move a ball"
+            onPress={toggleMove}
+            active={moveMode}
+          />
+          <Tool
+            glyph="line"
+            label={lineMode ? "Done" : "Line"}
+            accessibilityLabel="Lay reds in a line"
+            onPress={toggleLine}
+            active={lineMode}
+          />
+          <Tool
+            glyph="rack"
+            label={rackOpen ? "Close" : "Rack"}
+            accessibilityLabel="Rack the reds"
+            onPress={toggleRack}
+            active={rackOpen}
+          />
+          <Tool
+            glyph="spots"
+            label="Spots"
+            accessibilityLabel="Put the colours on their spots"
+            onPress={() => change(coloursOnSpots(balls))}
+          />
         </View>
 
         <Pressable
@@ -387,14 +465,16 @@ export const CustomRoutineBuilderScreen = () => {
 };
 
 const Tool = ({
-  icon,
+  glyph,
   label,
+  accessibilityLabel,
   onPress,
   disabled,
   active,
 }: {
-  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  glyph: ToolGlyphName;
   label: string;
+  accessibilityLabel: string;
   onPress: () => void;
   disabled?: boolean;
   active?: boolean;
@@ -405,6 +485,7 @@ const Tool = ({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      accessibilityLabel={active ? `${accessibilityLabel}: on. Tap to finish` : accessibilityLabel}
       accessibilityState={{ disabled, selected: active }}
       style={({ pressed }) => [
         styles.tool,
@@ -415,7 +496,7 @@ const Tool = ({
         },
       ]}
     >
-      <MaterialCommunityIcons name={icon} size={18} color={active ? colors.onPrimary : colors.text} />
+      <ToolGlyph name={glyph} size={32} tint={active ? colors.onPrimary : colors.text} />
       <Text
         style={[styles.toolText, { color: active ? colors.onPrimary : colors.text }]}
         numberOfLines={1}
@@ -541,16 +622,16 @@ const styles = StyleSheet.create({
   tools: { flexDirection: "row", gap: SPACING.sm },
   tool: {
     flex: 1,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    minHeight: HIT_TARGET,
+    gap: 2,
+    minHeight: 60,
     borderWidth: 1,
     borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
-  toolText: { fontSize: 13, fontWeight: "700", flexShrink: 1 },
+  toolText: { fontSize: 12, fontWeight: "800" },
 
   preview: { flexDirection: "row", alignItems: "center", gap: SPACING.lg },
   previewText: { flex: 1, gap: SPACING.sm },
