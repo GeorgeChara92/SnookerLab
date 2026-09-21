@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Polygon, Rect, Stop } from "react-native-svg";
-import { FONTS } from "../../constants";
+import { FONTS, DISPLAY_TEXT_SCALE } from "../../constants";
 
 /**
  * The opening shot: a break-off, as it is played.
@@ -135,9 +135,12 @@ type Props = {
 
 /** Everything about the table and the shot that depends only on the screen size. */
 export const layoutBreak = (width: number, height: number) => {
-  // The bed covers the whole screen, a touch larger than it, so the cushions sit just off the edges.
-  const bedW = Math.max(width + 2 * OVERHANG, (height + 2 * OVERHANG) * (TABLE_WIDTH / TABLE_LENGTH));
-  const bedL = bedW * (TABLE_LENGTH / TABLE_WIDTH);
+  // The bed's length fits the screen's height, a touch longer, so the top and bottom cushions sit
+  // just off the edges on every phone - black to baulk always in view, on an SE as on a Pro Max.
+  // Nothing is drawn at the sides, so where the bed is narrower than the screen the baize simply
+  // carries on, and where it is wider the side cushions are out of sight too.
+  const bedL = height + 2 * OVERHANG;
+  const bedW = bedL * (TABLE_WIDTH / TABLE_LENGTH);
   const left = (width - bedW) / 2;
   const top = (height - bedL) / 2;
   const s = bedW / TABLE_WIDTH; // px per mm
@@ -453,8 +456,10 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
             },
           ]}
         >
-          <Text
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
             style={[styles.name, fontsReady ? { fontFamily: FONTS.boardHeavy } : styles.nameFallback]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
             accessibilityElementsHidden
           >
             SNOOKER LAB
@@ -483,7 +488,7 @@ const styles = StyleSheet.create({
   shine: { position: "absolute", top: "14%", left: "20%", backgroundColor: "rgba(255,255,255,0.6)" },
   cuePivot: { position: "absolute", width: 0, height: 0 },
   dim: { backgroundColor: "rgba(3,8,6,0.55)" },
-  nameBlock: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  nameBlock: { position: "absolute", left: 0, right: 0, alignItems: "center", paddingHorizontal: 24 },
   name: { color: TEXT, fontSize: 44, letterSpacing: 6 },
   nameFallback: { fontWeight: "900", fontSize: 36 },
   rule: { width: 72, height: 3, borderRadius: 2, backgroundColor: BRASS, marginTop: 10 },

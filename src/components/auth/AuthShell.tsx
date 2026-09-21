@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { FONTS, RADIUS, SPACING } from "../../constants";
+import { DISPLAY_TEXT_SCALE, FONTS, RADIUS, SPACING } from "../../constants";
 
 /**
  * The frame for signing in and signing up: the scoreboard strip at the top, with the name and
@@ -42,10 +42,18 @@ export const AuthShell = ({ strapline, title, subtitle, children }: Props) => {
               { backgroundColor: colors.board, borderBottomColor: colors.boardRule, paddingTop: insets.top + SPACING.xl },
             ]}
           >
-            <Text style={[styles.wordmark, { color: colors.boardText }]} accessibilityRole="header">
+            <Text
+              style={[styles.wordmark, { color: colors.boardText }]}
+              accessibilityRole="header"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+            >
               SNOOKER LAB
             </Text>
-            <Text style={[styles.strapline, { color: colors.boardMuted }]}>{strapline}</Text>
+            <Text style={[styles.strapline, { color: colors.boardMuted }]} maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}>
+              {strapline}
+            </Text>
 
             <View style={styles.balls} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
               {BALLS.map((colour, index) => (
@@ -99,6 +107,7 @@ const styles = StyleSheet.create({
 
   hero: {
     paddingHorizontal: SPACING.xl,
+    alignItems: "stretch",
     paddingBottom: SPACING.xl,
     borderBottomWidth: 3,
     borderBottomLeftRadius: RADIUS.xl,
@@ -118,7 +127,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.55)",
   },
 
-  body: { paddingHorizontal: SPACING.xl, paddingTop: SPACING.xl },
+  body: { paddingHorizontal: SPACING.xl, paddingTop: SPACING.xl, width: "100%", maxWidth: 520, alignSelf: "center" },
   title: { fontSize: 28, fontWeight: "800", letterSpacing: -0.3 },
   subtitle: { fontSize: 15, lineHeight: 21, marginTop: SPACING.xs, marginBottom: SPACING.lg },
 

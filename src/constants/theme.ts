@@ -207,6 +207,13 @@ export const FONTS = {
 /** Minimum touch target. Anything tappable should reach this, padding included. */
 export const HIT_TARGET = 44;
 
+/**
+ * How far the phone's text size setting may enlarge display type: scoreboard numerals and names,
+ * the header pill and the wordmark. These sit in fixed-height strips and would spill out at the
+ * largest accessibility sizes. Reading text is left to scale freely.
+ */
+export const DISPLAY_TEXT_SCALE = 1.25;
+
 /** Which ball speaks for each practice category, so colour carries meaning. */
 export const CATEGORY_BALL: Record<string, BallColourName> = {
   "cat-basics": "green",

@@ -1,5 +1,5 @@
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { RADIUS, SCRIM, SPACING } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -63,7 +63,8 @@ export const AppDialog = ({
         >
           <View style={[styles.accentBar, { backgroundColor: accent }]} />
 
-          <View style={styles.body}>
+          {/* Scrolls only if it has to: a long message at a large text size on a small phone. */}
+          <ScrollView contentContainerStyle={styles.body} bounces={false} showsVerticalScrollIndicator={false}>
             {icon ? (
               <View style={[styles.iconWrap, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
                 <MaterialCommunityIcons name={icon} size={26} color={accent} />
@@ -107,7 +108,7 @@ export const AppDialog = ({
                 <Text style={[styles.cancelText, { color: colors.textMuted }]}>{cancelLabel}</Text>
               </Pressable>
             ) : null}
-          </View>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -122,6 +123,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
   },
   card: {
+    // Phone-width on a phone; never a stretched banner on anything wider.
+    width: "100%",
+    maxWidth: 420,
+    maxHeight: "88%",
+    alignSelf: "center",
     borderRadius: RADIUS.xl,
     borderWidth: 1,
     overflow: "hidden",

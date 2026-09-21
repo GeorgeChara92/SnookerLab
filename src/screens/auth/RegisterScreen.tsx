@@ -143,7 +143,13 @@ export const RegisterScreen = ({ navigation }: Props) => {
                 },
               ]}
             >
-              <Text style={[styles.levelText, { color: selected ? colors.onPrimary : colors.text }]}>{level.label}</Text>
+              <Text
+                style={[styles.levelText, { color: selected ? colors.onPrimary : colors.text }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {level.label}
+              </Text>
             </Pressable>
           );
         })}
@@ -289,6 +295,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: SPACING.sm,
   },
   levelText: { fontSize: 15, fontWeight: "700" },
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store";
@@ -8,7 +8,7 @@ import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
 import { compactXp } from "../../features/profile/playerStats";
-import { FONTS } from "../../constants";
+import { FONTS, DISPLAY_TEXT_SCALE } from "../../constants";
 
 /**
  * The player's corner of every header: their avatar in the ring they have earned, their level
@@ -17,6 +17,8 @@ import { FONTS } from "../../constants";
  */
 
 const AVATAR = 32;
+/** Below this width the pill sits beside the screen title in less room, so it trims itself. */
+const COMPACT_BELOW = 380;
 const BAR = 46;
 
 export const HeaderProfileButton = () => {
@@ -28,6 +30,7 @@ export const HeaderProfileButton = () => {
   // Both paid plans wear brass; the name says which one.
   const paid = subscription.tier !== "free";
   const plan = subscription.tierLabel.toUpperCase();
+  const compact = useWindowDimensions().width < COMPACT_BELOW;
 
   return (
     <Pressable
@@ -51,11 +54,13 @@ export const HeaderProfileButton = () => {
 
       <View style={styles.meta}>
         <View style={styles.levelLine}>
-          <Text style={[styles.levelLabel, { color: colors.textMuted }]}>LV</Text>
-          <Text style={[styles.levelNumber, { color: colors.text }]}>{level.level}</Text>
-          <Text style={[styles.xp, { color: colors.textMuted }]} numberOfLines={1}>
-            {compactXp(xp)} XP
-          </Text>
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.levelLabel, { color: colors.textMuted }]}>LV</Text>
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.levelNumber, { color: colors.text }]}>{level.level}</Text>
+          {compact ? null : (
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.xp, { color: colors.textMuted }]} numberOfLines={1}>
+              {compactXp(xp)} XP
+            </Text>
+          )}
         </View>
         <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
           <View
@@ -77,7 +82,16 @@ export const HeaderProfileButton = () => {
         ]}
       >
         {paid ? <MaterialCommunityIcons name="crown" size={11} color={colors.accent} /> : null}
-        <Text style={[styles.planText, { color: paid ? colors.accent : colors.textMuted }]}>{plan}</Text>
+        {/* On a narrow screen a paid plan is just the crown; the full name is in the label. */}
+        {compact && paid ? null : (
+          <Text
+            maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+            numberOfLines={1}
+            style={[styles.planText, { color: paid ? colors.accent : colors.textMuted }]}
+          >
+            {plan}
+          </Text>
+        )}
       </View>
     </Pressable>
   );

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { FONTS } from "../../constants";
+import { FONTS, DISPLAY_TEXT_SCALE } from "../../constants";
 
 /** A red and the six colours, as on the sign-in screen. */
 const BALLS = ["#D0142F", "#F2C230", "#1F8A4C", "#7A4B2A", "#1B6FD0", "#F29AC0", "#1A1E20"];
@@ -27,7 +27,14 @@ export const LoadingPlayerScreen = () => {
   return (
     <View style={[styles.screen, { backgroundColor: colors.board }]} accessibilityLabel="Loading your matches and practice">
       <StatusBar style="light" />
-      <Text style={[styles.wordmark, { color: colors.boardText }]}>SNOOKER LAB</Text>
+      <Text
+        maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        style={[styles.wordmark, { color: colors.boardText }]}
+      >
+        SNOOKER LAB
+      </Text>
       <View style={styles.balls}>
         {BALLS.map((colour, index) => (
           <Animated.View
@@ -56,7 +63,7 @@ export const LoadingPlayerScreen = () => {
           />
         ))}
       </View>
-      <Text style={[styles.caption, { color: colors.boardMuted }]}>RACKING UP YOUR FRAMES</Text>
+      <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.caption, { color: colors.boardMuted }]}>RACKING UP YOUR FRAMES</Text>
     </View>
   );
 };
@@ -64,7 +71,7 @@ export const LoadingPlayerScreen = () => {
 const BALL = 16;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, alignItems: "center", justifyContent: "center", gap: 22 },
+  screen: { flex: 1, alignItems: "center", justifyContent: "center", gap: 22, paddingHorizontal: 24 },
   wordmark: { fontFamily: FONTS.boardHeavy, fontSize: 40, letterSpacing: 4 },
   balls: { flexDirection: "row", gap: 12 },
   ball: { width: BALL, height: BALL, borderRadius: BALL / 2, borderWidth: 1 },

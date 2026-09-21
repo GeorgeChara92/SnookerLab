@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { FONTS, RADIUS, SPACING } from "../../constants";
+import { FONTS, RADIUS, SPACING, DISPLAY_TEXT_SCALE } from "../../constants";
 
 /**
  * The broadcast scoreboard.
@@ -37,7 +37,7 @@ export const ScoreStrip = ({
   const hero = size === "hero";
 
   const name = (side: Side, align: "left" | "right") => (
-    <Text
+    <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
       numberOfLines={1}
       style={[
         hero ? styles.heroName : styles.name,
@@ -49,7 +49,7 @@ export const ScoreStrip = ({
   );
 
   const score = (side: Side) => (
-    <Text
+    <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
       style={[
         hero ? styles.heroScore : styles.score,
         { color: side.leading ? colors.boardText : colors.boardMuted },
@@ -73,7 +73,7 @@ export const ScoreStrip = ({
       <View style={[styles.scoreCell, hero ? styles.scoreCellHero : null]}>{score(left)}</View>
 
       <View style={[styles.middle, hero ? styles.middleHero : null, { backgroundColor: colors.boardRaised }]}>
-        <Text style={[hero ? styles.middleTextHero : styles.middleText, { color: colors.boardMuted }]} numberOfLines={1}>
+        <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[hero ? styles.middleTextHero : styles.middleText, { color: colors.boardMuted }]} numberOfLines={1}>
           {middle}
         </Text>
       </View>
@@ -104,8 +104,8 @@ export const BoardPanel = ({
     <View style={[styles.panel, { backgroundColor: colors.board, borderColor: colors.boardRule }, style]}>
       {kicker || aside ? (
         <View style={styles.panelHead}>
-          {kicker ? <Text style={[styles.kicker, { color: colors.boardRule }]}>{kicker}</Text> : <View />}
-          {aside ? <Text style={[styles.aside, { color: colors.boardMuted }]}>{aside}</Text> : null}
+          {kicker ? <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.kicker, { color: colors.boardRule }]}>{kicker}</Text> : <View />}
+          {aside ? <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.aside, { color: colors.boardMuted }]}>{aside}</Text> : null}
         </View>
       ) : null}
       {children}
@@ -131,10 +131,10 @@ export const TaleOfTheTape = ({
   return (
     <View>
       <View style={styles.tapeHead}>
-        <Text style={[styles.tapeName, { color: colors.boardText }]} numberOfLines={1}>
+        <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tapeName, { color: colors.boardText }]} numberOfLines={1}>
           {leftName.toUpperCase()}
         </Text>
-        <Text style={[styles.tapeName, styles.tapeNameRight, { color: colors.boardMuted }]} numberOfLines={1}>
+        <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tapeName, styles.tapeNameRight, { color: colors.boardMuted }]} numberOfLines={1}>
           {rightName.toUpperCase()}
         </Text>
       </View>
@@ -150,11 +150,11 @@ export const TaleOfTheTape = ({
         return (
           <View key={row.label} style={styles.tapeRow}>
             <View style={styles.tapeLine}>
-              <Text style={[styles.tapeValue, { color: leftAhead ? colors.boardText : colors.boardMuted }]}>
+              <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tapeValue, { color: leftAhead ? colors.boardText : colors.boardMuted }]}>
                 {show(row.left)}
               </Text>
-              <Text style={[styles.tapeLabel, { color: colors.boardMuted }]}>{row.label.toUpperCase()}</Text>
-              <Text
+              <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tapeLabel, { color: colors.boardMuted }]}>{row.label.toUpperCase()}</Text>
+              <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
                 style={[
                   styles.tapeValue,
                   styles.tapeValueRight,
