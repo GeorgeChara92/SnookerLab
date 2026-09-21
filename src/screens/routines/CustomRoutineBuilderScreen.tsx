@@ -22,8 +22,10 @@ import { BallTray } from "../../components/scanSnooker/BallTray";
 import { describePosition, type BallColour } from "../../features/scanSnooker/table";
 import {
   coloursOnSpots,
+  fullRack,
   moveBall,
   placeBall,
+  placeLine,
   removeBall,
   summarise,
   type PlacedBall,
@@ -59,6 +61,9 @@ export const CustomRoutineBuilderScreen = () => {
   const [maxScore, setMaxScore] = useState(existing?.maxScore ? String(existing.maxScore) : "");
   const [tried, setTried] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Laying reds in a line rather than one at a time, and how many each line lays.
+  const [lineMode, setLineMode] = useState(false);
+  const [lineCount, setLineCount] = useState(5);
   const saved = useRef(false);
 
   useEffect(() => {
@@ -131,6 +136,19 @@ export const CustomRoutineBuilderScreen = () => {
     if (colour === "cue") setColour("red");
   };
 
+  const layLine = (start: { x: number; y: number }, end: { x: number; y: number }) => {
+    const result = placeLine(balls, start, end, lineCount);
+    if (result.placed) change(result.balls);
+    setNotice(result.notice);
+    setSelectedId(null);
+  };
+
+  const toggleLine = () => {
+    setLineMode((value) => !value);
+    setSelectedId(null);
+    setNotice(null);
+  };
+
   const next = () => {
     if (!balls.length) {
       setNotice("Place at least one ball on the table first.");
@@ -155,9 +173,17 @@ export const CustomRoutineBuilderScreen = () => {
 
   if (step === 1) {
     return (
-      <View style={[styles.flex, styles.tableStep, { backgroundColor: colors.background, paddingBottom: insets.bottom + SPACING.sm }]}>
+      <View
+        style={[
+          styles.flex,
+          styles.tableStep,
+          { backgroundColor: colors.background, paddingBottom: insets.bottom + SPACING.sm },
+        ]}
+      >
         <Text style={[styles.hint, { color: colors.textMuted }]}>
-          Choose a ball and tap to place it. Drag a ball to move it. Pinch or use + to zoom in.
+          {lineMode
+            ? "Drag across the table to lay reds along a line. Pinch or use + to zoom in for a precise line."
+            : "Choose a ball and tap to place it. Drag a ball to move it. Pinch or use + to zoom in."}
         </Text>
 
         <View style={styles.flex}>
@@ -168,13 +194,19 @@ export const CustomRoutineBuilderScreen = () => {
             onMove={(id, point) => change(moveBall(balls, id, point))}
             onSelect={setSelectedId}
             zoomable
+            lineMode={lineMode}
+            lineCount={lineCount}
+            onLine={layLine}
           />
         </View>
 
         {selected ? (
           <View style={[styles.selected, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View
-              style={[styles.selectedBall, { backgroundColor: BALL_LOOK[selected.colour].fill, borderColor: BALL_LOOK[selected.colour].edge }]}
+              style={[
+                styles.selectedBall,
+                { backgroundColor: BALL_LOOK[selected.colour].fill, borderColor: BALL_LOOK[selected.colour].edge },
+              ]}
             />
             <Text style={[styles.selectedText, { color: colors.textMuted }]} numberOfLines={2}>
               <Text style={{ color: colors.text, fontWeight: "800" }}>{BALL_LOOK[selected.colour].label}</Text> ·{" "}
@@ -193,23 +225,57 @@ export const CustomRoutineBuilderScreen = () => {
             </Pressable>
           </View>
         ) : (
-          <Text style={[styles.summary, { color: notice ? colors.danger : colors.textMuted }]}>{notice ?? summarise(balls)}</Text>
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summary, { color: notice ? colors.danger : colors.textMuted }]} numberOfLines={2}>
+              {notice ?? summarise(balls)}
+            </Text>
+            <IconTool icon="undo" label="Undo" onPress={undo} disabled={!history.length} />
+            <IconTool
+              icon="delete-sweep-outline"
+              label="Clear the table"
+              onPress={() => {
+                change([]);
+                setSelectedId(null);
+              }}
+              disabled={!balls.length}
+            />
+          </View>
         )}
 
-        <BallTray balls={balls} selected={colour} onSelect={setColour} />
+        {lineMode ? (
+          <View style={[styles.lineBar, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+            <View style={[styles.lineBall, { backgroundColor: BALL_LOOK.red.fill, borderColor: BALL_LOOK.red.edge }]} />
+            <Text style={[styles.lineLabel, { color: colors.text }]}>Reds along the line</Text>
+            <IconTool
+              icon="minus"
+              label="Fewer reds"
+              onPress={() => setLineCount((value) => Math.max(2, value - 1))}
+              disabled={lineCount <= 2}
+            />
+            <Text style={[styles.lineCount, { color: colors.text }]}>{lineCount}</Text>
+            <IconTool
+              icon="plus"
+              label="More reds"
+              onPress={() => setLineCount((value) => Math.min(15, value + 1))}
+              disabled={lineCount >= 15}
+            />
+          </View>
+        ) : (
+          <BallTray balls={balls} selected={colour} onSelect={setColour} />
+        )}
 
         <View style={styles.tools}>
-          <Tool icon="circle-multiple-outline" label="Colours on spots" onPress={() => change(coloursOnSpots(balls))} />
-          <Tool icon="undo" label="Undo" onPress={undo} disabled={!history.length} />
+          <Tool icon="dots-horizontal" label={lineMode ? "Done" : "Line"} onPress={toggleLine} active={lineMode} />
           <Tool
-            icon="delete-sweep-outline"
-            label="Clear"
+            icon="triangle-outline"
+            label="Full rack"
             onPress={() => {
-              change([]);
+              change(fullRack(balls));
               setSelectedId(null);
+              setNotice(null);
             }}
-            disabled={!balls.length}
           />
+          <Tool icon="circle-multiple-outline" label="Colours on spots" onPress={() => change(coloursOnSpots(balls))} />
         </View>
 
         <Pressable
@@ -225,8 +291,14 @@ export const CustomRoutineBuilderScreen = () => {
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* The table as set up, with the way back to it. */}
         <View style={styles.preview}>
           <View style={{ width: Math.min(96, width * 0.24), height: Math.min(96, width * 0.24) * 1.95 }}>
@@ -277,7 +349,9 @@ export const CustomRoutineBuilderScreen = () => {
           accessibilityRole="button"
           style={({ pressed }) => [styles.primary, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
         >
-          <Text style={[styles.primaryText, { color: colors.onPrimary }]}>{editingId ? "Save changes" : "Save routine"}</Text>
+          <Text style={[styles.primaryText, { color: colors.onPrimary }]}>
+            {editingId ? "Save changes" : "Save routine"}
+          </Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -285,6 +359,48 @@ export const CustomRoutineBuilderScreen = () => {
 };
 
 const Tool = ({
+  icon,
+  label,
+  onPress,
+  disabled,
+  active,
+}: {
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  active?: boolean;
+}) => {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled, selected: active }}
+      style={({ pressed }) => [
+        styles.tool,
+        {
+          borderColor: active ? colors.primary : colors.border,
+          backgroundColor: active ? colors.primary : pressed ? colors.surfaceMuted : colors.surface,
+          opacity: disabled ? 0.45 : 1,
+        },
+      ]}
+    >
+      <MaterialCommunityIcons name={icon} size={18} color={active ? colors.onPrimary : colors.text} />
+      <Text
+        style={[styles.toolText, { color: active ? colors.onPrimary : colors.text }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+};
+
+/** A small round button with just an icon; its label is read out by screen readers. */
+const IconTool = ({
   icon,
   label,
   onPress,
@@ -301,16 +417,19 @@ const Tool = ({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ disabled }}
+      hitSlop={4}
       style={({ pressed }) => [
-        styles.tool,
-        { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : colors.surface, opacity: disabled ? 0.45 : 1 },
+        styles.iconTool,
+        {
+          borderColor: colors.border,
+          backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+          opacity: disabled ? 0.4 : 1,
+        },
       ]}
     >
-      <MaterialCommunityIcons name={icon} size={18} color={colors.text} />
-      <Text style={[styles.toolText, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
-        {label}
-      </Text>
+      <MaterialCommunityIcons name={icon} size={20} color={colors.text} />
     </Pressable>
   );
 };
@@ -341,7 +460,9 @@ const Field = ({
           { color: colors.text, backgroundColor: colors.surface, borderColor: error ? colors.danger : colors.border },
         ]}
       />
-      {error || hint ? <Text style={[styles.fieldHint, { color: error ? colors.danger : colors.textMuted }]}>{error ?? hint}</Text> : null}
+      {error || hint ? (
+        <Text style={[styles.fieldHint, { color: error ? colors.danger : colors.textMuted }]}>{error ?? hint}</Text>
+      ) : null}
     </View>
   );
 };
@@ -363,7 +484,21 @@ const styles = StyleSheet.create({
   },
   selectedBall: { width: 20, height: 20, borderRadius: 10, borderWidth: 1 },
   selectedText: { flex: 1, fontSize: 13, lineHeight: 18 },
-  summary: { fontSize: 13, fontWeight: "600", textAlign: "center", minHeight: 18 },
+  summaryRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm },
+  summary: { flex: 1, fontSize: 13, fontWeight: "600" },
+  iconTool: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  lineBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderWidth: 1.5,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+  },
+  lineBall: { width: 20, height: 20, borderRadius: 10, borderWidth: 1 },
+  lineLabel: { flex: 1, fontSize: 14, fontWeight: "700" },
+  lineCount: { minWidth: 24, textAlign: "center", fontSize: 18, fontWeight: "800" },
 
   tools: { flexDirection: "row", gap: SPACING.sm },
   tool: {
@@ -387,7 +522,14 @@ const styles = StyleSheet.create({
 
   field: { gap: 6 },
   fieldLabel: { fontSize: 13, fontWeight: "700" },
-  input: { minHeight: 48, borderWidth: 1.5, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: 12, fontSize: 16 },
+  input: {
+    minHeight: 48,
+    borderWidth: 1.5,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
   inputMultiline: { minHeight: 96, textAlignVertical: "top" },
   fieldHint: { fontSize: 12, lineHeight: 17 },
 

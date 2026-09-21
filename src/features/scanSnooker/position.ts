@@ -96,3 +96,67 @@ export const summarise = (balls: PlacedBall[]) => {
   const text = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
+
+/**
+ * Evenly spaced points from one end of a line to the other, for laying a row of reds in one go.
+ * Balls in a row can touch but never overlap, so a line too short for `count` gets as many as fit.
+ */
+export const pointsAlongLine = (start: Point, end: Point, count: number): Point[] => {
+  const from = clampToBed(start);
+  const to = clampToBed(end);
+  const length = distance(from, to);
+  const room = Math.floor(length / TABLE.ball) + 1;
+  const n = Math.max(1, Math.min(count, room));
+  if (n === 1) return [from];
+  return Array.from({ length: n }, (_, index) => ({
+    x: from.x + ((to.x - from.x) * index) / (n - 1),
+    y: from.y + ((to.y - from.y) * index) / (n - 1),
+  }));
+};
+
+/**
+ * Lays a line of reds. Stops at fifteen on the table, and says how many it could not fit - for
+ * want of room along the line, or because the reds ran out.
+ */
+export const placeLine = (balls: PlacedBall[], start: Point, end: Point, count: number) => {
+  const points = pointsAlongLine(start, end, count);
+  let current = balls;
+  let placed = 0;
+  for (const point of points) {
+    const result = placeBall(current, "red", point);
+    if (result.refused) break;
+    current = result.balls;
+    placed += 1;
+  }
+  const short = count - placed;
+  const reason =
+    short <= 0
+      ? null
+      : countOf(current, "red") >= BALL_LIMIT.red
+        ? `Only ${placed} placed: all 15 reds are on the table.`
+        : `Only ${placed} fit along that line. Draw it longer for more.`;
+  return { balls: current, placed, notice: reason };
+};
+
+/**
+ * The table set for a frame: fifteen reds racked in a triangle behind the pink, as close to it as
+ * they can be without touching, and the colours on their spots. Any reds already placed are
+ * replaced by the rack; colours already placed stay where they are.
+ */
+export const fullRack = (balls: PlacedBall[]): PlacedBall[] => {
+  const withoutReds = balls.filter((ball) => ball.colour !== "red");
+  const gap = TABLE.ball + 0.5; // a hair apart, so racked balls never count as overlapping
+  const apexY = SPOTS.pink.y - TABLE.ball - 1;
+  const reds: PlacedBall[] = [];
+  for (let row = 0; row < 5; row += 1) {
+    for (let index = 0; index <= row; index += 1) {
+      reds.push({
+        id: newId("red"),
+        colour: "red",
+        x: SPOTS.pink.x + (index - row / 2) * gap,
+        y: apexY - row * gap * (Math.sqrt(3) / 2),
+      });
+    }
+  }
+  return coloursOnSpots([...withoutReds, ...reds]);
+};

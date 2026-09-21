@@ -1,9 +1,25 @@
 import React, { useMemo, useRef, useState } from "react";
-import { PanResponder, Pressable, StyleSheet, View, type GestureResponderEvent, type LayoutChangeEvent } from "react-native";
+import {
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  View,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
+} from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
-import { BAULK_LINE_Y, POCKETS, SPOTS, TABLE, clampToBed, distance, type BallColour, type Point } from "../../features/scanSnooker/table";
-import type { PlacedBall } from "../../features/scanSnooker/position";
+import {
+  BAULK_LINE_Y,
+  POCKETS,
+  SPOTS,
+  TABLE,
+  clampToBed,
+  distance,
+  type BallColour,
+  type Point,
+} from "../../features/scanSnooker/table";
+import { pointsAlongLine, type PlacedBall } from "../../features/scanSnooker/position";
 
 /**
  * A full-size table seen from above, drawn to scale, black end at the top. Positions go in and
@@ -37,9 +53,13 @@ const SPOT = "rgba(255,255,255,0.45)";
 const RAIL_SHARE = 0.055;
 /** At full view balls are drawn a touch larger than scale so they can be seen and pressed. */
 const BALL_SCALE = 1.35;
-/** How close a touch must be to a ball to pick it up: most of a ball, and never under a fingertip. */
-const GRAB = 0.9;
-const MIN_GRAB_PX = 22;
+/**
+ * How close a touch must be to a ball to pick it up: on the ball, or just round its edge. Any
+ * wider and a tap meant to place a ball beside another picked up the other one instead.
+ */
+const GRAB_MARGIN_PX = 5;
+const MIN_GRAB_PX = 11;
+const grabRadiusFor = (d: number) => Math.max(d / 2 + GRAB_MARGIN_PX, MIN_GRAB_PX);
 const MAX_ZOOM = 5;
 /** A finger moving less than this is a tap, not a drag. */
 const TAP_SLOP = 6;
@@ -58,12 +78,38 @@ type Props = {
   readOnly?: boolean;
   /** Pinch and buttons to zoom in, for placing balls close together. */
   zoomable?: boolean;
+  /**
+   * Drawing a line instead of placing one ball: a one-finger drag shows `lineCount` reds along
+   * it, and letting go hands the line to `onLine`. Pinching still zooms.
+   */
+  lineMode?: boolean;
+  lineCount?: number;
+  onLine?: (start: Point, end: Point) => void;
 };
 
-export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, readOnly = false, zoomable = false }: Props) => {
+export const TableDiagram = ({
+  balls,
+  selectedId,
+  onPlace,
+  onMove,
+  onSelect,
+  readOnly = false,
+  zoomable = false,
+  lineMode = false,
+  lineCount = 5,
+  onLine,
+}: Props) => {
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View2>(FULL_VIEW);
   const [dragging, setDragging] = useState<{ id: string; point: Point } | null>(null);
+  // The line being drawn, in table millimetres.
+  const [line, setLineState] = useState<{ start: Point; end: Point } | null>(null);
+  // Also kept in a ref, so letting go reads the finished line without a state updater's side effects.
+  const lineRef = useRef<{ start: Point; end: Point } | null>(null);
+  const setLine = (next: { start: Point; end: Point } | null) => {
+    lineRef.current = next;
+    setLineState(next);
+  };
 
   // ---------------------------------------------------------------- the whole table, fitted
   const base = useMemo(() => {
@@ -133,11 +179,37 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
 
   // ---------------------------------------------------------------- touch
   // The latest values, for the touch handlers created once below.
-  const live = useRef({ fit, view, balls, onPlace, onMove, onSelect, zoomable, layoutFor, clampView, zoomAround });
-  live.current = { fit, view, balls, onPlace, onMove, onSelect, zoomable, layoutFor, clampView, zoomAround };
+  const live = useRef({
+    fit,
+    view,
+    balls,
+    onPlace,
+    onMove,
+    onSelect,
+    zoomable,
+    layoutFor,
+    clampView,
+    zoomAround,
+    lineMode,
+    onLine,
+  });
+  live.current = {
+    fit,
+    view,
+    balls,
+    onPlace,
+    onMove,
+    onSelect,
+    zoomable,
+    layoutFor,
+    clampView,
+    zoomAround,
+    lineMode,
+    onLine,
+  };
 
   const touch = useRef<{
-    mode: "tap" | "ball" | "pan" | "pinch";
+    mode: "tap" | "ball" | "pan" | "pinch" | "line";
     id: string | null;
     start: Point;
     origin: Point;
@@ -146,10 +218,22 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
     pinchMid: Point;
     /** Once a finger has gone past the tap distance it is a drag, even if it comes back. */
     moved: boolean;
-  }>({ mode: "tap", id: null, start: { x: 0, y: 0 }, origin: { x: 0, y: 0 }, startView: FULL_VIEW, pinchDistance: 1, pinchMid: { x: 0, y: 0 }, moved: false });
+  }>({
+    mode: "tap",
+    id: null,
+    start: { x: 0, y: 0 },
+    origin: { x: 0, y: 0 },
+    startView: FULL_VIEW,
+    pinchDistance: 1,
+    pinchMid: { x: 0, y: 0 },
+    moved: false,
+  });
 
   const localTouches = (event: GestureResponderEvent) =>
-    event.nativeEvent.touches.map((item) => ({ x: item.pageX - touch.current.origin.x, y: item.pageY - touch.current.origin.y }));
+    event.nativeEvent.touches.map((item) => ({
+      x: item.pageX - touch.current.origin.x,
+      y: item.pageY - touch.current.origin.y,
+    }));
 
   const responder = useMemo(
     () =>
@@ -162,12 +246,15 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
           if (!current.fit) return;
           const { locationX, locationY, pageX, pageY } = event.nativeEvent;
           const at = { x: locationX, y: locationY };
-          const grabRadius = Math.max(current.fit.d * GRAB, MIN_GRAB_PX);
+          const grabRadius = grabRadiusFor(current.fit.d);
           const hit = current.onMove
             ? [...current.balls]
                 .map((ball) => ({
                   ball,
-                  gap: distance(at, { x: current.fit!.left + ball.x * current.fit!.scale, y: current.fit!.top + ball.y * current.fit!.scale }),
+                  gap: distance(at, {
+                    x: current.fit!.left + ball.x * current.fit!.scale,
+                    y: current.fit!.top + ball.y * current.fit!.scale,
+                  }),
                 }))
                 .filter(({ gap }) => gap <= grabRadius)
                 .sort((a, b) => a.gap - b.gap)[0]
@@ -176,13 +263,23 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
             ? current.balls
                 .map((ball) => ({
                   ball,
-                  gap: distance(at, { x: current.fit!.left + ball.x * current.fit!.scale, y: current.fit!.top + ball.y * current.fit!.scale }),
+                  gap: distance(at, {
+                    x: current.fit!.left + ball.x * current.fit!.scale,
+                    y: current.fit!.top + ball.y * current.fit!.scale,
+                  }),
                 }))
                 .filter(({ gap }) => gap <= grabRadius)
                 .sort((a, b) => a.gap - b.gap)[0]
             : undefined;
+          if (current.lineMode) {
+            const start = clampToBed({
+              x: (at.x - current.fit.left) / current.fit.scale,
+              y: (at.y - current.fit.top) / current.fit.scale,
+            });
+            setLine({ start, end: start });
+          }
           touch.current = {
-            mode: hit ? "ball" : "tap",
+            mode: current.lineMode ? "line" : hit ? "ball" : "tap",
             id: hit?.ball.id ?? tapped?.ball.id ?? null,
             start: at,
             // Where this view sits on screen, to place other fingers of a pinch within it.
@@ -206,16 +303,32 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
             const gap = Math.max(1, distance(a, b));
             if (state.mode !== "pinch") {
               setDragging(null);
+              setLine(null);
               touch.current = { ...state, mode: "pinch", startView: current.view, pinchDistance: gap, pinchMid: mid };
               return;
             }
-            setView(current.zoomAround(state.startView, state.startView.zoom * (gap / state.pinchDistance), state.pinchMid, mid));
+            setView(
+              current.zoomAround(
+                state.startView,
+                state.startView.zoom * (gap / state.pinchDistance),
+                state.pinchMid,
+                mid
+              )
+            );
             return;
           }
           if (state.mode === "pinch") return;
 
           if (!state.moved && Math.hypot(gesture.dx, gesture.dy) >= TAP_SLOP) state.moved = true;
           const moved = state.moved;
+          if (state.mode === "line") {
+            const end = clampToBed({
+              x: (state.start.x + gesture.dx - current.fit.left) / current.fit.scale,
+              y: (state.start.y + gesture.dy - current.fit.top) / current.fit.scale,
+            });
+            if (lineRef.current) setLine({ ...lineRef.current, end });
+            return;
+          }
           if (state.mode === "ball" && state.id && current.onMove) {
             if (!moved) return;
             const point = clampToBed({
@@ -241,6 +354,12 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
           const current = live.current;
           const state = touch.current;
           setDragging(null);
+          if (state.mode === "line") {
+            const drawn = lineRef.current;
+            setLine(null);
+            if (drawn && current.onLine) current.onLine(drawn.start, drawn.end);
+            return;
+          }
           if (!current.fit || state.mode === "pinch" || state.mode === "pan") return;
           const moved = state.moved;
 
@@ -266,7 +385,10 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
           if (onBed && current.onPlace) current.onPlace(clampToBed(point));
           else current.onSelect?.(null);
         },
-        onPanResponderTerminate: () => setDragging(null),
+        onPanResponderTerminate: () => {
+          setDragging(null);
+          setLine(null);
+        },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -311,7 +433,15 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
           <View
             style={[
               styles.abs,
-              { left: fit.left, top: fit.top, width: fit.bedW, height: fit.bedL, backgroundColor: BAIZE, borderColor: CUSHION, borderWidth: 2 },
+              {
+                left: fit.left,
+                top: fit.top,
+                width: fit.bedW,
+                height: fit.bedL,
+                backgroundColor: BAIZE,
+                borderColor: CUSHION,
+                borderWidth: 2,
+              },
             ]}
           />
           {Object.values(POCKETS).map((pocket, index) => {
@@ -320,13 +450,28 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
             return (
               <View
                 key={index}
-                style={[styles.abs, styles.pocket, { left: p.x - r, top: p.y - r, width: r * 2, height: r * 2, borderRadius: r }]}
+                style={[
+                  styles.abs,
+                  styles.pocket,
+                  { left: p.x - r, top: p.y - r, width: r * 2, height: r * 2, borderRadius: r },
+                ]}
               />
             );
           })}
 
           {/* ------------------------------------------------ baulk line, D and spots */}
-          <View style={[styles.abs, { left: fit.left, width: fit.bedW, top: toPx({ x: 0, y: BAULK_LINE_Y }).y, height: 1, backgroundColor: LINE }]} />
+          <View
+            style={[
+              styles.abs,
+              {
+                left: fit.left,
+                width: fit.bedW,
+                top: toPx({ x: 0, y: BAULK_LINE_Y }).y,
+                height: 1,
+                backgroundColor: LINE,
+              },
+            ]}
+          />
           <Svg
             style={[styles.abs, { left: toPx(SPOTS.green).x - 1, top: toPx(SPOTS.brown).y - 1 }]}
             width={TABLE.dRadius * 2 * fit.scale + 2}
@@ -343,6 +488,39 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
             const p = toPx(spot);
             return <View key={index} style={[styles.abs, styles.spot, { left: p.x - 2, top: p.y - 2 }]} />;
           })}
+
+          {/* ------------------------------------------------ the line being drawn */}
+          {line ? (
+            <>
+              <Svg style={StyleSheet.absoluteFill} width={box.width} height={box.height}>
+                <Path
+                  d={`M ${toPx(line.start).x} ${toPx(line.start).y} L ${toPx(line.end).x} ${toPx(line.end).y}`}
+                  stroke="rgba(255,255,255,0.7)"
+                  strokeWidth={1.5}
+                  strokeDasharray="6 5"
+                />
+              </Svg>
+              {pointsAlongLine(line.start, line.end, lineCount).map((point, index) => {
+                const p = toPx(point);
+                return (
+                  <View
+                    key={`line-${index}`}
+                    style={[
+                      styles.abs,
+                      styles.ghost,
+                      {
+                        left: p.x - fit.d / 2,
+                        top: p.y - fit.d / 2,
+                        width: fit.d,
+                        height: fit.d,
+                        borderRadius: fit.d / 2,
+                      },
+                    ]}
+                  />
+                );
+              })}
+            </>
+          ) : null}
 
           {/* ------------------------------------------------ the balls */}
           {balls.map((ball) => {
@@ -368,7 +546,9 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
                   },
                 ]}
               >
-                <View style={[styles.shine, { width: fit.d * 0.32, height: fit.d * 0.32, borderRadius: fit.d * 0.16 }]} />
+                <View
+                  style={[styles.shine, { width: fit.d * 0.32, height: fit.d * 0.32, borderRadius: fit.d * 0.16 }]}
+                />
                 {selected ? (
                   <View
                     style={[
@@ -387,14 +567,31 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
       {/* ------------------------------------------------ zoom buttons */}
       {zoomable && !readOnly && fit ? (
         <View style={styles.zoomBar}>
-          <Pressable onPress={() => zoomBy(1.6)} disabled={view.zoom >= MAX_ZOOM} accessibilityRole="button" accessibilityLabel="Zoom in" style={[styles.zoomButton, { opacity: view.zoom >= MAX_ZOOM ? 0.4 : 1 }]}>
+          <Pressable
+            onPress={() => zoomBy(1.6)}
+            disabled={view.zoom >= MAX_ZOOM}
+            accessibilityRole="button"
+            accessibilityLabel="Zoom in"
+            style={[styles.zoomButton, { opacity: view.zoom >= MAX_ZOOM ? 0.4 : 1 }]}
+          >
             <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
           </Pressable>
-          <Pressable onPress={() => zoomBy(1 / 1.6)} disabled={view.zoom <= 1} accessibilityRole="button" accessibilityLabel="Zoom out" style={[styles.zoomButton, { opacity: view.zoom <= 1 ? 0.4 : 1 }]}>
+          <Pressable
+            onPress={() => zoomBy(1 / 1.6)}
+            disabled={view.zoom <= 1}
+            accessibilityRole="button"
+            accessibilityLabel="Zoom out"
+            style={[styles.zoomButton, { opacity: view.zoom <= 1 ? 0.4 : 1 }]}
+          >
             <MaterialCommunityIcons name="minus" size={20} color="#FFFFFF" />
           </Pressable>
           {view.zoom > 1 ? (
-            <Pressable onPress={() => setView(FULL_VIEW)} accessibilityRole="button" accessibilityLabel="Show the whole table" style={styles.zoomButton}>
+            <Pressable
+              onPress={() => setView(FULL_VIEW)}
+              accessibilityRole="button"
+              accessibilityLabel="Show the whole table"
+              style={styles.zoomButton}
+            >
               <MaterialCommunityIcons name="fit-to-screen-outline" size={20} color="#FFFFFF" />
             </Pressable>
           ) : null}
@@ -419,6 +616,7 @@ const styles = StyleSheet.create({
   },
   shine: { position: "absolute", top: "14%", left: "20%", backgroundColor: "rgba(255,255,255,0.6)" },
   selected: { borderWidth: 2, borderColor: "#FFFFFF" },
+  ghost: { backgroundColor: "rgba(208,20,47,0.55)", borderWidth: 1.5, borderColor: "#FFFFFF" },
   zoomBar: { position: "absolute", right: 8, bottom: 8, gap: 8 },
   zoomButton: {
     width: 40,

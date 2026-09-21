@@ -183,3 +183,39 @@ describe("reading the table through the camera", () => {
     expect(onTable({ x: -300, y: 100 })).toBe(false);
   });
 });
+
+import { fullRack, placeLine, pointsAlongLine } from "../position";
+
+describe("laying balls in bulk", () => {
+  it("spaces a line evenly and never closer than touching", () => {
+    const points = pointsAlongLine({ x: 300, y: 1000 }, { x: 300, y: 1400 }, 5);
+    expect(points).toHaveLength(5);
+    expect(distance(points[0], points[1])).toBeCloseTo(100);
+    // 100 mm only has room for two balls touching.
+    expect(pointsAlongLine({ x: 300, y: 1000 }, { x: 300, y: 1100 }, 5)).toHaveLength(2);
+  });
+
+  it("lays reds up to fifteen and says why any were left off", () => {
+    let result = placeLine([], { x: 200, y: 600 }, { x: 1500, y: 600 }, 10);
+    expect(result.placed).toBe(10);
+    expect(result.notice).toBeNull();
+    result = placeLine(result.balls, { x: 200, y: 900 }, { x: 1500, y: 900 }, 10);
+    expect(result.placed).toBe(5);
+    expect(result.notice).toMatch(/15 reds/);
+    expect(placeLine([], { x: 300, y: 1000 }, { x: 300, y: 1060 }, 4).notice).toMatch(/fit/);
+  });
+
+  it("racks fifteen reds behind the pink, none touching each other or the pink", () => {
+    const balls = fullRack(placeBall([], "red", { x: 200, y: 200 }).balls);
+    const reds = balls.filter((ball) => ball.colour === "red");
+    expect(reds).toHaveLength(15);
+    expect(balls.filter((ball) => ball.colour !== "red")).toHaveLength(6);
+    for (let i = 0; i < balls.length; i += 1) {
+      for (let j = i + 1; j < balls.length; j += 1) {
+        expect(distance(balls[i], balls[j])).toBeGreaterThanOrEqual(TABLE.ball);
+      }
+    }
+    // Every red is on the black side of the pink.
+    expect(reds.every((ball) => ball.y < SPOTS.pink.y)).toBe(true);
+  });
+});
