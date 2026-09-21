@@ -280,8 +280,8 @@ export const getFrameWinner = (state: LiveFrameState): "user" | "opponent" | "dr
  * starts everyone on the white again.
  */
 export const lastBallFor = (events: LiveFrameEvent[], player: LiveSide): LiveBall | "cue" => {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
+  // The frame keeps its events newest first, so the latest shot is at the front.
+  for (const event of events) {
     if (event.kind === "re_rack") return "cue";
     if (event.player !== player) continue;
     if (event.kind === "pot" && event.ball) return event.ball;

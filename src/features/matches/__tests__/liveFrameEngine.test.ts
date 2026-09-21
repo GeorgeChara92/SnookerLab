@@ -9,7 +9,6 @@ import {
   recordFoul,
   type LiveBall,
   type LiveFrameState,
-  type LiveFrameEvent,
   lastBallFor,
 } from "../liveFrameEngine";
 
@@ -168,26 +167,30 @@ describe("liveFrameEngine", () => {
 });
 
 describe("the ball behind each score", () => {
-  const event = (kind: LiveFrameEvent["kind"], player?: LiveFrameEvent["player"], ball?: LiveFrameEvent["ball"]): LiveFrameEvent => ({
-    id: Math.random().toString(36),
-    kind,
-    player,
-    ball,
-    timestamp: "2026-09-21T18:00:00Z",
+  it("follows the real frame: red, then the colour, then the white when the visit ends", () => {
+    let frame = createInitialLiveFrameState(1);
+    expect(lastBallFor(frame.events, "user")).toBe("cue");
+    frame = potBall(frame, "red");
+    expect(lastBallFor(frame.events, "user")).toBe("red");
+    frame = potBall(frame, "blue");
+    expect(lastBallFor(frame.events, "user")).toBe("blue");
+    frame = potBall(frame, "red");
+    frame = potBall(frame, "pink");
+    expect(lastBallFor(frame.events, "user")).toBe("pink");
+    frame = endVisit(frame);
+    expect(lastBallFor(frame.events, "user")).toBe("cue");
   });
 
-  it("shows the last ball potted, or the white once the visit ends without one", () => {
-    const events = [event("pot", "user", "red"), event("pot", "user", "black")];
-    expect(lastBallFor(events, "user")).toBe("black");
-    expect(lastBallFor(events, "opponent")).toBe("cue");
-    expect(lastBallFor([...events, event("visit_end", "user")], "user")).toBe("cue");
-    expect(lastBallFor([...events, event("foul", "user")], "user")).toBe("cue");
+  it("is not changed by the other player's shots", () => {
+    let frame = pots(createInitialLiveFrameState(1), ["red", "black"]);
+    frame = endVisit(frame); // the opponent is at the table now
+    frame = pots(frame, ["red", "yellow"]);
+    expect(lastBallFor(frame.events, "opponent")).toBe("yellow");
+    expect(lastBallFor(frame.events, "user")).toBe("cue");
   });
 
-  it("is not changed by the other player's shots, and resets on a re-rack", () => {
-    const events = [event("pot", "user", "pink"), event("visit_end", "user"), event("pot", "opponent", "red")];
-    expect(lastBallFor(events, "user")).toBe("cue");
-    expect(lastBallFor([event("pot", "user", "blue"), event("pot", "opponent", "red")], "user")).toBe("blue");
-    expect(lastBallFor([event("pot", "user", "blue"), event("re_rack", "user")], "user")).toBe("cue");
+  it("goes back to the white after a foul", () => {
+    const frame = recordFoul(potBall(createInitialLiveFrameState(1), "red"), 4, "other");
+    expect(lastBallFor(frame.events, "user")).toBe("cue");
   });
 });
