@@ -109,3 +109,36 @@ export const matchCard = (frames: LiveFrameRecord[]) => {
     ),
   };
 };
+
+export type SideStats = { frames: number; points: number; high: number; fifties: number; pots: number; fouls: number };
+
+/** Both players' numbers across a match's live-scored frames, for the match statistics. */
+export const matchTape = (frames: LiveFrameRecord[]): { user: SideStats; opponent: SideStats } => {
+  const played = frames.filter((frame) => !frame.abandoned);
+  const side = (who: LiveFrameSide): SideStats => ({
+    frames: played.filter((frame) => frame.winner === who).length,
+    points: played.reduce((sum, frame) => sum + (who === "user" ? frame.user_score : frame.opponent_score), 0),
+    high: Math.max(
+      0,
+      ...played.flatMap((frame) =>
+        (frame.breaks ?? []).filter((made) => made.player === who).map((made) => made.points)
+      ),
+      ...played.map((frame) => (who === "user" ? frame.highest_break_user : frame.highest_break_opponent) ?? 0)
+    ),
+    fifties: played.reduce(
+      (sum, frame) => sum + (frame.breaks ?? []).filter((made) => made.player === who && made.points >= 50).length,
+      0
+    ),
+    pots: played.reduce(
+      (sum, frame) => sum + (frame.events ?? []).filter((event) => event.kind === "pot" && event.player === who).length,
+      0
+    ),
+    // A foul is recorded against the player at the table when it was made.
+    fouls: played.reduce(
+      (sum, frame) =>
+        sum + (frame.events ?? []).filter((event) => event.kind === "foul" && event.player === who).length,
+      0
+    ),
+  });
+  return { user: side("user"), opponent: side("opponent") };
+};

@@ -1,4 +1,4 @@
-import { breakStats, matchCard } from "../breaks";
+import { breakStats, matchCard, matchTape } from "../breaks";
 import type { LiveFrameRecord, Match } from "../../../types";
 
 const match = (id: string, opponent: string, date: string): Match =>
@@ -99,5 +99,37 @@ describe("a match's result card", () => {
     expect(card.highUser).toBe(52);
     expect(card.highOpponent).toBe(64);
     expect(card.fiftiesUser).toBe(1);
+  });
+});
+
+describe("match statistics", () => {
+  it("adds up both players across the frames", () => {
+    const pot = (player: "user" | "opponent") => ({
+      id: Math.random().toString(),
+      kind: "pot" as const,
+      timestamp: "",
+      player,
+    });
+    const tape = matchTape([
+      frame(
+        "m",
+        1,
+        [
+          ["user", 55],
+          ["opponent", 20],
+        ],
+        {
+          events: [
+            pot("user"),
+            pot("user"),
+            pot("opponent"),
+            { id: "f", kind: "foul", timestamp: "", player: "opponent" },
+          ],
+        }
+      ),
+      frame("m", 2, [["opponent", 40]], { user_score: 12, opponent_score: 70, winner: "opponent" }),
+    ]);
+    expect(tape.user).toEqual({ frames: 1, points: 72, high: 55, fifties: 1, pots: 2, fouls: 0 });
+    expect(tape.opponent).toEqual({ frames: 1, points: 100, high: 40, fifties: 0, pots: 1, fouls: 1 });
   });
 });

@@ -1,28 +1,30 @@
 import React, { forwardRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import type { Match } from "../../types";
+import type { Match, MatchType } from "../../types";
 import type { MatchCardFrame } from "../../features/matches/breaks";
 import { parseDateValue } from "../../utils/date";
 import { FONTS } from "../../constants";
+import { GRID, ThemeBackground, type CardTheme } from "./cardThemes";
 
 /**
- * A match result as a picture to share: the broadcast scoreboard, in the app's own colours,
- * whatever theme the phone is in - it is going to other people's screens.
+ * A match result as a picture to share. A drawn background (the player picks it), and on it
+ * the result, the scoreboard, the frames and the high breaks, laid out on a 340 by 425 grid
+ * and scaled to whatever size it is drawn at.
  */
 
-const INK = {
-  board: "#0F2A22",
-  raised: "#1A3D32",
-  text: "#F4F1E8",
-  muted: "#9DB5AC",
-  brass: "#C9A44C",
-};
-
-/** The card is designed at this width and scaled to fit. Height is 5:4 of it, a post's shape. */
-export const CARD_WIDTH = 340;
-export const CARD_RATIO = 1.25;
+export const CARD_WIDTH = GRID.width;
+export const CARD_RATIO = GRID.height / GRID.width;
 /** Two rows of four; a longer match shows the first seven and how many more. */
 const MAX_FRAMES_SHOWN = 8;
+
+const TYPE: Record<MatchType, string> = {
+  casual: "FRIENDLY",
+  league: "LEAGUE",
+  tournament: "TOURNAMENT",
+  practice: "PRACTICE",
+};
+
+export type CardOptions = { frames: boolean; highBreaks: boolean };
 
 type Props = {
   match: Match;
@@ -32,34 +34,53 @@ type Props = {
   highUser: number;
   highOpponent: number;
   width: number;
+  theme: CardTheme;
+  options: CardOptions;
+  /** Unique on screen, for the background's gradients. */
+  id: string;
 };
 
 export const MatchResultCard = forwardRef<View, Props>(
-  ({ match, playerName, bestOf, frames, highUser, highOpponent, width }, ref) => {
+  ({ match, playerName, bestOf, frames, highUser, highOpponent, width, theme, options, id }, ref) => {
     const k = width / CARD_WIDTH;
     const u = (n: number) => Math.round(n * k * 10) / 10;
+    const height = width * CARD_RATIO;
     const won = match.user_score > match.opponent_score;
     const lost = match.user_score < match.opponent_score;
     const result = won ? "WIN" : lost ? "DEFEAT" : "DRAW";
-    const date = parseDateValue(match.date).toLocaleDateString(undefined, {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-    const shown = frames.length > MAX_FRAMES_SHOWN ? frames.slice(0, MAX_FRAMES_SHOWN - 1) : frames;
+    const date = parseDateValue(match.date)
+      .toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+      .toUpperCase();
+    const shownFrames = options.frames ? frames : [];
+    const shown = shownFrames.length > MAX_FRAMES_SHOWN ? shownFrames.slice(0, MAX_FRAMES_SHOWN - 1) : shownFrames;
+    const showHighs = options.highBreaks && (highUser > 0 || highOpponent > 0);
 
-    const side = (name: string, score: number, leading: boolean) => (
-      <View style={[styles.side, { gap: u(4) }]}>
+    const row = (name: string, score: number, leading: boolean, first: boolean) => (
+      <View
+        style={[
+          styles.row,
+          { paddingVertical: u(7), paddingLeft: u(12), paddingRight: u(16), gap: u(10) },
+          !first ? { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" } : null,
+        ]}
+      >
+        <View
+          style={{
+            width: u(4),
+            height: u(32),
+            borderRadius: u(2),
+            backgroundColor: leading ? theme.accent : "transparent",
+          }}
+        />
         <Text
-          numberOfLines={2}
+          numberOfLines={1}
           allowFontScaling={false}
-          style={[styles.name, { fontSize: u(15), lineHeight: u(17), color: leading ? INK.text : INK.muted }]}
+          style={[styles.name, { fontSize: u(19), letterSpacing: u(1.2), color: leading ? theme.text : theme.muted }]}
         >
           {name.toUpperCase()}
         </Text>
         <Text
           allowFontScaling={false}
-          style={[styles.score, { fontSize: u(84), lineHeight: u(88), color: leading ? INK.text : INK.muted }]}
+          style={[styles.score, { fontSize: u(46), lineHeight: u(50), color: leading ? theme.text : theme.muted }]}
         >
           {score}
         </Text>
@@ -67,92 +88,127 @@ export const MatchResultCard = forwardRef<View, Props>(
     );
 
     return (
-      <View
-        ref={ref}
-        collapsable={false}
-        style={[
-          styles.card,
-          { width, height: width * CARD_RATIO, padding: u(22), borderTopWidth: u(3), borderBottomWidth: u(3) },
-        ]}
-      >
-        <View style={styles.top}>
-          <Text allowFontScaling={false} style={[styles.brand, { fontSize: u(13), letterSpacing: u(2.5) }]}>
-            SNOOKER LAB
-          </Text>
-          <Text allowFontScaling={false} numberOfLines={1} style={[styles.meta, { fontSize: u(11), maxWidth: u(170) }]}>
-            {date}
-          </Text>
+      <View ref={ref} collapsable={false} style={[styles.card, { width, height }]}>
+        <View style={StyleSheet.absoluteFill}>
+          <ThemeBackground theme={theme} width={width} height={height} id={id} />
         </View>
 
-        <View style={[styles.middle, { gap: u(10) }]}>
-          <Text allowFontScaling={false} style={[styles.result, { fontSize: u(15), letterSpacing: u(4) }]}>
-            {result}
-          </Text>
-          <View style={[styles.strip, { borderRadius: u(10), paddingVertical: u(14), paddingHorizontal: u(14) }]}>
-            {side(playerName, match.user_score, !lost)}
-            <View style={[styles.bestOf, { borderRadius: u(6), paddingHorizontal: u(8), paddingVertical: u(4) }]}>
-              <Text allowFontScaling={false} style={[styles.bestOfText, { fontSize: u(14) }]}>
-                {bestOf ? `(${bestOf})` : "v"}
-              </Text>
-            </View>
-            {side(match.opponent_name, match.opponent_score, !won)}
+        <View style={[styles.content, { padding: u(22), gap: u(10) }]}>
+          <View>
+            <Text
+              allowFontScaling={false}
+              style={[styles.brand, { fontSize: u(14), letterSpacing: u(3), color: theme.accent }]}
+            >
+              SNOOKER LAB
+            </Text>
+            <Text
+              allowFontScaling={false}
+              style={[styles.meta, { fontSize: u(11), letterSpacing: u(1), color: theme.muted }]}
+            >
+              {TYPE[match.match_type] ?? "MATCH"} · {date}
+            </Text>
           </View>
-          {match.location ? (
+
+          <View style={{ gap: u(8) }}>
+            <Text
+              allowFontScaling={false}
+              style={[styles.result, { fontSize: u(44), lineHeight: u(46), letterSpacing: u(5), color: theme.accent }]}
+            >
+              {result}
+            </Text>
+            <View
+              style={[
+                styles.panel,
+                {
+                  backgroundColor: theme.panel,
+                  borderRadius: u(12),
+                  borderTopWidth: u(2),
+                  borderTopColor: theme.accent,
+                },
+              ]}
+            >
+              {row(playerName, match.user_score, !lost, true)}
+              {row(match.opponent_name, match.opponent_score, !won, false)}
+            </View>
             <Text
               allowFontScaling={false}
               numberOfLines={1}
-              style={[styles.meta, { fontSize: u(12), textAlign: "center" }]}
+              style={[styles.meta, { fontSize: u(11), letterSpacing: u(1.5), color: theme.muted }]}
             >
-              {match.location}
+              {bestOf
+                ? `BEST OF ${bestOf}`
+                : `${match.frames_played} ${match.frames_played === 1 ? "FRAME" : "FRAMES"}`}
+              {match.location ? ` · ${match.location.toUpperCase()}` : ""}
             </Text>
-          ) : null}
-        </View>
+          </View>
 
-        <View style={{ gap: u(10) }}>
-          {shown.length ? (
-            <View style={[styles.frames, { gap: u(6) }]}>
-              {shown.map((frame) => (
-                <View
-                  key={frame.number}
-                  style={[styles.frame, { borderRadius: u(6), paddingVertical: u(5), width: u(68) }]}
-                >
-                  <Text allowFontScaling={false} style={[styles.frameNumber, { fontSize: u(9), letterSpacing: u(1) }]}>
-                    FRAME {frame.number}
-                  </Text>
-                  <Text allowFontScaling={false} style={[styles.frameScore, { fontSize: u(15) }]}>
-                    <Text style={{ color: frame.winner === "user" ? INK.text : INK.muted }}>{frame.user}</Text>
-                    <Text style={{ color: INK.muted }}>–</Text>
-                    <Text style={{ color: frame.winner === "opponent" ? INK.text : INK.muted }}>{frame.opponent}</Text>
-                  </Text>
-                </View>
-              ))}
-              {frames.length > shown.length ? (
-                <View
-                  style={[
-                    styles.frame,
-                    { borderRadius: u(6), paddingVertical: u(5), width: u(68), justifyContent: "center" },
-                  ]}
-                >
-                  <Text allowFontScaling={false} style={[styles.frameNumber, { fontSize: u(10) }]}>
-                    +{frames.length - shown.length} MORE
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
+          <View style={{ gap: u(8) }}>
+            {shown.length ? (
+              <View style={[styles.frames, { gap: u(6) }]}>
+                {shown.map((frame) => (
+                  <View
+                    key={frame.number}
+                    style={[
+                      styles.frame,
+                      { backgroundColor: theme.panel, borderRadius: u(6), paddingVertical: u(4), width: u(68) },
+                    ]}
+                  >
+                    <Text
+                      allowFontScaling={false}
+                      style={[styles.meta, { fontSize: u(9), letterSpacing: u(1), color: theme.muted }]}
+                    >
+                      FRAME {frame.number}
+                    </Text>
+                    <Text allowFontScaling={false} style={[styles.frameScore, { fontSize: u(15) }]}>
+                      <Text style={{ color: frame.winner === "user" ? theme.text : theme.muted }}>{frame.user}</Text>
+                      <Text style={{ color: theme.muted }}>–</Text>
+                      <Text style={{ color: frame.winner === "opponent" ? theme.text : theme.muted }}>
+                        {frame.opponent}
+                      </Text>
+                    </Text>
+                  </View>
+                ))}
+                {shownFrames.length > shown.length ? (
+                  <View
+                    style={[
+                      styles.frame,
+                      { backgroundColor: theme.panel, borderRadius: u(6), width: u(68), justifyContent: "center" },
+                    ]}
+                  >
+                    <Text allowFontScaling={false} style={[styles.meta, { fontSize: u(10), color: theme.muted }]}>
+                      +{shownFrames.length - shown.length} MORE
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
 
-          {highUser || highOpponent ? (
-            <View style={[styles.highs, { paddingTop: u(10) }]}>
-              <Text allowFontScaling={false} style={[styles.highLabel, { fontSize: u(11), letterSpacing: u(1.5) }]}>
-                HIGH BREAK
-              </Text>
-              <Text allowFontScaling={false} style={[styles.highValue, { fontSize: u(22) }]}>
-                <Text style={{ color: highUser >= highOpponent ? INK.brass : INK.text }}>{highUser}</Text>
-                <Text style={{ color: INK.muted }}>{"  ·  "}</Text>
-                <Text style={{ color: highOpponent > highUser ? INK.brass : INK.text }}>{highOpponent}</Text>
-              </Text>
-            </View>
-          ) : null}
+            {showHighs ? (
+              <View
+                style={[
+                  styles.highs,
+                  {
+                    backgroundColor: theme.panel,
+                    borderRadius: u(10),
+                    paddingHorizontal: u(14),
+                    paddingVertical: u(6),
+                  },
+                ]}
+              >
+                <Text
+                  allowFontScaling={false}
+                  style={[styles.meta, { fontSize: u(11), letterSpacing: u(1.5), color: theme.muted }]}
+                >
+                  HIGH BREAK
+                </Text>
+                <Text allowFontScaling={false} style={[styles.highValue, { fontSize: u(24) }]}>
+                  <Text style={{ color: highUser >= highOpponent ? theme.accent : theme.text }}>{highUser}</Text>
+                  <Text style={{ color: theme.muted }}>{"  ·  "}</Text>
+                  <Text style={{ color: highOpponent > highUser ? theme.accent : theme.text }}>{highOpponent}</Text>
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
     );
@@ -162,29 +218,18 @@ export const MatchResultCard = forwardRef<View, Props>(
 MatchResultCard.displayName = "MatchResultCard";
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: INK.board, borderColor: INK.brass, justifyContent: "space-between", overflow: "hidden" },
-  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  brand: { fontFamily: FONTS.boardHeavy, color: INK.brass },
-  meta: { fontFamily: FONTS.boardLabel, color: INK.muted, letterSpacing: 0.5 },
-  middle: { alignItems: "stretch" },
-  result: { fontFamily: FONTS.boardHeavy, color: INK.brass, textAlign: "center" },
-  strip: { flexDirection: "row", alignItems: "center", backgroundColor: INK.raised },
-  side: { flex: 1, alignItems: "center", minWidth: 0 },
-  name: { fontFamily: FONTS.boardLabel, textAlign: "center", letterSpacing: 1 },
-  score: { fontFamily: FONTS.boardHeavy },
-  bestOf: { backgroundColor: INK.board },
-  bestOfText: { fontFamily: FONTS.board, color: INK.muted },
-  frames: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center" },
-  frame: { backgroundColor: INK.raised, alignItems: "center" },
-  frameNumber: { fontFamily: FONTS.boardLabel, color: INK.muted },
+  card: { overflow: "hidden", backgroundColor: "#0F2A22" },
+  content: { flex: 1, justifyContent: "space-between" },
+  brand: { fontFamily: FONTS.boardHeavy },
+  meta: { fontFamily: FONTS.boardLabel },
+  result: { fontFamily: FONTS.boardHeavy },
+  panel: { overflow: "hidden" },
+  row: { flexDirection: "row", alignItems: "center" },
+  name: { flex: 1, fontFamily: FONTS.boardLabel },
+  score: { fontFamily: FONTS.boardHeavy, textAlign: "right" },
+  frames: { flexDirection: "row", flexWrap: "wrap" },
+  frame: { alignItems: "center" },
   frameScore: { fontFamily: FONTS.board },
-  highs: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: INK.raised,
-  },
-  highLabel: { fontFamily: FONTS.boardLabel, color: INK.muted },
+  highs: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   highValue: { fontFamily: FONTS.board },
 });
