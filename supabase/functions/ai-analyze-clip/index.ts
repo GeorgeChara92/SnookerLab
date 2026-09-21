@@ -58,7 +58,7 @@ class CoachError extends Error {
 const FRIENDLY = {
   busy: "The coach is busy right now. Wait a minute, then upload the clip again.",
   generic: "Something went wrong analysing this clip. Upload it again, and if it keeps happening, try a shorter clip.",
-  tooBig: "This clip is too large to analyse. Record or trim a shorter clip, around 10 to 20 seconds.",
+  tooBig: "This clip is too large to analyse. Record or trim a shorter clip, between 4 and 20 seconds.",
   blocked: "The coach could not review this clip. Upload a clip of a shot or practice at the table.",
 };
 

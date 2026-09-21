@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createVideoPlayer } from "expo-video";
 import { View, StyleSheet, Text, ActivityIndicator, TextInput, Pressable, ScrollView } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -26,7 +27,8 @@ const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = ANALYSIS_TYPE_O
 }));
 
 /** The clip length the coach works with. The picker and the check below both use these. */
-const MIN_CLIP_SECONDS = 10;
+/** Enough for one shot: the set-up, the delivery and where the balls go. */
+const MIN_CLIP_SECONDS = 4;
 const MAX_CLIP_SECONDS = 20;
 
 const ENABLE_AI_STORAGE_UPLOAD = process.env.EXPO_PUBLIC_ENABLE_AI_STORAGE_UPLOAD !== "0";
@@ -76,6 +78,49 @@ const getDurationSeconds = (rawDuration?: number) => {
   return rawDuration > 1000 ? rawDuration / 1000 : rawDuration;
 };
 
+/**
+ * How long a clip really is, read from the file itself.
+ *
+ * The picker's own figure cannot be trusted after a trim: iOS hands back the trimmed video but
+ * reports the length of the original, so a 6-second cut of a 76-second video reads as 76. The
+ * video is loaded (not played) just long enough to read its duration. Returns null if it cannot
+ * be read in time, and the picker's figure is used instead.
+ */
+const measureClipSeconds = (uri: string): Promise<number | null> =>
+  new Promise((resolve) => {
+    let player: ReturnType<typeof createVideoPlayer> | null = null;
+    let settled = false;
+    const subscriptions: Array<{ remove: () => void }> = [];
+
+    const finish = (seconds: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subscriptions.forEach((subscription) => subscription.remove());
+      try {
+        player?.release();
+      } catch {
+        // Already released.
+      }
+      resolve(seconds && seconds > 0 && Number.isFinite(seconds) ? seconds : null);
+    };
+
+    const timer = setTimeout(() => finish(null), 5000);
+
+    try {
+      player = createVideoPlayer({ uri });
+      subscriptions.push(player.addListener("sourceLoad", ({ duration }) => finish(duration)));
+      subscriptions.push(
+        player.addListener("statusChange", ({ status }) => {
+          if (status === "readyToPlay") finish(player?.duration ?? null);
+          if (status === "error") finish(null);
+        })
+      );
+    } catch {
+      finish(null);
+    }
+  });
+
 const getUploadTimeoutMs = (fileSizeBytes?: number) => {
   const mb = Math.max(0, Math.ceil((fileSizeBytes ?? 0) / 1024 / 1024));
   const computed = STORAGE_UPLOAD_TIMEOUT_BASE_MS + mb * STORAGE_UPLOAD_TIMEOUT_PER_MB_MS;
@@ -112,9 +157,9 @@ export const VideoUploadScreen = () => {
 
     if (seconds < MIN_CLIP_SECONDS || seconds > MAX_CLIP_SECONDS + 0.5) {
       dialog.alert({
-        title: seconds < 10 ? "That clip is too short" : "That clip is too long",
+        title: seconds < MIN_CLIP_SECONDS ? "That clip is too short" : "That clip is too long",
         message: `It runs for ${Math.round(seconds)} seconds. The coach needs between ${MIN_CLIP_SECONDS} and ${MAX_CLIP_SECONDS}, so ${
-          seconds < 10 ? "record a little more of the shot" : "trim it down to the one shot"
+          seconds < MIN_CLIP_SECONDS ? "record a little more of the shot" : "trim it down to the one shot"
         } and try again.`,
         icon: "timer-outline",
       });
@@ -122,6 +167,12 @@ export const VideoUploadScreen = () => {
     }
 
     return true;
+  };
+
+  /** The picked clip, with its duration (in ms, as the picker gives it) read from the file. */
+  const withMeasuredLength = async (asset: any) => {
+    const measured = asset?.uri ? await measureClipSeconds(asset.uri) : null;
+    return measured ? { ...asset, duration: Math.round(measured * 1000) } : asset;
   };
 
   const checkLimit = () => {
@@ -156,7 +207,7 @@ export const VideoUploadScreen = () => {
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const selected = result.assets[0];
+      const selected = await withMeasuredLength(result.assets[0]);
       if (!validateClipLength(selected)) return;
       setVideo(selected);
     }
@@ -184,7 +235,7 @@ export const VideoUploadScreen = () => {
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const selected = result.assets[0];
+      const selected = await withMeasuredLength(result.assets[0]);
       if (!validateClipLength(selected)) return;
       setVideo(selected);
     }
@@ -312,7 +363,7 @@ export const VideoUploadScreen = () => {
       <View style={[styles.headerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
         <Text style={[styles.title, { color: colors.text }]}>New analysis</Text>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Upload a 10-20 second clip for personalised coaching feedback.
+          Upload a 4 to 20 second clip of one shot for personalised coaching.
         </Text>
         <Text style={[styles.metaText, { color: colors.textMuted }]}>
           {subscription.tierLabel} · {remainingText} this month
@@ -325,7 +376,7 @@ export const VideoUploadScreen = () => {
           <View style={styles.buttonSpacer} />
           <AppButton label="Record a clip" onPress={recordVideo} variant="secondary" />
           <Text style={[styles.hintText, { color: colors.textMuted }]}>
-            Select a 10-20 second clip
+            Choose a 4 to 20 second clip
           </Text>
         </View>
       ) : (
