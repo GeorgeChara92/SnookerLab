@@ -26,7 +26,7 @@ const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.8-flash";
  */
 const GEMINI_MODELS = [
   GEMINI_MODEL,
-  ...(Deno.env.get("GEMINI_FALLBACK_MODELS") ?? "gemini-3.7-flash,gemini-3.5-flash")
+  ...(Deno.env.get("GEMINI_FALLBACK_MODELS") ?? "gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite")
     .split(",")
     .map((model) => model.trim())
     .filter(Boolean),
@@ -47,6 +47,14 @@ const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
  * clip at about 26,000 tokens.
  */
 const FRAMES_PER_SECOND = 5;
+/**
+ * How long to keep asking Gemini when its models are overloaded, which at busy times can last
+ * a minute or two. The function is stopped at 150 seconds, so this leaves room for the video
+ * download before and the save after.
+ */
+const GEMINI_BUDGET_MS = 115 * 1000;
+/** No one request may hold on longer than this, so a slow refusal cannot use up the budget. */
+const GEMINI_REQUEST_TIMEOUT_MS = 60 * 1000;
 /** An analysis stuck in "processing" this long was abandoned and may be claimed again. */
 const STALE_PROCESSING_MS = 5 * 60 * 1000;
 
@@ -272,31 +280,57 @@ const askGemini = async (videoPart: Record<string, unknown>, prompt: string) => 
     },
   });
 
-  for (const model of GEMINI_MODELS) {
-    const response = await geminiFetch(
-      `${GEMINI_BASE}/v1beta/models/${model}:generateContent`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body: request },
-      2
-    );
+  // Round the models, then round again after a pause, until one answers or time runs out.
+  const deadline = Date.now() + GEMINI_BUDGET_MS;
+  for (let round = 0; Date.now() < deadline; round += 1) {
+    for (const model of GEMINI_MODELS) {
+      const remaining = deadline - Date.now();
+      if (remaining < 5000) break;
 
-    if (TRY_ANOTHER_MODEL.has(response.status)) {
-      console.warn(`Gemini ${model} unavailable (${response.status}): ${(await response.text()).slice(0, 200)}`);
-      continue;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Math.min(GEMINI_REQUEST_TIMEOUT_MS, remaining));
+      let response: Response;
+      try {
+        response = await fetch(`${GEMINI_BASE}/v1beta/models/${model}:generateContent`, {
+          method: "POST",
+          headers: { "x-goog-api-key": GEMINI_API_KEY, "Content-Type": "application/json" },
+          body: request,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        console.warn(`Gemini ${model} did not answer in time (round ${round + 1})`);
+        continue;
+      } finally {
+        clearTimeout(timer);
+      }
+
+      if (TRY_ANOTHER_MODEL.has(response.status)) {
+        console.warn(
+          `Gemini ${model} unavailable (${response.status}, round ${round + 1}): ${(await response.text()).slice(0, 160)}`
+        );
+        continue;
+      }
+      if (!response.ok) {
+        throw new Error(`Gemini ${model} error (${response.status}): ${(await response.text()).slice(0, 400)}`);
+      }
+
+      const payload = await response.json();
+      if (payload?.promptFeedback?.blockReason) throw new CoachError(FRIENDLY.blocked);
+
+      const candidate = payload?.candidates?.[0];
+      const text = (candidate?.content?.parts ?? [])
+        .map((part: any) => (typeof part?.text === "string" ? part.text : ""))
+        .join("")
+        .trim();
+      if (!text) throw new Error(`Gemini ${model} returned no text (finishReason: ${candidate?.finishReason ?? "none"})`);
+      if (round > 0 || model !== GEMINI_MODELS[0]) console.log(`Answered by ${model} on round ${round + 1}`);
+      return { parsed: JSON.parse(text), model };
     }
-    if (!response.ok) {
-      throw new Error(`Gemini ${model} error (${response.status}): ${(await response.text()).slice(0, 400)}`);
-    }
 
-    const payload = await response.json();
-    if (payload?.promptFeedback?.blockReason) throw new CoachError(FRIENDLY.blocked);
-
-    const candidate = payload?.candidates?.[0];
-    const text = (candidate?.content?.parts ?? [])
-      .map((part: any) => (typeof part?.text === "string" ? part.text : ""))
-      .join("")
-      .trim();
-    if (!text) throw new Error(`Gemini ${model} returned no text (finishReason: ${candidate?.finishReason ?? "none"})`);
-    return { parsed: JSON.parse(text), model };
+    // Demand spikes pass; give it a moment before the next round.
+    const pause = Math.min(5000 * (round + 1), 15000);
+    if (Date.now() + pause > deadline - 5000) break;
+    await sleep(pause);
   }
 
   // Every model was busy: nothing is wrong with the clip, so say so.
@@ -454,10 +488,12 @@ Deno.serve(async (req) => {
 
     // A malformed answer is rare but not unheard of; one more try usually fixes it.
     let result: ReturnType<typeof buildReport>;
+    const askedAt = Date.now();
     try {
       result = buildReport(await askGemini(videoPart, prompt));
     } catch (error) {
-      if (error instanceof CoachError) throw error;
+      // No second go if the first used most of the time the function has.
+      if (error instanceof CoachError || Date.now() - askedAt > 45 * 1000) throw error;
       console.warn("First Gemini attempt failed, retrying:", error);
       result = buildReport(await askGemini(videoPart, prompt));
     }
