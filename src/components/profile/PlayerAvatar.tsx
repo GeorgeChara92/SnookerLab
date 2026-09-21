@@ -29,7 +29,13 @@ export const faceXml = (seed: string, body: string) => {
   const cached = faceCache.get(key);
   if (cached) return cached;
 
-  const xml = createAvatar(notionists, { seed, body: [body] as any })
+  const xml = createAvatar(notionists, {
+    seed,
+    body: [body] as any,
+    // No waving, no phone in hand, and no graphic on the shirt: dressed for the table, not the street.
+    gestureProbability: 0,
+    bodyIconProbability: 0,
+  })
     .toString()
     // The metadata block carries licence details in RDF, which the SVG renderer does not need.
     .replace(/<metadata[\s\S]*?<\/metadata>/, "");
