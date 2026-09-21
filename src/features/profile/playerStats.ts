@@ -11,6 +11,7 @@ import { countsAsResult } from "../matches/matchSummary";
 
 import type { Achievement } from "../../constants/achievements";
 import type { Match, Routine, RoutineScoreEntry, SessionLog } from "../../types";
+import { longestRun, practiceDays } from "../practice/plan";
 
 export type PlayerStats = {
   matchesWon: number;
@@ -20,6 +21,10 @@ export type PlayerStats = {
   bestBreak: number;
   centuries: number;
   longestWinStreak: number;
+  /** The most days in a row with any practice. */
+  longestPracticeStreak: number;
+  /** Different routines with a score recorded, alone or in a session. */
+  routinesTried: number;
   winRate: number;
   /** The practice category you have logged most, from sessions and single routine scores. */
   mostTrainedCategory: string | null;
@@ -60,6 +65,10 @@ export const computePlayerStats = (
   const mostTrainedCategory = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
   const frames = Object.values(liveFramesByMatch).flat();
+  const tried = new Set([
+    ...entries.map((entry) => entry.routine_id),
+    ...sessions.flatMap((session) => session.results?.map((result) => result.routine_id) ?? []),
+  ]);
 
   return {
     matchesWon,
@@ -69,6 +78,8 @@ export const computePlayerStats = (
     bestBreak: frames.reduce((best, frame) => Math.max(best, frame.highest_break_user ?? 0), 0),
     centuries: frames.filter((frame) => (frame.highest_break_user ?? 0) >= 100).length,
     longestWinStreak,
+    longestPracticeStreak: longestRun(practiceDays(sessions, entries)),
+    routinesTried: tried.size,
     winRate: matches.length ? Math.round((matchesWon / matches.length) * 100) : 0,
     mostTrainedCategory,
   };
@@ -89,6 +100,10 @@ export const achievementCurrent = (achievement: Achievement, stats: Omit<PlayerS
       return stats.bestBreak;
     case "centuries":
       return stats.centuries;
+    case "practice_streak":
+      return stats.longestPracticeStreak;
+    case "routine_completion":
+      return stats.routinesTried;
     default:
       return 0;
   }

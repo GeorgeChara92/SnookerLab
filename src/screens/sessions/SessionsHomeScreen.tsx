@@ -6,6 +6,7 @@ import { useSessionsStore } from "../../store";
 import type { SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
+import { WeekCard } from "../../components/practice/WeekCard";
 
 type TemplateWithStats = {
   id: string;
@@ -45,11 +46,7 @@ const PresetCard = ({
 }) => {
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <Pressable
-        style={styles.cardBody}
-        onPress={onPress}
-        android_ripple={{ color: colors.primary + "10" }}
-      >
+      <Pressable style={styles.cardBody} onPress={onPress} android_ripple={{ color: colors.primary + "10" }}>
         <View style={styles.cardHeader}>
           <View style={styles.titleRow}>
             <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
@@ -83,29 +80,18 @@ const PresetCard = ({
         </View>
 
         {item.runs === 0 && (
-          <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-            No sessions yet. Tap to view details.
-          </Text>
+          <Text style={[styles.emptyHint, { color: colors.textMuted }]}>No sessions yet. Tap to view details.</Text>
         )}
       </Pressable>
 
       <View style={[styles.cardActions, { borderTopColor: colors.border }]}>
-        <Pressable
-          style={[styles.actionBtn, styles.startBtn, { backgroundColor: colors.primary }]}
-          onPress={onStart}
-        >
+        <Pressable style={[styles.actionBtn, styles.startBtn, { backgroundColor: colors.primary }]} onPress={onStart}>
           <Text style={[styles.actionBtnText, { color: colors.onPrimary }]}>Start</Text>
         </Pressable>
-        <Pressable
-          style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}
-          onPress={onEdit}
-        >
+        <Pressable style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]} onPress={onEdit}>
           <Text style={[styles.actionBtnText, { color: colors.text }]}>Edit</Text>
         </Pressable>
-        <Pressable
-          style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]}
-          onPress={onDelete}
-        >
+        <Pressable style={[styles.actionBtn, { backgroundColor: colors.surfaceMuted }]} onPress={onDelete}>
           <Text style={[styles.actionBtnText, { color: colors.danger }]}>Delete</Text>
         </Pressable>
       </View>
@@ -158,46 +144,55 @@ export const SessionsHomeScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Pressable
-        style={({ pressed }) => [
-          styles.primaryButton,
-          { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
-        ]}
-        onPress={() => navigation.navigate("GuidedSessionBuilder")}
-        accessibilityRole="button"
-        accessibilityLabel="Build a session by answering a few questions"
-      >
-        <MaterialCommunityIcons name="auto-fix" size={22} color={colors.onPrimary} />
-        <View style={styles.buttonText}>
-          <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>Build one for me</Text>
-          <Text style={[styles.primaryButtonHint, { color: colors.onPrimary }]}>
-            Three questions and you have a plan
-          </Text>
-        </View>
-      </Pressable>
-
-      <Pressable
-        style={({ pressed }) => [
-          styles.secondaryButton,
-          { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : colors.surface },
-        ]}
-        onPress={() => navigation.navigate("SessionSetup")}
-        accessibilityRole="button"
-        accessibilityLabel="Pick your own routines from the library"
-      >
-        <MaterialCommunityIcons name="playlist-plus" size={22} color={colors.text} />
-        <View style={styles.buttonText}>
-          <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Pick my own routines</Text>
-          <Text style={[styles.secondaryButtonHint, { color: colors.textMuted }]}>Choose from the library</Text>
-        </View>
-      </Pressable>
-
-      <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Your Presets</Text>
-
       <FlatList
         data={templateStats}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <>
+            <WeekCard
+              templateName={(id) => templates.find((template) => template.id === id)?.name}
+              onOpen={() => navigation.navigate("PracticePlan")}
+              onStart={(templateId) => navigation.navigate("ActiveSession", { templateId })}
+            />
+            <View style={styles.weekGap} />
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryButton,
+                { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+              ]}
+              onPress={() => navigation.navigate("GuidedSessionBuilder")}
+              accessibilityRole="button"
+              accessibilityLabel="Build a session by answering a few questions"
+            >
+              <MaterialCommunityIcons name="auto-fix" size={22} color={colors.onPrimary} />
+              <View style={styles.buttonText}>
+                <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>Build one for me</Text>
+                <Text style={[styles.primaryButtonHint, { color: colors.onPrimary }]}>
+                  Three questions and you have a plan
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : colors.surface },
+              ]}
+              onPress={() => navigation.navigate("SessionSetup")}
+              accessibilityRole="button"
+              accessibilityLabel="Pick your own routines from the library"
+            >
+              <MaterialCommunityIcons name="playlist-plus" size={22} color={colors.text} />
+              <View style={styles.buttonText}>
+                <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Pick my own routines</Text>
+                <Text style={[styles.secondaryButtonHint, { color: colors.textMuted }]}>Choose from the library</Text>
+              </View>
+            </Pressable>
+
+            <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Your Presets</Text>
+          </>
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>No presets yet</Text>
@@ -222,7 +217,8 @@ export const SessionsHomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1 },
+  weekGap: { height: 12 },
   buttonText: { flex: 1 },
   primaryButton: {
     flexDirection: "row",
@@ -254,7 +250,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 12,
   },
-  list: { paddingBottom: 24 },
+  list: { padding: 16, paddingBottom: 24 },
   emptyContainer: {
     paddingVertical: 32,
     alignItems: "center",

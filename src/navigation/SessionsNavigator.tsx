@@ -5,6 +5,8 @@ import { SessionTemplateDetailScreen } from "../screens/sessions/SessionTemplate
 import { SessionSetupScreen } from "../screens/sessions/SessionSetupScreen";
 import { ActiveSessionScreen } from "../screens/sessions/ActiveSessionScreen";
 import { GuidedSessionBuilder } from "../screens/sessions/GuidedSessionBuilder";
+import { PracticePlanScreen } from "../screens/sessions/PracticePlanScreen";
+import { NewGoalScreen } from "../screens/sessions/NewGoalScreen";
 import { SessionsStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 
@@ -20,6 +22,8 @@ export const SessionsNavigator = () => {
       <Stack.Screen name="SessionSetup" component={SessionSetupScreen} options={{ title: "Session Preset" }} />
       <Stack.Screen name="ActiveSession" component={ActiveSessionScreen} options={{ title: "Log Session" }} />
       <Stack.Screen name="GuidedSessionBuilder" component={GuidedSessionBuilder} options={{ title: "Practice Builder" }} />
+      <Stack.Screen name="PracticePlan" component={PracticePlanScreen} options={{ title: "Your plan" }} />
+      <Stack.Screen name="NewGoal" component={NewGoalScreen} options={{ title: "New goal" }} />
     </Stack.Navigator>
   );
 };

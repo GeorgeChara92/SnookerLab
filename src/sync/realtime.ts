@@ -16,6 +16,7 @@ import {
   useAIAnalysesStore,
   useCustomRoutinesStore,
   useMatchesStore,
+  usePracticePlanStore,
   useRoutineScoresStore,
   useSessionsStore,
   useTournamentsStore,
@@ -38,6 +39,7 @@ const TABLE_SCOPES: Record<string, SyncScope> = {
   routine_score_entries: "routines",
   ai_analyses: "ai",
   custom_routines: "customRoutines",
+  practice_plans: "plan",
 };
 
 const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
@@ -47,6 +49,7 @@ const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
   routines: (userId) => useRoutineScoresStore.getState().hydrateEntriesForUser(userId),
   ai: (userId) => useAIAnalysesStore.getState().hydrateAnalysesForUser(userId),
   customRoutines: (userId) => useCustomRoutinesStore.getState().hydrate(userId),
+  plan: (userId) => usePracticePlanStore.getState().hydrate(userId),
 };
 
 /** A burst of changes (a fixture, its frames, the tournament row) should cause one refresh. */

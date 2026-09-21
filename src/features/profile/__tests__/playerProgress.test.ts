@@ -69,3 +69,33 @@ describe("unfinished matches", () => {
     expect(stats.winRate).toBe(100);
   });
 });
+
+describe("practice achievements", () => {
+  it("counts the longest run of practice days and the different routines tried", () => {
+    const entry = (routine_id: string, recorded_at: string) => ({
+      id: `${routine_id}-${recorded_at}`,
+      routine_id,
+      routine_name: routine_id,
+      score: "1",
+      recorded_at,
+    });
+    const stats = computePlayerStats(
+      [],
+      [
+        {
+          id: "s1",
+          template_id: "t",
+          template_name: "T",
+          date: "2026-09-03",
+          recorded_at: "2026-09-03T19:00:00Z",
+          results: [{ routine_id: "c", score: "1" }],
+        },
+      ],
+      [entry("a", "2026-09-01T12:00:00"), entry("b", "2026-09-02T12:00:00"), entry("a", "2026-09-05T12:00:00")],
+      [] as Routine[],
+      {}
+    );
+    expect(stats.longestPracticeStreak).toBe(3);
+    expect(stats.routinesTried).toBe(3);
+  });
+});

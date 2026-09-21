@@ -6,6 +6,7 @@ import {
   useAIAnalysesStore,
   useAuthStore,
   useCustomRoutinesStore,
+  usePracticePlanStore,
   useMatchesStore,
   useRoutineScoresStore,
   useSessionsStore,
@@ -76,7 +77,9 @@ export const AppNavigator = () => {
       setTournamentsOwner(id);
       setAIOwner(id);
       useCustomRoutinesStore.getState().setOwner(id);
+      usePracticePlanStore.getState().setOwner(id);
       const loaded = Promise.allSettled([
+        usePracticePlanStore.getState().hydrate(id),
         useCustomRoutinesStore.getState().hydrate(id),
         hydrateSessionsForUser(id),
         hydrateMatchesForUser(id),
@@ -111,6 +114,7 @@ export const AppNavigator = () => {
   const forgetUser = useCallback(() => {
     loadingFor.current = null;
     useCustomRoutinesStore.getState().setOwner(null);
+    usePracticePlanStore.getState().setOwner(null);
     setReadyUserId(null);
   }, []);
 

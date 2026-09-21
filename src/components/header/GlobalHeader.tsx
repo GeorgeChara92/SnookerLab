@@ -3,11 +3,11 @@ import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type Vie
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { useAuthStore, useMatchesStore, useSessionsStore, useRoutineScoresStore } from "../../store";
+import { useAuthStore } from "../../store";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { PlayerAvatar } from "../profile/PlayerAvatar";
-import { ACHIEVEMENTS, getPlayerLevel } from "../../constants/achievements";
-import { useSeenAchievements } from "../../hooks/useSeenAchievements";
+import { getPlayerLevel } from "../../constants/achievements";
+import { usePlayerProgress } from "../../features/profile/playerProgress";
 
 type HeaderVariant = "primary" | "secondary" | "minimal";
 
@@ -34,51 +34,10 @@ const PlayerIdentity: React.FC<{ compact?: boolean }> = ({ compact }) => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const user = useAuthStore((state) => state.user);
-  const matches = useMatchesStore((state) => state.matches);
-  const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
-  const sessions = useSessionsStore((state) => state.logs);
-  const entries = useRoutineScoresStore((state) => state.entries);
-  const { seenAchievementIds } = useSeenAchievements(`${matches.length}-${sessions.length}-${entries.length}`);
   const subscription = useSubscriptionAccess();
   const { width } = useWindowDimensions();
-
-  const matchesWon = matches.filter((m) => m.result === "win").length;
-  const matchesPlayed = matches.length;
-  const sessionsLogged = sessions.length + entries.length;
-  const sortedMatches = [...matches].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  let longestWinStreak = 0;
-  let currentStreak = 0;
-  for (const match of sortedMatches) {
-    if (match.result === "win") {
-      currentStreak += 1;
-      longestWinStreak = Math.max(longestWinStreak, currentStreak);
-    } else {
-      currentStreak = 0;
-    }
-  }
-  const allFrames = Object.values(liveFramesByMatch).flat();
-  const bestBreak = allFrames.reduce((max, frame) => Math.max(max, frame.highest_break_user ?? 0), 0);
-  const centuries = allFrames.filter((frame) => (frame.highest_break_user ?? 0) >= 100).length;
-
-  const xp = ACHIEVEMENTS.filter((a) => {
-    if (seenAchievementIds.has(a.id)) return true;
-    switch (a.requirement.type) {
-      case "matches_won":
-        return matchesWon >= a.requirement.value;
-      case "matches_played":
-        return matchesPlayed >= a.requirement.value;
-      case "sessions_logged":
-        return sessionsLogged >= a.requirement.value;
-      case "win_streak":
-        return longestWinStreak >= a.requirement.value;
-      case "best_break":
-        return bestBreak >= a.requirement.value;
-      case "centuries":
-        return centuries >= a.requirement.value;
-      default:
-        return false;
-    }
-  }).reduce((sum, a) => sum + a.xpReward, 0);
+  // The same XP as everywhere else in the app.
+  const { xp } = usePlayerProgress();
   const levelInfo = getPlayerLevel(xp);
   const xpProgress = levelInfo.xpToNext === Infinity ? 1 : Math.min(1, xp / (xp + levelInfo.xpToNext));
   const showName = compact ? width >= 390 : true;

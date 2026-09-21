@@ -349,6 +349,9 @@ export type SessionsStackParamList = {
   SessionSetup: { templateId?: string } | undefined;
   ActiveSession: { templateId: string; date?: string };
   GuidedSessionBuilder: undefined;
+  /** The week's plan, the weekly target, streaks and goals. */
+  PracticePlan: undefined;
+  NewGoal: undefined;
 };
 
 export type StatsStackParamList = {
