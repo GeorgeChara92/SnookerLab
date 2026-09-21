@@ -37,6 +37,7 @@ const LEGACY_STORE_KEYS = [
   "ai-analyses-storage",
   "seen_achievements",
   "scan-snooker-storage",
+  "custom-routines-storage",
 ];
 
 const DATA_STORE_KEYS = [
@@ -47,6 +48,7 @@ const DATA_STORE_KEYS = [
   "ai-analyses-storage",
   "seen_achievements",
   "scan-snooker-storage",
+  "custom-routines-storage",
 ];
 
 const AUTH_REDIRECT_URL = process.env.EXPO_PUBLIC_AUTH_REDIRECT_URL ?? "snookerlab://auth/callback";

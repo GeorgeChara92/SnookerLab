@@ -14,6 +14,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../api/supabase";
 import {
   useAIAnalysesStore,
+  useCustomRoutinesStore,
   useMatchesStore,
   useRoutineScoresStore,
   useSessionsStore,
@@ -36,6 +37,7 @@ const TABLE_SCOPES: Record<string, SyncScope> = {
   session_log_results: "sessions",
   routine_score_entries: "routines",
   ai_analyses: "ai",
+  custom_routines: "customRoutines",
 };
 
 const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
@@ -44,6 +46,7 @@ const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
   sessions: (userId) => useSessionsStore.getState().hydrateSessionsForUser(userId),
   routines: (userId) => useRoutineScoresStore.getState().hydrateEntriesForUser(userId),
   ai: (userId) => useAIAnalysesStore.getState().hydrateAnalysesForUser(userId),
+  customRoutines: (userId) => useCustomRoutinesStore.getState().hydrate(userId),
 };
 
 /** A burst of changes (a fixture, its frames, the tournament row) should cause one refresh. */

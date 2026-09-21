@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { Routine, RoutineCategory } from "../types";
 import { DEFAULT_CATEGORIES, DEFAULT_ROUTINES } from "../constants";
+import { useCustomRoutinesStore } from "./customRoutinesStore";
+import { toRoutine } from "../features/customRoutines/customRoutine";
 
 const ROUTINE_ORDER_BY_CATEGORY: Record<string, string[]> = {
   "cat-basics": [
@@ -80,7 +82,13 @@ export const useRoutinesStore = create<RoutinesState>()((set, get) => ({
       return ai - bi;
     });
   },
-  getRoutineById: (id) => get().routines.find((routine) => routine.id === id),
+  // Built-in routines first, then the player's own, so scores, sessions and history work for both.
+  getRoutineById: (id) => {
+    const builtIn = get().routines.find((routine) => routine.id === id);
+    if (builtIn) return builtIn;
+    const custom = useCustomRoutinesStore.getState().getById(id);
+    return custom ? toRoutine(custom) : undefined;
+  },
   loadRoutines: async () => {
     set({ isLoading: true });
     set({ routines: DEFAULT_ROUTINES, categories: DEFAULT_CATEGORIES, isLoading: false });

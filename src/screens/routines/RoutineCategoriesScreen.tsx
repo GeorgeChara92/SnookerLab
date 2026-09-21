@@ -1,8 +1,12 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Animated, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
-import { useRoutinesStore } from "../../store";
+import { useCustomRoutinesStore, useRoutinesStore } from "../../store";
+import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
+import { summarise } from "../../features/scanSnooker/position";
+import type { CustomRoutine } from "../../features/customRoutines/customRoutine";
+import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import type { PracticeStackParamList, RoutineCategory } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { getRoutineCategoryIconName } from "../../constants/routineCategoryIcons";
@@ -11,11 +15,11 @@ export const RoutineCategoriesScreen = () => {
   const navigation = useNavigation<NavigationProp<PracticeStackParamList>>();
   const { categories, routines, getRoutinesByCategory, loadRoutines } = useRoutinesStore();
   const { colors } = useAppTheme();
+  const customRoutines = useCustomRoutinesStore((state) => state.routines);
+  // The built-in library, or the routines the player has built.
+  const [tab, setTab] = useState<"library" | "mine">("library");
 
-  const orderedCategories = useMemo(
-    () => [...categories].sort((a, b) => a.order_index - b.order_index),
-    [categories]
-  );
+  const orderedCategories = useMemo(() => [...categories].sort((a, b) => a.order_index - b.order_index), [categories]);
 
   const entranceAnimations = useMemo(
     () => orderedCategories.map(() => new Animated.Value(0)),
@@ -52,7 +56,8 @@ export const RoutineCategoriesScreen = () => {
     const iconName = getRoutineCategoryIconName(item.id);
     const categoryItems = getRoutinesByCategory(item.id);
     const routinesCount = categoryItems.length;
-    const categoryContainsOnlyGuides = categoryItems.length > 0 && categoryItems.every((entry) => entry.content_type === "guide");
+    const categoryContainsOnlyGuides =
+      categoryItems.length > 0 && categoryItems.every((entry) => entry.content_type === "guide");
     const itemLabel = categoryContainsOnlyGuides ? "guide" : "routine";
     const animation = entranceAnimations[index] ?? new Animated.Value(1);
 
@@ -86,20 +91,121 @@ export const RoutineCategoriesScreen = () => {
           onPress={() => navigation.navigate("RoutinesList", { categoryId: item.id })}
         >
           <View style={styles.cardTopRow}>
-            <View style={[styles.iconWrap, { backgroundColor: `${item.color}22` }]}> 
+            <View style={[styles.iconWrap, { backgroundColor: `${item.color}22` }]}>
               <MaterialCommunityIcons name={iconName as any} size={24} color={item.color} />
             </View>
           </View>
-          <Text style={[styles.categoryName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
-          <Text style={[styles.count, { color: colors.textMuted }]}>{routinesCount} {routinesCount === 1 ? itemLabel : `${itemLabel}s`}</Text>
+          <Text style={[styles.categoryName, { color: colors.text }]} numberOfLines={2}>
+            {item.name}
+          </Text>
+          <Text style={[styles.count, { color: colors.textMuted }]}>
+            {routinesCount} {routinesCount === 1 ? itemLabel : `${itemLabel}s`}
+          </Text>
           <View style={styles.cardFooter}>
-            <Text style={[styles.footerText, { color: colors.textMuted }]}>{categoryContainsOnlyGuides ? "Browse guides" : "Browse drills"}</Text>
+            <Text style={[styles.footerText, { color: colors.textMuted }]}>
+              {categoryContainsOnlyGuides ? "Browse guides" : "Browse drills"}
+            </Text>
             <MaterialCommunityIcons name="arrow-right" size={16} color={colors.textMuted} />
           </View>
         </Pressable>
       </Animated.View>
     );
   };
+
+  const tabs = (
+    <View style={[styles.tabs, { backgroundColor: colors.surfaceMuted }]}>
+      {(["library", "mine"] as const).map((item) => {
+        const active = tab === item;
+        return (
+          <Pressable
+            key={item}
+            onPress={() => setTab(item)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            style={[styles.tab, active && { backgroundColor: colors.surface }]}
+          >
+            <Text style={[styles.tabText, { color: active ? colors.text : colors.textMuted }]}>
+              {item === "library"
+                ? "Library"
+                : `My routines${customRoutines.length ? ` · ${customRoutines.length}` : ""}`}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  const newRoutine = (
+    <Pressable
+      onPress={() => navigation.navigate("CustomRoutineBuilder")}
+      accessibilityRole="button"
+      style={({ pressed }) => [styles.newButton, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+    >
+      <MaterialCommunityIcons name="plus" size={20} color={colors.onPrimary} />
+      <Text style={[styles.newButtonText, { color: colors.onPrimary }]}>New routine</Text>
+    </Pressable>
+  );
+
+  const renderCustom = ({ item }: { item: CustomRoutine }) => (
+    <Pressable
+      onPress={() => navigation.navigate("CustomRoutine", { routineId: item.id })}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.name}. ${summarise(item.balls)}`}
+      style={({ pressed }) => [
+        styles.customCard,
+        { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+      ]}
+    >
+      <View style={styles.customThumb}>
+        <TableDiagram balls={item.balls} readOnly />
+      </View>
+      <View style={styles.customBody}>
+        <Text style={[styles.customName, { color: colors.text }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+        {item.description ? (
+          <Text style={[styles.customDescription, { color: colors.textMuted }]} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+        <Text style={[styles.customMeta, { color: colors.textMuted }]} numberOfLines={1}>
+          {summarise(item.balls)} · {item.maxScore ? `max ${item.maxScore}` : "counts attempts"}
+        </Text>
+      </View>
+      <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+    </Pressable>
+  );
+
+  if (tab === "mine") {
+    return (
+      <FlatList
+        data={customRoutines}
+        keyExtractor={(item) => item.id}
+        renderItem={renderCustom}
+        contentContainerStyle={[styles.container, { backgroundColor: colors.background, flexGrow: 1 }]}
+        ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            {tabs}
+            {customRoutines.length ? <View style={{ marginTop: SPACING.md }}>{newRoutine}</View> : null}
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceMuted }]}>
+              <MaterialCommunityIcons name="table-furniture" size={28} color={colors.primary} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Build your own routines</Text>
+            <Text style={[styles.emptyBody, { color: colors.textMuted }]}>
+              Place the balls on the table the way you practise, give it a name and a target score, and it is saved to
+              your account for every device.
+            </Text>
+            {newRoutine}
+          </View>
+        }
+      />
+    );
+  }
 
   return (
     <FlatList
@@ -111,7 +217,10 @@ export const RoutineCategoriesScreen = () => {
       contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
       ListHeaderComponent={
         <View style={styles.header}>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Pick a category to browse routines and guides.</Text>
+          {tabs}
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+            Pick a category to browse routines and guides.
+          </Text>
         </View>
       }
     />
@@ -119,6 +228,37 @@ export const RoutineCategoriesScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  tabs: { flexDirection: "row", borderRadius: RADIUS.md, padding: 3, gap: 3 },
+  tab: { flex: 1, minHeight: 38, borderRadius: RADIUS.sm, alignItems: "center", justifyContent: "center" },
+  tabText: { fontSize: 14, fontWeight: "700" },
+  newButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 4,
+    borderRadius: RADIUS.md,
+    alignSelf: "stretch",
+  },
+  newButtonText: { fontSize: 16, fontWeight: "800" },
+  customCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.sm,
+    paddingRight: SPACING.md,
+  },
+  customThumb: { width: 50, height: 96, borderRadius: RADIUS.sm, overflow: "hidden" },
+  customBody: { flex: 1, gap: 3 },
+  customName: { fontSize: 16, fontWeight: "800" },
+  customDescription: { fontSize: 13, lineHeight: 18 },
+  customMeta: { fontSize: 12, fontWeight: "600" },
+  empty: { alignItems: "center", gap: SPACING.sm, borderWidth: 1, borderRadius: RADIUS.xl, padding: SPACING.xl },
+  emptyIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  emptyTitle: { fontSize: 18, fontWeight: "800" },
+  emptyBody: { fontSize: 14, lineHeight: 20, textAlign: "center", marginBottom: SPACING.sm },
   container: {
     paddingHorizontal: 16,
     paddingTop: 14,
@@ -132,7 +272,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   subtitle: {
-    marginTop: 5,
+    marginTop: 12,
     fontSize: 13,
     lineHeight: 18,
   },

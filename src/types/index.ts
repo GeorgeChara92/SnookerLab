@@ -310,6 +310,10 @@ export type PracticeStackParamList = {
   RoutinesList: { categoryId: string };
   RoutineDetail: { routineId: string };
   RecordRoutineScore: { routineId: string };
+  /** A player's own routine. */
+  CustomRoutine: { routineId: string };
+  /** Building a new routine, or editing one when given its id. */
+  CustomRoutineBuilder: { routineId?: string } | undefined;
 };
 
 export type MatchesStackParamList = {

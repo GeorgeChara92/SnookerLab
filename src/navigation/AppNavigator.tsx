@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import {
   useAIAnalysesStore,
   useAuthStore,
+  useCustomRoutinesStore,
   useMatchesStore,
   useRoutineScoresStore,
   useSessionsStore,
@@ -74,7 +75,9 @@ export const AppNavigator = () => {
       setRoutineScoresOwner(id);
       setTournamentsOwner(id);
       setAIOwner(id);
+      useCustomRoutinesStore.getState().setOwner(id);
       const loaded = Promise.allSettled([
+        useCustomRoutinesStore.getState().hydrate(id),
         hydrateSessionsForUser(id),
         hydrateMatchesForUser(id),
         hydrateRoutineScoresForUser(id),
@@ -107,6 +110,7 @@ export const AppNavigator = () => {
 
   const forgetUser = useCallback(() => {
     loadingFor.current = null;
+    useCustomRoutinesStore.getState().setOwner(null);
     setReadyUserId(null);
   }, []);
 
