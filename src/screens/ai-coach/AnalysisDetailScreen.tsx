@@ -9,8 +9,10 @@ import { useAIAnalysesStore } from "../../store";
 import { AICoachStackParamList } from "../../types";
 import { supabase } from "../../api/supabase";
 import { BoardPanel } from "../../components/scoreboard/Scoreboard";
-import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import { analysisDate, statusInfo, tagLabel, typeInfo } from "../../features/ai/analysisLabels";
+import { suggestRoutines } from "../../features/ai/suggestRoutines";
+import { DEFAULT_ROUTINES } from "../../constants/routines";
 
 type AnalysisDetailRoute = RouteProp<AICoachStackParamList, "AnalysisDetail">;
 
@@ -153,6 +155,7 @@ export const AnalysisDetailScreen = () => {
   };
 
   const hasClip = Boolean(analysis.video_url) && !analysis.video_url.startsWith("demo://");
+  const suggestions = suggestRoutines(report, analysis.analysis_type, DEFAULT_ROUTINES);
 
   return (
     <ScrollView
@@ -304,6 +307,46 @@ export const AnalysisDetailScreen = () => {
             </BoardPanel>
           ) : null}
 
+          {suggestions.length ? (
+            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Practise this next</Text>
+              <View style={styles.suggestions}>
+                {suggestions.map(({ routine, topic, because }, index) => (
+                  <Pressable
+                    key={routine.id}
+                    onPress={() =>
+                      navigation.navigate("Practice", { screen: "RoutineDetail", params: { routineId: routine.id } })
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={`${routine.name}, for ${topic}`}
+                    style={({ pressed }) => [
+                      styles.suggestion,
+                      index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border } : null,
+                      { opacity: pressed ? 0.7 : 1 },
+                    ]}
+                  >
+                    <View style={styles.suggestionText}>
+                      <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.suggestionTopic, { color: colors.primary }]}>
+                        {topic.toUpperCase()}
+                      </Text>
+                      <Text style={[styles.suggestionName, { color: colors.text }]}>{routine.name}</Text>
+                      {because ? (
+                        <Text numberOfLines={2} style={[styles.suggestionWhy, { color: colors.textMuted }]}>
+                          For: {because}
+                        </Text>
+                      ) : (
+                        <Text style={[styles.suggestionWhy, { color: colors.textMuted }]}>
+                          A good routine for what you asked the coach to look at.
+                        </Text>
+                      )}
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
           {report.possible_causes.length ? (
             <Fold title="Possible causes" sectionKey="causes">
               <List items={report.possible_causes} icon="circle-small" iconColour={colors.textMuted} />
@@ -409,6 +452,18 @@ const styles = StyleSheet.create({
   listText: { flex: 1, fontSize: 15, lineHeight: 21 },
   stepNumber: { fontFamily: FONTS.board, fontSize: 18, width: 16, textAlign: "center" },
 
+  suggestions: { marginTop: -SPACING.xs },
+  suggestion: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET,
+    paddingVertical: SPACING.sm,
+  },
+  suggestionText: { flex: 1, gap: 2 },
+  suggestionTopic: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.2 },
+  suggestionName: { fontSize: 16, fontWeight: "800" },
+  suggestionWhy: { fontSize: 13, lineHeight: 18 },
   tipText: { fontSize: 18, fontWeight: "600", lineHeight: 26 },
 
   foldHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 28 },
