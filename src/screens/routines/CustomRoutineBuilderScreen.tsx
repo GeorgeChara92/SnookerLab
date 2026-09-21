@@ -32,8 +32,11 @@ import { DESCRIPTION_MAX, NAME_MAX, cleanDraft, validateDraft } from "../../feat
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /**
- * Building a routine: place the balls on the table, then name it. Every change can be undone,
- * one step at a time, back to where you started.
+ * Building a routine, in two steps:
+ *   1. the table - place the balls, with room to zoom in and set them precisely
+ *   2. the details - a name, what the routine is, and a score to aim for
+ * Every change to the table can be undone, one step at a time. Going back from the details
+ * returns to the table rather than leaving, and nothing entered is lost.
  */
 export const CustomRoutineBuilderScreen = () => {
   const navigation = useNavigation<NavigationProp<PracticeStackParamList>>();
@@ -44,8 +47,9 @@ export const CustomRoutineBuilderScreen = () => {
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
 
+  const [step, setStep] = useState<1 | 2>(1);
   const [balls, setBalls] = useState<PlacedBall[]>(existing?.balls ?? []);
   const [history, setHistory] = useState<PlacedBall[][]>([]);
   const [colour, setColour] = useState<BallColour>("cue");
@@ -58,12 +62,8 @@ export const CustomRoutineBuilderScreen = () => {
   const saved = useRef(false);
 
   useEffect(() => {
-    navigation.setOptions({ title: editingId ? "Edit routine" : "New routine" });
-  }, [editingId, navigation]);
-
-  // The table takes about half the screen: tall enough to place balls precisely, leaving room
-  // for the form below. Its width follows from the table's shape.
-  const tableHeight = Math.round(Math.min(height * 0.52, (width - SPACING.lg * 2) * 1.95));
+    navigation.setOptions({ title: `${editingId ? "Edit routine" : "New routine"} · ${step} of 2` });
+  }, [editingId, navigation, step]);
 
   const problems = useMemo(
     () => validateDraft({ name, description, maxScore, balls }),
@@ -75,11 +75,17 @@ export const CustomRoutineBuilderScreen = () => {
     description !== (existing?.description ?? "") ||
     maxScore !== (existing?.maxScore ? String(existing.maxScore) : "");
 
-  // Leaving with unsaved work asks first.
+  // Back from the details goes to the table; leaving with unsaved work asks first.
   useEffect(
     () =>
       navigation.addListener("beforeRemove", (event) => {
-        if (saved.current || !changed) return;
+        if (saved.current) return;
+        if (step === 2) {
+          event.preventDefault();
+          setStep(1);
+          return;
+        }
+        if (!changed) return;
         event.preventDefault();
         dialog.confirm({
           title: "Discard this routine?",
@@ -94,9 +100,10 @@ export const CustomRoutineBuilderScreen = () => {
           },
         });
       }),
-    [changed, dialog, navigation]
+    [changed, dialog, navigation, step]
   );
 
+  // ---------------------------------------------------------------- the table
   /** Every change to the balls goes through here, so it can be undone. */
   const change = (next: PlacedBall[]) => {
     if (next === balls) return;
@@ -124,18 +131,20 @@ export const CustomRoutineBuilderScreen = () => {
     if (colour === "cue") setColour("red");
   };
 
-  const clear = () => {
-    if (!balls.length) return;
-    change([]);
-    setSelectedId(null);
-  };
-
-  const onSave = () => {
-    setTried(true);
-    if (Object.keys(problems).length) {
-      setNotice(problems.balls ?? "Check the details below.");
+  const next = () => {
+    if (!balls.length) {
+      setNotice("Place at least one ball on the table first.");
       return;
     }
+    setNotice(null);
+    setSelectedId(null);
+    setStep(2);
+  };
+
+  // ---------------------------------------------------------------- the details
+  const onSave = () => {
+    setTried(true);
+    if (Object.keys(problems).length) return;
     const routine = save({ id: editingId, ...cleanDraft({ name, description, maxScore, balls }) });
     saved.current = true;
     if (editingId) navigation.goBack();
@@ -144,37 +153,28 @@ export const CustomRoutineBuilderScreen = () => {
 
   const selected = balls.find((ball) => ball.id === selectedId) ?? null;
 
-  return (
-    <KeyboardAvoidingView
-      style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]}
-        keyboardShouldPersistTaps="handled"
-      >
+  if (step === 1) {
+    return (
+      <View style={[styles.flex, styles.tableStep, { backgroundColor: colors.background, paddingBottom: insets.bottom + SPACING.sm }]}>
         <Text style={[styles.hint, { color: colors.textMuted }]}>
-          Choose a ball and tap the table to place it. Drag a ball to move it; tap one to select it.
+          Choose a ball and tap to place it. Drag a ball to move it. Pinch or use + to zoom in.
         </Text>
 
-        {/* ------------------------------------------------ the table */}
-        <View style={{ height: tableHeight }}>
+        <View style={styles.flex}>
           <TableDiagram
             balls={balls}
             selectedId={selectedId}
             onPlace={place}
             onMove={(id, point) => change(moveBall(balls, id, point))}
             onSelect={setSelectedId}
+            zoomable
           />
         </View>
 
         {selected ? (
           <View style={[styles.selected, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View
-              style={[
-                styles.selectedBall,
-                { backgroundColor: BALL_LOOK[selected.colour].fill, borderColor: BALL_LOOK[selected.colour].edge },
-              ]}
+              style={[styles.selectedBall, { backgroundColor: BALL_LOOK[selected.colour].fill, borderColor: BALL_LOOK[selected.colour].edge }]}
             />
             <Text style={[styles.selectedText, { color: colors.textMuted }]} numberOfLines={2}>
               <Text style={{ color: colors.text, fontWeight: "800" }}>{BALL_LOOK[selected.colour].label}</Text> ·{" "}
@@ -193,27 +193,61 @@ export const CustomRoutineBuilderScreen = () => {
             </Pressable>
           </View>
         ) : (
-          <Text style={[styles.summary, { color: notice ? colors.danger : colors.textMuted }]}>
-            {notice ?? summarise(balls)}
-          </Text>
+          <Text style={[styles.summary, { color: notice ? colors.danger : colors.textMuted }]}>{notice ?? summarise(balls)}</Text>
         )}
 
-        {/* ------------------------------------------------ the balls, and the table tools */}
         <BallTray balls={balls} selected={colour} onSelect={setColour} />
 
         <View style={styles.tools}>
           <Tool icon="circle-multiple-outline" label="Colours on spots" onPress={() => change(coloursOnSpots(balls))} />
           <Tool icon="undo" label="Undo" onPress={undo} disabled={!history.length} />
-          <Tool icon="delete-sweep-outline" label="Clear" onPress={clear} disabled={!balls.length} />
+          <Tool
+            icon="delete-sweep-outline"
+            label="Clear"
+            onPress={() => {
+              change([]);
+              setSelectedId(null);
+            }}
+            disabled={!balls.length}
+          />
         </View>
 
-        {/* ------------------------------------------------ the details */}
+        <Pressable
+          onPress={next}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.primary, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+        >
+          <Text style={[styles.primaryText, { color: colors.onPrimary }]}>Next: details</Text>
+          <MaterialCommunityIcons name="arrow-right" size={20} color={colors.onPrimary} />
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView style={[styles.flex, { backgroundColor: colors.background }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]} keyboardShouldPersistTaps="handled">
+        {/* The table as set up, with the way back to it. */}
+        <View style={styles.preview}>
+          <View style={{ width: Math.min(96, width * 0.24), height: Math.min(96, width * 0.24) * 1.95 }}>
+            <TableDiagram balls={balls} readOnly />
+          </View>
+          <View style={styles.previewText}>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>{summarise(balls)}</Text>
+            <Pressable onPress={() => setStep(1)} accessibilityRole="button" hitSlop={8} style={styles.editTable}>
+              <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.primary} />
+              <Text style={[styles.editTableText, { color: colors.primary }]}>Edit table</Text>
+            </Pressable>
+          </View>
+        </View>
+
         <Field
           label="Name"
           value={name}
           onChangeText={setName}
           placeholder="e.g. Line-up to the pink"
           maxLength={NAME_MAX}
+          autoFocus={!editingId}
           error={tried ? problems.name : undefined}
         />
         <Field
@@ -241,11 +275,9 @@ export const CustomRoutineBuilderScreen = () => {
         <Pressable
           onPress={onSave}
           accessibilityRole="button"
-          style={({ pressed }) => [styles.save, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+          style={({ pressed }) => [styles.primary, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
         >
-          <Text style={[styles.saveText, { color: colors.onPrimary }]}>
-            {editingId ? "Save changes" : "Save routine"}
-          </Text>
+          <Text style={[styles.primaryText, { color: colors.onPrimary }]}>{editingId ? "Save changes" : "Save routine"}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -272,11 +304,7 @@ const Tool = ({
       accessibilityState={{ disabled }}
       style={({ pressed }) => [
         styles.tool,
-        {
-          borderColor: colors.border,
-          backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
-          opacity: disabled ? 0.45 : 1,
-        },
+        { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : colors.surface, opacity: disabled ? 0.45 : 1 },
       ]}
     >
       <MaterialCommunityIcons name={icon} size={18} color={colors.text} />
@@ -313,15 +341,14 @@ const Field = ({
           { color: colors.text, backgroundColor: colors.surface, borderColor: error ? colors.danger : colors.border },
         ]}
       />
-      {error || hint ? (
-        <Text style={[styles.fieldHint, { color: error ? colors.danger : colors.textMuted }]}>{error ?? hint}</Text>
-      ) : null}
+      {error || hint ? <Text style={[styles.fieldHint, { color: error ? colors.danger : colors.textMuted }]}>{error ?? hint}</Text> : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  tableStep: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm, gap: SPACING.sm },
   content: { padding: SPACING.lg, gap: SPACING.md },
   hint: { fontSize: 13, lineHeight: 18 },
 
@@ -352,25 +379,25 @@ const styles = StyleSheet.create({
   },
   toolText: { fontSize: 13, fontWeight: "700", flexShrink: 1 },
 
+  preview: { flexDirection: "row", alignItems: "center", gap: SPACING.lg },
+  previewText: { flex: 1, gap: SPACING.sm },
+  previewTitle: { fontSize: 16, fontWeight: "800" },
+  editTable: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: HIT_TARGET },
+  editTableText: { fontSize: 15, fontWeight: "700" },
+
   field: { gap: 6 },
   fieldLabel: { fontSize: 13, fontWeight: "700" },
-  input: {
-    minHeight: 48,
-    borderWidth: 1.5,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
+  input: { minHeight: 48, borderWidth: 1.5, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, paddingVertical: 12, fontSize: 16 },
   inputMultiline: { minHeight: 96, textAlignVertical: "top" },
   fieldHint: { fontSize: 12, lineHeight: 17 },
 
-  save: {
-    minHeight: HIT_TARGET + 6,
-    borderRadius: RADIUS.md,
+  primary: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: SPACING.sm,
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 6,
+    borderRadius: RADIUS.md,
   },
-  saveText: { fontSize: 16, fontWeight: "800" },
+  primaryText: { fontSize: 16, fontWeight: "800" },
 });

@@ -252,6 +252,7 @@ const DiagramScan = ({
           onPlace={mode === "record" ? place : undefined}
           onMove={mode === "record" ? (id, point) => setBalls((current) => moveBall(current, id, point)) : undefined}
           onSelect={setSelectedId}
+          zoomable
         />
       </View>
 

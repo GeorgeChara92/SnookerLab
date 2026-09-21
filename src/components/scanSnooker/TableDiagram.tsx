@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
-import { PanResponder, StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import { PanResponder, Pressable, StyleSheet, View, type GestureResponderEvent, type LayoutChangeEvent } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import { BAULK_LINE_Y, POCKETS, SPOTS, TABLE, clampToBed, distance, type BallColour, type Point } from "../../features/scanSnooker/table";
 import type { PlacedBall } from "../../features/scanSnooker/position";
@@ -9,8 +10,10 @@ import type { PlacedBall } from "../../features/scanSnooker/position";
  * come out in table millimetres, so the diagram can be any size: it fits whatever space it is
  * given, on the smallest phone or the largest.
  *
- * Touch: tap the bed to place a ball, press a ball to select it, drag a ball to move it. The
- * dragged ball follows the finger here and is only reported when let go, so dragging stays smooth.
+ * Touch: tap the bed to place a ball, press a ball to select it, drag a ball to move it. With
+ * `zoomable`, pinch to zoom in (up to 5x) for placing balls close together, drag the cloth with one
+ * finger to move around, and use the + / - / fit buttons for one-handed use. Zoomed in, balls are
+ * drawn at their true size, so two touching balls look exactly as they would on the table.
  */
 
 export const BALL_LOOK: Record<BallColour, { fill: string; edge: string; label: string }> = {
@@ -32,11 +35,17 @@ const SPOT = "rgba(255,255,255,0.45)";
 
 /** The rail around the bed, as a share of the bed's width. */
 const RAIL_SHARE = 0.055;
-/** Balls are drawn a touch larger than scale, so they can be seen and pressed on a phone. */
+/** At full view balls are drawn a touch larger than scale so they can be seen and pressed. */
 const BALL_SCALE = 1.35;
 /** How close a touch must be to a ball to pick it up: most of a ball, and never under a fingertip. */
 const GRAB = 0.9;
 const MIN_GRAB_PX = 22;
+const MAX_ZOOM = 5;
+/** A finger moving less than this is a tap, not a drag. */
+const TAP_SLOP = 6;
+
+type View2 = { zoom: number; panX: number; panY: number };
+const FULL_VIEW: View2 = { zoom: 1, panX: 0, panY: 0 };
 
 type Props = {
   balls: PlacedBall[];
@@ -47,33 +56,100 @@ type Props = {
   onSelect?: (id: string | null) => void;
   /** A picture only: touches pass through, e.g. to a button wrapped round it. */
   readOnly?: boolean;
+  /** Pinch and buttons to zoom in, for placing balls close together. */
+  zoomable?: boolean;
 };
 
-export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, readOnly = false }: Props) => {
+export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, readOnly = false, zoomable = false }: Props) => {
   const [box, setBox] = useState({ width: 0, height: 0 });
+  const [view, setView] = useState<View2>(FULL_VIEW);
   const [dragging, setDragging] = useState<{ id: string; point: Point } | null>(null);
 
-  // ---------------------------------------------------------------- fit the table to the space
-  const fit = useMemo(() => {
+  // ---------------------------------------------------------------- the whole table, fitted
+  const base = useMemo(() => {
     if (!box.width || !box.height) return null;
     const outerW = TABLE.width * (1 + RAIL_SHARE * 2);
     const outerL = TABLE.length + TABLE.width * RAIL_SHARE * 2;
-    const scale = Math.min(box.width / outerW, box.height / outerL); // px per mm
-    const rail = TABLE.width * RAIL_SHARE * scale;
-    const bedW = TABLE.width * scale;
-    const bedL = TABLE.length * scale;
-    const left = (box.width - bedW) / 2;
-    const top = (box.height - bedL) / 2;
-    return { scale, rail, bedW, bedL, left, top, d: Math.max(9, TABLE.ball * scale * BALL_SCALE) };
+    const scale = Math.min(box.width / outerW, box.height / outerL); // px per mm at 1x
+    return {
+      scale,
+      left: (box.width - TABLE.width * scale) / 2,
+      top: (box.height - TABLE.length * scale) / 2,
+      rail: TABLE.width * RAIL_SHARE * scale,
+      cx: box.width / 2,
+      cy: box.height / 2,
+    };
   }, [box]);
 
+  /** Where the table is on screen for a given zoom and pan. */
+  const layoutFor = (current: View2) => {
+    if (!base) return null;
+    const scale = base.scale * current.zoom;
+    const left = base.cx + (base.left - base.cx) * current.zoom + current.panX;
+    const top = base.cy + (base.top - base.cy) * current.zoom + current.panY;
+    const ballScale = Math.max(1, BALL_SCALE / current.zoom);
+    return {
+      scale,
+      left,
+      top,
+      rail: base.rail * current.zoom,
+      bedW: TABLE.width * scale,
+      bedL: TABLE.length * scale,
+      d: Math.max(9, TABLE.ball * scale * ballScale),
+    };
+  };
+
+  /** Keeps the table on screen: centred when it fits, never dragged away from an edge when it does not. */
+  const clampView = (next: View2): View2 => {
+    if (!base) return next;
+    const zoom = Math.min(MAX_ZOOM, Math.max(1, next.zoom));
+    const at = layoutFor({ ...next, zoom })!;
+    const fit = (start: number, size: number, room: number) =>
+      size <= room ? (room - size) / 2 : Math.min(0, Math.max(room - size, start));
+    const contentW = at.bedW + at.rail * 2;
+    const contentH = at.bedL + at.rail * 2;
+    const wantedLeft = fit(at.left - at.rail, contentW, box.width) + at.rail;
+    const wantedTop = fit(at.top - at.rail, contentH, box.height) + at.rail;
+    return { zoom, panX: next.panX + (wantedLeft - at.left), panY: next.panY + (wantedTop - at.top) };
+  };
+
+  /** Zooms so the table point under `focus` (screen px) stays under it. */
+  const zoomAround = (from: View2, zoom: number, focus: Point, focusNow: Point = focus): View2 => {
+    const at = layoutFor(from);
+    if (!at || !base) return from;
+    const mm = { x: (focus.x - at.left) / at.scale, y: (focus.y - at.top) / at.scale };
+    const target = Math.min(MAX_ZOOM, Math.max(1, zoom));
+    const left = focusNow.x - mm.x * base.scale * target;
+    const top = focusNow.y - mm.y * base.scale * target;
+    return clampView({
+      zoom: target,
+      panX: left - (base.cx + (base.left - base.cx) * target),
+      panY: top - (base.cy + (base.top - base.cy) * target),
+    });
+  };
+
+  const fit = layoutFor(view);
   const toPx = (point: Point) => ({ x: fit!.left + point.x * fit!.scale, y: fit!.top + point.y * fit!.scale });
 
+  // ---------------------------------------------------------------- touch
   // The latest values, for the touch handlers created once below.
-  const live = useRef({ fit, balls, onPlace, onMove, onSelect });
-  live.current = { fit, balls, onPlace, onMove, onSelect };
+  const live = useRef({ fit, view, balls, onPlace, onMove, onSelect, zoomable, layoutFor, clampView, zoomAround });
+  live.current = { fit, view, balls, onPlace, onMove, onSelect, zoomable, layoutFor, clampView, zoomAround };
 
-  const touch = useRef<{ id: string | null; start: Point; moved: boolean }>({ id: null, start: { x: 0, y: 0 }, moved: false });
+  const touch = useRef<{
+    mode: "tap" | "ball" | "pan" | "pinch";
+    id: string | null;
+    start: Point;
+    origin: Point;
+    startView: View2;
+    pinchDistance: number;
+    pinchMid: Point;
+    /** Once a finger has gone past the tap distance it is a drag, even if it comes back. */
+    moved: boolean;
+  }>({ mode: "tap", id: null, start: { x: 0, y: 0 }, origin: { x: 0, y: 0 }, startView: FULL_VIEW, pinchDistance: 1, pinchMid: { x: 0, y: 0 }, moved: false });
+
+  const localTouches = (event: GestureResponderEvent) =>
+    event.nativeEvent.touches.map((item) => ({ x: item.pageX - touch.current.origin.x, y: item.pageY - touch.current.origin.y }));
 
   const responder = useMemo(
     () =>
@@ -84,48 +160,107 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
         onPanResponderGrant: (event) => {
           const current = live.current;
           if (!current.fit) return;
-          const { locationX, locationY } = event.nativeEvent;
+          const { locationX, locationY, pageX, pageY } = event.nativeEvent;
           const at = { x: locationX, y: locationY };
           const grabRadius = Math.max(current.fit.d * GRAB, MIN_GRAB_PX);
-          const hit = [...current.balls]
-            .map((ball) => ({ ball, gap: distance(at, { x: current.fit!.left + ball.x * current.fit!.scale, y: current.fit!.top + ball.y * current.fit!.scale }) }))
-            .filter(({ gap }) => gap <= grabRadius)
-            .sort((a, b) => a.gap - b.gap)[0];
-          touch.current = { id: hit ? hit.ball.id : null, start: at, moved: false };
+          const hit = current.onMove
+            ? [...current.balls]
+                .map((ball) => ({
+                  ball,
+                  gap: distance(at, { x: current.fit!.left + ball.x * current.fit!.scale, y: current.fit!.top + ball.y * current.fit!.scale }),
+                }))
+                .filter(({ gap }) => gap <= grabRadius)
+                .sort((a, b) => a.gap - b.gap)[0]
+            : undefined;
+          const tapped = !hit
+            ? current.balls
+                .map((ball) => ({
+                  ball,
+                  gap: distance(at, { x: current.fit!.left + ball.x * current.fit!.scale, y: current.fit!.top + ball.y * current.fit!.scale }),
+                }))
+                .filter(({ gap }) => gap <= grabRadius)
+                .sort((a, b) => a.gap - b.gap)[0]
+            : undefined;
+          touch.current = {
+            mode: hit ? "ball" : "tap",
+            id: hit?.ball.id ?? tapped?.ball.id ?? null,
+            start: at,
+            // Where this view sits on screen, to place other fingers of a pinch within it.
+            origin: { x: pageX - locationX, y: pageY - locationY },
+            startView: current.view,
+            pinchDistance: 1,
+            pinchMid: at,
+            moved: false,
+          };
         },
-        onPanResponderMove: (_, gesture) => {
+        onPanResponderMove: (event, gesture) => {
           const current = live.current;
-          const { id, start } = touch.current;
-          if (!current.fit || !id || !current.onMove) return;
-          if (!touch.current.moved && Math.hypot(gesture.dx, gesture.dy) < 4) return;
-          touch.current.moved = true;
-          const point = clampToBed({
-            x: (start.x + gesture.dx - current.fit.left) / current.fit.scale,
-            y: (start.y + gesture.dy - current.fit.top) / current.fit.scale,
-          });
-          setDragging({ id, point });
+          if (!current.fit) return;
+          const state = touch.current;
+          const fingers = localTouches(event);
+
+          // Two fingers: pinch to zoom, and move the table with them.
+          if (current.zoomable && fingers.length >= 2) {
+            const [a, b] = fingers;
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const gap = Math.max(1, distance(a, b));
+            if (state.mode !== "pinch") {
+              setDragging(null);
+              touch.current = { ...state, mode: "pinch", startView: current.view, pinchDistance: gap, pinchMid: mid };
+              return;
+            }
+            setView(current.zoomAround(state.startView, state.startView.zoom * (gap / state.pinchDistance), state.pinchMid, mid));
+            return;
+          }
+          if (state.mode === "pinch") return;
+
+          if (!state.moved && Math.hypot(gesture.dx, gesture.dy) >= TAP_SLOP) state.moved = true;
+          const moved = state.moved;
+          if (state.mode === "ball" && state.id && current.onMove) {
+            if (!moved) return;
+            const point = clampToBed({
+              x: (state.start.x + gesture.dx - current.fit.left) / current.fit.scale,
+              y: (state.start.y + gesture.dy - current.fit.top) / current.fit.scale,
+            });
+            setDragging({ id: state.id, point });
+            return;
+          }
+          // One finger on the cloth, zoomed in: move around the table.
+          if (current.zoomable && current.view.zoom > 1 && (state.mode === "pan" || moved)) {
+            touch.current = { ...state, mode: "pan" };
+            setView(
+              current.clampView({
+                zoom: state.startView.zoom,
+                panX: state.startView.panX + gesture.dx,
+                panY: state.startView.panY + gesture.dy,
+              })
+            );
+          }
         },
         onPanResponderRelease: (_, gesture) => {
           const current = live.current;
-          const { id, start, moved } = touch.current;
+          const state = touch.current;
           setDragging(null);
-          if (!current.fit) return;
-          if (id && moved && current.onMove) {
-            current.onMove(id, {
-              x: (start.x + gesture.dx - current.fit.left) / current.fit.scale,
-              y: (start.y + gesture.dy - current.fit.top) / current.fit.scale,
+          if (!current.fit || state.mode === "pinch" || state.mode === "pan") return;
+          const moved = state.moved;
+
+          if (state.mode === "ball" && state.id && moved && current.onMove) {
+            current.onMove(state.id, {
+              x: (state.start.x + gesture.dx - current.fit.left) / current.fit.scale,
+              y: (state.start.y + gesture.dy - current.fit.top) / current.fit.scale,
             });
-            current.onSelect?.(id);
+            current.onSelect?.(state.id);
             return;
           }
-          if (id) {
-            current.onSelect?.(id);
+          if (state.id) {
+            current.onSelect?.(state.id);
             return;
           }
+          if (moved) return;
           // A tap on the bed (not the rail) places a ball.
           const point = {
-            x: (start.x - current.fit.left) / current.fit.scale,
-            y: (start.y - current.fit.top) / current.fit.scale,
+            x: (state.start.x - current.fit.left) / current.fit.scale,
+            y: (state.start.y - current.fit.top) / current.fit.scale,
           };
           const onBed = point.x >= 0 && point.x <= TABLE.width && point.y >= 0 && point.y <= TABLE.length;
           if (onBed && current.onPlace) current.onPlace(clampToBed(point));
@@ -133,16 +268,30 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
         },
         onPanResponderTerminate: () => setDragging(null),
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
-    if (width !== box.width || height !== box.height) setBox({ width, height });
+    if (width !== box.width || height !== box.height) {
+      setBox({ width, height });
+      setView(FULL_VIEW);
+    }
+  };
+
+  const zoomBy = (factor: number) => {
+    if (!base) return;
+    setView((current) => zoomAround(current, current.zoom * factor, { x: base.cx, y: base.cy }));
   };
 
   return (
-    <View style={styles.box} onLayout={onLayout} pointerEvents={readOnly ? "none" : "auto"} {...(readOnly ? {} : responder.panHandlers)}>
+    <View
+      style={styles.box}
+      onLayout={onLayout}
+      pointerEvents={readOnly ? "none" : "auto"}
+      {...(readOnly ? {} : responder.panHandlers)}
+    >
       {fit ? (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           {/* ------------------------------------------------ rail, bed and pockets */}
@@ -167,8 +316,13 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
           />
           {Object.values(POCKETS).map((pocket, index) => {
             const p = toPx(pocket);
-            const r = fit.d * 0.95;
-            return <View key={index} style={[styles.abs, styles.pocket, { left: p.x - r, top: p.y - r, width: r * 2, height: r * 2, borderRadius: r }]} />;
+            const r = TABLE.ball * fit.scale * 1.3;
+            return (
+              <View
+                key={index}
+                style={[styles.abs, styles.pocket, { left: p.x - r, top: p.y - r, width: r * 2, height: r * 2, borderRadius: r }]}
+              />
+            );
           })}
 
           {/* ------------------------------------------------ baulk line, D and spots */}
@@ -210,7 +364,7 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
                     borderRadius: fit.d / 2,
                     backgroundColor: look.fill,
                     borderColor: look.edge,
-                    transform: [{ scale: dragging?.id === ball.id ? 1.3 : 1 }],
+                    transform: [{ scale: dragging?.id === ball.id && view.zoom < 1.5 ? 1.3 : 1 }],
                   },
                 ]}
               >
@@ -229,12 +383,29 @@ export const TableDiagram = ({ balls, selectedId, onPlace, onMove, onSelect, rea
           })}
         </View>
       ) : null}
+
+      {/* ------------------------------------------------ zoom buttons */}
+      {zoomable && !readOnly && fit ? (
+        <View style={styles.zoomBar}>
+          <Pressable onPress={() => zoomBy(1.6)} disabled={view.zoom >= MAX_ZOOM} accessibilityRole="button" accessibilityLabel="Zoom in" style={[styles.zoomButton, { opacity: view.zoom >= MAX_ZOOM ? 0.4 : 1 }]}>
+            <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+          </Pressable>
+          <Pressable onPress={() => zoomBy(1 / 1.6)} disabled={view.zoom <= 1} accessibilityRole="button" accessibilityLabel="Zoom out" style={[styles.zoomButton, { opacity: view.zoom <= 1 ? 0.4 : 1 }]}>
+            <MaterialCommunityIcons name="minus" size={20} color="#FFFFFF" />
+          </Pressable>
+          {view.zoom > 1 ? (
+            <Pressable onPress={() => setView(FULL_VIEW)} accessibilityRole="button" accessibilityLabel="Show the whole table" style={styles.zoomButton}>
+              <MaterialCommunityIcons name="fit-to-screen-outline" size={20} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  box: { flex: 1 },
+  box: { flex: 1, overflow: "hidden" },
   abs: { position: "absolute" },
   pocket: { backgroundColor: "#030605" },
   spot: { width: 4, height: 4, borderRadius: 2, backgroundColor: SPOT },
@@ -248,4 +419,13 @@ const styles = StyleSheet.create({
   },
   shine: { position: "absolute", top: "14%", left: "20%", backgroundColor: "rgba(255,255,255,0.6)" },
   selected: { borderWidth: 2, borderColor: "#FFFFFF" },
+  zoomBar: { position: "absolute", right: 8, bottom: 8, gap: 8 },
+  zoomButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(10,18,15,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
