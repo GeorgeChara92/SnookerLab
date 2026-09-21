@@ -25,6 +25,10 @@ const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = ANALYSIS_TYPE_O
   label: ANALYSIS_TYPE_INFO[value].label,
 }));
 
+/** The clip length the coach works with. The picker and the check below both use these. */
+const MIN_CLIP_SECONDS = 10;
+const MAX_CLIP_SECONDS = 20;
+
 const ENABLE_AI_STORAGE_UPLOAD = process.env.EXPO_PUBLIC_ENABLE_AI_STORAGE_UPLOAD !== "0";
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -106,10 +110,10 @@ export const VideoUploadScreen = () => {
       return false;
     }
 
-    if (seconds < 10 || seconds > 20) {
+    if (seconds < MIN_CLIP_SECONDS || seconds > MAX_CLIP_SECONDS + 0.5) {
       dialog.alert({
         title: seconds < 10 ? "That clip is too short" : "That clip is too long",
-        message: `It runs for ${Math.round(seconds)} seconds. The coach needs between 10 and 20, so ${
+        message: `It runs for ${Math.round(seconds)} seconds. The coach needs between ${MIN_CLIP_SECONDS} and ${MAX_CLIP_SECONDS}, so ${
           seconds < 10 ? "record a little more of the shot" : "trim it down to the one shot"
         } and try again.`,
         icon: "timer-outline",
@@ -141,9 +145,12 @@ export const VideoUploadScreen = () => {
       return;
     }
 
+    // Telling the picker the limit is what makes the iOS trimmer useful: it opens with a
+    // 20-second window you slide along the clip, rather than letting you keep nearly all of it.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["videos"],
       allowsEditing: true,
+      videoMaxDuration: MAX_CLIP_SECONDS,
       quality: 1,
     });
 
@@ -166,9 +173,11 @@ export const VideoUploadScreen = () => {
       return;
     }
 
+    // The camera stops on its own at the limit, so a recording can never come back too long.
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["videos"],
       allowsEditing: true,
+      videoMaxDuration: MAX_CLIP_SECONDS,
       quality: 1,
     });
 
