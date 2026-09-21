@@ -26,9 +26,7 @@ const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = ANALYSIS_TYPE_O
   label: ANALYSIS_TYPE_INFO[value].label,
 }));
 
-/** The clip length the coach works with. The picker and the check below both use these. */
-/** Enough for one shot: the set-up, the delivery and where the balls go. */
-const MIN_CLIP_SECONDS = 4;
+/** The longest clip the coach watches. The picker, the trimmer and the check below all use it. */
 const MAX_CLIP_SECONDS = 20;
 
 const ENABLE_AI_STORAGE_UPLOAD = process.env.EXPO_PUBLIC_ENABLE_AI_STORAGE_UPLOAD !== "0";
@@ -155,12 +153,10 @@ export const VideoUploadScreen = () => {
       return false;
     }
 
-    if (seconds < MIN_CLIP_SECONDS || seconds > MAX_CLIP_SECONDS + 0.5) {
+    if (seconds > MAX_CLIP_SECONDS + 0.5) {
       dialog.alert({
-        title: seconds < MIN_CLIP_SECONDS ? "That clip is too short" : "That clip is too long",
-        message: `It runs for ${Math.round(seconds)} seconds. The coach needs between ${MIN_CLIP_SECONDS} and ${MAX_CLIP_SECONDS}, so ${
-          seconds < MIN_CLIP_SECONDS ? "record a little more of the shot" : "trim it down to the one shot"
-        } and try again.`,
+        title: "That clip is too long",
+        message: `It runs for ${Math.round(seconds)} seconds. The coach watches up to ${MAX_CLIP_SECONDS}, so trim it down to the shot you want looked at and try again.`,
         icon: "timer-outline",
       });
       return false;
@@ -202,7 +198,11 @@ export const VideoUploadScreen = () => {
       mediaTypes: ["videos"],
       allowsEditing: true,
       videoMaxDuration: MAX_CLIP_SECONDS,
-      // 720p shows a cue action clearly and uploads in a fraction of the time 4K takes.
+      // This has to be something other than the default "passthrough". With passthrough, the
+      // picker copies the original video out of the photo library and throws the trim away, so a
+      // 6-second cut of a 76-second video came back 76 seconds long. Any export preset makes it
+      // use the trimmed file instead; 720p shows a cue action clearly and uploads quickly.
+      videoExportPreset: ImagePicker.VideoExportPreset.H264_1280x720,
       videoQuality: ImagePicker.UIImagePickerControllerQualityType.IFrame1280x720,
     });
 
@@ -363,7 +363,7 @@ export const VideoUploadScreen = () => {
       <View style={[styles.headerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
         <Text style={[styles.title, { color: colors.text }]}>New analysis</Text>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-          Upload a 4 to 20 second clip of one shot for personalised coaching.
+          Upload a clip of one shot, up to 20 seconds, for personalised coaching.
         </Text>
         <Text style={[styles.metaText, { color: colors.textMuted }]}>
           {subscription.tierLabel} · {remainingText} this month
@@ -376,7 +376,7 @@ export const VideoUploadScreen = () => {
           <View style={styles.buttonSpacer} />
           <AppButton label="Record a clip" onPress={recordVideo} variant="secondary" />
           <Text style={[styles.hintText, { color: colors.textMuted }]}>
-            Choose a 4 to 20 second clip
+            Choose a clip of up to 20 seconds
           </Text>
         </View>
       ) : (

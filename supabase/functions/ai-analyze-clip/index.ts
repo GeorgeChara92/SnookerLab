@@ -20,6 +20,17 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.8-flash";
+/**
+ * Tried in turn when the first choice is overloaded or unavailable, which Gemini's newest
+ * models often are at busy times. Set GEMINI_FALLBACK_MODELS (comma-separated) to change them.
+ */
+const GEMINI_MODELS = [
+  GEMINI_MODEL,
+  ...(Deno.env.get("GEMINI_FALLBACK_MODELS") ?? "gemini-3.7-flash,gemini-3.5-flash")
+    .split(",")
+    .map((model) => model.trim())
+    .filter(Boolean),
+].filter((model, index, all) => all.indexOf(model) === index);
 const GEMINI_BASE = "https://generativelanguage.googleapis.com";
 
 const MAX_USER_NOTES_CHARS = 1200;
@@ -56,9 +67,9 @@ class CoachError extends Error {
 }
 
 const FRIENDLY = {
-  busy: "The coach is busy right now. Wait a minute, then upload the clip again.",
+  busy: "The coach is busy right now. Wait a minute or two, then tap Try again.",
   generic: "Something went wrong analysing this clip. Upload it again, and if it keeps happening, try a shorter clip.",
-  tooBig: "This clip is too large to analyse. Record or trim a shorter clip, between 4 and 20 seconds.",
+  tooBig: "This clip is too large to analyse. Record or trim a clip of 20 seconds or less.",
   blocked: "The coach could not review this clip. Upload a clip of a shot or practice at the table.",
 };
 
@@ -163,18 +174,16 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const RETRYABLE = new Set([429, 500, 502, 503, 504]);
 
 const geminiFetch = async (url: string, init: RequestInit, attempts = 3) => {
-  let last: Response | null = null;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
+  for (let attempt = 0; ; attempt += 1) {
     const response = await fetch(url, {
       ...init,
       headers: { "x-goog-api-key": GEMINI_API_KEY, ...(init.headers ?? {}) },
     });
-    if (!RETRYABLE.has(response.status)) return response;
-    last = response;
+    // The last response is handed back unread, so the caller can see what went wrong.
+    if (!RETRYABLE.has(response.status) || attempt >= attempts - 1) return response;
     await response.body?.cancel();
-    await sleep(2000 * 2 ** attempt);
+    await sleep(1500 * 2 ** attempt);
   }
-  return last!;
 };
 
 const toBase64 = (bytes: Uint8Array) => {
@@ -240,41 +249,58 @@ const geminiMimeType = (storageType: string | undefined, path: string) => {
   return "video/mp4";
 };
 
+/** Statuses that mean "this model cannot take it right now" rather than "this request is wrong". */
+const TRY_ANOTHER_MODEL = new Set([404, 429, 500, 502, 503, 504]);
+
+/**
+ * Asks each model in turn until one answers. Returns the parsed report and the model that
+ * wrote it.
+ */
 const askGemini = async (videoPart: Record<string, unknown>, prompt: string) => {
-  const response = await geminiFetch(`${GEMINI_BASE}/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [{ ...videoPart, videoMetadata: { fps: FRAMES_PER_SECOND } }, { text: prompt }],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: RESPONSE_SCHEMA,
-        // Low, so the same clip gets much the same report twice.
-        temperature: 0.2,
+  const request = JSON.stringify({
+    contents: [
+      {
+        role: "user",
+        parts: [{ ...videoPart, videoMetadata: { fps: FRAMES_PER_SECOND } }, { text: prompt }],
       },
-    }),
+    ],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: RESPONSE_SCHEMA,
+      // Low, so the same clip gets much the same report twice.
+      temperature: 0.2,
+    },
   });
 
-  if (response.status === 429) throw new CoachError(FRIENDLY.busy, 503);
-  if (!response.ok) {
-    throw new Error(`Gemini error (${response.status}): ${(await response.text()).slice(0, 400)}`);
+  for (const model of GEMINI_MODELS) {
+    const response = await geminiFetch(
+      `${GEMINI_BASE}/v1beta/models/${model}:generateContent`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: request },
+      2
+    );
+
+    if (TRY_ANOTHER_MODEL.has(response.status)) {
+      console.warn(`Gemini ${model} unavailable (${response.status}): ${(await response.text()).slice(0, 200)}`);
+      continue;
+    }
+    if (!response.ok) {
+      throw new Error(`Gemini ${model} error (${response.status}): ${(await response.text()).slice(0, 400)}`);
+    }
+
+    const payload = await response.json();
+    if (payload?.promptFeedback?.blockReason) throw new CoachError(FRIENDLY.blocked);
+
+    const candidate = payload?.candidates?.[0];
+    const text = (candidate?.content?.parts ?? [])
+      .map((part: any) => (typeof part?.text === "string" ? part.text : ""))
+      .join("")
+      .trim();
+    if (!text) throw new Error(`Gemini ${model} returned no text (finishReason: ${candidate?.finishReason ?? "none"})`);
+    return { parsed: JSON.parse(text), model };
   }
 
-  const payload = await response.json();
-  if (payload?.promptFeedback?.blockReason) throw new CoachError(FRIENDLY.blocked);
-
-  const candidate = payload?.candidates?.[0];
-  const text = (candidate?.content?.parts ?? [])
-    .map((part: any) => (typeof part?.text === "string" ? part.text : ""))
-    .join("")
-    .trim();
-  if (!text) throw new Error(`Gemini returned no text (finishReason: ${candidate?.finishReason ?? "none"})`);
-  return JSON.parse(text);
+  // Every model was busy: nothing is wrong with the clip, so say so.
+  throw new CoachError(FRIENDLY.busy, 503);
 };
 
 // ---------------------------------------------------------------------------- the report
@@ -300,7 +326,7 @@ const cleanFindings = (value: unknown): string[] =>
         .filter(Boolean)
     : [];
 
-const buildReport = (parsed: any) => {
+const buildReport = ({ parsed, model }: { parsed: any; model: string }) => {
   const check = parsed?.clip_check ?? {};
   if (check.usable === false) {
     const reason = typeof check.reason === "string" && check.reason.trim() ? check.reason.trim() : "";
@@ -320,7 +346,7 @@ const buildReport = (parsed: any) => {
     coaching_tip: typeof parsed.coaching_tip === "string" ? parsed.coaching_tip.trim() : "",
     confidence: ["high", "medium", "low"].includes(parsed.confidence) ? parsed.confidence : "medium",
     camera_view: typeof check.camera_view === "string" ? check.camera_view.trim() : "",
-    model: GEMINI_MODEL,
+    model,
   };
 
   if (!report_json.summary || !report_json.coaching_tip || report_json.improvements.length === 0) {
@@ -450,7 +476,7 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id);
     if (updateError) throw updateError;
 
-    return json({ ok: true, model: GEMINI_MODEL, analysis_id: analysis.id });
+    return json({ ok: true, model: result.report_json.model, analysis_id: analysis.id });
   } catch (error) {
     // The player sees a plain reason; the detail stays in the function logs.
     const friendly = error instanceof CoachError ? error.message : FRIENDLY.generic;

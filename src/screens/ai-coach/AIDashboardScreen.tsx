@@ -20,7 +20,7 @@ const PREVIEW = 3;
 const CLIP_TIPS: Array<{ icon: "video-outline" | "arrow-expand-horizontal" | "timer-outline"; text: string }> = [
   { icon: "video-outline", text: "Film side-on, with the phone at the height of the cue." },
   { icon: "arrow-expand-horizontal", text: "Keep your whole cue action in frame, from bridge to elbow." },
-  { icon: "timer-outline", text: "One shot, 4 to 20 seconds. Several shots blur the report." },
+  { icon: "timer-outline", text: "One shot, up to 20 seconds. Several shots blur the report." },
 ];
 
 export const AIDashboardScreen = () => {
