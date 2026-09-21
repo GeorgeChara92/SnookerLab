@@ -6,6 +6,7 @@ import { useDialog } from "../../components/ui/DialogProvider";
 import { BoardPanel } from "../../components/scoreboard/Scoreboard";
 import { ACHIEVEMENTS, type Achievement, type AchievementCategory } from "../../constants/achievements";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
+import { useUnlockQueue } from "../../components/achievements/UnlockQueueProvider";
 import { achievementCurrent } from "../../features/profile/playerStats";
 import { FONTS, RADIUS, SPACING } from "../../constants";
 
@@ -52,8 +53,15 @@ export const AchievementsScreen = () => {
     (item) => item.value === "all" || ACHIEVEMENTS.some((achievement) => achievement.category === item.value)
   );
 
+  const { showAchievementUnlock, showLevelUp } = useUnlockQueue();
+
   const openDetail = (achievement: Achievement, current: number) => {
     const done = isUnlocked(achievement);
+    // An earned achievement plays its moment again.
+    if (done) {
+      showAchievementUnlock(achievement.id);
+      return;
+    }
     dialog.alert({
       title: achievement.title,
       message: done
@@ -74,27 +82,35 @@ export const AchievementsScreen = () => {
       showsVerticalScrollIndicator={false}
     >
       {/* ---------------------------------------------------------------- level */}
-      <BoardPanel kicker="YOUR LEVEL" aside={`${xp} XP`}>
-        <View style={styles.levelRow}>
-          <Text style={[styles.levelValue, { color: colors.boardText }]}>{level.level}</Text>
-          <View style={styles.levelText}>
-            <Text style={[styles.levelTitle, { color: colors.boardText }]}>{level.title.toUpperCase()}</Text>
-            <Text style={[styles.levelNext, { color: colors.boardMuted }]}>
-              {level.nextTitle ? `${level.xpToNext} XP TO ${level.nextTitle.toUpperCase()}` : "TOP LEVEL REACHED"}
-            </Text>
+      <Pressable
+        onPress={() => showLevelUp(level.level, level.level - 1)}
+        accessibilityRole="button"
+        accessibilityHint="Plays your last level-up again"
+      >
+        <BoardPanel kicker="YOUR LEVEL" aside={`${xp} XP`}>
+          <View style={styles.levelRow}>
+            <Text style={[styles.levelValue, { color: colors.boardText }]}>{level.level}</Text>
+            <View style={styles.levelText}>
+              <Text style={[styles.levelTitle, { color: colors.boardText }]}>{level.title.toUpperCase()}</Text>
+              <Text style={[styles.levelNext, { color: colors.boardMuted }]}>
+                {level.nextTitle ? `${level.xpToNext} XP TO ${level.nextTitle.toUpperCase()}` : "TOP LEVEL REACHED"}
+              </Text>
+            </View>
+            <View style={styles.unlockedBox}>
+              <Text style={[styles.unlockedValue, { color: colors.boardText }]}>
+                {unlocked.length}
+                <Text style={{ color: colors.boardMuted }}>/{ACHIEVEMENTS.length}</Text>
+              </Text>
+              <Text style={[styles.unlockedLabel, { color: colors.boardMuted }]}>UNLOCKED</Text>
+            </View>
           </View>
-          <View style={styles.unlockedBox}>
-            <Text style={[styles.unlockedValue, { color: colors.boardText }]}>
-              {unlocked.length}
-              <Text style={{ color: colors.boardMuted }}>/{ACHIEVEMENTS.length}</Text>
-            </Text>
-            <Text style={[styles.unlockedLabel, { color: colors.boardMuted }]}>UNLOCKED</Text>
+          <View style={[styles.track, { backgroundColor: colors.boardRaised }]}>
+            <View
+              style={[styles.fill, { width: `${Math.round(level.progress * 100)}%`, backgroundColor: colors.primary }]}
+            />
           </View>
-        </View>
-        <View style={[styles.track, { backgroundColor: colors.boardRaised }]}>
-          <View style={[styles.fill, { width: `${Math.round(level.progress * 100)}%`, backgroundColor: colors.primary }]} />
-        </View>
-      </BoardPanel>
+        </BoardPanel>
+      </Pressable>
 
       {/* ---------------------------------------------------------------- next up */}
       {nextGoal ? (
@@ -109,7 +125,8 @@ export const AchievementsScreen = () => {
               <Text style={[styles.description, { color: colors.textMuted }]}>{nextGoal.achievement.description}</Text>
             </View>
             <Text style={[styles.count, { color: colors.text }]}>
-              {Math.min(nextGoal.current, nextGoal.achievement.requirement.value)}/{nextGoal.achievement.requirement.value}
+              {Math.min(nextGoal.current, nextGoal.achievement.requirement.value)}/
+              {nextGoal.achievement.requirement.value}
             </Text>
           </View>
           <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
@@ -157,7 +174,9 @@ export const AchievementsScreen = () => {
                 },
               ]}
             >
-              <Text style={[styles.filterText, { color: selected ? colors.onPrimary : colors.text }]}>{item.label}</Text>
+              <Text style={[styles.filterText, { color: selected ? colors.onPrimary : colors.text }]}>
+                {item.label}
+              </Text>
             </Pressable>
           );
         })}
@@ -247,7 +266,13 @@ const styles = StyleSheet.create({
   title: { flexShrink: 1, fontSize: 15, fontWeight: "700" },
   description: { fontSize: 13, marginTop: 1 },
 
-  groupLabel: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.6, marginTop: SPACING.xs, marginBottom: -4 },
+  groupLabel: {
+    fontFamily: FONTS.boardLabel,
+    fontSize: 13,
+    letterSpacing: 1.6,
+    marginTop: SPACING.xs,
+    marginBottom: -4,
+  },
   recent: { flexDirection: "row", gap: SPACING.sm },
   recentItem: {
     flex: 1,

@@ -13,6 +13,7 @@ import {
   useTournamentsStore,
 } from "../store";
 import { useScanSnookerStore } from "../store/scanSnookerStore";
+import { navigationRef } from "./navigationRef";
 import { supabase } from "../api/supabase";
 import { startSync, stopSync } from "../sync";
 import { MainTabNavigator } from "./MainTabNavigator";
@@ -264,7 +265,7 @@ export const AppNavigator = () => {
 return (
     <UnlockQueueProvider>
       <AchievementWatcher>
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer ref={navigationRef} theme={navigationTheme}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             {isAuthenticated && !requiresPasswordReset && readyUserId !== userId ? (
               <Stack.Screen name="Loading" component={LoadingPlayerScreen} />

@@ -4,6 +4,11 @@ import { useAchievementsStore } from "../../store/achievementsStore";
 import { useAchievementUnlocker } from "../../hooks/useAchievementUnlocker";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
 import { supabase } from "../../api/supabase";
+import { useLevelSeenStore } from "../../store/levelSeenStore";
+import { useUnlockQueue } from "./UnlockQueueProvider";
+
+/** Straight after sign in, levels already reached are not celebrated again (see useAchievementUnlocker). */
+const QUIET_AFTER_LOAD_MS = 8000;
 
 export const AchievementWatcher: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const isAuthenticated = useAuthStore((state: { isAuthenticated: boolean }) => state.isAuthenticated);
@@ -31,6 +36,7 @@ const AchievementWatcherInner: React.FC<{ children: React.ReactNode; userId: str
   userId,
 }) => {
   useAchievementUnlocker();
+  useLevelUpCelebration(userId);
   useProgressOnProfile(userId);
   return <>{children}</>;
 };
@@ -67,4 +73,31 @@ const useProgressOnProfile = (userId: string | null) => {
         }
       });
   }, [hydrated, level.level, userId, xp]);
+};
+
+/**
+ * Celebrates reaching a new level, once. The first time a player is seen on this phone, or
+ * while their data is still arriving after sign in, their level is just noted.
+ */
+const useLevelUpCelebration = (userId: string | null) => {
+  const hydrated = useAchievementsStore((state) => state.hydrated);
+  const hydratedAt = useAchievementsStore((state) => state.hydratedAt);
+  const { level } = usePlayerProgress();
+  const seenOwner = useLevelSeenStore((state) => state.ownerId);
+  const seenLevel = useLevelSeenStore((state) => state.level);
+  const setSeen = useLevelSeenStore((state) => state.set);
+  const { showLevelUp } = useUnlockQueue();
+
+  useEffect(() => {
+    if (!userId || !hydrated) return;
+    const now = level.level;
+    if (seenOwner !== userId || seenLevel === null) {
+      setSeen(userId, now);
+      return;
+    }
+    if (now <= seenLevel) return;
+    setSeen(userId, now);
+    if (Date.now() - hydratedAt < QUIET_AFTER_LOAD_MS) return;
+    showLevelUp(now, seenLevel);
+  }, [hydrated, hydratedAt, level.level, seenLevel, seenOwner, setSeen, showLevelUp, userId]);
 };
