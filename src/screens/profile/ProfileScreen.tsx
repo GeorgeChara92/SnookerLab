@@ -6,7 +6,7 @@ import { useAuthStore, useRoutinesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useDialog } from "../../components/ui/DialogProvider";
-import { SnookerPresetAvatar } from "../../components/profile/SnookerPresetAvatar";
+import { PlayerAvatar } from "../../components/profile/PlayerAvatar";
 import { BoardPanel } from "../../components/scoreboard/Scoreboard";
 import { ACHIEVEMENTS } from "../../constants/achievements";
 import { getSkillLabel, getCuePreferenceLabel, getCountryByCode } from "../../constants/profileOptions";
@@ -116,13 +116,13 @@ export const ProfileScreen = () => {
             accessibilityLabel="Change your avatar"
             style={styles.avatarWrap}
           >
-            <View style={[styles.avatar, { borderColor: colors.boardRule, backgroundColor: colors.boardRaised }]}>
-              {user?.profile_image_url ? (
+            {user?.profile_image_url ? (
+              <View style={[styles.avatar, { borderColor: colors.boardRule, backgroundColor: colors.boardRaised }]}>
                 <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
-              ) : (
-                <SnookerPresetAvatar presetId={user?.avatar_preset} size={68} />
-              )}
-            </View>
+              </View>
+            ) : (
+              <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={level.level} size={80} />
+            )}
             <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.board }]}>
               <MaterialCommunityIcons name="pencil" size={12} color={colors.onPrimary} />
             </View>

@@ -1,190 +1,268 @@
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { useAuthStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
-import { SNOOKER_PRESET_AVATARS, isAvatarUnlocked, type PresetAvatar } from "../../constants/profileAvatars";
-import { SnookerPresetAvatar } from "../../components/profile/SnookerPresetAvatar";
-import { usePlayerProgress, type PlayerStats } from "../../features/profile/playerProgress";
-import { FONTS, RADIUS, SPACING } from "../../constants";
+import { PlayerAvatar } from "../../components/profile/PlayerAvatar";
+import { usePlayerProgress } from "../../features/profile/playerProgress";
+import {
+  BALLS,
+  OUTFITS,
+  ballUnlocked,
+  encodeAvatar,
+  faceSeeds,
+  isGeneratedAvatar,
+  outfitUnlocked,
+  parseAvatar,
+  topBallFor,
+  type AvatarSpec,
+} from "../../features/profile/avatarSpec";
+import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /**
- * Choosing an avatar. It used to be a large block in the middle of the profile page; picking one
- * is an occasional thing, so it has a page of its own reached by tapping your avatar.
+ * Building your avatar: pick a face, dress it, and choose the ball colour for the ring. Outfits
+ * and colours are earned by level, so the picker also shows what the next few levels bring.
  */
-
-const unlockText = (avatar: PresetAvatar): string => {
-  if (!avatar.unlockCondition) return "Available from the start";
-  const { type, value } = avatar.unlockCondition;
-  switch (type) {
-    case "matches_won":
-      return `Win ${value} ${value === 1 ? "match" : "matches"}`;
-    case "matches_played":
-      return `Play ${value} ${value === 1 ? "match" : "matches"}`;
-    case "sessions_logged":
-      return `Log ${value} practice ${value === 1 ? "session" : "sessions"}`;
-    case "best_break":
-      return `Make a break of ${value} or more`;
-    case "win_streak":
-      return `Win ${value} matches in a row`;
-    case "level":
-      return `Reach level ${value}`;
-    default:
-      return "Not available yet";
-  }
-};
-
-const unlockProgress = (avatar: PresetAvatar, stats: PlayerStats): string | null => {
-  if (!avatar.unlockCondition) return null;
-  const { type, value } = avatar.unlockCondition;
-  const current: Partial<Record<string, number>> = {
-    matches_won: stats.matchesWon,
-    matches_played: stats.matchesPlayed,
-    sessions_logged: stats.sessionsLogged,
-    best_break: stats.bestBreak,
-    win_streak: stats.longestWinStreak,
-    level: stats.playerLevel,
-  };
-  const now = current[type];
-  return now === undefined ? null : `You are on ${Math.min(now, value)} of ${value}.`;
-};
-
 export const AvatarPickerScreen = () => {
+  const navigation = useNavigation();
   const { user, updateAvatarPreset } = useAuthStore();
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { stats } = usePlayerProgress();
+  const { level } = usePlayerProgress();
+  const name = user?.username ?? "player";
 
-  const groups: Array<{ title: string; hint: string; avatars: PresetAvatar[] }> = [
-    {
-      title: "Progression",
-      hint: "Earned as you play and practise.",
-      avatars: SNOOKER_PRESET_AVATARS.filter((avatar) => avatar.group === "player"),
-    },
-    {
-      title: "Snooker icons",
-      hint: "Unlocked by milestones along the way.",
-      avatars: SNOOKER_PRESET_AVATARS.filter((avatar) => avatar.group !== "player"),
-    },
-  ];
+  const initial = useMemo<AvatarSpec>(() => {
+    if (isGeneratedAvatar(user?.avatar_preset)) return parseAvatar(user?.avatar_preset, name);
+    return { seed: faceSeeds(name, 0)[0], outfit: "casual", ball: topBallFor(level.level) };
+    // Only the first render decides where the draft starts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const unlockedCount = SNOOKER_PRESET_AVATARS.filter((avatar) => isAvatarUnlocked(avatar, stats)).length;
+  const [draft, setDraft] = useState<AvatarSpec>(initial);
+  const [round, setRound] = useState(0);
+  const [saving, setSaving] = useState(false);
 
-  const choose = async (avatar: PresetAvatar) => {
-    if (!isAvatarUnlocked(avatar, stats)) {
-      const progress = unlockProgress(avatar, stats);
-      dialog.alert({
-        title: `${avatar.label} is locked`,
-        message: `${unlockText(avatar)} to unlock it.${progress ? ` ${progress}` : ""}`,
-        icon: "lock-outline",
-        confirmLabel: "Got it",
-      });
-      return;
-    }
+  const seeds = useMemo(() => faceSeeds(name, round), [name, round]);
+  const changed = encodeAvatar(draft) !== user?.avatar_preset;
+  const ball = BALLS.find((item) => item.id === draft.ball);
 
+  const locked = (what: string, needed: number) =>
+    dialog.alert({
+      title: `${what} is not unlocked yet`,
+      message: `Reach level ${needed} to use it. You are level ${level.level}, ${
+        level.nextTitle ? `${level.xpToNext} XP from level ${level.level + 1}` : "the top level"
+      }.`,
+      icon: "lock-outline",
+      confirmLabel: "Got it",
+    });
+
+  const save = async () => {
+    setSaving(true);
     try {
-      await updateAvatarPreset(avatar.id);
+      await updateAvatarPreset(encodeAvatar(draft));
+      navigation.goBack();
     } catch {
       dialog.alert({
-        title: "Could not change your avatar",
-        message: "Your avatar has been left as it was. Check your connection and try again.",
+        title: "Could not save your avatar",
+        message: "It has been left as it was. Check your connection and try again.",
         tone: "danger",
         icon: "wifi-off",
       });
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.current}>
-        <View style={[styles.currentRing, { borderColor: colors.primary }]}>
-          <SnookerPresetAvatar presetId={user?.avatar_preset} size={96} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* ---------------------------------------------------------------- preview */}
+        <View style={styles.preview}>
+          <PlayerAvatar spec={draft} size={128} />
+          <Text style={[styles.previewLine, { color: colors.textMuted }]}>
+            LEVEL {level.level} · {ball?.label.toUpperCase()} RING
+          </Text>
         </View>
-        <Text style={[styles.count, { color: colors.textMuted }]}>
-          {unlockedCount} OF {SNOOKER_PRESET_AVATARS.length} UNLOCKED
+
+        {/* ---------------------------------------------------------------- face */}
+        <View style={styles.sectionHead}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Face</Text>
+          <Pressable
+            onPress={() => setRound((value) => value + 1)}
+            accessibilityRole="button"
+            accessibilityLabel="Show different faces"
+            hitSlop={10}
+            style={styles.more}
+          >
+            <MaterialCommunityIcons name="shuffle-variant" size={16} color={colors.primary} />
+            <Text style={[styles.moreText, { color: colors.primary }]}>More faces</Text>
+          </Pressable>
+        </View>
+        <View style={styles.faces}>
+          {seeds.map((seed) => {
+            const selected = draft.seed === seed;
+            return (
+              <Pressable
+                key={seed}
+                onPress={() => setDraft((prev) => ({ ...prev, seed }))}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel="Use this face"
+                style={[
+                  styles.faceTile,
+                  { borderColor: selected ? colors.primary : "transparent", backgroundColor: colors.surface },
+                ]}
+              >
+                <PlayerAvatar spec={{ ...draft, seed }} size={64} showRing={false} />
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* ---------------------------------------------------------------- outfit */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Outfit</Text>
+        <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+          Dress for the table. The waistcoat is the one to work towards.
         </Text>
-      </View>
+        <View style={styles.outfits}>
+          {OUTFITS.map((outfit) => {
+            const open = outfitUnlocked(outfit.id, level.level);
+            const selected = draft.outfit === outfit.id;
+            return (
+              <Pressable
+                key={outfit.id}
+                onPress={() =>
+                  open ? setDraft((prev) => ({ ...prev, outfit: outfit.id })) : locked(outfit.label, outfit.level)
+                }
+                accessibilityRole="button"
+                accessibilityState={{ selected, disabled: !open }}
+                accessibilityLabel={open ? outfit.label : `${outfit.label}, unlocks at level ${outfit.level}`}
+                style={[
+                  styles.outfitTile,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: selected ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <View style={{ opacity: open ? 1 : 0.35 }}>
+                  <PlayerAvatar spec={{ ...draft, outfit: outfit.id }} size={68} showRing={false} />
+                </View>
+                <Text style={[styles.outfitLabel, { color: open ? colors.text : colors.textMuted }]} numberOfLines={1}>
+                  {outfit.label}
+                </Text>
+                <Text style={[styles.outfitMeta, { color: open ? colors.primary : colors.textMuted }]}>
+                  {open ? (selected ? "WEARING" : "READY") : `LEVEL ${outfit.level}`}
+                </Text>
+                {!open ? (
+                  <View style={[styles.lock, { backgroundColor: colors.surfaceMuted }]}>
+                    <MaterialCommunityIcons name="lock" size={12} color={colors.textMuted} />
+                  </View>
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </View>
 
-      {groups.map((group) => (
-        <View key={group.title} style={styles.group}>
-          <Text style={[styles.groupTitle, { color: colors.text }]}>{group.title}</Text>
-          <Text style={[styles.groupHint, { color: colors.textMuted }]}>{group.hint}</Text>
-
-          <View style={styles.grid}>
-            {group.avatars.map((avatar) => {
-              const unlocked = isAvatarUnlocked(avatar, stats);
-              const selected = user?.avatar_preset === avatar.id;
-
-              return (
-                <Pressable
-                  key={avatar.id}
-                  onPress={() => void choose(avatar)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected, disabled: !unlocked }}
-                  accessibilityLabel={unlocked ? `Use ${avatar.label}` : `${avatar.label}, locked. ${unlockText(avatar)}`}
-                  style={({ pressed }) => [
-                    styles.tile,
+        {/* ---------------------------------------------------------------- ring */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Ring</Text>
+        <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+          A new colour every level, in the order they come off the table.
+        </Text>
+        <View style={styles.balls}>
+          {BALLS.map((item) => {
+            const open = ballUnlocked(item.id, level.level);
+            const selected = draft.ball === item.id;
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  open ? setDraft((prev) => ({ ...prev, ball: item.id })) : locked(`The ${item.label.toLowerCase()} ring`, item.level)
+                }
+                accessibilityRole="button"
+                accessibilityState={{ selected, disabled: !open }}
+                accessibilityLabel={open ? `${item.label} ring` : `${item.label} ring, unlocks at level ${item.level}`}
+                style={styles.ballCell}
+              >
+                <View
+                  style={[
+                    styles.ball,
                     {
-                      backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
-                      borderColor: selected ? colors.primary : colors.border,
+                      backgroundColor: item.colour,
+                      opacity: open ? 1 : 0.25,
+                      borderColor: selected ? colors.text : item.id === "black" ? colors.boardMuted : "transparent",
+                      borderWidth: selected ? 3 : item.id === "black" ? 1 : 0,
                     },
                   ]}
                 >
-                  <View style={{ opacity: unlocked ? 1 : 0.35 }}>
-                    <SnookerPresetAvatar presetId={avatar.id} size={52} />
-                  </View>
-                  {!unlocked ? (
-                    <View style={[styles.lock, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                      <MaterialCommunityIcons name="lock" size={12} color={colors.textMuted} />
-                    </View>
-                  ) : null}
-                  {selected ? (
-                    <View style={[styles.lock, { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-                      <MaterialCommunityIcons name="check" size={12} color={colors.onPrimary} />
-                    </View>
-                  ) : null}
-                  <Text
-                    style={[styles.tileLabel, { color: unlocked ? colors.text : colors.textMuted }]}
-                    numberOfLines={2}
-                  >
-                    {avatar.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+                  {!open ? <MaterialCommunityIcons name="lock" size={12} color="#FFFFFF" /> : null}
+                </View>
+                <Text style={[styles.ballLevel, { color: selected ? colors.text : colors.textMuted }]}>
+                  {item.level}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
-      ))}
-    </ScrollView>
+      </ScrollView>
+
+      <View style={[styles.saveBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+        <Pressable
+          onPress={() => void save()}
+          disabled={!changed || saving}
+          accessibilityRole="button"
+          accessibilityLabel="Save avatar"
+          accessibilityState={{ disabled: !changed || saving, busy: saving }}
+          style={({ pressed }) => [
+            styles.save,
+            {
+              backgroundColor: changed ? colors.primary : colors.surfaceMuted,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          {saving ? (
+            <ActivityIndicator color={colors.onPrimary} />
+          ) : (
+            <Text style={[styles.saveText, { color: changed ? colors.onPrimary : colors.textMuted }]}>
+              {changed ? "Save avatar" : "No changes"}
+            </Text>
+          )}
+        </Pressable>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
+  content: { padding: SPACING.lg, paddingBottom: 120 },
 
-  current: { alignItems: "center", gap: SPACING.md, marginBottom: SPACING.lg },
-  currentRing: { borderWidth: 3, borderRadius: 60, padding: 4 },
-  count: { fontFamily: FONTS.boardLabel, fontSize: 14, letterSpacing: 1.6 },
+  preview: { alignItems: "center", gap: SPACING.md, marginBottom: SPACING.lg },
+  previewLine: { fontFamily: FONTS.boardLabel, fontSize: 14, letterSpacing: 1.6 },
 
-  group: { marginTop: SPACING.lg },
-  groupTitle: { fontSize: 18, fontWeight: "800" },
-  groupHint: { fontSize: 13, marginTop: 2, marginBottom: SPACING.md },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
-  tile: {
-    width: "31.5%",
+  sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  sectionTitle: { fontSize: 18, fontWeight: "800", marginTop: SPACING.lg },
+  sectionHint: { fontSize: 13, marginTop: 2, marginBottom: SPACING.md },
+  more: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: SPACING.lg },
+  moreText: { fontSize: 14, fontWeight: "700" },
+
+  faces: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm, marginTop: SPACING.md },
+  faceTile: { borderWidth: 2, borderRadius: 40, padding: 3 },
+
+  outfits: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
+  outfitTile: {
+    width: "48.5%",
     alignItems: "center",
-    gap: SPACING.sm,
+    gap: 4,
     borderWidth: 1,
     borderRadius: RADIUS.lg,
     paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.xs,
   },
+  outfitLabel: { fontSize: 14, fontWeight: "700", marginTop: SPACING.xs },
+  outfitMeta: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1.2 },
   lock: {
     position: "absolute",
     top: 8,
@@ -192,9 +270,25 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  tileLabel: { fontSize: 12, fontWeight: "700", textAlign: "center", minHeight: 30 },
+
+  balls: { flexDirection: "row", justifyContent: "space-between" },
+  ballCell: { alignItems: "center", gap: 4, minWidth: 36 },
+  ball: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  ballLevel: { fontFamily: FONTS.boardLabel, fontSize: 12 },
+
+  saveBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
+  },
+  save: { minHeight: HIT_TARGET + 4, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
+  saveText: { fontSize: 16, fontWeight: "800" },
 });

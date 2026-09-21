@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore, useMatchesStore, useSessionsStore, useRoutineScoresStore } from "../../store";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
-import { SnookerPresetAvatar } from "../profile/SnookerPresetAvatar";
+import { PlayerAvatar } from "../profile/PlayerAvatar";
 import { ACHIEVEMENTS, getPlayerLevel } from "../../constants/achievements";
 import { useSeenAchievements } from "../../hooks/useSeenAchievements";
 
@@ -105,7 +105,7 @@ const PlayerIdentity: React.FC<{ compact?: boolean }> = ({ compact }) => {
             {user?.profile_image_url ? (
               <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
             ) : (
-              <SnookerPresetAvatar presetId={user?.avatar_preset} size={30} />
+              <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={levelInfo.level} size={30} showRing={false} />
             )}
           </View>
         </View>
@@ -145,7 +145,7 @@ const PlayerIdentity: React.FC<{ compact?: boolean }> = ({ compact }) => {
         {user?.profile_image_url ? (
           <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
         ) : (
-          <SnookerPresetAvatar presetId={user?.avatar_preset} size={34} />
+          <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={levelInfo.level} size={34} showRing={false} />
         )}
       </View>
       <View style={styles.playerInfoCompact}>

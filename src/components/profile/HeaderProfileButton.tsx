@@ -6,6 +6,7 @@ import { useAuthStore, useMatchesStore, useSessionsStore, useRoutineScoresStore 
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { SnookerPresetAvatar } from "./SnookerPresetAvatar";
+import { PlayerAvatar } from "./PlayerAvatar";
 import { ACHIEVEMENTS, getPlayerLevel } from "../../constants/achievements";
 import { useSeenAchievements } from "../../hooks/useSeenAchievements";
 
@@ -96,7 +97,7 @@ export const HeaderProfileButton = () => {
           {user?.profile_image_url ? (
             <Image source={{ uri: user.profile_image_url }} style={styles.image} resizeMode="cover" />
           ) : (
-            <SnookerPresetAvatar presetId={user?.avatar_preset} size={22} />
+            <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={levelInfo.level} size={22} showRing={false} />
           )}
         </View>
 

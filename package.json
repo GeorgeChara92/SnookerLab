@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@dicebear/core": "^9.4.3",
+    "@dicebear/notionists": "^9.4.2",
     "@expo-google-fonts/barlow-condensed": "^0.4.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.15.9",
