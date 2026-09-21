@@ -1,44 +1,46 @@
 import React, { useMemo, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SyncBanner } from "../../components/ui/SyncBanner";
+import { LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, UIManager, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
+import { SyncBanner } from "../../components/ui/SyncBanner";
+import { FormStrip, MatchRow, SectionHeader } from "../../components/matches/MatchRows";
+import { TierPaywallModal } from "../../components/subscription";
 import { useMatchesStore, useTournamentsStore } from "../../store";
-import type { Match, MatchesStackParamList } from "../../types";
+import type { MatchesStackParamList, Tournament } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
-import { TierPaywallModal } from "../../components/subscription";
+import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import {
+  byNewest,
+  groupByOpponent,
+  initialsOf,
+  relativeDate,
+  summariseMatches,
+} from "../../features/matches/matchSummary";
 
-type OpponentGroup = {
-  opponentName: string;
-  matchesPlayed: number;
-  wins: number;
-  losses: number;
-  draws: number;
-  framesFor: number;
-  framesAgainst: number;
-  lastPlayed?: string;
-  recentForm: string[];
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+/** How many of each list show before "Show all". Enough to be useful, few enough to scroll past. */
+const PREVIEW = { matches: 3, tournaments: 3, opponents: 4 };
+
+/** A win rate over two matches is noise, so the headline number waits for a few results. */
+const MIN_FOR_WIN_RATE = 3;
+
+const tournamentProgress = (tournament: Tournament) => {
+  const total = tournament.fixtures.length;
+  const done = tournament.fixtures.filter((fixture) => fixture.status === "completed").length;
+  return { done, total };
 };
 
-const getMatchRecordingMode = (match: Match): "live" | "manual" => {
-  if (match.recording_mode === "live" || match.recording_mode === "manual") {
-    return match.recording_mode;
+const tournamentChampion = (tournament: Tournament): string | null => {
+  if (tournament.status !== "completed") return null;
+  if (tournament.tournament_type === "knockout") {
+    const finalRound = Math.max(...tournament.fixtures.map((fixture) => fixture.round_number), 1);
+    return tournament.fixtures.find((fixture) => fixture.round_number === finalRound)?.winner ?? null;
   }
-  if (match.target_frames === 1) return "manual";
-  return "live";
-};
-
-const formatDate = (dateStr: string): string => {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays}d ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return null;
 };
 
 export const MatchesListScreen = () => {
@@ -48,557 +50,354 @@ export const MatchesListScreen = () => {
   const { colors } = useAppTheme();
   const subscription = useSubscriptionAccess();
   const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState({ matches: false, tournaments: false, opponents: false });
 
-  const activeTournaments = tournaments.filter((item) => item.status !== "completed");
-  const completedTournaments = tournaments.filter((item) => item.status === "completed");
+  const sortedMatches = useMemo(() => [...matches].sort(byNewest), [matches]);
+  const record = useMemo(() => summariseMatches(matches), [matches]);
+  const opponents = useMemo(() => groupByOpponent(matches), [matches]);
 
-  const sortedMatches = useMemo(
-    () => [...matches].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    [matches]
+  // Unfinished tournaments first, newest first within each.
+  const sortedTournaments = useMemo(
+    () =>
+      [...tournaments].sort((a, b) => {
+        if (a.status !== b.status) return a.status === "completed" ? 1 : -1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }),
+    [tournaments]
   );
 
-  const recentMatches = useMemo(() => sortedMatches.slice(0, 5), [sortedMatches]);
-
-const overallStats = useMemo(() => {
-    const wins = matches.filter((m) => m.result === "win").length;
-    const losses = matches.filter((m) => m.result === "loss").length;
-    const draws = matches.filter((m) => m.result === "draw").length;
-    const total = matches.length;
-    const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
-
-    // Count frames won/lost using explicit recording mode.
-    let framesWon = 0;
-    let framesLost = 0;
-    let pointsFor = 0;
-    let pointsAgainst = 0;
-
-    matches.forEach((m) => {
-      if (getMatchRecordingMode(m) === "manual") {
-        // Manual entry - count as 1 frame, winner determined by who had more points
-        framesWon += m.result === "win" ? 1 : 0;
-        framesLost += m.result === "loss" ? 1 : 0;
-        pointsFor += m.user_score;
-        pointsAgainst += m.opponent_score;
-      } else {
-        // Live scoring - user_score/opponent_score are frame wins
-        framesWon += m.user_score;
-        framesLost += m.opponent_score;
-        // Points would come from frame records, not tracked at match level for live
-      }
-    });
-
-    const form = sortedMatches
-      .slice(0, 5)
-      .map((m) => m.result?.toUpperCase?.()[0] ?? "")
-      .filter((r) => r);
-
-    return {
-      wins,
-      losses,
-      draws,
-      total,
-      winRate,
-      framesWon,
-      framesLost,
-      pointsFor,
-      pointsAgainst,
-      recentForm: form,
-    };
-  }, [matches, sortedMatches]);
-
-  const groups = useMemo(() => {
-    const map = new Map<string, OpponentGroup>();
-
-    matches.forEach((match: Match) => {
-      const existing = map.get(match.opponent_name) ?? {
-        opponentName: match.opponent_name,
-        matchesPlayed: 0,
-        wins: 0,
-        losses: 0,
-        draws: 0,
-        framesFor: 0,
-        framesAgainst: 0,
-        lastPlayed: undefined,
-        recentForm: [],
-      };
-
-      existing.matchesPlayed += 1;
-      
-      if (getMatchRecordingMode(match) === "manual") {
-        // Manual entry - 1 frame, result determines frame win/loss
-        existing.framesFor += match.result === "win" ? 1 : match.result === "draw" ? 0.5 : 0;
-        existing.framesAgainst += match.result === "loss" ? 1 : match.result === "draw" ? 0.5 : 0;
-      } else {
-        // Live scoring - scores are frame counts
-        existing.framesFor += match.user_score;
-        existing.framesAgainst += match.opponent_score;
-      }
-
-      if (match.result === "win") existing.wins += 1;
-      if (match.result === "loss") existing.losses += 1;
-      if (match.result === "draw") existing.draws += 1;
-
-      if (!existing.lastPlayed || new Date(match.date) > new Date(existing.lastPlayed)) {
-        existing.lastPlayed = match.date;
-      }
-
-      map.set(match.opponent_name, existing);
-    });
-
-    const sorted = Array.from(map.values()).sort((a, b) => {
-      if (b.matchesPlayed !== a.matchesPlayed) return b.matchesPlayed - a.matchesPlayed;
-      return (b.wins - b.losses) - (a.wins - a.losses);
-    });
-
-    sorted.forEach((group) => {
-      const groupMatches = matches
-        .filter((m) => m.opponent_name === group.opponentName)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      group.recentForm = groupMatches
-        .slice(0, 5)
-        .map((m) => m.result?.toUpperCase?.()[0] ?? "")
-        .filter((r) => r);
-    });
-
-    return sorted;
-  }, [matches]);
-
-  const topOpponent = useMemo(() => {
-    if (groups.length === 0) return null;
-    return groups.reduce((best, current) => {
-      const currentDiff = current.framesFor - current.framesAgainst;
-      const bestDiff = best.framesFor - best.framesAgainst;
-      if (currentDiff > bestDiff) return current;
-      return best;
-    });
-  }, [groups]);
-
-  const getChampionLabel = (tournament: (typeof tournaments)[number]) => {
-    if (tournament.tournament_type === "knockout") {
-      const finalRound = Math.max(...tournament.fixtures.map((fixture) => fixture.round_number), 1);
-      const finalFixture = tournament.fixtures.find((fixture) => fixture.round_number === finalRound);
-      return finalFixture?.winner ?? tournament.previous_champion ?? "See details";
-    }
-    return tournament.previous_champion ?? "See details";
+  const toggle = (key: keyof typeof expanded) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const getTournamentStage = (tournament: (typeof tournaments)[number]) => {
-    if (tournament.status === "completed") return "Completed";
-    if (tournament.tournament_type === "knockout") {
-      const currentRound = Math.max(...tournament.fixtures.map((f) => f.round_number), 1);
-      const totalRounds = Math.ceil(Math.log2(tournament.participants?.length ?? 4));
-      const stages = ["Final", "Semi-final", "Quarter-final", "Last 16", "Last 32", "First Round"];
-      return stages[totalRounds - currentRound] ?? `Round ${currentRound}`;
-    }
-    return "In Progress";
-  };
+  const startMatch = () =>
+    subscription.canCreateMatch ? navigation.navigate("NewMatch") : setPaywallFeature("Monthly Match Limit");
+  const startTournament = () =>
+    subscription.canCreateTournament
+      ? navigation.navigate("NewTournament")
+      : setPaywallFeature("Monthly Tournament Limit");
 
-  const openPaywall = (feature: string) => setPaywallFeature(feature);
+  // Only worth saying when there is a limit to run into.
+  const limitNote = [
+    subscription.remaining.matches !== null
+      ? `${subscription.remaining.matches} ${subscription.remaining.matches === 1 ? "match" : "matches"}`
+      : null,
+    subscription.remaining.tournaments !== null
+      ? `${subscription.remaining.tournaments} ${subscription.remaining.tournaments === 1 ? "tournament" : "tournaments"}`
+      : null,
+  ].filter(Boolean);
 
-  const renderFormBadge = (result: string, index: number) => {
-    if (!result) return null;
-    const isWin = result === "W";
-    const isLoss = result === "L";
-    const isDraw = result === "D";
+  // One line of insight, and only when there is enough history for it to mean something.
+  const bestRival = opponents.find((opponent) => opponent.played >= 2 && opponent.framesWon > opponent.framesLost);
+  const insight =
+    record.played >= 5 && bestRival
+      ? `Your best record is against ${bestRival.name}: ${bestRival.framesWon}–${bestRival.framesLost} in frames.`
+      : null;
 
-    return (
-      <View
-        key={index}
-        style={[
-          styles.formBadge,
-          {
-            backgroundColor: isWin
-              ? colors.primary + "20"
-              : isLoss
-              ? colors.danger + "20"
-              : colors.surfaceMuted,
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.formBadgeText,
-            { color: isWin ? colors.primary : isLoss ? colors.danger : colors.textMuted },
+  const visibleMatches = expanded.matches ? sortedMatches : sortedMatches.slice(0, PREVIEW.matches);
+  const visibleTournaments = expanded.tournaments ? sortedTournaments : sortedTournaments.slice(0, PREVIEW.tournaments);
+  const visibleOpponents = expanded.opponents ? opponents : opponents.slice(0, PREVIEW.opponents);
+
+  return (
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      <SyncBanner scope="matches" noun="score" />
+
+      {/* ---------------------------------------------------------------- actions */}
+      <View style={styles.actions}>
+        <Pressable
+          onPress={startMatch}
+          accessibilityRole="button"
+          accessibilityLabel={subscription.canCreateMatch ? "Start a new match" : "New match, locked on your plan"}
+          style={({ pressed }) => [
+            styles.primaryAction,
+            {
+              backgroundColor: subscription.canCreateMatch ? colors.primary : colors.surfaceMuted,
+              opacity: pressed ? 0.85 : 1,
+            },
           ]}
         >
-          {result}
+          <MaterialCommunityIcons
+            name={subscription.canCreateMatch ? "plus" : "lock-outline"}
+            size={20}
+            color={subscription.canCreateMatch ? colors.onPrimary : colors.textMuted}
+          />
+          <Text
+            style={[
+              styles.primaryActionText,
+              { color: subscription.canCreateMatch ? colors.onPrimary : colors.textMuted },
+            ]}
+          >
+            New match
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={startTournament}
+          accessibilityRole="button"
+          accessibilityLabel={
+            subscription.canCreateTournament ? "Set up a tournament" : "New tournament, locked on your plan"
+          }
+          style={({ pressed }) => [
+            styles.secondaryAction,
+            { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <MaterialCommunityIcons
+            name={subscription.canCreateTournament ? "trophy-outline" : "lock-outline"}
+            size={20}
+            color={colors.text}
+          />
+          <Text style={[styles.secondaryActionText, { color: colors.text }]}>Tournament</Text>
+        </Pressable>
+      </View>
+
+      {limitNote.length ? (
+        <Text style={[styles.limitNote, { color: colors.textMuted }]}>
+          {limitNote.join(" and ")} left this month on {subscription.tierLabel}
         </Text>
-      </View>
-    );
-  };
+      ) : null}
 
-  const renderSummaryCard = () => (
-    <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={styles.summaryHeader}>
-        <Text style={[styles.summaryTitle, { color: colors.text }]}>Match Record</Text>
-        <View style={[styles.winRateBadge, { backgroundColor: colors.primary + "20" }]}>
-          <Text style={[styles.winRateText, { color: colors.primary }]}>{overallStats.winRate}%</Text>
-        </View>
-      </View>
-
-      <View style={styles.summaryStats}>
-        <View style={styles.summaryStat}>
-          <Text style={[styles.summaryValue, { color: colors.primary }]}>{overallStats.wins}</Text>
-          <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Wins</Text>
-        </View>
-        <View style={styles.summaryStat}>
-          <Text style={[styles.summaryValue, { color: colors.danger }]}>{overallStats.losses}</Text>
-          <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Losses</Text>
-        </View>
-        <View style={styles.summaryStat}>
-          <Text style={[styles.summaryValue, { color: colors.text }]}>{overallStats.draws}</Text>
-          <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Draws</Text>
-        </View>
-        <View style={styles.summaryStat}>
-          <Text style={[styles.summaryValue, { color: colors.text }]}>
-            {overallStats.framesWon}-{overallStats.framesLost}
-          </Text>
-          <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Frames</Text>
-        </View>
-      </View>
-
-      {overallStats.recentForm.length > 0 && (
-        <View style={styles.formRow}>
-          <Text style={[styles.formLabel, { color: colors.textMuted }]}>Recent Form</Text>
-          <View style={styles.formBadges}>
-            {overallStats.recentForm.map((result, index) => renderFormBadge(result, index))}
+      {matches.length === 0 ? (
+        /* ---------------------------------------------------------------- first run */
+        <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceMuted }]}>
+            <MaterialCommunityIcons name="scoreboard-outline" size={28} color={colors.primary} />
           </View>
-        </View>
-      )}
-    </View>
-  );
-
-  const renderInsightCard = () => {
-    if (matches.length === 0) return null;
-
-    const insights: string[] = [];
-
-    if (overallStats.winRate >= 60) {
-      insights.push(`Strong ${overallStats.winRate}% win rate across ${overallStats.total} matches`);
-    } else if (overallStats.winRate < 40 && overallStats.total >= 3) {
-      insights.push("Focus on practice to improve your match results");
-    }
-
-    if (topOpponent && topOpponent.wins > topOpponent.losses) {
-      const diff = topOpponent.framesFor - topOpponent.framesAgainst;
-      insights.push(`Best record vs ${topOpponent.opponentName} (+${diff} frames)`);
-    }
-
-    if (insights.length === 0) {
-      insights.push(`Track your progress across ${overallStats.total} matches`);
-    }
-
-    return (
-      <View style={[styles.insightCard, { backgroundColor: colors.surfaceMuted, borderColor: colors.primary + "40" }]}>
-        <MaterialCommunityIcons name="chart-box-outline" size={20} color={colors.primary} style={styles.insightIcon} />
-        <View style={styles.insightContent}>
-          <Text style={[styles.insightTitle, { color: colors.text }]}>Performance Insight</Text>
-          <Text style={[styles.insightText, { color: colors.textMuted }]}>{insights[0]}</Text>
-        </View>
-      </View>
-    );
-  };
-
-  const renderRecentMatches = () => {
-    if (recentMatches.length === 0) return null;
-
-    return (
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Matches</Text>
-        {recentMatches.map((match) => {
-          const isWin = match.result === "win";
-          const isLoss = match.result === "loss";
-          const isManualEntry = getMatchRecordingMode(match) === "manual";
-          const bestOf = match.target_frames ?? match.frames_played;
-
-          return (
-            <Pressable
-              key={match.id}
-              style={[styles.matchRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => navigation.navigate("MatchDetail", { matchId: match.id })}
-            >
-              <View style={styles.matchLeft}>
-                <View
-                  style={[
-                    styles.resultBadge,
-                    {
-                      backgroundColor: isWin
-                        ? colors.primary + "20"
-                        : isLoss
-                        ? colors.danger + "20"
-                        : colors.surfaceMuted,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.resultBadgeText,
-                      { color: isWin ? colors.primary : isLoss ? colors.danger : colors.textMuted },
-                    ]}
-                  >
-                    {isWin ? "W" : isLoss ? "L" : "D"}
-                  </Text>
-                </View>
-                <View style={styles.matchInfo}>
-                  <View style={styles.matchTitleRow}>
-                    <Text style={[styles.matchOpponent, { color: colors.text }]} numberOfLines={1}>
-                      {match.opponent_name}
-                    </Text>
-                    <View
-                      style={[
-                        styles.matchTypeBadge,
-                        {
-                          backgroundColor: isManualEntry
-                            ? colors.surfaceMuted
-                            : colors.primary + "15",
-                          borderColor: isManualEntry ? colors.border : colors.primary + "40",
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.matchTypeText,
-                          { color: isManualEntry ? colors.textMuted : colors.primary },
-                        ]}
-                      >
-                        {isManualEntry ? "Manual" : "Live"}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={[styles.matchDate, { color: colors.textMuted }]}>
-                    {formatDate(match.date)}
-                    {!isManualEntry && bestOf && ` · Best of ${bestOf}`}
-                  </Text>
-                </View>
-              </View>
-              <Text
-                style={[
-                  styles.matchScore,
-                  { color: isWin ? colors.primary : isLoss ? colors.danger : colors.text },
-                ]}
-              >
-                {match.user_score}-{match.opponent_score}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    );
-  };
-
-  const renderTournaments = () => {
-    if (activeTournaments.length === 0 && completedTournaments.length === 0) return null;
-
-    return (
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Tournaments</Text>
-
-        {activeTournaments.slice(0, 2).map((tournament) => (
-          <Pressable
-            key={tournament.id}
-            style={[styles.tournamentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => navigation.navigate("TournamentDetail", { tournamentId: tournament.id })}
-          >
-            <View style={styles.tournamentTop}>
-              <Text style={[styles.tournamentName, { color: colors.text }]} numberOfLines={1}>
-                {tournament.name}
-              </Text>
-              <View style={[styles.tournamentStageBadge, { backgroundColor: colors.primary + "20" }]}>
-                <Text style={[styles.tournamentStageText, { color: colors.primary }]}>
-                  {getTournamentStage(tournament)}
-                </Text>
-              </View>
-            </View>
-            <Text style={[styles.tournamentMeta, { color: colors.textMuted }]}>
-              {tournament.tournament_type.toUpperCase()} · Best of {tournament.best_of_frames}
-            </Text>
-          </Pressable>
-        ))}
-
-        {completedTournaments.slice(0, 2).map((tournament) => (
-          <Pressable
-            key={tournament.id}
-            style={[styles.tournamentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => navigation.navigate("TournamentDetail", { tournamentId: tournament.id })}
-          >
-            <View style={styles.tournamentTop}>
-              <Text style={[styles.tournamentName, { color: colors.text }]} numberOfLines={1}>
-                {tournament.name}
-              </Text>
-              <Text style={[styles.tournamentChampion, { color: colors.primary }]}>
-                {getChampionLabel(tournament)}
-              </Text>
-            </View>
-            <Text style={[styles.tournamentMeta, { color: colors.textMuted }]}>
-              {tournament.tournament_type.toUpperCase()} · Completed
-            </Text>
-          </Pressable>
-        ))}
-
-        {(activeTournaments.length > 2 || completedTournaments.length > 2) && (
-          <Text style={[styles.seeAllText, { color: colors.primary }]}>
-            {activeTournaments.length + completedTournaments.length} total tournaments
-          </Text>
-        )}
-      </View>
-    );
-  };
-
-  const renderOpponents = () => (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Opponents {groups.length > 0 ? `(${groups.length})` : ""}
-      </Text>
-
-      {groups.length === 0 ? (
-        <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.emptyTitle, { color: colors.text }]}>No matches yet</Text>
           <Text style={[styles.emptyBody, { color: colors.textMuted }]}>
-            Record your first match to start tracking your performance.
+            Score one live, frame by frame, or enter a result after you have played. Your record and
+            head-to-heads build from there.
           </Text>
         </View>
       ) : (
-        groups.slice(0, 10).map((opponent) => {
-          const frameDiff = opponent.framesFor - opponent.framesAgainst;
-          const isPositive = frameDiff > 0;
-          const isNeutral = frameDiff === 0;
+        /* ---------------------------------------------------------------- record */
+        <View style={[styles.recordCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.kicker, { color: colors.textMuted }]}>YOUR RECORD</Text>
 
-          return (
-            <Pressable
-              key={opponent.opponentName}
-              style={[styles.opponentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => navigation.navigate("OpponentMatches", { opponentName: opponent.opponentName })}
-            >
-              <View style={styles.opponentTop}>
-                <View style={styles.opponentLeft}>
-                  <Text style={[styles.opponentName, { color: colors.text }]} numberOfLines={1}>
-                    {opponent.opponentName}
+          <View style={styles.recordTop}>
+            <View style={styles.headline}>
+              {record.played >= MIN_FOR_WIN_RATE ? (
+                <>
+                  <Text style={[styles.headlineValue, { color: colors.text }]}>{record.winRate}%</Text>
+                  <Text style={[styles.headlineLabel, { color: colors.textMuted }]}>won</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.headlineValue, { color: colors.text }]}>{record.played}</Text>
+                  <Text style={[styles.headlineLabel, { color: colors.textMuted }]}>
+                    {record.played === 1 ? "match played" : "matches played"}
                   </Text>
-                  <Text style={[styles.opponentMatches, { color: colors.textMuted }]}>
-                    {opponent.matchesPlayed} match{opponent.matchesPlayed !== 1 ? "es" : ""}
-                  </Text>
+                </>
+              )}
+            </View>
+
+            <View style={styles.tally}>
+              {[
+                { label: "Won", value: record.wins, colour: colors.primary },
+                { label: "Lost", value: record.losses, colour: colors.danger },
+                { label: "Drawn", value: record.draws, colour: colors.text },
+              ].map((item) => (
+                <View key={item.label} style={styles.tallyItem}>
+                  <Text style={[styles.tallyValue, { color: item.colour }]}>{item.value}</Text>
+                  <Text style={[styles.tallyLabel, { color: colors.textMuted }]}>{item.label}</Text>
                 </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={[styles.recordFoot, { borderTopColor: colors.border }]}>
+            <View>
+              <Text style={[styles.footValue, { color: colors.text }]}>
+                {record.framesWon}–{record.framesLost}
+              </Text>
+              <Text style={[styles.footLabel, { color: colors.textMuted }]}>Frames</Text>
+            </View>
+            <View style={styles.footForm}>
+              <Text style={[styles.footLabel, { color: colors.textMuted }]}>Form</Text>
+              <FormStrip form={record.form} />
+            </View>
+          </View>
+
+          {insight ? (
+            <View style={[styles.insight, { backgroundColor: colors.surfaceMuted }]}>
+              <MaterialCommunityIcons name="lightbulb-on-outline" size={16} color={colors.primary} />
+              <Text style={[styles.insightText, { color: colors.text }]}>{insight}</Text>
+            </View>
+          ) : null}
+        </View>
+      )}
+
+      {/* ---------------------------------------------------------------- matches */}
+      {sortedMatches.length ? (
+        <>
+          <SectionHeader
+            title="Recent matches"
+            actionLabel={
+              sortedMatches.length > PREVIEW.matches
+                ? expanded.matches
+                  ? "Show fewer"
+                  : `Show all ${sortedMatches.length}`
+                : undefined
+            }
+            onAction={() => toggle("matches")}
+          />
+          {visibleMatches.map((match) => (
+            <MatchRow
+              key={match.id}
+              match={match}
+              title={match.opponent_name}
+              onPress={() => navigation.navigate("MatchDetail", { matchId: match.id })}
+            />
+          ))}
+        </>
+      ) : null}
+
+      {/* ---------------------------------------------------------------- tournaments */}
+      {sortedTournaments.length ? (
+        <>
+          <SectionHeader
+            title="Tournaments"
+            actionLabel={
+              sortedTournaments.length > PREVIEW.tournaments
+                ? expanded.tournaments
+                  ? "Show fewer"
+                  : `Show all ${sortedTournaments.length}`
+                : undefined
+            }
+            onAction={() => toggle("tournaments")}
+          />
+          {visibleTournaments.map((tournament) => {
+            const { done, total } = tournamentProgress(tournament);
+            const complete = tournament.status === "completed";
+            const champion = tournamentChampion(tournament);
+            const progress = total ? done / total : 0;
+
+            return (
+              <Pressable
+                key={tournament.id}
+                onPress={() => navigation.navigate("TournamentDetail", { tournamentId: tournament.id })}
+                accessibilityRole="button"
+                accessibilityLabel={`${tournament.name}, ${tournament.tournament_type}, ${done} of ${total} played`}
+                style={({ pressed }) => [
+                  styles.tournamentRow,
+                  { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+                ]}
+              >
                 <View
                   style={[
-                    styles.frameDiffBadge,
-                    {
-                      backgroundColor: isPositive
-                        ? colors.primary + "20"
-                        : isNeutral
-                        ? colors.surfaceMuted
-                        : colors.danger + "20",
-                    },
+                    styles.tournamentIcon,
+                    { backgroundColor: complete ? colors.accentWash : colors.surfaceMuted },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.frameDiffText,
-                      { color: isPositive ? colors.primary : isNeutral ? colors.textMuted : colors.danger },
-                    ]}
-                  >
-                    {isPositive ? "+" : ""}
-                    {frameDiff}
+                  <MaterialCommunityIcons
+                    name={complete ? "trophy" : tournament.tournament_type === "knockout" ? "tournament" : "table-large"}
+                    size={20}
+                    color={complete ? colors.accent : colors.primary}
+                  />
+                </View>
+
+                <View style={styles.tournamentBody}>
+                  <View style={styles.tournamentTitleRow}>
+                    <Text style={[styles.tournamentName, { color: colors.text }]} numberOfLines={1}>
+                      {tournament.name}
+                    </Text>
+                    <Text style={[styles.tournamentDate, { color: colors.textMuted }]}>
+                      {relativeDate(tournament.created_at)}
+                    </Text>
+                  </View>
+                  <Text style={[styles.tournamentMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                    {tournament.tournament_type === "knockout" ? "Knockout" : "League"} ·{" "}
+                    {tournament.participants.filter((name) => !/^BYE\b/i.test(name)).length} players ·{" "}
+                    {complete
+                      ? champion
+                        ? `Won by ${champion}`
+                        : "Complete"
+                      : `${done} of ${total} played`}
+                  </Text>
+                  {!complete ? (
+                    <View style={[styles.progressTrack, { backgroundColor: colors.surfaceMuted }]}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          { backgroundColor: colors.primary, width: `${Math.round(progress * 100)}%` },
+                        ]}
+                      />
+                    </View>
+                  ) : null}
+                </View>
+
+                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </Pressable>
+            );
+          })}
+        </>
+      ) : null}
+
+      {/* ---------------------------------------------------------------- opponents */}
+      {opponents.length ? (
+        <>
+          <SectionHeader
+            title="Opponents"
+            actionLabel={
+              opponents.length > PREVIEW.opponents
+                ? expanded.opponents
+                  ? "Show fewer"
+                  : `Show all ${opponents.length}`
+                : undefined
+            }
+            onAction={() => toggle("opponents")}
+          />
+          {visibleOpponents.map((opponent) => {
+            const diff = opponent.framesWon - opponent.framesLost;
+            return (
+              <Pressable
+                key={opponent.name}
+                onPress={() => navigation.navigate("OpponentMatches", { opponentName: opponent.name })}
+                accessibilityRole="button"
+                accessibilityLabel={`${opponent.name}: won ${opponent.wins}, lost ${opponent.losses}, drawn ${opponent.draws}`}
+                style={({ pressed }) => [
+                  styles.opponentRow,
+                  { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                  <Text style={[styles.avatarText, { color: colors.text }]}>{initialsOf(opponent.name)}</Text>
+                </View>
+
+                <View style={styles.opponentBody}>
+                  <Text style={[styles.opponentName, { color: colors.text }]} numberOfLines={1}>
+                    {opponent.name}
+                  </Text>
+                  <Text style={[styles.opponentMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                    {opponent.played} {opponent.played === 1 ? "match" : "matches"}
+                    {opponent.lastPlayed ? ` · last ${relativeDate(opponent.lastPlayed).toLowerCase()}` : ""}
                   </Text>
                 </View>
-              </View>
 
-              <View style={styles.opponentStats}>
-                <View style={styles.opponentStat}>
-                  <Text style={[styles.opponentStatValue, { color: colors.primary }]}>{opponent.wins}</Text>
-                  <Text style={[styles.opponentStatLabel, { color: colors.textMuted }]}>W</Text>
+                <View style={styles.opponentRecord}>
+                  <Text style={[styles.opponentScore, { color: colors.text }]}>
+                    {opponent.wins}–{opponent.losses}
+                    {opponent.draws ? `–${opponent.draws}` : ""}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.opponentDiff,
+                      { color: diff > 0 ? colors.primary : diff < 0 ? colors.danger : colors.textMuted },
+                    ]}
+                  >
+                    {diff > 0 ? `+${diff}` : diff} frames
+                  </Text>
                 </View>
-                <View style={styles.opponentStat}>
-                  <Text style={[styles.opponentStatValue, { color: colors.danger }]}>{opponent.losses}</Text>
-                  <Text style={[styles.opponentStatLabel, { color: colors.textMuted }]}>L</Text>
-                </View>
-                <View style={styles.opponentStat}>
-                  <Text style={[styles.opponentStatValue, { color: colors.text }]}>{opponent.draws}</Text>
-                  <Text style={[styles.opponentStatLabel, { color: colors.textMuted }]}>D</Text>
-                </View>
-                {opponent.recentForm.length > 0 && (
-                  <View style={styles.opponentForm}>
-                    {opponent.recentForm.map((result, index) => renderFormBadge(result, index))}
-                  </View>
-                )}
-              </View>
-
-              {opponent.lastPlayed && (
-                <Text style={[styles.opponentLast, { color: colors.textMuted }]}>
-                  Last: {formatDate(opponent.lastPlayed)}
-                </Text>
-              )}
-            </Pressable>
-          );
-        })
-      )}
-
-      {groups.length > 10 && (
-        <Text style={[styles.seeAllText, { color: colors.primary }]}>
-          +{groups.length - 10} more opponents
-        </Text>
-      )}
-    </View>
-  );
-
-  return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.syncBannerWrap}>
-        <SyncBanner scope="matches" noun="score" />
-      </View>
-
-      <View style={styles.actionsRow}>
-        <Pressable
-          style={[
-            styles.primaryButton,
-            { 
-              backgroundColor: subscription.canCreateMatch ? colors.primary : colors.surfaceMuted,
-              opacity: subscription.canCreateMatch ? 1 : 0.85,
-            },
-          ]}
-          onPress={() => (subscription.canCreateMatch ? navigation.navigate("NewMatch") : openPaywall("Monthly Match Limit"))}
-        >
-          {subscription.canCreateMatch ? (
-            <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>+ New Match</Text>
-          ) : (
-            <View style={styles.lockedContent}>
-              <Text style={[styles.lockedIcon, { color: colors.textMuted }]}>🔒</Text>
-              <Text style={[styles.lockedText, { color: colors.text }]}>New Match</Text>
-            </View>
-          )}
-        </Pressable>
-        <Pressable
-          style={[
-            styles.secondaryButton,
-            { 
-              backgroundColor: colors.surfaceMuted, 
-              borderColor: colors.border,
-              opacity: subscription.canCreateTournament ? 1 : 0.85,
-            },
-          ]}
-          onPress={() =>
-            subscription.canCreateTournament ? navigation.navigate("NewTournament") : openPaywall("Monthly Tournament Limit")
-          }
-        >
-          {subscription.canCreateTournament ? (
-            <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Tournament</Text>
-          ) : (
-            <View style={styles.lockedContent}>
-              <Text style={[styles.lockedIcon, { color: colors.textMuted }]}>🔒</Text>
-              <Text style={[styles.lockedText, { color: colors.text }]}>Tournament</Text>
-            </View>
-          )}
-        </Pressable>
-      </View>
-
-      <Text style={[styles.limitHint, { color: colors.textMuted }]}>
-        {subscription.tierLabel} plan · {subscription.remaining.matches ?? "∞"} matches · {subscription.remaining.tournaments ?? "∞"} tournaments
-      </Text>
-
-      {matches.length > 0 && renderSummaryCard()}
-      {matches.length > 0 && renderInsightCard()}
-      {renderRecentMatches()}
-      {renderTournaments()}
-      {renderOpponents()}
+              </Pressable>
+            );
+          })}
+        </>
+      ) : null}
 
       <TierPaywallModal
         visible={!!paywallFeature}
@@ -611,330 +410,152 @@ const overallStats = useMemo(() => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  syncBannerWrap: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  actionsRow: {
+  container: { flex: 1 },
+  content: { padding: SPACING.lg, paddingBottom: SPACING.xxl, gap: 0 },
+
+  actions: {
     flexDirection: "row",
-    gap: 8,
+    gap: SPACING.sm,
+    marginTop: SPACING.sm,
   },
-  primaryButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  primaryButtonText: {
-    fontWeight: "700",
-    fontSize: 15,
-  },
-  secondaryButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1.5,
-  },
-  secondaryButtonText: {
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  lockedContent: {
+  primaryAction: {
+    flex: 1.3,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: 52,
+    borderRadius: RADIUS.md,
   },
-  lockedIcon: {
-    fontSize: 14,
-  },
-  lockedText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  limitHint: {
-    marginTop: 8,
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 12,
-  },
-  summaryCard: {
+  primaryActionText: { fontSize: 16, fontWeight: "800" },
+  secondaryAction: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: 52,
+    borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
   },
-  summaryHeader: {
+  secondaryActionText: { fontSize: 16, fontWeight: "700" },
+  limitNote: { fontSize: 12, fontWeight: "600", marginTop: SPACING.sm },
+
+  emptyCard: {
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    marginTop: SPACING.lg,
+  },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.xs,
+  },
+  emptyTitle: { fontSize: 18, fontWeight: "800" },
+  emptyBody: { fontSize: 14, lineHeight: 20, textAlign: "center" },
+
+  recordCard: {
+    borderWidth: 1,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.lg,
+    marginTop: SPACING.lg,
+  },
+  kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
+  recordTop: {
     flexDirection: "row",
+    alignItems: "flex-end",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+    marginTop: SPACING.sm,
   },
-  summaryTitle: {
-    fontSize: 17,
+  headline: { flexShrink: 1 },
+  headlineValue: {
+    fontSize: 40,
     fontWeight: "800",
+    letterSpacing: -1,
+    fontVariant: ["tabular-nums"],
   },
-  winRateBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  winRateText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  summaryStats: {
+  headlineLabel: { fontSize: 13, fontWeight: "600", marginTop: -2 },
+  tally: { flexDirection: "row", gap: SPACING.lg },
+  tallyItem: { alignItems: "center", minWidth: 40 },
+  tallyValue: { fontSize: 22, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  tallyLabel: { fontSize: 11, fontWeight: "700", marginTop: 2 },
+  recordFoot: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-  },
-  summaryStat: {
-    alignItems: "center",
-    flex: 1,
-  },
-  summaryValue: {
-    fontSize: 24,
-    fontWeight: "800",
-  },
-  summaryLabel: {
-    fontSize: 11,
-    marginTop: 2,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  formRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 16,
-    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(120,120,120,0.2)",
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.md,
   },
-  formLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginRight: 12,
-  },
-  formBadges: {
+  footValue: { fontSize: 17, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  footLabel: { fontSize: 11, fontWeight: "700", marginTop: 2 },
+  footForm: { alignItems: "flex-end", gap: 4 },
+  insight: {
     flexDirection: "row",
-    gap: 6,
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginTop: SPACING.md,
   },
-  formBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  insightText: { flex: 1, fontSize: 13, fontWeight: "600", lineHeight: 18 },
+
+  tournamentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    minHeight: 72,
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  tournamentIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
     alignItems: "center",
     justifyContent: "center",
   },
-  formBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  insightCard: {
+  tournamentBody: { flex: 1 },
+  tournamentTitleRow: { flexDirection: "row", alignItems: "baseline", gap: SPACING.sm },
+  tournamentName: { flexShrink: 1, fontSize: 16, fontWeight: "700" },
+  tournamentDate: { fontSize: 12, fontWeight: "600" },
+  tournamentMeta: { fontSize: 12, fontWeight: "600", marginTop: 3 },
+  progressTrack: { height: 4, borderRadius: 2, overflow: "hidden", marginTop: SPACING.sm },
+  progressFill: { height: "100%", borderRadius: 2 },
+
+  opponentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    minHeight: 64,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
-  insightIcon: {
-    fontSize: 18,
-  },
-  insightContent: {
-    flex: 1,
-  },
-  insightTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  insightText: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  matchRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  avatar: {
+    width: HIT_TARGET - 4,
+    height: HIT_TARGET - 4,
+    borderRadius: (HIT_TARGET - 4) / 2,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  matchLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    gap: 10,
-  },
-  resultBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
-  resultBadgeText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  matchInfo: {
-    flex: 1,
-  },
-  matchTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  matchOpponent: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  matchTypeBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  matchTypeText: {
-    fontSize: 9,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-  },
-  matchDate: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  matchScore: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  tournamentCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  tournamentTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  tournamentName: {
-    fontSize: 14,
-    fontWeight: "700",
-    flex: 1,
-    marginRight: 8,
-  },
-  tournamentStageBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  tournamentStageText: {
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  tournamentChampion: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  tournamentMeta: {
-    fontSize: 11,
-    marginTop: 4,
-  },
-  seeAllText: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 8,
-  },
-  opponentCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-  },
-  opponentTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  opponentLeft: {
-    flex: 1,
-    marginRight: 12,
-  },
-  opponentName: {
-    fontSize: 15,
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  opponentMatches: {
-    fontSize: 12,
-  },
-  frameDiffBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  frameDiffText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  opponentStats: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  opponentStat: {
-    alignItems: "center",
-  },
-  opponentStatValue: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  opponentStatLabel: {
-    fontSize: 10,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  opponentForm: {
-    flexDirection: "row",
-    gap: 4,
-    marginLeft: 8,
-  },
-  opponentLast: {
-    fontSize: 11,
-    marginTop: 10,
-  },
-  emptyState: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 24,
-    alignItems: "center",
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
-  emptyBody: {
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-  },
+  avatarText: { fontSize: 14, fontWeight: "800" },
+  opponentBody: { flex: 1 },
+  opponentName: { fontSize: 16, fontWeight: "700" },
+  opponentMeta: { fontSize: 12, fontWeight: "600", marginTop: 3 },
+  opponentRecord: { alignItems: "flex-end" },
+  opponentScore: { fontSize: 17, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  opponentDiff: { fontSize: 11, fontWeight: "700", marginTop: 2 },
 });
