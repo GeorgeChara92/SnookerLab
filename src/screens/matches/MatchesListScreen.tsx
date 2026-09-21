@@ -9,7 +9,8 @@ import { useMatchesStore, useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, Tournament } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
-import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { BoardPanel, ScoreStrip } from "../../components/scoreboard/Scoreboard";
 import {
   byNewest,
   groupByOpponent,
@@ -55,6 +56,11 @@ export const MatchesListScreen = () => {
   const sortedMatches = useMemo(() => [...matches].sort(byNewest), [matches]);
   const record = useMemo(() => summariseMatches(matches), [matches]);
   const opponents = useMemo(() => groupByOpponent(matches), [matches]);
+  const firstPlayed = sortedMatches.length
+    ? new Date(sortedMatches[sortedMatches.length - 1].date)
+        .toLocaleDateString("en-GB", { month: "short", year: "numeric" })
+        .toUpperCase()
+    : null;
 
   // Unfinished tournaments first, newest first within each.
   const sortedTournaments = useMemo(
@@ -176,60 +182,47 @@ export const MatchesListScreen = () => {
         </View>
       ) : (
         /* ---------------------------------------------------------------- record */
-        <View style={[styles.recordCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.kicker, { color: colors.textMuted }]}>YOUR RECORD</Text>
+        <BoardPanel
+          kicker="CAREER"
+          aside={
+            record.played >= MIN_FOR_WIN_RATE
+              ? `${record.winRate}% WON`
+              : firstPlayed
+                ? `SINCE ${firstPlayed}`
+                : undefined
+          }
+          style={styles.career}
+        >
+          {/* Won and lost either side, matches played in the middle: read it as "2 (2) 0". */}
+          <ScoreStrip
+            size="hero"
+            left={{ name: "Won", score: record.wins, leading: record.wins >= record.losses && record.wins > 0 }}
+            right={{ name: "Lost", score: record.losses, leading: record.losses > record.wins }}
+            middle={`(${record.played})`}
+            style={styles.careerStrip}
+          />
 
-          <View style={styles.recordTop}>
-            <View style={styles.headline}>
-              {record.played >= MIN_FOR_WIN_RATE ? (
-                <>
-                  <Text style={[styles.headlineValue, { color: colors.text }]}>{record.winRate}%</Text>
-                  <Text style={[styles.headlineLabel, { color: colors.textMuted }]}>won</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={[styles.headlineValue, { color: colors.text }]}>{record.played}</Text>
-                  <Text style={[styles.headlineLabel, { color: colors.textMuted }]}>
-                    {record.played === 1 ? "match played" : "matches played"}
-                  </Text>
-                </>
-              )}
-            </View>
-
-            <View style={styles.tally}>
-              {[
-                { label: "Won", value: record.wins, colour: colors.primary },
-                { label: "Lost", value: record.losses, colour: colors.danger },
-                { label: "Drawn", value: record.draws, colour: colors.text },
-              ].map((item) => (
-                <View key={item.label} style={styles.tallyItem}>
-                  <Text style={[styles.tallyValue, { color: item.colour }]}>{item.value}</Text>
-                  <Text style={[styles.tallyLabel, { color: colors.textMuted }]}>{item.label}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View style={[styles.recordFoot, { borderTopColor: colors.border }]}>
-            <View>
-              <Text style={[styles.footValue, { color: colors.text }]}>
+          <View style={[styles.careerFoot, { borderTopColor: colors.boardRaised }]}>
+            <View style={styles.footCell}>
+              <Text style={[styles.footLabel, { color: colors.boardMuted }]}>FRAMES</Text>
+              <Text style={[styles.footValue, { color: colors.boardText }]}>
                 {record.framesWon}–{record.framesLost}
               </Text>
-              <Text style={[styles.footLabel, { color: colors.textMuted }]}>Frames</Text>
             </View>
-            <View style={styles.footForm}>
-              <Text style={[styles.footLabel, { color: colors.textMuted }]}>Form</Text>
-              <FormStrip form={record.form} />
+            <View style={styles.footCell}>
+              <Text style={[styles.footLabel, { color: colors.boardMuted }]}>DRAWN</Text>
+              <Text style={[styles.footValue, { color: colors.boardText }]}>{record.draws}</Text>
+            </View>
+            <View style={[styles.footCell, styles.footForm]}>
+              <Text style={[styles.footLabel, { color: colors.boardMuted }]}>FORM</Text>
+              <FormStrip form={record.form} size={22} />
             </View>
           </View>
 
           {insight ? (
-            <View style={[styles.insight, { backgroundColor: colors.surfaceMuted }]}>
-              <MaterialCommunityIcons name="lightbulb-on-outline" size={16} color={colors.primary} />
-              <Text style={[styles.insightText, { color: colors.text }]}>{insight}</Text>
-            </View>
+            <Text style={[styles.insight, { color: colors.boardMuted }]}>{insight}</Text>
           ) : null}
-        </View>
+        </BoardPanel>
       )}
 
       {/* ---------------------------------------------------------------- matches */}
@@ -250,7 +243,6 @@ export const MatchesListScreen = () => {
             <MatchRow
               key={match.id}
               match={match}
-              title={match.opponent_name}
               onPress={() => navigation.navigate("MatchDetail", { matchId: match.id })}
             />
           ))}
@@ -460,51 +452,24 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: "800" },
   emptyBody: { fontSize: 14, lineHeight: 20, textAlign: "center" },
 
-  recordCard: {
-    borderWidth: 1,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    marginTop: SPACING.lg,
-  },
-  kicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1.2 },
-  recordTop: {
+  career: { marginTop: SPACING.lg },
+  careerStrip: { borderTopWidth: 0, borderBottomWidth: 0 },
+  careerFoot: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    marginTop: SPACING.sm,
-  },
-  headline: { flexShrink: 1 },
-  headlineValue: {
-    fontSize: 40,
-    fontWeight: "800",
-    letterSpacing: -1,
-    fontVariant: ["tabular-nums"],
-  },
-  headlineLabel: { fontSize: 13, fontWeight: "600", marginTop: -2 },
-  tally: { flexDirection: "row", gap: SPACING.lg },
-  tallyItem: { alignItems: "center", minWidth: 40 },
-  tallyValue: { fontSize: 22, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  tallyLabel: { fontSize: 11, fontWeight: "700", marginTop: 2 },
-  recordFoot: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     borderTopWidth: 1,
-    marginTop: SPACING.lg,
+    marginTop: SPACING.md,
     paddingTop: SPACING.md,
   },
-  footValue: { fontSize: 17, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  footLabel: { fontSize: 11, fontWeight: "700", marginTop: 2 },
-  footForm: { alignItems: "flex-end", gap: 4 },
+  footCell: { flex: 1, gap: 4 },
+  footForm: { flex: 1.4, alignItems: "flex-end" },
+  footLabel: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1.6 },
+  footValue: { fontFamily: FONTS.board, fontSize: 22, fontVariant: ["tabular-nums"] },
   insight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
     marginTop: SPACING.md,
   },
-  insightText: { flex: 1, fontSize: 13, fontWeight: "600", lineHeight: 18 },
 
   tournamentRow: {
     flexDirection: "row",
@@ -551,11 +516,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontSize: 14, fontWeight: "800" },
+  avatarText: { fontFamily: FONTS.board, fontSize: 17, letterSpacing: 0.6 },
   opponentBody: { flex: 1 },
   opponentName: { fontSize: 16, fontWeight: "700" },
   opponentMeta: { fontSize: 12, fontWeight: "600", marginTop: 3 },
   opponentRecord: { alignItems: "flex-end" },
-  opponentScore: { fontSize: 17, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  opponentDiff: { fontSize: 11, fontWeight: "700", marginTop: 2 },
+  opponentScore: { fontFamily: FONTS.board, fontSize: 24, fontVariant: ["tabular-nums"] },
+  opponentDiff: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 0.8, marginTop: -2 },
 });

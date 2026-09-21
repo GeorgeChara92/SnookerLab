@@ -44,6 +44,17 @@ export type AppColors = {
   tabBar: string;
   tabInactive: string;
   balls: Record<BallColourName, BallColour>;
+  /**
+   * The broadcast scoreboard. It is dark in both themes on purpose: the graphic at the bottom
+   * of a snooker broadcast is always a dark strip with a gold rule, and that is the look.
+   */
+  board: string;
+  /** The best-of cell in the middle of the scoreboard, a step lighter than the strip. */
+  boardRaised: string;
+  boardText: string;
+  boardMuted: string;
+  /** The thin gold line along the top and bottom of the strip. */
+  boardRule: string;
 };
 
 /** Ball colours as they read on a lit table, tuned for contrast rather than realism. */
@@ -92,6 +103,11 @@ export const LIGHT_COLORS: AppColors = {
   tabBar: "#FFFFFF",
   tabInactive: "#6D7F78",
   balls: LIGHT_BALLS,
+  board: "#0F2A22",
+  boardRaised: "#1A3D32",
+  boardText: "#F4F1E8",
+  boardMuted: "#9DB5AC",
+  boardRule: "#C9A44C",
 };
 
 export const DARK_COLORS: AppColors = {
@@ -117,6 +133,11 @@ export const DARK_COLORS: AppColors = {
   tabBar: "#13211D",
   tabInactive: "#8FA59D",
   balls: DARK_BALLS,
+  board: "#060D0B",
+  boardRaised: "#122420",
+  boardText: "#F4F1E8",
+  boardMuted: "#7F948C",
+  boardRule: "#9C7C30",
 };
 
 export const getThemeColors = (isDark: boolean) => (isDark ? DARK_COLORS : LIGHT_COLORS);
@@ -162,6 +183,20 @@ export const TYPE = {
   kicker: { fontSize: 11, fontWeight: "700", letterSpacing: 1.2 },
   score: { fontSize: 34, fontWeight: "800", fontVariant: ["tabular-nums"], letterSpacing: -1 },
   scoreSmall: { fontSize: 20, fontWeight: "700", fontVariant: ["tabular-nums"] },
+} as const;
+
+/**
+ * The scoreboard face. Barlow Condensed is used for scores, scoreboard names and headline
+ * numerals only - everything else stays in the system face, so the condensed type reads as
+ * "this is the scoreboard" rather than as the app's whole voice.
+ *
+ * Do not pair these with fontWeight: the weight is in the family name, and Android falls back
+ * to the system font if you ask for both.
+ */
+export const FONTS = {
+  board: "BarlowCondensed_700Bold",
+  boardHeavy: "BarlowCondensed_800ExtraBold",
+  boardLabel: "BarlowCondensed_600SemiBold",
 } as const;
 
 /** Minimum touch target. Anything tappable should reach this, padding included. */

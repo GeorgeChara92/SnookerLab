@@ -9,14 +9,14 @@ import {
 } from "@react-navigation/native";
 import { useMatchesStore } from "../../store";
 import type { MatchesStackParamList } from "../../types";
-import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { BoardPanel, ScoreStrip, TaleOfTheTape } from "../../components/scoreboard/Scoreboard";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { FormStrip, MatchRow, SectionHeader } from "../../components/matches/MatchRows";
 import {
   byNewest,
   getRecordingMode,
-  initialsOf,
   relativeDate,
   summariseMatches,
 } from "../../features/matches/matchSummary";
@@ -24,17 +24,6 @@ import {
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-
-/** "Mon 1 Jun", with the year only when it is not this one. */
-const matchDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }),
-  });
-};
 
 export const OpponentMatchesScreen = () => {
   const route = useRoute<RouteProp<MatchesStackParamList, "OpponentMatches">>();
@@ -76,6 +65,33 @@ export const OpponentMatchesScreen = () => {
       ),
     [getFrameRecordsByMatchId, opponentMatches]
   );
+
+  const highestBreaks = useMemo(
+    () =>
+      opponentMatches.reduce(
+        (best, match) =>
+          getFrameRecordsByMatchId(match.id).reduce(
+            (inner, frame) => ({
+              you: Math.max(inner.you, frame.highest_break_user ?? 0),
+              them: Math.max(inner.them, frame.highest_break_opponent ?? 0),
+            }),
+            best
+          ),
+        { you: 0, them: 0 }
+      ),
+    [getFrameRecordsByMatchId, opponentMatches]
+  );
+
+  const tapeRows = [
+    { label: "Matches won", left: record.wins, right: record.losses },
+    { label: "Frames won", left: record.framesWon, right: record.framesLost },
+    ...(points.for + points.against > 0
+      ? [{ label: "Points scored", left: points.for, right: points.against }]
+      : []),
+    ...(highestBreaks.you + highestBreaks.them > 0
+      ? [{ label: "Highest break", left: highestBreaks.you, right: highestBreaks.them }]
+      : []),
+  ];
 
   const setSelecting = (value: boolean) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -133,81 +149,49 @@ export const OpponentMatchesScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* ---------------------------------------------------------------- who */}
-        <View style={[styles.hero, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.heroTop}>
-            <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
-              <Text style={[styles.avatarText, { color: colors.text }]}>{initialsOf(opponentName)}</Text>
-            </View>
-            <View style={styles.heroText}>
-              <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                {opponentName}
-              </Text>
-              <Text style={[styles.heroMeta, { color: colors.textMuted }]}>
-                {record.played} {record.played === 1 ? "match" : "matches"}
-                {record.lastPlayed ? ` · last played ${relativeDate(record.lastPlayed).toLowerCase()}` : ""}
-              </Text>
-            </View>
-          </View>
+        {/* ---------------------------------------------------------------- head to head */}
+        <BoardPanel
+          kicker="HEAD TO HEAD"
+          aside={record.lastPlayed ? `LAST ${relativeDate(record.lastPlayed).toUpperCase()}` : undefined}
+        >
+          <ScoreStrip
+            size="hero"
+            left={{ name: "You", score: record.wins, leading: lead > 0 }}
+            right={{ name: opponentName, score: record.losses, leading: lead < 0 }}
+            middle={`(${record.played})`}
+            style={styles.heroStrip}
+          />
 
-          <Text
-            style={[
-              styles.headToHead,
-              { color: lead > 0 ? colors.primary : lead < 0 ? colors.danger : colors.text },
-            ]}
-          >
-            {headToHead}
-          </Text>
-
-          <View style={[styles.stats, { borderColor: colors.border }]}>
-            {[
-              { label: "Won", value: `${record.wins}`, colour: colors.primary },
-              { label: "Lost", value: `${record.losses}`, colour: colors.danger },
-              { label: "Drawn", value: `${record.draws}`, colour: colors.text },
-              { label: "Frames", value: `${record.framesWon}–${record.framesLost}`, colour: colors.text },
-            ].map((item, index) => (
-              <View
-                key={item.label}
-                style={[
-                  styles.stat,
-                  index > 0 ? { borderLeftWidth: 1, borderLeftColor: colors.border } : null,
-                ]}
-              >
-                <Text style={[styles.statValue, { color: item.colour }]}>{item.value}</Text>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.heroFoot}>
-            {record.form.length ? (
-              <View style={styles.footItem}>
-                <Text style={[styles.footLabel, { color: colors.textMuted }]}>Form</Text>
-                <FormStrip form={record.form} />
-              </View>
-            ) : null}
-            {points.for + points.against > 0 ? (
-              <View style={[styles.footItem, styles.footRight]}>
-                <Text style={[styles.footLabel, { color: colors.textMuted }]}>Points</Text>
-                <Text style={[styles.footValue, { color: colors.text }]}>
-                  {points.for}–{points.against}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <Pressable
-            onPress={() => navigation.navigate("NewMatch", { opponentName })}
-            accessibilityRole="button"
-            accessibilityLabel={`Start a new match against ${opponentName}`}
-            style={({ pressed }) => [styles.newMatch, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
-          >
-            <MaterialCommunityIcons name="plus" size={20} color={colors.onPrimary} />
-            <Text style={[styles.newMatchText, { color: colors.onPrimary }]} numberOfLines={1}>
-              New match against {opponentName}
+          <Text style={[styles.headToHead, { color: colors.boardText }]}>{headToHead}</Text>
+          {record.draws ? (
+            <Text style={[styles.drawNote, { color: colors.boardMuted }]}>
+              {record.draws} {record.draws === 1 ? "match" : "matches"} drawn
             </Text>
-          </Pressable>
-        </View>
+          ) : null}
+
+          <View style={[styles.tape, { borderTopColor: colors.boardRaised }]}>
+            <TaleOfTheTape leftName="You" rightName={opponentName} rows={tapeRows} />
+          </View>
+
+          {record.form.length ? (
+            <View style={styles.formRow}>
+              <Text style={[styles.formLabel, { color: colors.boardMuted }]}>YOUR FORM</Text>
+              <FormStrip form={record.form} size={22} />
+            </View>
+          ) : null}
+        </BoardPanel>
+
+        <Pressable
+          onPress={() => navigation.navigate("NewMatch", { opponentName })}
+          accessibilityRole="button"
+          accessibilityLabel={`Start a new match against ${opponentName}`}
+          style={({ pressed }) => [styles.newMatch, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+        >
+          <MaterialCommunityIcons name="plus" size={20} color={colors.onPrimary} />
+          <Text style={[styles.newMatchText, { color: colors.onPrimary }]} numberOfLines={1}>
+            New match against {opponentName}
+          </Text>
+        </Pressable>
 
         {/* ---------------------------------------------------------------- matches */}
         <SectionHeader
@@ -226,7 +210,6 @@ export const OpponentMatchesScreen = () => {
             <MatchRow
               key={match.id}
               match={match}
-              title={matchDate(match.date)}
               selectionMode={isSelectionMode}
               selected={selected}
               onLongPress={() => {
@@ -286,47 +269,33 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: SPACING.lg, paddingBottom: 120 },
 
-  hero: {
-    borderWidth: 1,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
-  },
-  heroTop: { flexDirection: "row", alignItems: "center", gap: SPACING.md },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontSize: 20, fontWeight: "800" },
-  heroText: { flex: 1 },
-  name: { fontSize: 24, fontWeight: "800" },
-  heroMeta: { fontSize: 13, fontWeight: "600", marginTop: 2 },
-  headToHead: { fontSize: 15, fontWeight: "800", marginTop: SPACING.lg },
-
-  stats: {
-    flexDirection: "row",
-    borderWidth: 1,
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.md,
+  heroStrip: { borderTopWidth: 0, borderBottomWidth: 0 },
+  headToHead: {
+    fontFamily: FONTS.board,
+    fontSize: 20,
+    letterSpacing: 0.6,
+    textAlign: "center",
     marginTop: SPACING.sm,
   },
-  stat: { flex: 1, alignItems: "center" },
-  statValue: { fontSize: 20, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  statLabel: { fontSize: 11, fontWeight: "700", marginTop: 2 },
-
-  heroFoot: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginTop: SPACING.md,
+  drawNote: {
+    fontFamily: FONTS.boardLabel,
+    fontSize: 13,
+    letterSpacing: 0.8,
+    textAlign: "center",
+    marginTop: 2,
   },
-  footItem: { gap: 4 },
-  footRight: { alignItems: "flex-end" },
-  footLabel: { fontSize: 11, fontWeight: "700" },
-  footValue: { fontSize: 17, fontWeight: "800", fontVariant: ["tabular-nums"] },
+  tape: {
+    borderTopWidth: 1,
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.md,
+  },
+  formRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: SPACING.xs,
+  },
+  formLabel: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1.6 },
 
   newMatch: {
     flexDirection: "row",
