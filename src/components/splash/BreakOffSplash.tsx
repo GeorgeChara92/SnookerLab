@@ -13,25 +13,25 @@ import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from "react-native-svg
 import { FONTS } from "../../constants";
 
 /**
- * The opening shot: a break-off on a full-size table.
+ * The opening shot: a break-off, as it is played.
  *
- * The table is drawn to the real proportions - a 2:1 bed, the baulk line 737mm from the bottom
- * cushion, the D, and the colours on their spots - with the reds racked behind the pink. A cue
- * addresses the cue ball on the baulk line, draws back and strikes; the cue ball runs up past
- * the pink into the side of the pack, the reds scatter, and it comes off the side cushion back
- * towards baulk. Then the name settles in and the app shows through. About two and a half seconds; a tap
- * skips it, and with Reduce Motion on the table simply fades.
+ * The baize fills the screen with the cushions just out of view: the baulk line, the D, the
+ * colours on their spots and the reds racked behind the pink, all to the real proportions. The
+ * cue settles behind the cue ball between the brown and the yellow, feathers, draws back, pauses
+ * and strikes. The cue ball runs up the table and takes the back-right corner red thin, goes
+ * three cushions - top, right, then across to the left - and comes to rest behind the baulk
+ * colours, while the corner red and its neighbours ease out of the pack. Then the name settles
+ * in. About four seconds; a tap skips it, and with Reduce Motion on it shows the table and name.
+ *
+ * Everything runs off one clock on the phone's animation thread, so the shot keeps its timing
+ * while the app loads.
  */
 
 // ---------------------------------------------------------------------------- colours
-const ROOM = "#07110D";
-const RAIL = "#3E2616";
-const RAIL_EDGE = "#5A3A22";
-const CUSHION = "#0B3324";
 const BAIZE = "#0F4A33";
-const BAIZE_LIGHT = "#15603F";
-const LINE = "rgba(255,255,255,0.28)";
-const POCKET = "#030605";
+const BAIZE_LIGHT = "#17623F";
+const BAIZE_EDGE = "#0A3625";
+const LINE = "rgba(255,255,255,0.3)";
 const TEXT = "#F4F1E8";
 const BRASS = "#C9A44C";
 
@@ -53,38 +53,34 @@ const BALL_MM = 52.5;
 const BAULK_FROM_BOTTOM = 737;
 const D_RADIUS = 292;
 const BLACK_FROM_TOP = 324;
+/** How far past the screen the cushions sit, so the pockets and rails stay out of sight. */
+const OVERHANG = 14;
 
-/**
- * When each part of the shot happens, in milliseconds. Everything runs off one clock on the
- * phone's animation thread, so the shot keeps its timing even while the app is busy loading.
- */
+/** When each part of the shot happens, in milliseconds on the one clock. */
 const T = {
-  tableIn: [0, 220],
-  cueIn: [120, 260],
-  address: 260,
-  drawnBack: 520,
-  strike: 640, // the tip meets the ball
-  through: 760,
-  cueOut: [780, 1000],
-  travel: [620, 880], // cue ball up the table to the pack
-  after: [880, 1650], // off the side cushion and back to baulk
-  ripple: [880, 1250],
-  scatter: 880,
-  dim: [1450, 1800],
-  name: [1550, 1900],
-  end: 2300,
-  /** The app starts loading underneath once the reds are on their way. */
-  loadApp: 1350,
-  fade: 300,
+  tableIn: [0, 350],
+  cueIn: [250, 550],
+  // The cue: settle, one feather, a slow draw back, a pause, then through.
+  cue: [550, 800, 1000, 1420, 1580, 1700, 1820],
+  cueOut: [1900, 2200],
+  travel: [1680, 2060], // cue ball from the strike to the pack
+  around: [2060, 3450], // three cushions and back to baulk
+  ripple: [2060, 2380],
+  reds: 2060,
+  dim: [3200, 3550],
+  name: [3300, 3680],
+  end: 4000,
+  /** The app starts loading underneath once the cue ball is on its way round. */
+  loadApp: 2500,
+  fade: 350,
 };
 
-/** A fixed spread, so the break is the same every time. */
+type Point = { x: number; y: number };
+
 const jitter = (index: number, salt: number) => {
   const x = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
   return x - Math.floor(x);
 };
-
-type Point = { x: number; y: number };
 
 /** How far along a ray from `from` (unit direction `dir`) a ball first touches one at `centre`. */
 const firstTouch = (from: Point, dir: Point, centre: Point, d: number) => {
@@ -117,125 +113,112 @@ type Props = {
   onLoadApp?: () => void;
 };
 
+/** Everything about the table and the shot that depends only on the screen size. */
+export const layoutBreak = (width: number, height: number) => {
+  // The bed covers the whole screen, a touch larger than it, so the cushions sit just off the edges.
+  const bedW = Math.max(width + 2 * OVERHANG, (height + 2 * OVERHANG) * (TABLE_WIDTH / TABLE_LENGTH));
+  const bedL = bedW * (TABLE_LENGTH / TABLE_WIDTH);
+  const left = (width - bedW) / 2;
+  const top = (height - bedL) / 2;
+  const s = bedW / TABLE_WIDTH; // px per mm
+  // True to scale the balls are specks on a phone, so they are drawn a little larger.
+  const d = Math.max(12, BALL_MM * s * 1.6);
+  const cx = width / 2;
+  const y = (mmFromTop: number) => top + mmFromTop * s;
+
+  const baulkY = y(TABLE_LENGTH - BAULK_FROM_BOTTOM);
+  const dR = D_RADIUS * s;
+  const pinkY = y(TABLE_LENGTH / 4);
+
+  const colours = {
+    // Seen from the baulk end, the yellow is on the right of the D and the green on the left.
+    yellow: { x: cx + dR, y: baulkY },
+    brown: { x: cx, y: baulkY },
+    green: { x: cx - dR, y: baulkY },
+    blue: { x: cx, y: y(TABLE_LENGTH / 2) },
+    pink: { x: cx, y: pinkY },
+    black: { x: cx, y: y(BLACK_FROM_TOP) },
+  };
+
+  // The reds: apex as close to the pink as it can be without touching, rows back towards the black.
+  const apexY = pinkY - d * 1.08;
+  const rack: Array<Point & { row: number }> = [];
+  for (let row = 0; row < 5; row += 1) {
+    for (let i = 0; i <= row; i += 1) {
+      rack.push({ x: cx + (i - row / 2) * d * 1.02, y: apexY - row * d * 0.88, row });
+    }
+  }
+  const CORNER = 14; // the right-hand end of the back row
+
+  // The cue ball, between the brown and the yellow, played thin onto the lower right of the
+  // corner red.
+  const cueStart = { x: cx + dR * 0.6, y: baulkY };
+  const onCorner = { x: rack[CORNER].x + d * 0.9, y: rack[CORNER].y + d * 0.43 };
+  const len = Math.hypot(onCorner.x - cueStart.x, onCorner.y - cueStart.y);
+  const dir = { x: (onCorner.x - cueStart.x) / len, y: (onCorner.y - cueStart.y) / len };
+  let run = len + d;
+  let struck = CORNER;
+  rack.forEach((red, index) => {
+    const t = firstTouch(cueStart, dir, red, d);
+    if (t !== null && t < run) {
+      run = t;
+      struck = index;
+    }
+  });
+  const contact = { x: cueStart.x + dir.x * run, y: cueStart.y + dir.y * run };
+
+  // Round the table: top cushion, right cushion, across to the left, and back behind the colours.
+  const edge = {
+    left: Math.max(left, 0) + d / 2,
+    right: Math.min(left + bedW, width) - d / 2,
+    top: Math.max(top, 0) + d / 2,
+  };
+  const path: Point[] = [
+    contact,
+    { x: cx + bedW * 0.3, y: edge.top },
+    // Low enough on the right, and high enough on the left, that the run across passes below the blue.
+    { x: edge.right, y: top + bedL * 0.38 },
+    { x: edge.left, y: baulkY - bedL * 0.035 },
+    // Behind the brown and the green, towards the bottom cushion.
+    { x: cx - dR * 0.25, y: baulkY + dR * 1.05 },
+  ];
+  const lengths = path.slice(1).map((point, index) => Math.hypot(point.x - path[index].x, point.y - path[index].y));
+  const total = lengths.reduce((sum, value) => sum + value, 0);
+  let covered = 0;
+  const pathStops = [0, ...lengths.map((value) => (covered += value) / total)];
+
+  // The pack barely opens on a break-off: the red that was hit and the two behind it come out,
+  // and the rest shift a little away from the contact.
+  const released: Record<number, Point> = {
+    [struck]: { x: d * 3.2, y: -d * 2.2 },
+    13: { x: d * 0.6, y: -d * 1.6 },
+    9: { x: d * 1.3, y: d * 0.35 },
+  };
+  // The rest loosen evenly out from the front red - every gap grows by the same share - so the
+  // pack eases open towards the back without any two balls running into each other, and the
+  // front red stays by the pink.
+  const SPREAD = 0.05;
+  const reds = rack.map((red, index) => {
+    const distance = Math.hypot(red.x - contact.x, red.y - contact.y);
+    let move = released[index] ?? { x: (red.x - rack[0].x) * SPREAD, y: (red.y - rack[0].y) * SPREAD };
+    // Should a red ever land on a colour (a very short screen), it stays where it was.
+    const lands = { x: red.x + move.x, y: red.y + move.y };
+    if (Object.values(colours).some((ball) => Math.hypot(ball.x - lands.x, ball.y - lands.y) < d * 1.02)) {
+      move = { x: 0, y: 0 };
+    }
+    return { ...red, move, delay: (distance / d) * 24 + jitter(index, 4) * 20, big: index in released };
+  });
+
+  return { bedW, bedL, left, top, d, cx, baulkY, dR, colours, reds, cueStart, contact, path, pathStops, dir, struck };
+};
+
 export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
   const { width, height } = useWindowDimensions();
   const finished = useRef(false);
+  const layout = useMemo(() => layoutBreak(width, height), [height, width]);
+  const { bedW, bedL, top, d, cx, baulkY, dR, colours, reds, cueStart, contact, path, pathStops, dir } = layout;
 
-  // ---------------------------------------------------------------- laying out the table
-  const layout = useMemo(() => {
-    const rail = Math.round(Math.min(width, height) * 0.04);
-    const margin = 10;
-    // The bed is 2:1; fit it to whichever of width or height runs out first.
-    const bedW = Math.min(
-      width - 2 * (rail + margin),
-      (height - 2 * (rail + margin) - 40) / (TABLE_LENGTH / TABLE_WIDTH)
-    );
-    const bedL = bedW * (TABLE_LENGTH / TABLE_WIDTH);
-    const left = (width - bedW) / 2;
-    const top = (height - bedL) / 2;
-    const s = bedW / TABLE_WIDTH; // px per mm
-    // True to scale the balls are specks on a phone, so they are drawn a little larger.
-    const d = Math.max(11, BALL_MM * s * 1.6);
-    const cx = left + bedW / 2;
-    const y = (mmFromTop: number) => top + mmFromTop * s;
-
-    const baulkY = y(TABLE_LENGTH - BAULK_FROM_BOTTOM);
-    const dR = D_RADIUS * s;
-    const pinkY = y(TABLE_LENGTH / 4);
-
-    const colours = {
-      // Seen from the baulk end, the yellow is on the right of the D and the green on the left.
-      yellow: { x: cx + dR, y: baulkY },
-      brown: { x: cx, y: baulkY },
-      green: { x: cx - dR, y: baulkY },
-      blue: { x: cx, y: y(TABLE_LENGTH / 2) },
-      pink: { x: cx, y: pinkY },
-      black: { x: cx, y: y(BLACK_FROM_TOP) },
-    };
-
-    // The reds: apex as close to the pink as it can be without touching, rows back towards the black.
-    const apexY = pinkY - d * 1.08;
-    const rack: Array<Point & { row: number }> = [];
-    for (let row = 0; row < 5; row += 1) {
-      for (let i = 0; i <= row; i += 1) {
-        rack.push({ x: cx + (i - row / 2) * d * 1.02, y: apexY - row * d * 0.88, row });
-      }
-    }
-
-    // The cue ball sits on the baulk line between the brown and the yellow and is played up the
-    // right of the pink, thin into the right-hand side of the pack.
-    const cueStart = { x: cx + dR * 0.55, y: baulkY };
-    const aimAt = { x: rack[9].x + d * 0.55, y: rack[9].y }; // just right of the fourth row's end
-    const len = Math.hypot(aimAt.x - cueStart.x, aimAt.y - cueStart.y);
-    const dir = { x: (aimAt.x - cueStart.x) / len, y: (aimAt.y - cueStart.y) / len };
-    let travel = len;
-    let struck = 9;
-    rack.forEach((red, index) => {
-      const t = firstTouch(cueStart, dir, red, d);
-      if (t !== null && t < travel) {
-        travel = t;
-        struck = index;
-      }
-    });
-    const contact = { x: cueStart.x + dir.x * travel, y: cueStart.y + dir.y * travel };
-    // Off the right cushion and back down into baulk, clear of the colours.
-    const cushion = { x: left + bedW - d / 2, y: contact.y + bedL * 0.16 };
-    const rest = { x: cx + bedW * 0.22, y: top + bedL * 0.9 };
-
-    // Where the reds come to rest: over the whole bed, apart from each other and the colours,
-    // clear of the name and of the cue ball's resting place.
-    const avoid = [...Object.values(colours), rest];
-    const nameTop = height * 0.44;
-    const nameBottom = height * 0.56;
-    const spots: Point[] = [];
-    for (let k = 0; spots.length < rack.length && k < 2000; k += 1) {
-      const px = left + d + (bedW - 2 * d) * jitter(k, 7);
-      const py = top + d + (bedL - 2 * d) * jitter(k, 8);
-      if (py > nameTop && py < nameBottom) continue;
-      if (avoid.some((ball) => Math.hypot(ball.x - px, ball.y - py) < d * 2.6)) continue;
-      if (spots.some((spot) => Math.hypot(spot.x - px, spot.y - py) < d * 2.2)) continue;
-      spots.push({ x: px, y: py });
-    }
-    // Each red goes to the spot lying in its own direction from the contact, so the pack
-    // bursts outwards from where it was hit.
-    const angle = (p: Point) => Math.atan2(p.y - contact.y, p.x - contact.x);
-    const rackOrder = rack.map((red, index) => ({ ...red, index })).sort((a, b) => angle(a) - angle(b));
-    const spotOrder = [...spots].sort((a, b) => angle(a) - angle(b));
-    const reds = rack.map((red) => ({ ...red, to: { x: red.x, y: red.y }, delay: 0 }));
-    rackOrder.forEach((red, order) => {
-      const distance = Math.hypot(red.x - rack[struck].x, red.y - rack[struck].y);
-      reds[red.index] = {
-        ...red,
-        to: spotOrder[order] ?? { x: red.x, y: red.y },
-        // The hit travels through the pack: balls further from the contact move a touch later.
-        delay: (distance / d) * 22 + jitter(red.index, 4) * 30,
-      };
-    });
-
-    return {
-      rail,
-      bedW,
-      bedL,
-      left,
-      top,
-      d,
-      cx,
-      baulkY,
-      dR,
-      colours,
-      reds,
-      cueStart,
-      contact,
-      cushion,
-      rest,
-      cueAngle: (Math.atan2(dir.y, dir.x) * 180) / Math.PI + 90,
-      cueLength: Math.max(height * 0.55, 320),
-    };
-  }, [height, width]);
-
-  const { rail, bedW, bedL, left, top, d, baulkY, dR, colours, reds, cueStart, contact, cushion, rest } = layout;
-
-  // ---------------------------------------------------------------- the motion
+  // ---------------------------------------------------------------- the clock
   const clock = useRef(new Animated.Value(0)).current;
   const leave = useRef(new Animated.Value(1)).current;
   const loadedApp = useRef(false);
@@ -264,9 +247,8 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
       .then((reduce) => {
         if (cancelled) return;
         if (reduce) {
-          // The finished table and the name, then straight in.
           clock.setValue(T.end);
-          timers.push(setTimeout(finish, 700));
+          timers.push(setTimeout(finish, 900));
           return;
         }
         Animated.timing(clock, { toValue: T.end, duration: T.end, easing: Easing.linear, useNativeDriver: true }).start(
@@ -283,7 +265,7 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** 0 to 1 over a window of the clock, with an easing. */
+  /** 0 to 1 over a window of the clock. */
   const phase = ([from, to]: number[], easing: (t: number) => number = Easing.linear) =>
     clock.interpolate({ inputRange: [from, to], outputRange: [0, 1], easing, extrapolate: "clamp" });
 
@@ -293,34 +275,35 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
     outputRange: [0, 1, 1, 0],
     extrapolate: "clamp",
   });
-  const travel = phase(T.travel, Easing.out(Easing.quad));
-  const after = phase(T.after, Easing.out(Easing.cubic));
-  const ripple = phase(T.ripple, Easing.out(Easing.quad));
-  const dim = phase(T.dim, Easing.out(Easing.quad));
-  const name = phase(T.name, Easing.out(Easing.back(1.4)));
-  const scatter = reds.map((red, index) =>
-    phase([T.scatter + red.delay, T.scatter + red.delay + 600 + jitter(index, 5) * 250], Easing.out(Easing.cubic))
-  );
-
-  // ---------------------------------------------------------------- the cue ball's path
-  const cueBallX = Animated.add(
-    travel.interpolate({ inputRange: [0, 1], outputRange: [0, contact.x - cueStart.x] }),
-    after.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, cushion.x - contact.x, rest.x - contact.x] })
-  );
-  const cueBallY = Animated.add(
-    travel.interpolate({ inputRange: [0, 1], outputRange: [0, contact.y - cueStart.y] }),
-    after.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, cushion.y - contact.y, rest.y - contact.y] })
-  );
-
-  // The cue lies along the line of the shot: at the ball, a slow draw back, then through.
   const tipGap = clock.interpolate({
-    inputRange: [T.address, T.drawnBack, T.strike, T.through],
-    outputRange: [d * 1.4, d * 4.2, d * 0.5, -d * 0.6],
+    inputRange: T.cue,
+    outputRange: [d * 1.6, d * 2.4, d * 1.4, d * 4.6, d * 4.6, d * 0.5, -d * 0.8],
     easing: Easing.inOut(Easing.quad),
     extrapolate: "clamp",
   });
 
-  const cueW = Math.max(7, d * 0.55);
+  // The cue ball: up the table to the pack, then round the cushions, slowing as it goes.
+  const travel = phase(T.travel, Easing.out(Easing.quad));
+  const around = phase(T.around, Easing.out(Easing.cubic));
+  const cueBallX = Animated.add(
+    travel.interpolate({ inputRange: [0, 1], outputRange: [0, contact.x - cueStart.x] }),
+    around.interpolate({ inputRange: pathStops, outputRange: path.map((point) => point.x - contact.x) })
+  );
+  const cueBallY = Animated.add(
+    travel.interpolate({ inputRange: [0, 1], outputRange: [0, contact.y - cueStart.y] }),
+    around.interpolate({ inputRange: pathStops, outputRange: path.map((point) => point.y - contact.y) })
+  );
+
+  const ripple = phase(T.ripple, Easing.out(Easing.quad));
+  const dim = phase(T.dim, Easing.out(Easing.quad));
+  const name = phase(T.name, Easing.out(Easing.back(1.3)));
+  const redMoves = reds.map((red) =>
+    phase([T.reds + red.delay, T.reds + red.delay + (red.big ? 1100 : 500)], Easing.out(Easing.cubic))
+  );
+
+  const cueAngle = (Math.atan2(dir.y, dir.x) * 180) / Math.PI + 90;
+  const cueLength = Math.max(height * 0.55, 320);
+  const cueW = Math.max(7, d * 0.5);
 
   return (
     <Animated.View style={[StyleSheet.absoluteFill, styles.root, { opacity: leave }]}>
@@ -331,61 +314,26 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
         accessibilityLabel="Snooker Lab. Tap to skip the opening."
       >
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: tableIn }]}>
-          {/* ------------------------------------------------ rails, bed and pockets */}
+          {/* ------------------------------------------------ the baize, lit from above */}
           <View
-            style={[
-              styles.rail,
-              {
-                left: left - rail,
-                top: top - rail,
-                width: bedW + rail * 2,
-                height: bedL + rail * 2,
-                borderRadius: rail * 0.9,
-                backgroundColor: RAIL,
-                borderColor: RAIL_EDGE,
-              },
-            ]}
+            style={{
+              position: "absolute",
+              width: bedW * 1.5,
+              height: bedL * 0.95,
+              borderRadius: bedW,
+              left: cx - bedW * 0.75,
+              top: top + bedL * 0.03,
+              backgroundColor: BAIZE_LIGHT,
+              opacity: 0.5,
+            }}
           />
-          <View style={[styles.bed, { left, top, width: bedW, height: bedL, backgroundColor: BAIZE, borderColor: CUSHION }]}>
-            {/* The light from the lamp above the table. */}
-            <View
-              style={{
-                position: "absolute",
-                width: bedW * 1.6,
-                height: bedL * 0.9,
-                borderRadius: bedW,
-                left: -bedW * 0.3,
-                top: bedL * 0.05,
-                backgroundColor: BAIZE_LIGHT,
-                opacity: 0.45,
-              }}
-            />
-          </View>
-
-          {[
-            [left, top],
-            [left + bedW, top],
-            [left - d * 0.2, top + bedL / 2],
-            [left + bedW + d * 0.2, top + bedL / 2],
-            [left, top + bedL],
-            [left + bedW, top + bedL],
-          ].map(([px, py], index) => (
-            <View
-              key={index}
-              style={[
-                styles.pocket,
-                { width: d * 1.9, height: d * 1.9, borderRadius: d * 0.95, left: px - d * 0.95, top: py - d * 0.95 },
-              ]}
-            />
-          ))}
+          <View style={[styles.edgeShade, { top: 0, height: height * 0.08 }]} />
+          <View style={[styles.edgeShade, { bottom: 0, height: height * 0.08 }]} />
 
           {/* ------------------------------------------------ the baulk line and the D */}
-          <View style={[styles.line, { left, width: bedW, top: baulkY - 0.5 }]} />
+          <View style={[styles.line, { left: 0, right: 0, top: baulkY - 0.5 }]} />
           <View
-            style={[
-              styles.dee,
-              { width: dR * 2, height: dR * 2, borderRadius: dR, left: layout.cx - dR, top: baulkY - dR },
-            ]}
+            style={[styles.dee, { width: dR * 2, height: dR * 2, borderRadius: dR, left: cx - dR, top: baulkY - dR }]}
           />
 
           {/* ------------------------------------------------ the colours on their spots */}
@@ -406,8 +354,8 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
                 borderRadius: d,
                 left: contact.x - d,
                 top: contact.y - d,
-                opacity: ripple.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.6, 0] }),
-                transform: [{ scale: ripple.interpolate({ inputRange: [0, 1], outputRange: [0.4, 3] }) }],
+                opacity: ripple.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.55, 0] }),
+                transform: [{ scale: ripple.interpolate({ inputRange: [0, 1], outputRange: [0.5, 2.6] }) }],
               },
             ]}
           />
@@ -422,8 +370,8 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
                   left: red.x - d / 2,
                   top: red.y - d / 2,
                   transform: [
-                    { translateX: scatter[index].interpolate({ inputRange: [0, 1], outputRange: [0, red.to.x - red.x] }) },
-                    { translateY: scatter[index].interpolate({ inputRange: [0, 1], outputRange: [0, red.to.y - red.y] }) },
+                    { translateX: redMoves[index].interpolate({ inputRange: [0, 1], outputRange: [0, red.move.x] }) },
+                    { translateY: redMoves[index].interpolate({ inputRange: [0, 1], outputRange: [0, red.move.y] }) },
                   ],
                 },
               ]}
@@ -451,29 +399,21 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
             pointerEvents="none"
             style={[
               styles.cuePivot,
-              {
-                left: cueStart.x,
-                top: cueStart.y,
-                opacity: cueOpacity,
-                transform: [{ rotate: `${layout.cueAngle}deg` }],
-              },
+              { left: cueStart.x, top: cueStart.y, opacity: cueOpacity, transform: [{ rotate: `${cueAngle}deg` }] },
             ]}
           >
             <Animated.View style={{ position: "absolute", left: -cueW / 2, top: 0, transform: [{ translateY: tipGap }] }}>
-              <Svg width={cueW} height={layout.cueLength}>
+              <Svg width={cueW} height={cueLength}>
                 <Defs>
                   <LinearGradient id="shaft" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0" stopColor="#E9D3A6" />
-                    <Stop offset="0.62" stopColor="#C99B5E" />
-                    <Stop offset="0.66" stopColor="#2A1A10" />
+                    <Stop offset="0" stopColor="#EBD6AA" />
+                    <Stop offset="0.6" stopColor="#C99B5E" />
+                    <Stop offset="0.64" stopColor="#2A1A10" />
                     <Stop offset="1" stopColor="#1A100A" />
                   </LinearGradient>
                 </Defs>
                 {/* Tapered from the tip to the butt, with a ferrule and a chalked tip. */}
-                <Polygon
-                  points={`${cueW * 0.3},0 ${cueW * 0.7},0 ${cueW},${layout.cueLength} 0,${layout.cueLength}`}
-                  fill="url(#shaft)"
-                />
+                <Polygon points={`${cueW * 0.3},0 ${cueW * 0.7},0 ${cueW},${cueLength} 0,${cueLength}`} fill="url(#shaft)" />
                 <Rect x={cueW * 0.3} y={0} width={cueW * 0.4} height={3} fill="#2B4E8C" />
                 <Rect x={cueW * 0.28} y={3} width={cueW * 0.44} height={5} fill="#F2EEE2" />
               </Svg>
@@ -508,10 +448,8 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
 };
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: ROOM, zIndex: 100, elevation: 100 },
-  rail: { position: "absolute", borderWidth: 1 },
-  bed: { position: "absolute", overflow: "hidden", borderWidth: 3 },
-  pocket: { position: "absolute", backgroundColor: POCKET },
+  root: { backgroundColor: BAIZE, zIndex: 100, elevation: 100 },
+  edgeShade: { position: "absolute", left: 0, right: 0, backgroundColor: BAIZE_EDGE, opacity: 0.55 },
   line: { position: "absolute", height: 1, backgroundColor: LINE },
   dee: { position: "absolute", borderWidth: 1, borderColor: "transparent", borderBottomColor: LINE },
   at: { position: "absolute" },
