@@ -19,7 +19,7 @@ import { FONTS } from "../../constants";
  * cushion, the D, and the colours on their spots - with the reds racked behind the pink. A cue
  * addresses the cue ball on the baulk line, draws back and strikes; the cue ball runs up past
  * the pink into the side of the pack, the reds scatter, and it comes off the side cushion back
- * towards baulk. Then the name settles in and the app shows through. About three seconds; a tap
+ * towards baulk. Then the name settles in and the app shows through. About two and a half seconds; a tap
  * skips it, and with Reduce Motion on the table simply fades.
  */
 
@@ -54,17 +54,28 @@ const BAULK_FROM_BOTTOM = 737;
 const D_RADIUS = 292;
 const BLACK_FROM_TOP = 324;
 
-/** When each part of the shot happens, in milliseconds from the start. */
+/**
+ * When each part of the shot happens, in milliseconds. Everything runs off one clock on the
+ * phone's animation thread, so the shot keeps its timing even while the app is busy loading.
+ */
 const T = {
-  table: 320,
-  cueIn: 260,
-  draw: 480,
-  strike: 880,
-  follow: 990,
-  contactAfter: 360, // the cue ball's run from the strike to the pack
-  name: 1900,
-  leave: 2800,
-  fade: 380,
+  tableIn: [0, 220],
+  cueIn: [120, 260],
+  address: 260,
+  drawnBack: 520,
+  strike: 640, // the tip meets the ball
+  through: 760,
+  cueOut: [780, 1000],
+  travel: [620, 880], // cue ball up the table to the pack
+  after: [880, 1650], // off the side cushion and back to baulk
+  ripple: [880, 1250],
+  scatter: 880,
+  dim: [1450, 1800],
+  name: [1550, 1900],
+  end: 2300,
+  /** The app starts loading underneath once the reds are on their way. */
+  loadApp: 1350,
+  fade: 300,
 };
 
 /** A fixed spread, so the break is the same every time. */
@@ -102,9 +113,11 @@ type Props = {
   /** The wordmark waits for the scoreboard face; until then it uses the system font. */
   fontsReady: boolean;
   onFinish: () => void;
+  /** Called part-way through, when the app can start loading underneath without slowing the shot. */
+  onLoadApp?: () => void;
 };
 
-export const BreakOffSplash = ({ fontsReady, onFinish }: Props) => {
+export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
   const { width, height } = useWindowDimensions();
   const finished = useRef(false);
 
@@ -122,7 +135,7 @@ export const BreakOffSplash = ({ fontsReady, onFinish }: Props) => {
     const top = (height - bedL) / 2;
     const s = bedW / TABLE_WIDTH; // px per mm
     // True to scale the balls are specks on a phone, so they are drawn a little larger.
-    const d = Math.max(11, BALL_MM * s * 1.35);
+    const d = Math.max(11, BALL_MM * s * 1.6);
     const cx = left + bedW / 2;
     const y = (mmFromTop: number) => top + mmFromTop * s;
 
@@ -223,20 +236,20 @@ export const BreakOffSplash = ({ fontsReady, onFinish }: Props) => {
   const { rail, bedW, bedL, left, top, d, baulkY, dR, colours, reds, cueStart, contact, cushion, rest } = layout;
 
   // ---------------------------------------------------------------- the motion
-  const tableIn = useRef(new Animated.Value(0)).current;
-  const cueOpacity = useRef(new Animated.Value(0)).current;
-  const cueTip = useRef(new Animated.Value(0)).current; // 0 address, 1 drawn back, 2 strike, 2.4 through
-  const travel = useRef(new Animated.Value(0)).current;
-  const after = useRef(new Animated.Value(0)).current;
-  const ripple = useRef(new Animated.Value(0)).current;
-  const scatter = useRef(reds.map(() => new Animated.Value(0))).current;
-  const dim = useRef(new Animated.Value(0)).current;
-  const name = useRef(new Animated.Value(0)).current;
+  const clock = useRef(new Animated.Value(0)).current;
   const leave = useRef(new Animated.Value(1)).current;
+  const loadedApp = useRef(false);
+
+  const loadApp = () => {
+    if (loadedApp.current) return;
+    loadedApp.current = true;
+    onLoadApp?.();
+  };
 
   const finish = () => {
     if (finished.current) return;
     finished.current = true;
+    loadApp();
     Animated.timing(leave, { toValue: 0, duration: T.fade, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(
       () => onFinish()
     );
@@ -244,63 +257,50 @@ export const BreakOffSplash = ({ fontsReady, onFinish }: Props) => {
 
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
 
     AccessibilityInfo.isReduceMotionEnabled()
       .catch(() => false)
       .then((reduce) => {
         if (cancelled) return;
         if (reduce) {
-          tableIn.setValue(1);
-          dim.setValue(1);
-          name.setValue(1);
-          timer = setTimeout(finish, 700);
+          // The finished table and the name, then straight in.
+          clock.setValue(T.end);
+          timers.push(setTimeout(finish, 700));
           return;
         }
-
-        const to = (
-          value: Animated.Value,
-          toValue: number,
-          duration: number,
-          easing: (t: number) => number,
-          delay = 0
-        ) => Animated.timing(value, { toValue, duration, easing, delay, useNativeDriver: true });
-        // The tip meets the ball a little before the end of the follow-through.
-        const strikeAt = T.follow - 110;
-        const contactAt = strikeAt + T.contactAfter;
-
-        Animated.parallel([
-          to(tableIn, 1, T.table, Easing.out(Easing.quad)),
-          // The cue: in, a slow draw back, a quick strike through, and away.
-          to(cueOpacity, 1, 200, Easing.out(Easing.quad), T.cueIn),
-          Animated.sequence([
-            Animated.delay(T.draw),
-            to(cueTip, 1, T.strike - T.draw, Easing.inOut(Easing.quad)),
-            to(cueTip, 2, T.follow - T.strike, Easing.in(Easing.quad)),
-            to(cueTip, 2.4, 220, Easing.out(Easing.quad)),
-          ]),
-          to(cueOpacity, 0, 320, Easing.in(Easing.quad), T.follow + 180),
-          // The cue ball: up the table to the pack, then off the cushion back to baulk.
-          to(travel, 1, T.contactAfter, Easing.out(Easing.quad), strikeAt),
-          to(after, 1, 950, Easing.out(Easing.cubic), contactAt),
-          to(ripple, 1, 450, Easing.out(Easing.quad), contactAt),
-          ...scatter.map((value, index) =>
-            to(value, 1, 760 + jitter(index, 5) * 300, Easing.out(Easing.cubic), contactAt + reds[index].delay)
-          ),
-          to(dim, 1, 450, Easing.out(Easing.quad), T.name - 150),
-          to(name, 1, 420, Easing.out(Easing.back(1.4)), T.name),
-        ]).start();
-
-        timer = setTimeout(finish, T.leave);
+        Animated.timing(clock, { toValue: T.end, duration: T.end, easing: Easing.linear, useNativeDriver: true }).start(
+          ({ finished: done }) => done && finish()
+        );
+        timers.push(setTimeout(loadApp, T.loadApp));
       });
 
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
+      timers.forEach(clearTimeout);
     };
     // Plays once, on first mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** 0 to 1 over a window of the clock, with an easing. */
+  const phase = ([from, to]: number[], easing: (t: number) => number = Easing.linear) =>
+    clock.interpolate({ inputRange: [from, to], outputRange: [0, 1], easing, extrapolate: "clamp" });
+
+  const tableIn = phase(T.tableIn, Easing.out(Easing.quad));
+  const cueOpacity = clock.interpolate({
+    inputRange: [T.cueIn[0], T.cueIn[1], T.cueOut[0], T.cueOut[1]],
+    outputRange: [0, 1, 1, 0],
+    extrapolate: "clamp",
+  });
+  const travel = phase(T.travel, Easing.out(Easing.quad));
+  const after = phase(T.after, Easing.out(Easing.cubic));
+  const ripple = phase(T.ripple, Easing.out(Easing.quad));
+  const dim = phase(T.dim, Easing.out(Easing.quad));
+  const name = phase(T.name, Easing.out(Easing.back(1.4)));
+  const scatter = reds.map((red, index) =>
+    phase([T.scatter + red.delay, T.scatter + red.delay + 600 + jitter(index, 5) * 250], Easing.out(Easing.cubic))
+  );
 
   // ---------------------------------------------------------------- the cue ball's path
   const cueBallX = Animated.add(
@@ -312,12 +312,14 @@ export const BreakOffSplash = ({ fontsReady, onFinish }: Props) => {
     after.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, cushion.y - contact.y, rest.y - contact.y] })
   );
 
-  // The cue lies along the line of the shot. Its tip starts a little behind the ball, draws back,
-  // then goes through to where the ball was.
-  const tipGap = cueTip.interpolate({
-    inputRange: [0, 1, 2, 2.4],
+  // The cue lies along the line of the shot: at the ball, a slow draw back, then through.
+  const tipGap = clock.interpolate({
+    inputRange: [T.address, T.drawnBack, T.strike, T.through],
     outputRange: [d * 1.4, d * 4.2, d * 0.5, -d * 0.6],
+    easing: Easing.inOut(Easing.quad),
+    extrapolate: "clamp",
   });
+
   const cueW = Math.max(7, d * 0.55);
 
   return (

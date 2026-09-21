@@ -1,35 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useMemo } from "react";
+import { useAchievementsStore } from "../store/achievementsStore";
 
-const STORAGE_KEY = "seen_achievements";
+/**
+ * The achievements this player has unlocked, from their account (see achievementsStore).
+ * `reloadToken` is no longer needed - the store updates on its own - and is kept so callers
+ * do not have to change.
+ */
+export const useSeenAchievements = (_reloadToken?: string | number) => {
+  const unlocked = useAchievementsStore((state) => state.unlocked);
 
-export const useSeenAchievements = (reloadToken?: string | number) => {
-  const [seenAchievementIdsOrdered, setSeenAchievementIdsOrdered] = useState<string[]>([]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadSeenAchievements = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (!isMounted || !stored) return;
-        const parsed = JSON.parse(stored) as string[];
-        setSeenAchievementIdsOrdered(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        if (isMounted) {
-          setSeenAchievementIdsOrdered([]);
-        }
-      }
-    };
-
-    loadSeenAchievements();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [reloadToken]);
-
-  const seenAchievementIds = useMemo(() => new Set(seenAchievementIdsOrdered), [seenAchievementIdsOrdered]);
-
-  return { seenAchievementIds, seenAchievementIdsOrdered };
+  return useMemo(() => {
+    const seenAchievementIdsOrdered = Object.entries(unlocked)
+      .sort(([, a], [, b]) => a.localeCompare(b))
+      .map(([id]) => id);
+    return { seenAchievementIds: new Set(seenAchievementIdsOrdered), seenAchievementIdsOrdered };
+  }, [unlocked]);
 };
