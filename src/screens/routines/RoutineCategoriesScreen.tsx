@@ -178,7 +178,10 @@ export const RoutineCategoriesScreen = () => {
 
   if (tab === "mine") {
     return (
+      // Its own key: the library is a two-column list, and a FlatList cannot change its column
+      // count in place, so switching tabs must build a fresh list rather than reuse this one.
       <FlatList
+        key="my-routines"
         data={customRoutines}
         keyExtractor={(item) => item.id}
         renderItem={renderCustom}
@@ -209,6 +212,7 @@ export const RoutineCategoriesScreen = () => {
 
   return (
     <FlatList
+      key="library"
       data={orderedCategories}
       keyExtractor={(item) => item.id}
       numColumns={2}
