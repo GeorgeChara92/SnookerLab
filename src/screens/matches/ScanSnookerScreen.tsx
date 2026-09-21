@@ -56,11 +56,13 @@ export const ScanSnookerScreen = () => {
   const [cameraRun, setCameraRun] = useState(0);
   const [intent, setIntent] = useState<"record" | "replace">(saved ? "replace" : "record");
 
+  // The camera fills the screen; the diagram keeps the header and its back button.
+  const camera = view === "camera" && support.available;
   useEffect(() => {
-    navigation.setOptions({ title: `Scan snooker · Frame ${frameNumber}` });
-  }, [frameNumber, navigation]);
+    navigation.setOptions({ title: `Scan snooker · Frame ${frameNumber}`, headerShown: !camera });
+  }, [camera, frameNumber, navigation]);
 
-  if (view === "camera" && support.available) {
+  if (camera) {
     return (
       <ARScan
         key={`${intent}-${cameraRun}`}
@@ -72,6 +74,7 @@ export const ScanSnookerScreen = () => {
           setView("diagram");
         }}
         onUseDiagram={() => setView("diagram")}
+        onClose={() => navigation.goBack()}
       />
     );
   }
@@ -149,7 +152,9 @@ const DiagramScan = ({
   const clearAll = () =>
     dialog.confirm({
       title: "Clear the table?",
-      message: saved ? "This removes the recorded position for this frame." : "This removes every ball you have placed.",
+      message: saved
+        ? "This removes the recorded position for this frame."
+        : "This removes every ball you have placed.",
       icon: "delete-outline",
       tone: "danger",
       confirmLabel: "Clear",
@@ -195,7 +200,12 @@ const DiagramScan = ({
                 size={16}
                 color={disabled ? colors.textSubtle : active ? colors.primary : colors.textMuted}
               />
-              <Text style={[styles.modeText, { color: disabled ? colors.textSubtle : active ? colors.text : colors.textMuted }]}>
+              <Text
+                style={[
+                  styles.modeText,
+                  { color: disabled ? colors.textSubtle : active ? colors.text : colors.textMuted },
+                ]}
+              >
                 {item === "record" ? "Record" : "Replace"}
               </Text>
             </Pressable>
@@ -211,7 +221,11 @@ const DiagramScan = ({
         >
           <MaterialCommunityIcons name="camera-outline" size={18} color={colors.onPrimary} />
           <Text style={[styles.cameraText, { color: colors.onPrimary }]}>
-            {mode === "replace" && saved ? "Put the balls back with the camera" : saved ? "Scan again with the camera" : "Scan with the camera"}
+            {mode === "replace" && saved
+              ? "Put the balls back with the camera"
+              : saved
+                ? "Scan again with the camera"
+                : "Scan with the camera"}
           </Text>
         </Pressable>
       ) : (
@@ -242,7 +256,12 @@ const DiagramScan = ({
       {/* ------------------------------------------------ the selected ball */}
       {selected ? (
         <View style={[styles.detail, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={[styles.detailBall, { backgroundColor: BALL_LOOK[selected.colour].fill, borderColor: BALL_LOOK[selected.colour].edge }]} />
+          <View
+            style={[
+              styles.detailBall,
+              { backgroundColor: BALL_LOOK[selected.colour].fill, borderColor: BALL_LOOK[selected.colour].edge },
+            ]}
+          />
           <View style={styles.detailText}>
             <Text style={[styles.detailTitle, { color: colors.text }]}>{BALL_LOOK[selected.colour].label}</Text>
             <Text style={[styles.detailLine, { color: colors.textMuted }]}>
@@ -284,10 +303,25 @@ const DiagramScan = ({
                   accessibilityRole="radio"
                   accessibilityState={{ selected: active }}
                   accessibilityLabel={`${BALL_LOOK[item].label}${item === "red" ? `, ${count} of 15 placed` : count ? ", placed" : ""}`}
-                  style={[styles.trayItem, { borderColor: active ? colors.primary : colors.border, backgroundColor: colors.surface }]}
+                  style={[
+                    styles.trayItem,
+                    { borderColor: active ? colors.primary : colors.border, backgroundColor: colors.surface },
+                  ]}
                 >
-                  <View style={[styles.trayBall, { backgroundColor: BALL_LOOK[item].fill, borderColor: BALL_LOOK[item].edge, opacity: full && item !== "red" && !active ? 0.45 : 1 }]} />
-                  <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.trayCount, { color: active ? colors.text : colors.textMuted }]}>
+                  <View
+                    style={[
+                      styles.trayBall,
+                      {
+                        backgroundColor: BALL_LOOK[item].fill,
+                        borderColor: BALL_LOOK[item].edge,
+                        opacity: full && item !== "red" && !active ? 0.45 : 1,
+                      },
+                    ]}
+                  />
+                  <Text
+                    maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+                    style={[styles.trayCount, { color: active ? colors.text : colors.textMuted }]}
+                  >
                     {item === "red" ? `${count}/15` : count ? "✓" : " "}
                   </Text>
                 </Pressable>
@@ -311,7 +345,11 @@ const DiagramScan = ({
               accessibilityState={{ disabled: !balls.length }}
               style={[styles.primary, { backgroundColor: balls.length ? colors.primary : colors.surfaceMuted }]}
             >
-              <Text style={[styles.primaryText, { color: balls.length ? colors.onPrimary : colors.textMuted }]} numberOfLines={1} adjustsFontSizeToFit>
+              <Text
+                style={[styles.primaryText, { color: balls.length ? colors.onPrimary : colors.textMuted }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
                 {saved && unsaved ? "Save changes" : "Save position"}
               </Text>
             </Pressable>

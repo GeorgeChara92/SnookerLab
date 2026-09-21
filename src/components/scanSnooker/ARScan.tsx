@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SnookerARView, arSupport, type ARAim, type ARBallProp, type ARTracking } from "../../../modules/snooker-ar";
@@ -19,7 +19,14 @@ import {
   type WorldPoint,
 } from "../../features/scanSnooker/table";
 import { ballFromRay, clothFromAim, onTable, tableLines } from "../../features/scanSnooker/ar";
-import { countOf, placeBall, removeBall, summarise, type PlacedBall, type RecordedPosition } from "../../features/scanSnooker/position";
+import {
+  countOf,
+  placeBall,
+  removeBall,
+  summarise,
+  type PlacedBall,
+  type RecordedPosition,
+} from "../../features/scanSnooker/position";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /**
@@ -45,9 +52,10 @@ const IN_PLACE_MM = 12;
 
 const QUALITY_TEXT = {
   good: "Good fit",
-  fair: "Fair fit: check the lines, or redo it",
-  poor: "Poor fit: redo it, aiming at the centre of each point",
+  fair: "Fair fit: check the lines, or redo",
+  poor: "Poor fit: redo, aiming at each centre",
 };
+const QUALITY_COLOUR = { good: "#6FE3A8", fair: "#F2C230", poor: "#FF8A8A" };
 
 const TRACKING_TEXT: Record<string, string> = {
   excessiveMotion: "Slow down: move the phone more gently.",
@@ -62,11 +70,16 @@ type Props = {
   saved?: RecordedPosition;
   onSave: (balls: PlacedBall[]) => void;
   onUseDiagram: () => void;
+  /** Back to the match. */
+  onClose: () => void;
 };
 
-export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
+export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose }: Props) => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  // Eight balls in the tray on any phone: 30pt where there is room, smaller on an SE.
+  const { width } = useWindowDimensions();
+  const trayBall = Math.min(30, Math.floor((width - SPACING.md * 2 - 24 - 7 * 8) / 8));
   const lidar = useMemo(() => arSupport().lidar, []);
 
   const [phase, setPhase] = useState<Phase>("find");
@@ -81,10 +94,12 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
   const [pickingLandmark, setPickingLandmark] = useState<0 | 1 | null>(null);
   const [showDiagram, setShowDiagram] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // The tip under each step's title shows at first, and a tap on the title hides or brings it back.
+  const [showTip, setShowTip] = useState(true);
 
   const landmark = (id: string) => LANDMARKS.find((item) => item.id === id)!;
   const current = taps.length < 2 ? landmark(landmarks[taps.length]) : null;
-  const target = phase === "replace" ? saved?.balls ?? [] : balls;
+  const target = phase === "replace" ? (saved?.balls ?? []) : balls;
 
   // ---------------------------------------------------------------- what the crosshair is on
   const ray = aim?.ok && aim.origin && aim.direction ? { origin: aim.origin, direction: aim.direction } : null;
@@ -144,7 +159,8 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
   const onTapPoint = (event: { nativeEvent: ARAim }) => {
     if (phase !== "scan" || !frame) return;
     const tapped = event.nativeEvent;
-    const tapRay = tapped.ok && tapped.origin && tapped.direction ? { origin: tapped.origin, direction: tapped.direction } : null;
+    const tapRay =
+      tapped.ok && tapped.origin && tapped.direction ? { origin: tapped.origin, direction: tapped.direction } : null;
     addAimedBall(tapRay ? ballFromRay(frame, tapRay) : null);
   };
 
@@ -169,7 +185,12 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
       }));
     }
     if (phase === "scan") {
-      return balls.map((ball) => ({ id: ball.id, colour: BALL_LOOK[ball.colour].fill, ...tableToWorld(frame, ball), kind: "tag" }));
+      return balls.map((ball) => ({
+        id: ball.id,
+        colour: BALL_LOOK[ball.colour].fill,
+        ...tableToWorld(frame, ball),
+        kind: "tag",
+      }));
     }
     return markers;
   }, [balls, checkTarget?.id, frame, phase, saved, taps]);
@@ -179,23 +200,26 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
   const step = (() => {
     switch (phase) {
       case "find":
-        return { title: "Find the table", body: "Point the camera at the cloth and move the phone slowly until it finds the surface." };
+        return { title: "Find the table", tip: "Point at the cloth and move the phone slowly." };
       case "calibrate":
         return {
-          title: `Calibrate: ${taps.length + 1} of 2`,
-          body: `Aim the cross at the ${current?.label.toLowerCase()} and tap Set. Any landmark you can see will do.`,
+          title: `Aim at the ${current?.label.toLowerCase()}`,
+          tip: `Point ${taps.length + 1} of 2. Put the cross on its centre and tap the button. Any landmark you can see will do.`,
         };
       case "check":
-        return { title: "Does it line up?", body: "The white lines should sit on the cushions, the baulk line and the D." };
+        return {
+          title: "Does it line up?",
+          tip: "The white lines should sit on the cushions, the baulk line and the D.",
+        };
       case "scan":
         return {
           title: "Scan the balls",
-          body: "Choose a ball, aim the cross at its middle and tap Add, or tap the ball on screen.",
+          tip: "Choose a ball, put the cross on its middle and tap the button, or tap the ball on screen.",
         };
       default:
         return {
           title: "Put the balls back",
-          body: "Ghosts show where each ball was. Choose a ball and aim at the real one to see which way to move it.",
+          tip: "Choose a ball and aim at the real one to see which way to move it.",
         };
     }
   })();
@@ -207,6 +231,51 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
         ? "In place"
         : describeCorrection(aimedBall, checkTarget)
       : null;
+  // One line under the title: a problem first, then the fit, then the tip if asked for.
+  const subline =
+    notice ??
+    trackingProblem ??
+    (phase === "check" && quality
+      ? `${QUALITY_TEXT[quality]} · ${Math.round(frame!.errorMm / 10)} cm out${lidar ? "" : " · no LiDAR"}`
+      : showTip
+        ? step.tip
+        : null);
+  const sublineTone =
+    notice || trackingProblem
+      ? "#F2C230"
+      : phase === "check" && quality
+        ? QUALITY_COLOUR[quality]
+        : "rgba(255,255,255,0.8)";
+
+  const undoLast = () => {
+    const last = balls[balls.length - 1];
+    if (last) setBalls(removeBall(balls, last.id));
+  };
+
+  // The shutter does the one thing each step is for.
+  const shutter =
+    phase === "calibrate"
+      ? {
+          icon: "crosshairs-gps" as const,
+          label: `Set the ${current?.label.toLowerCase()}`,
+          onPress: setLandmark,
+          fill: undefined,
+        }
+      : phase === "check"
+        ? {
+            icon: "check" as const,
+            label: "The lines line up",
+            onPress: () => setPhase(intent === "replace" && saved ? "replace" : "scan"),
+            fill: undefined,
+          }
+        : phase === "scan"
+          ? {
+              icon: "plus" as const,
+              label: `Add the ${BALL_LOOK[colour].label.toLowerCase()}`,
+              onPress: () => addAimedBall(aimedBall),
+              fill: BALL_LOOK[colour].fill,
+            }
+          : null;
 
   if (!SnookerARView) return null;
 
@@ -225,26 +294,39 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
       {/* ------------------------------------------------ the crosshair */}
       {phase === "calibrate" || phase === "scan" || phase === "replace" ? (
         <View pointerEvents="none" style={styles.crosshairWrap}>
-          <View style={[styles.crosshair, { borderColor: aim?.hit || aimedOnTable ? "#FFFFFF" : "rgba(255,255,255,0.45)" }]} />
+          <View
+            style={[styles.crosshair, { borderColor: aim?.hit || aimedOnTable ? "#FFFFFF" : "rgba(255,255,255,0.45)" }]}
+          />
           <View style={styles.crossH} />
           <View style={styles.crossV} />
         </View>
       ) : null}
 
-      {/* ------------------------------------------------ the step */}
-      <View style={[styles.top, { paddingTop: SPACING.sm }]} pointerEvents="box-none">
-        <View style={[styles.card, { backgroundColor: "rgba(8,20,16,0.82)" }]}>
-          <Text style={styles.cardTitle}>{step.title}</Text>
-          <Text style={styles.cardBody}>{step.body}</Text>
-          {trackingProblem ? <Text style={styles.warning}>{trackingProblem}</Text> : null}
-          {phase === "check" && quality ? (
-            <Text style={[styles.quality, { color: quality === "good" ? "#6FE3A8" : quality === "fair" ? "#F2C230" : "#FF8A8A" }]}>
-              {QUALITY_TEXT[quality]} · {Math.round(frame!.errorMm / 10)} cm out{lidar ? "" : " · no LiDAR, expect a few cm"}
-            </Text>
-          ) : null}
-        </View>
+      {/* ------------------------------------------------ top: close, the step, the diagram */}
+      <View style={[styles.top, { top: insets.top + SPACING.sm }]} pointerEvents="box-none">
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Back to the match"
+          hitSlop={8}
+          style={styles.round}
+        >
+          <MaterialCommunityIcons name="close" size={22} color="#FFFFFF" />
+        </Pressable>
 
-        {/* A live diagram of what has been scanned; tap it to see it full size. */}
+        <Pressable
+          onPress={() => setShowTip((value) => !value)}
+          accessibilityRole="button"
+          accessibilityLabel={`${step.title}. ${step.tip}`}
+          accessibilityHint="Shows or hides the tip"
+          style={styles.pill}
+        >
+          <Text style={styles.pillTitle} numberOfLines={1}>
+            {step.title}
+          </Text>
+          {subline ? <Text style={[styles.pillLine, { color: sublineTone }]}>{subline}</Text> : null}
+        </Pressable>
+
         {(phase === "scan" || phase === "replace") && target.length ? (
           <Pressable
             onPress={() => setShowDiagram(true)}
@@ -254,140 +336,172 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
           >
             <TableDiagram balls={target} readOnly />
           </Pressable>
-        ) : null}
+        ) : (
+          <View style={styles.roundSpacer} />
+        )}
       </View>
 
-      {/* ------------------------------------------------ the controls */}
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + SPACING.sm, backgroundColor: "rgba(8,20,16,0.88)" }]}>
-        {notice ? <Text style={styles.warning}>{notice}</Text> : null}
-
-        {phase === "find" ? (
-          <Pressable onPress={onUseDiagram} accessibilityRole="button" style={styles.quiet}>
-            <Text style={styles.quietText}>Use the diagram instead</Text>
+      {/* ------------------------------------------------ bottom: the balls and the controls */}
+      <View style={[styles.bottom, { bottom: insets.bottom + SPACING.md }]} pointerEvents="box-none">
+        {phase === "calibrate" && current ? (
+          <Pressable
+            onPress={() => setPickingLandmark(taps.length as 0 | 1)}
+            accessibilityRole="button"
+            accessibilityLabel={`Landmark: ${current.label}. Change`}
+            style={styles.chip}
+          >
+            <Text style={styles.chipText}>{current.label}</Text>
+            <MaterialCommunityIcons name="chevron-down" size={18} color="#FFFFFF" />
           </Pressable>
         ) : null}
 
-        {phase === "calibrate" && current ? (
-          <>
-            <Pressable
-              onPress={() => setPickingLandmark(taps.length as 0 | 1)}
-              accessibilityRole="button"
-              accessibilityLabel={`Landmark: ${current.label}. Change`}
-              style={styles.landmark}
-            >
-              <MaterialCommunityIcons name="map-marker-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.landmarkText}>{current.label}</Text>
-              <Text style={styles.change}>Change</Text>
-            </Pressable>
-            <Pressable onPress={setLandmark} accessibilityRole="button" style={[styles.primary, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.primaryText, { color: colors.onPrimary }]}>Set {current.label.toLowerCase()}</Text>
-            </Pressable>
-          </>
-        ) : null}
-
-        {phase === "check" ? (
-          <View style={styles.row}>
-            <Pressable onPress={redoCalibration} accessibilityRole="button" style={styles.secondary}>
-              <Text style={styles.secondaryText}>Redo</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setPhase(intent === "replace" && saved ? "replace" : "scan")}
-              accessibilityRole="button"
-              style={[styles.primary, styles.flex, { backgroundColor: colors.primary }]}
-            >
-              <Text style={[styles.primaryText, { color: colors.onPrimary }]}>Lines up</Text>
-            </Pressable>
+        {phase === "replace" ? (
+          <View style={styles.chip}>
+            <Text style={styles.chipText}>
+              {guidance
+                ? guidance === "In place"
+                  ? `${BALL_LOOK[checking].label} in place`
+                  : `Move it ${guidance}`
+                : `Aim at the real ${BALL_LOOK[checking].label.toLowerCase()}`}
+            </Text>
           </View>
         ) : null}
 
-        {phase === "scan" ? (
-          <>
-            <View style={styles.tray}>
-              {TRAY.map((item) => {
-                const active = colour === item;
-                const count = countOf(balls, item);
-                return (
-                  <Pressable
-                    key={item}
-                    onPress={() => setColour(item)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: active }}
-                    accessibilityLabel={`${BALL_LOOK[item].label}${item === "red" ? `, ${count} of 15` : count ? ", scanned" : ""}`}
-                    style={[styles.trayItem, { borderColor: active ? "#FFFFFF" : "rgba(255,255,255,0.2)" }]}
-                  >
-                    <View style={[styles.trayBall, { backgroundColor: BALL_LOOK[item].fill, borderColor: BALL_LOOK[item].edge }]} />
-                    <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={styles.trayCount}>
-                      {item === "red" ? `${count}/15` : count >= BALL_LIMIT[item] ? "✓" : " "}
+        {phase === "scan" || (phase === "replace" && saved) ? (
+          <View style={styles.tray}>
+            {(phase === "scan" ? TRAY : TRAY.filter((item) => countOf(saved!.balls, item) > 0)).map((item) => {
+              const active = phase === "scan" ? colour === item : checking === item;
+              const count = countOf(balls, item);
+              return (
+                <Pressable
+                  key={item}
+                  onPress={() => (phase === "scan" ? setColour(item) : setChecking(item))}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`${BALL_LOOK[item].label}${phase === "scan" && item === "red" ? `, ${count} of 15` : ""}`}
+                  hitSlop={4}
+                  style={[
+                    styles.trayBall,
+                    {
+                      width: trayBall,
+                      height: trayBall,
+                      borderRadius: trayBall / 2,
+                      backgroundColor: BALL_LOOK[item].fill,
+                      borderColor: active ? "#FFFFFF" : "rgba(255,255,255,0.25)",
+                    },
+                  ]}
+                >
+                  {phase === "scan" && item === "red" && count ? (
+                    <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={styles.redCount}>
+                      {count}
                     </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={styles.row}>
+                  ) : phase === "scan" && item !== "red" && count >= BALL_LIMIT[item] ? (
+                    <MaterialCommunityIcons
+                      name="check"
+                      size={14}
+                      color={item === "cue" || item === "yellow" || item === "pink" ? "#1A1E20" : "#FFFFFF"}
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <View style={styles.controls}>
+          {/* left */}
+          <View style={styles.side}>
+            {phase === "scan" ? (
               <Pressable
-                onPress={() => {
-                  const last = balls[balls.length - 1];
-                  if (last) setBalls(removeBall(balls, last.id));
-                }}
+                onPress={undoLast}
                 disabled={!balls.length}
                 accessibilityRole="button"
                 accessibilityLabel="Undo the last ball"
-                style={[styles.secondary, { opacity: balls.length ? 1 : 0.4 }]}
+                style={[styles.round, { opacity: balls.length ? 1 : 0.35 }]}
               >
-                <MaterialCommunityIcons name="undo" size={20} color="#FFFFFF" />
+                <MaterialCommunityIcons name="undo" size={22} color="#FFFFFF" />
               </Pressable>
+            ) : phase === "check" ? (
               <Pressable
-                onPress={() => addAimedBall(aimedBall)}
+                onPress={redoCalibration}
                 accessibilityRole="button"
-                style={[styles.primary, styles.flex, { backgroundColor: colors.primary }]}
+                accessibilityLabel="Redo the calibration"
+                style={styles.round}
               >
-                <Text style={[styles.primaryText, { color: colors.onPrimary }]}>Add {BALL_LOOK[colour].label.toLowerCase()}</Text>
+                <MaterialCommunityIcons name="refresh" size={22} color="#FFFFFF" />
               </Pressable>
+            ) : null}
+          </View>
+
+          {/* the shutter */}
+          {shutter ? (
+            <Pressable
+              onPress={shutter.onPress}
+              accessibilityRole="button"
+              accessibilityLabel={shutter.label}
+              style={styles.shutter}
+            >
+              <View style={[styles.shutterInner, { backgroundColor: shutter.fill ?? colors.primary }]}>
+                <MaterialCommunityIcons
+                  name={shutter.icon}
+                  size={30}
+                  color={
+                    shutter.fill && (colour === "cue" || colour === "yellow" || colour === "pink")
+                      ? "#1A1E20"
+                      : "#FFFFFF"
+                  }
+                />
+              </View>
+            </Pressable>
+          ) : phase === "find" ? (
+            <Pressable onPress={onUseDiagram} accessibilityRole="button" style={styles.textButton}>
+              <Text style={styles.textButtonText}>Use the diagram instead</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.shutterSpacer} />
+          )}
+
+          {/* right */}
+          <View style={styles.side}>
+            {phase === "scan" ? (
               <Pressable
                 onPress={() => (balls.length ? onSave(balls) : setNotice("Scan at least the cue ball first."))}
                 accessibilityRole="button"
-                style={styles.secondary}
+                accessibilityLabel="Save the position"
+                style={[styles.round, balls.length ? { backgroundColor: colors.primary } : null]}
               >
-                <Text style={styles.secondaryText}>Save</Text>
+                <MaterialCommunityIcons name="content-save-outline" size={22} color="#FFFFFF" />
               </Pressable>
-            </View>
-          </>
-        ) : null}
-
-        {phase === "replace" && saved ? (
-          <>
-            <Text style={styles.guidance}>
-              {guidance
-                ? guidance === "In place"
-                  ? `${BALL_LOOK[checking].label}: in place`
-                  : `${BALL_LOOK[checking].label}: move it ${guidance}`
-                : `Aim at the real ${BALL_LOOK[checking].label.toLowerCase()}`}
-            </Text>
-            <View style={styles.tray}>
-              {TRAY.filter((item) => countOf(saved.balls, item) > 0).map((item) => (
-                <Pressable
-                  key={item}
-                  onPress={() => setChecking(item)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: checking === item }}
-                  accessibilityLabel={`Check the ${BALL_LOOK[item].label.toLowerCase()}`}
-                  style={[styles.trayItem, { borderColor: checking === item ? "#FFFFFF" : "rgba(255,255,255,0.2)" }]}
-                >
-                  <View style={[styles.trayBall, { backgroundColor: BALL_LOOK[item].fill, borderColor: BALL_LOOK[item].edge }]} />
-                </Pressable>
-              ))}
-            </View>
-            <Text style={styles.summary}>{summarise(saved.balls)}</Text>
-          </>
-        ) : null}
+            ) : phase === "replace" ? (
+              <Pressable
+                onPress={onClose}
+                accessibilityRole="button"
+                accessibilityLabel="Done, back to the match"
+                style={[styles.round, { backgroundColor: colors.primary }]}
+              >
+                <MaterialCommunityIcons name="check" size={22} color="#FFFFFF" />
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
       </View>
 
       {/* ------------------------------------------------ choosing a landmark */}
-      <Modal visible={pickingLandmark !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPickingLandmark(null)}>
+      <Modal
+        visible={pickingLandmark !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setPickingLandmark(null)}
+      >
         <View style={[styles.sheet, { backgroundColor: colors.background }]}>
           <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
             <Text style={[styles.sheetTitle, { color: colors.text }]}>Which landmark?</Text>
-            <Pressable onPress={() => setPickingLandmark(null)} accessibilityRole="button" accessibilityLabel="Close" hitSlop={10}>
+            <Pressable
+              onPress={() => setPickingLandmark(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={10}
+            >
               <MaterialCommunityIcons name="close" size={24} color={colors.text} />
             </Pressable>
           </View>
@@ -406,10 +520,15 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
                   setPickingLandmark(null);
                 }}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.sheetRow, { borderBottomColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : "transparent" }]}
+                style={({ pressed }) => [
+                  styles.sheetRow,
+                  { borderBottomColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
+                ]}
               >
                 <Text style={[styles.sheetRowText, { color: colors.text }]}>{item.label}</Text>
-                {landmarks[pickingLandmark ?? 0] === item.id ? <MaterialCommunityIcons name="check" size={20} color={colors.primary} /> : null}
+                {landmarks[pickingLandmark ?? 0] === item.id ? (
+                  <MaterialCommunityIcons name="check" size={20} color={colors.primary} />
+                ) : null}
               </Pressable>
             )}
           />
@@ -417,16 +536,26 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
       </Modal>
 
       {/* ------------------------------------------------ the diagram, full size */}
-      <Modal visible={showDiagram} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowDiagram(false)}>
+      <Modal
+        visible={showDiagram}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowDiagram(false)}
+      >
         <View style={[styles.sheet, { backgroundColor: colors.background, paddingBottom: insets.bottom + SPACING.lg }]}>
           <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
             <Text style={[styles.sheetTitle, { color: colors.text }]}>{summarise(target)}</Text>
-            <Pressable onPress={() => setShowDiagram(false)} accessibilityRole="button" accessibilityLabel="Close" hitSlop={10}>
+            <Pressable
+              onPress={() => setShowDiagram(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={10}
+            >
               <MaterialCommunityIcons name="close" size={24} color={colors.text} />
             </Pressable>
           </View>
           <View style={styles.flex}>
-            <TableDiagram balls={target} />
+            <TableDiagram balls={target} readOnly />
           </View>
         </View>
       </Modal>
@@ -435,6 +564,10 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram }: Props) => {
 };
 
 const CROSS = 44;
+const ROUND = 48;
+const SHUTTER = 76;
+/** Glass over the camera: dark enough for white text on any background, light enough to see through. */
+const GLASS = "rgba(10,18,15,0.55)";
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#000000" },
@@ -445,52 +578,87 @@ const styles = StyleSheet.create({
   crossH: { position: "absolute", width: 14, height: 2, backgroundColor: "#FFFFFF" },
   crossV: { position: "absolute", width: 2, height: 14, backgroundColor: "#FFFFFF" },
 
-  top: { position: "absolute", left: SPACING.md, right: SPACING.md, top: 0, flexDirection: "row", gap: SPACING.sm, alignItems: "flex-start" },
-  card: { flex: 1, borderRadius: RADIUS.lg, padding: SPACING.md },
-  cardTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "800" },
-  cardBody: { color: "rgba(255,255,255,0.82)", fontSize: 13, lineHeight: 18, marginTop: 3 },
-  warning: { color: "#F2C230", fontSize: 13, fontWeight: "700", marginTop: SPACING.xs },
-  quality: { fontSize: 13, fontWeight: "800", marginTop: SPACING.xs },
-  miniDiagram: { width: 64, height: 124, borderRadius: RADIUS.sm, overflow: "hidden" },
-
-  bottom: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, gap: SPACING.sm },
-  row: { flexDirection: "row", gap: SPACING.sm },
-  primary: { minHeight: HIT_TARGET + 6, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center", paddingHorizontal: SPACING.lg },
-  primaryText: { fontSize: 16, fontWeight: "800" },
-  secondary: {
-    minWidth: HIT_TARGET + 6,
-    minHeight: HIT_TARGET + 6,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
+  top: {
+    position: "absolute",
+    left: SPACING.md,
+    right: SPACING.md,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: SPACING.sm,
+  },
+  round: {
+    width: ROUND,
+    height: ROUND,
+    borderRadius: ROUND / 2,
+    backgroundColor: GLASS,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: SPACING.md,
   },
-  secondaryText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
-  quiet: { minHeight: HIT_TARGET, alignItems: "center", justifyContent: "center" },
-  quietText: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "700", textDecorationLine: "underline" },
+  roundSpacer: { width: ROUND },
+  pill: {
+    flex: 1,
+    minHeight: ROUND,
+    borderRadius: ROUND / 2,
+    backgroundColor: GLASS,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    justifyContent: "center",
+  },
+  pillTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "800", textAlign: "center" },
+  pillLine: { fontSize: 12, lineHeight: 16, fontWeight: "600", textAlign: "center", marginTop: 2 },
+  miniDiagram: { width: 54, height: 104, borderRadius: RADIUS.sm, overflow: "hidden" },
 
-  landmark: {
+  bottom: { position: "absolute", left: SPACING.md, right: SPACING.md, alignItems: "center", gap: SPACING.md },
+  chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: SPACING.sm,
-    minHeight: HIT_TARGET,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.35)",
-    paddingHorizontal: SPACING.md,
+    gap: 4,
+    minHeight: 36,
+    borderRadius: 18,
+    backgroundColor: GLASS,
+    paddingHorizontal: SPACING.lg,
   },
-  landmarkText: { flex: 1, color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
-  change: { color: "#6FE3A8", fontSize: 14, fontWeight: "700" },
+  chipText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
 
-  tray: { flexDirection: "row", gap: 6, justifyContent: "center" },
-  trayItem: { flex: 1, maxWidth: 52, alignItems: "center", gap: 2, borderWidth: 2, borderRadius: RADIUS.md, paddingVertical: 5 },
-  trayBall: { width: 22, height: 22, borderRadius: 11, borderWidth: 1 },
-  trayCount: { color: "rgba(255,255,255,0.8)", fontFamily: FONTS.boardLabel, fontSize: 11 },
+  tray: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: GLASS,
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  trayBall: { borderWidth: 2.5, alignItems: "center", justifyContent: "center" },
+  redCount: { color: "#FFFFFF", fontFamily: FONTS.board, fontSize: 13 },
 
-  guidance: { color: "#FFFFFF", fontSize: 18, fontWeight: "800", textAlign: "center" },
-  summary: { color: "rgba(255,255,255,0.7)", fontSize: 12, textAlign: "center" },
+  controls: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", alignSelf: "stretch" },
+  side: { width: ROUND + 16, alignItems: "center" },
+  shutter: {
+    width: SHUTTER,
+    height: SHUTTER,
+    borderRadius: SHUTTER / 2,
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shutterInner: {
+    width: SHUTTER - 16,
+    height: SHUTTER - 16,
+    borderRadius: (SHUTTER - 16) / 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shutterSpacer: { width: SHUTTER, height: SHUTTER },
+  textButton: {
+    minHeight: HIT_TARGET,
+    borderRadius: 22,
+    backgroundColor: GLASS,
+    paddingHorizontal: SPACING.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textButtonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
 
   sheet: { flex: 1 },
   sheetHeader: {

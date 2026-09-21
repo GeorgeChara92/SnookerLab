@@ -1,5 +1,6 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { DashboardNavigator } from "./DashboardNavigator";
@@ -12,6 +13,9 @@ import { MainTabParamList } from "../types";
 import { useAppTheme } from "../hooks/useAppTheme";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
+
+/** Screens inside a tab that take the whole screen, tab bar and all. */
+const FULL_SCREEN_ROUTES = new Set(["ScanSnooker"]);
 
 export const MainTabNavigator = () => {
   const insets = useSafeAreaInsets();
@@ -57,9 +61,7 @@ export const MainTabNavigator = () => {
         options={{
           tabBarLabel: "Practice",
           popToTopOnBlur: true,
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="bullseye-arrow" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="bullseye-arrow" size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -75,21 +77,21 @@ export const MainTabNavigator = () => {
       <Tab.Screen
         name="Matches"
         component={MatchesNavigator}
-        options={{
+        options={({ route }) => ({
           tabBarLabel: "Matches",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="trophy-outline" size={size} color={color} />
-          ),
-        }}
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="trophy-outline" size={size} color={color} />,
+          // Scan Snooker is a full-screen camera: no tab bar over it.
+          ...(FULL_SCREEN_ROUTES.has(getFocusedRouteNameFromRoute(route) ?? "")
+            ? { tabBarStyle: { display: "none" as const } }
+            : {}),
+        })}
       />
       <Tab.Screen
         name="Stats"
         component={StatsNavigator}
         options={{
           tabBarLabel: "Stats",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="chart-line" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="chart-line" size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -97,9 +99,7 @@ export const MainTabNavigator = () => {
         component={AICoachNavigator}
         options={{
           tabBarLabel: "AI Coach",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="robot-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="robot-outline" size={size} color={color} />,
         }}
       />
     </Tab.Navigator>
