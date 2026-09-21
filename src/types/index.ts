@@ -279,6 +279,7 @@ export interface SessionLog {
 // Navigation Types
 export type RootStackParamList = {
   Auth: undefined;
+  Loading: undefined;
   Main: undefined;
   ProfileModal: undefined;
 };

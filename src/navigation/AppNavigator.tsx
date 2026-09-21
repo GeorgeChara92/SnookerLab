@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Linking } from "react-native";
 import { DarkTheme, DefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -15,6 +15,7 @@ import { startSync, stopSync } from "../sync";
 import { MainTabNavigator } from "./MainTabNavigator";
 import { AuthNavigator } from "./AuthNavigator";
 import { ProfileNavigator } from "./ProfileNavigator";
+import { LoadingPlayerScreen } from "../screens/auth/LoadingPlayerScreen";
 import { RootStackParamList } from "../types";
 import { useAppTheme } from "../hooks/useAppTheme";
 import { initBilling, isBillingConfigured } from "../services/billing";
@@ -22,6 +23,9 @@ import { UnlockQueueProvider } from "../components/achievements/UnlockQueueProvi
 import { AchievementWatcher } from "../components/achievements/AchievementWatcher";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+/** The longest a fresh sign in waits for the player's data before opening anyway. */
+const LOAD_TIMEOUT_MS = 10000;
 
 export const AppNavigator = () => {
   const { session, isAuthenticated, requiresPasswordReset, setRequiresPasswordReset, setUser } = useAuthStore();
@@ -49,6 +53,62 @@ export const AppNavigator = () => {
       notification: colors.danger,
     },
   };
+
+  // ---------------------------------------------------------------- loading a player's data
+  // After a fresh sign in the stores start empty and fill from the account over a few seconds.
+  // Showing the app in that time shows a player with no matches, no practice and level 1, then
+  // everything pops in. So the app waits for it - unless this phone already holds their data
+  // from last time, when it opens straight away and refreshes in the background.
+  const userId = useAuthStore((state) => state.user?.id ?? null);
+  const [readyUserId, setReadyUserId] = useState<string | null>(null);
+  const loadingFor = useRef<string | null>(null);
+
+  const loadUser = useCallback(
+    async (id: string) => {
+      if (loadingFor.current === id) return;
+      loadingFor.current = id;
+      const cached = useMatchesStore.getState().ownerUserId === id;
+
+      setSessionsOwner(id);
+      setMatchesOwner(id);
+      setRoutineScoresOwner(id);
+      setTournamentsOwner(id);
+      setAIOwner(id);
+      const loaded = Promise.allSettled([
+        hydrateSessionsForUser(id),
+        hydrateMatchesForUser(id),
+        hydrateRoutineScoresForUser(id),
+        hydrateTournamentsForUser(id),
+        hydrateAIForUser(id),
+      ]);
+
+      if (cached) {
+        setReadyUserId(id);
+        return;
+      }
+      // Never keep someone on the loading screen for long: on a poor connection, open with what
+      // there is and let the rest arrive.
+      await Promise.race([loaded, new Promise((resolve) => setTimeout(resolve, LOAD_TIMEOUT_MS))]);
+      if (loadingFor.current === id) setReadyUserId(id);
+    },
+    [
+      hydrateAIForUser,
+      hydrateMatchesForUser,
+      hydrateRoutineScoresForUser,
+      hydrateSessionsForUser,
+      hydrateTournamentsForUser,
+      setAIOwner,
+      setMatchesOwner,
+      setRoutineScoresOwner,
+      setSessionsOwner,
+      setTournamentsOwner,
+    ]
+  );
+
+  const forgetUser = useCallback(() => {
+    loadingFor.current = null;
+    setReadyUserId(null);
+  }, []);
 
   const extractAuthParams = (url: string) => {
     const decode = (value: string) => {
@@ -94,18 +154,10 @@ export const AppNavigator = () => {
           });
           });
         }
-      setSessionsOwner(session.user.id);
-      void hydrateSessionsForUser(session.user.id);
-      setMatchesOwner(session.user.id);
-      void hydrateMatchesForUser(session.user.id);
-      setRoutineScoresOwner(session.user.id);
-      void hydrateRoutineScoresForUser(session.user.id);
-      setTournamentsOwner(session.user.id);
-      void hydrateTournamentsForUser(session.user.id);
-      setAIOwner(session.user.id);
-      void hydrateAIForUser(session.user.id);
+      void loadUser(session.user.id);
       startSync(session.user.id);
     } else {
+      forgetUser();
       stopSync();
       setSessionsOwner(null);
       setMatchesOwner(null);
@@ -114,11 +166,8 @@ export const AppNavigator = () => {
       setAIOwner(null);
     }
   }, [
-    hydrateAIForUser,
-    hydrateMatchesForUser,
-    hydrateRoutineScoresForUser,
-    hydrateSessionsForUser,
-    hydrateTournamentsForUser,
+    forgetUser,
+    loadUser,
     session,
     setMatchesOwner,
     setRoutineScoresOwner,
@@ -170,22 +219,14 @@ export const AppNavigator = () => {
             });
           });
         }
-        setSessionsOwner(nextSession.user.id);
-        void hydrateSessionsForUser(nextSession.user.id);
-        setMatchesOwner(nextSession.user.id);
-        void hydrateMatchesForUser(nextSession.user.id);
-        setRoutineScoresOwner(nextSession.user.id);
-        void hydrateRoutineScoresForUser(nextSession.user.id);
-        setTournamentsOwner(nextSession.user.id);
-        void hydrateTournamentsForUser(nextSession.user.id);
-        setAIOwner(nextSession.user.id);
-        void hydrateAIForUser(nextSession.user.id);
+        void loadUser(nextSession.user.id);
         startSync(nextSession.user.id);
         return;
       }
 
       setUser(null);
       setRequiresPasswordReset(false);
+      forgetUser();
       stopSync();
       setSessionsOwner(null);
       setMatchesOwner(null);
@@ -196,11 +237,8 @@ export const AppNavigator = () => {
 
     return () => listener.subscription.unsubscribe();
   }, [
-    hydrateAIForUser,
-    hydrateMatchesForUser,
-    hydrateRoutineScoresForUser,
-    hydrateSessionsForUser,
-    hydrateTournamentsForUser,
+    forgetUser,
+    loadUser,
     setAIOwner,
     setMatchesOwner,
     setRoutineScoresOwner,
@@ -215,7 +253,9 @@ return (
       <AchievementWatcher>
         <NavigationContainer theme={navigationTheme}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {isAuthenticated && !requiresPasswordReset ? (
+            {isAuthenticated && !requiresPasswordReset && readyUserId !== userId ? (
+              <Stack.Screen name="Loading" component={LoadingPlayerScreen} />
+            ) : isAuthenticated && !requiresPasswordReset ? (
               <>
                 <Stack.Screen name="Main" component={MainTabNavigator} />
                 <Stack.Screen
