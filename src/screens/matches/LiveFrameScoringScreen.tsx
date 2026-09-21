@@ -34,10 +34,9 @@ import {
   switchPlayer,
   type LiveBall,
   type LiveFoulType,
-  type LiveFrameState,
-} from "../../features/matches/liveFrameEngine";
+  type LiveFrameState, lastBallFor } from "../../features/matches/liveFrameEngine";
 import { clearLiveFrame, loadLiveFrame, saveLiveFrame } from "../../features/matches/liveFrameStorage";
-import { RADIUS, SCRIM, SPACING } from "../../constants";
+import { RADIUS, SCRIM, SPACING, DISPLAY_TEXT_SCALE } from "../../constants";
 
 const BALL_META: Array<{ key: LiveBall; color: string; textColor: string }> = [
   { key: "red", color: "#C7343A", textColor: "#FFFFFF" },
@@ -602,9 +601,10 @@ setDialog(
   useEffect(() => {
     if (!match) return;
 
+    // Nothing to keep: no frame finished and nobody has scored a point. Leaving discards it, so
+    // backing out of a match you started by mistake does not leave a 0-0 behind.
     const canAutoDiscardEmptyMatch =
       frameRecords.length === 0 &&
-      frame.events.length === 0 &&
       match.user_score === 0 &&
       match.opponent_score === 0 &&
       frame.userScore === 0 &&
@@ -614,31 +614,11 @@ setDialog(
       if (allowExitWithoutGuardRef.current || !canAutoDiscardEmptyMatch || isSaving) return;
 
       event.preventDefault();
-      setDialog({
-        title: "Discard this match?",
-        message: "No frames were played, so there is nothing to keep.",
-        tone: "danger",
-        icon: "trash-can-outline",
-        confirmLabel: "Discard match",
-        cancelLabel: "Keep it",
-        onConfirm: async () => {
-          try {
-            await deleteMatch(match.id);
-          } catch (error) {
-            setDialog({
-              title: "Could not discard the match",
-              message: "Check your connection and try again.",
-              tone: "danger",
-              icon: "wifi-off",
-              confirmLabel: "OK",
-            });
-            return;
-          }
-
-          allowExitWithoutGuardRef.current = true;
-          navigation.dispatch(event.data.action);
-        },
-      });
+      allowExitWithoutGuardRef.current = true;
+      // Even if this fails (no signal), an unfinished match is not counted as a result.
+      void deleteMatch(match.id)
+        .catch((error) => console.warn("Could not discard the empty match:", error))
+        .finally(() => navigation.dispatch(event.data.action));
     });
 
     return unsubscribe;
@@ -664,10 +644,29 @@ setDialog(
 
   return (
     <View style={[styles.screen, { backgroundColor: ui.page }]}> 
-      <Animated.View style={[styles.foulBanner, { transform: [{ translateY: foulBannerY }] }]}> 
+      {/* Faded out while tucked away: empty and half off-screen, they showed as two stray circles. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.foulBanner,
+          {
+            opacity: foulBannerY.interpolate({ inputRange: [-70, -20, 0], outputRange: [0, 1, 1], extrapolate: "clamp" }),
+            transform: [{ translateY: foulBannerY }],
+          },
+        ]}
+      >
         <Text style={styles.foulBannerText}>{foulBannerText ?? ""}</Text>
       </Animated.View>
-      <Animated.View style={[styles.noticeBanner, { transform: [{ translateY: noticeBannerY }] }]}> 
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.noticeBanner,
+          {
+            opacity: noticeBannerY.interpolate({ inputRange: [-70, -20, 0], outputRange: [0, 1, 1], extrapolate: "clamp" }),
+            transform: [{ translateY: noticeBannerY }],
+          },
+        ]}
+      >
         <Text style={styles.noticeBannerText}>{potNotice ?? ""}</Text>
       </Animated.View>
 
@@ -701,14 +700,33 @@ setDialog(
                     >
                       {card.name}
                     </Text>
-                    <Animated.Text
-                      style={[
-                        styles.scoreValue,
-                        { color: card.isActive ? ui.text : ui.textMuted, transform: [{ scale: scoreAnim }] },
-                      ]}
-                    >
-                      {card.score}
-                    </Animated.Text>
+                    {/* The last ball they potted - or the white, if their last shot potted nothing -
+                        sits behind their score, full for the player at the table. */}
+                    <View style={styles.scoreBallWrap}>
+                      <View
+                        style={[
+                          styles.scoreBall,
+                          {
+                            backgroundColor: colors.balls[lastBallFor(frame.events, card.key)].base,
+                            opacity: card.isActive ? 1 : 0.28,
+                          },
+                        ]}
+                      >
+                        <View style={styles.scoreBallShine} />
+                      </View>
+                      <Animated.Text
+                        maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+                        style={[
+                          styles.scoreValue,
+                          {
+                            color: card.isActive ? colors.balls[lastBallFor(frame.events, card.key)].on : ui.textMuted,
+                            transform: [{ scale: scoreAnim }],
+                          },
+                        ]}
+                      >
+                        {card.score}
+                      </Animated.Text>
+                    </View>
                     <View style={[styles.scoreUnderline, { backgroundColor: card.isActive ? colors.primary : "transparent" }]} />
                     <Text style={[styles.scoreMeta, { color: ui.textMuted }]}>
                       {card.isActive ? "At the table" : `High break ${card.highBreak}`}
@@ -1052,6 +1070,9 @@ setDialog(
   );
 };
 
+/** The ball behind each player's score. */
+const SCORE_BALL = 88;
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -1101,6 +1122,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     maxWidth: "100%",
+  },
+  scoreBallWrap: { width: SCORE_BALL, height: SCORE_BALL, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  scoreBall: {
+    position: "absolute",
+    width: SCORE_BALL,
+    height: SCORE_BALL,
+    borderRadius: SCORE_BALL / 2,
+    shadowColor: "#000000",
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  scoreBallShine: {
+    position: "absolute",
+    top: SCORE_BALL * 0.13,
+    left: SCORE_BALL * 0.22,
+    width: SCORE_BALL * 0.26,
+    height: SCORE_BALL * 0.16,
+    borderRadius: SCORE_BALL * 0.1,
+    backgroundColor: "rgba(255,255,255,0.35)",
   },
   scoreValue: {
     fontSize: 46,

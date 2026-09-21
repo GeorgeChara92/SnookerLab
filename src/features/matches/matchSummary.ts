@@ -67,7 +67,16 @@ export type MatchRecord = {
   lastPlayed?: string;
 };
 
-export const summariseMatches = (matches: Match[]): MatchRecord => {
+/**
+ * Whether a match has a result to count. A live match is created before a ball is struck, so
+ * until a frame has been finished it has no result - it is unfinished, not a 0-0 draw - and it
+ * stays out of records, head-to-heads, stats and achievements. A match entered by hand is a
+ * result from the start.
+ */
+export const countsAsResult = (match: Match) => getRecordingMode(match) === "manual" || match.frames_played > 0;
+
+export const summariseMatches = (all: Match[]): MatchRecord => {
+  const matches = all.filter(countsAsResult);
   const sorted = [...matches].sort(byNewest);
   const record: MatchRecord = {
     played: sorted.length,
@@ -109,7 +118,7 @@ export type OpponentRecord = MatchRecord & { name: string };
 /** Everyone you have played, most-played first, then by who you have the better of. */
 export const groupByOpponent = (matches: Match[]): OpponentRecord[] => {
   const byName = new Map<string, Match[]>();
-  matches.forEach((match) => {
+  matches.filter(countsAsResult).forEach((match) => {
     const name = match.opponent_name.trim();
     byName.set(name, [...(byName.get(name) ?? []), match]);
   });

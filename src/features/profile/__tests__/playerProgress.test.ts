@@ -3,7 +3,7 @@ import { compactXp, computePlayerStats } from "../playerStats";
 import type { Match, Routine, SessionLog } from "../../../types";
 
 const match = (id: string, date: string, result: Match["result"]): Match =>
-  ({ id, date, result, opponent_name: "John", user_score: 1, opponent_score: 0 }) as Match;
+  ({ id, date, result, opponent_name: "John", user_score: 1, opponent_score: 0, frames_played: 1 }) as Match;
 
 describe("player progress", () => {
   it("shortens large XP for the header without rounding up", () => {
@@ -57,5 +57,15 @@ describe("player progress", () => {
     ] as unknown as SessionLog[];
 
     expect(computePlayerStats([], sessions, [], routines, {}).mostTrainedCategory).toBe("cat-safety");
+  });
+});
+
+describe("unfinished matches", () => {
+  it("leaves a live match with no frame finished out of the record", () => {
+    const finished = match("m1", "2026-09-01", "win");
+    const unfinished = { ...match("m2", "2026-09-02", "draw"), frames_played: 0, user_score: 0, opponent_score: 0 } as Match;
+    const stats = computePlayerStats([finished, unfinished], [], [], [] as Routine[], {});
+    expect(stats.matchesPlayed).toBe(1);
+    expect(stats.winRate).toBe(100);
   });
 });

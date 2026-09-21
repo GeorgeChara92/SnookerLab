@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { countsAsResult } from "../../features/matches/matchSummary";
 import {
   Pressable,
   ScrollView,
@@ -70,7 +71,7 @@ export const NewMatchScreen = () => {
 
   const headToHead = useMemo(() => {
     if (!opponentName.trim()) return null;
-    const opponentMatches = matches.filter((m) => m.opponent_name === opponentName.trim());
+    const opponentMatches = matches.filter((m) => m.opponent_name === opponentName.trim() && countsAsResult(m));
     if (opponentMatches.length === 0) return null;
     const wins = opponentMatches.filter((m) => m.result === "win").length;
     const losses = opponentMatches.filter((m) => m.result === "loss").length;

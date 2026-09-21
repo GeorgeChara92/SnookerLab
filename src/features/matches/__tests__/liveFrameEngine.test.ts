@@ -9,6 +9,8 @@ import {
   recordFoul,
   type LiveBall,
   type LiveFrameState,
+  type LiveFrameEvent,
+  lastBallFor,
 } from "../liveFrameEngine";
 
 const pots = (state: LiveFrameState, balls: LiveBall[]) => balls.reduce(potBall, state);
@@ -162,5 +164,30 @@ describe("liveFrameEngine", () => {
     };
     // 30 ahead with 7 left: needs 23 from fouls worth 7 each.
     expect(getSnookersRequired(frame)?.count).toBe(4);
+  });
+});
+
+describe("the ball behind each score", () => {
+  const event = (kind: LiveFrameEvent["kind"], player?: LiveFrameEvent["player"], ball?: LiveFrameEvent["ball"]): LiveFrameEvent => ({
+    id: Math.random().toString(36),
+    kind,
+    player,
+    ball,
+    timestamp: "2026-09-21T18:00:00Z",
+  });
+
+  it("shows the last ball potted, or the white once the visit ends without one", () => {
+    const events = [event("pot", "user", "red"), event("pot", "user", "black")];
+    expect(lastBallFor(events, "user")).toBe("black");
+    expect(lastBallFor(events, "opponent")).toBe("cue");
+    expect(lastBallFor([...events, event("visit_end", "user")], "user")).toBe("cue");
+    expect(lastBallFor([...events, event("foul", "user")], "user")).toBe("cue");
+  });
+
+  it("is not changed by the other player's shots, and resets on a re-rack", () => {
+    const events = [event("pot", "user", "pink"), event("visit_end", "user"), event("pot", "opponent", "red")];
+    expect(lastBallFor(events, "user")).toBe("cue");
+    expect(lastBallFor([event("pot", "user", "blue"), event("pot", "opponent", "red")], "user")).toBe("blue");
+    expect(lastBallFor([event("pot", "user", "blue"), event("re_rack", "user")], "user")).toBe("cue");
   });
 });

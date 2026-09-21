@@ -11,6 +11,7 @@ import {
   getRecordingMode,
   relativeDate,
   type FormLetter,
+  countsAsResult,
 } from "../../features/matches/matchSummary";
 
 /**
@@ -56,6 +57,9 @@ const letterOf = (match: Match): FormLetter =>
 
 const resultWord = (letter: FormLetter) => (letter === "W" ? "WON" : letter === "L" ? "LOST" : "DRAWN");
 
+/** The word on a match's row: its result, or UNFINISHED for a live match with no frame finished yet. */
+const rowWord = (match: Match, letter: FormLetter) => (countsAsResult(match) ? resultWord(letter) : "UNFINISHED");
+
 /**
  * One match, drawn as the scoreboard: you on the left, them on the right, the best-of in the
  * middle - or PTS when the numbers are the points in a single frame entered by hand. The line
@@ -88,7 +92,7 @@ export const MatchRow = ({
       onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityState={selectionMode ? { selected } : undefined}
-      accessibilityLabel={`${resultWord(letter).toLowerCase()} against ${match.opponent_name}, ${match.user_score} to ${match.opponent_score} ${unit}, ${relativeDate(match.date)}`}
+      accessibilityLabel={`${rowWord(match, letter).toLowerCase()} against ${match.opponent_name}, ${match.user_score} to ${match.opponent_score} ${unit}, ${relativeDate(match.date)}`}
       style={({ pressed }) => [styles.row, { opacity: pressed ? 0.8 : 1 }]}
     >
       <View style={styles.caption}>
@@ -114,7 +118,7 @@ export const MatchRow = ({
           {relativeDate(match.date).toUpperCase()} · {mode === "live" ? "LIVE" : "MANUAL"}
           {unit === "points" ? " · ONE FRAME" : ""}
         </Text>
-        <Text style={[styles.resultWord, { color: resultColour }]}>{resultWord(letter)}</Text>
+        <Text style={[styles.resultWord, { color: countsAsResult(match) ? resultColour : colors.textMuted }]}>{rowWord(match, letter)}</Text>
       </View>
 
       <ScoreStrip

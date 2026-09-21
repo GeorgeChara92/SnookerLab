@@ -8,7 +8,7 @@ import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import { addDays, countStreak, dateKeyFrom, parseDateValue, startOfWeekMonday, toLocalDateKey } from "../../utils/date";
 import { BoardPanel, ScoreStrip } from "../../components/scoreboard/Scoreboard";
 import { FormStrip } from "../../components/matches/MatchRows";
-import { groupByOpponent, relativeDate, summariseMatches, byNewest } from "../../features/matches/matchSummary";
+import { countsAsResult, groupByOpponent, relativeDate, summariseMatches, byNewest } from "../../features/matches/matchSummary";
 import { calendarWeeks, countByDay, longestStreak, thisWeek } from "../../features/stats/activity";
 
 type SegmentKey = "overview" | "training" | "matches";
@@ -237,8 +237,9 @@ export const DashboardScreen = () => {
 
     const allScores = scoresFor(() => true);
     const record = summariseMatches(matches);
-    const currentMatches = matches.filter((match) => inCurrent(match.date));
-    const previousMatches = matches.filter((match) => inPrevious(match.date));
+    const played = matches.filter(countsAsResult);
+    const currentMatches = played.filter((match) => inCurrent(match.date));
+    const previousMatches = played.filter((match) => inPrevious(match.date));
     const rate = (list: typeof matches) =>
       list.length ? (list.filter((match) => match.result === "win").length / list.length) * 100 : 0;
 

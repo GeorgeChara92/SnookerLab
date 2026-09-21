@@ -273,3 +273,19 @@ export const getFrameWinner = (state: LiveFrameState): "user" | "opponent" | "dr
   if (state.opponentScore > state.userScore) return "opponent";
   return "draw";
 };
+
+/**
+ * The ball shown behind a player's score: the last ball they potted, if their last shot was a
+ * pot, or the white if it was not - a miss, a safety, a foul or no shot yet this frame. A re-rack
+ * starts everyone on the white again.
+ */
+export const lastBallFor = (events: LiveFrameEvent[], player: LiveSide): LiveBall | "cue" => {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event.kind === "re_rack") return "cue";
+    if (event.player !== player) continue;
+    if (event.kind === "pot" && event.ball) return event.ball;
+    if (event.kind === "foul" || event.kind === "visit_end" || event.kind === "switch") return "cue";
+  }
+  return "cue";
+};

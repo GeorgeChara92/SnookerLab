@@ -1,3 +1,4 @@
+import { countsAsResult } from "../matches/matchSummary";
 /**
  * A player's progress: the stats achievements are measured against, which achievements are
  * unlocked, the XP they are worth, and the level that XP puts you at.
@@ -33,6 +34,8 @@ export const computePlayerStats = (
   routines: Routine[],
   liveFramesByMatch: Record<string, { highest_break_user: number }[]>
 ): Omit<PlayerStats, "playerLevel"> => {
+  // An unfinished live match has no result yet, so it counts for nothing here.
+  matches = matches.filter(countsAsResult);
   const matchesWon = matches.filter((match) => match.result === "win").length;
   const matchesLost = matches.filter((match) => match.result === "loss").length;
 
