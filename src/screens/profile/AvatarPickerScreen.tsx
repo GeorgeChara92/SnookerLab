@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useAuthStore } from "../../store";
@@ -26,13 +26,18 @@ import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
  * Building your avatar: pick a face, dress it, and choose the ball colour for the ring. Outfits
  * and colours are earned by level, so the picker also shows what the next few levels bring.
  */
-const QUICK_FACES = 8;
+// Two full rows, so the grid never ends with a gap.
+const FACE_COLUMNS = 5;
+const QUICK_FACES = FACE_COLUMNS * 2;
+const FACE_GAP = 8;
 
 export const AvatarPickerScreen = () => {
   const navigation = useNavigation();
   const { user, updateAvatarPreset } = useAuthStore();
   const { colors } = useAppTheme();
   const dialog = useDialog();
+  const { width } = useWindowDimensions();
+  const faceTile = Math.floor((width - SPACING.lg * 2 - FACE_GAP * (FACE_COLUMNS - 1)) / FACE_COLUMNS);
   const { level } = usePlayerProgress();
   const name = user?.username ?? "player";
 
@@ -111,13 +116,14 @@ export const AvatarPickerScreen = () => {
                 accessibilityLabel="Use this face"
                 style={[
                   styles.faceTile,
+                  { width: faceTile, height: faceTile, borderRadius: faceTile / 2 },
                   {
                     borderColor: selected ? colors.primary : "transparent",
                     backgroundColor: colors.surface,
                   },
                 ]}
               >
-                <PlayerAvatar spec={{ ...draft, seed }} size={64} showRing={false} />
+                <PlayerAvatar spec={{ ...draft, seed }} size={faceTile - 10} showRing={false} />
               </Pressable>
             );
           })}
@@ -125,7 +131,7 @@ export const AvatarPickerScreen = () => {
         <Pressable
           onPress={() => setSheetOpen(true)}
           accessibilityRole="button"
-          accessibilityLabel="Show more faces"
+          accessibilityLabel="Show more avatars"
           style={({ pressed }) => [
             styles.moreButton,
             {
@@ -135,7 +141,7 @@ export const AvatarPickerScreen = () => {
           ]}
         >
           <MaterialCommunityIcons name="emoticon-outline" size={18} color={colors.primary} />
-          <Text style={[styles.moreText, { color: colors.primary }]}>More faces</Text>
+          <Text style={[styles.moreText, { color: colors.primary }]}>More avatars</Text>
         </Pressable>
 
         {/* ---------------------------------------------------------------- outfit */}
@@ -288,14 +294,8 @@ const styles = StyleSheet.create({
   },
   moreText: { fontSize: 14, fontWeight: "700" },
 
-  faces: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: SPACING.sm,
-    marginTop: SPACING.md,
-  },
-  faceTile: { borderWidth: 2, borderRadius: 40, padding: 3 },
+  faces: { flexDirection: "row", flexWrap: "wrap", gap: FACE_GAP, marginTop: SPACING.md },
+  faceTile: { borderWidth: 2, alignItems: "center", justifyContent: "center" },
 
   outfits: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
   outfitTile: {

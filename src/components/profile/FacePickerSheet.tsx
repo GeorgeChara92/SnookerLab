@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useMemo } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,12 +8,13 @@ import { faceSeeds, type AvatarSpec } from "../../features/profile/avatarSpec";
 import { SPACING } from "../../constants";
 
 /**
- * Every face to choose from, in one list you scroll rather than a shuffle button you keep
- * pressing. More load as you reach the bottom, so there is no end to it.
+ * Every face to choose from, laid out in one list. It is a set number rather than an endless
+ * scroll, so the choice feels like a collection you can see the end of.
  */
 
 const COLUMNS = 4;
-const PAGE = 24;
+/** A multiple of the columns, so the last row is full. */
+const TOTAL = 60;
 
 type Props = {
   visible: boolean;
@@ -29,20 +30,19 @@ export const FacePickerSheet = ({ visible, onClose, name, draft, onPick }: Props
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const [pages, setPages] = useState(2);
 
-  const seeds = Array.from({ length: pages }, (_, round) => faceSeeds(name, round, PAGE)).flat();
+  const seeds = useMemo(() => faceSeeds(name, 0, TOTAL), [name]);
   const tile = Math.floor((width - SPACING.lg * 2 - SPACING.sm * (COLUMNS - 1)) / COLUMNS);
-
-  const loadMore = useCallback(() => setPages((value) => value + 1), []);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={[styles.sheet, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <View style={styles.headerText}>
-            <Text style={[styles.title, { color: colors.text }]}>Choose a face</Text>
-            <Text style={[styles.subtitle, { color: colors.textMuted }]}>Scroll for more. Tap one to use it.</Text>
+            <Text style={[styles.title, { color: colors.text }]}>More avatars</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              {TOTAL} to choose from. Tap one to use it.
+            </Text>
           </View>
           <Pressable
             onPress={onClose}
@@ -61,9 +61,7 @@ export const FacePickerSheet = ({ visible, onClose, name, draft, onPick }: Props
           numColumns={COLUMNS}
           columnWrapperStyle={styles.row}
           contentContainerStyle={[styles.grid, { paddingBottom: insets.bottom + SPACING.xl }]}
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.6}
-          initialNumToRender={PAGE}
+          initialNumToRender={24}
           windowSize={7}
           showsVerticalScrollIndicator={false}
           renderItem={({ item: seed }) => {
