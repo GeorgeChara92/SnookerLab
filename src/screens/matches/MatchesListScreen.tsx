@@ -5,7 +5,7 @@ import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { SyncBanner } from "../../components/ui/SyncBanner";
 import { SwipeToDelete } from "../../components/ui/SwipeToDelete";
 import { useDialog } from "../../components/ui/DialogProvider";
-import { FormStrip, MatchRow, SectionHeader } from "../../components/matches/MatchRows";
+import { DayHeader, FormStrip, MatchRow, SectionHeader } from "../../components/matches/MatchRows";
 import { TierPaywallModal } from "../../components/subscription";
 import { useMatchesStore, useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, Tournament } from "../../types";
@@ -19,6 +19,7 @@ import {
   initialsOf,
   relativeDate,
   summariseMatches,
+  groupByDay,
 } from "../../features/matches/matchSummary";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -306,16 +307,25 @@ export const MatchesListScreen = () => {
             }
             onAction={() => toggle("matches")}
           />
-          {visibleMatches.map((match) => (
-            <SwipeToDelete
-              key={match.id}
-              onDelete={() => confirmDeleteMatch(match)}
-              deleteLabel={`Delete the match against ${match.opponent_name}`}
-              radius={RADIUS.sm}
-              gapBelow={SPACING.md}
-            >
-              <MatchRow match={match} onPress={() => navigation.navigate("MatchDetail", { matchId: match.id })} />
-            </SwipeToDelete>
+          {groupByDay(visibleMatches).map((day) => (
+            <View key={day.key}>
+              <DayHeader label={day.label} count={day.items.length} />
+              {day.items.map((match) => (
+                <SwipeToDelete
+                  key={match.id}
+                  onDelete={() => confirmDeleteMatch(match)}
+                  deleteLabel={`Delete the match against ${match.opponent_name}`}
+                  radius={RADIUS.sm}
+                  gapBelow={SPACING.md}
+                >
+                  <MatchRow
+                    match={match}
+                    showDate={false}
+                    onPress={() => navigation.navigate("MatchDetail", { matchId: match.id })}
+                  />
+                </SwipeToDelete>
+              ))}
+            </View>
           ))}
         </>
       ) : null}

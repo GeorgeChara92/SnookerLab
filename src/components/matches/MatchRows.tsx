@@ -41,19 +41,14 @@ export const ResultPill = ({ letter, size = 34 }: { letter: FormLetter; size?: n
 
 /** The last few results, newest on the left. */
 export const FormStrip = ({ form, size = 24 }: { form: FormLetter[]; size?: number }) => (
-  <View
-    style={styles.formStrip}
-    accessibilityLabel={`Recent form, newest first: ${form.join(", ")}`}
-    accessible
-  >
+  <View style={styles.formStrip} accessibilityLabel={`Recent form, newest first: ${form.join(", ")}`} accessible>
     {form.map((letter, index) => (
       <ResultPill key={`${letter}-${index}`} letter={letter} size={size} />
     ))}
   </View>
 );
 
-const letterOf = (match: Match): FormLetter =>
-  match.result === "win" ? "W" : match.result === "loss" ? "L" : "D";
+const letterOf = (match: Match): FormLetter => (match.result === "win" ? "W" : match.result === "loss" ? "L" : "D");
 
 const resultWord = (letter: FormLetter) => (letter === "W" ? "WON" : letter === "L" ? "LOST" : "DRAWN");
 
@@ -71,12 +66,15 @@ export const MatchRow = ({
   onLongPress,
   selectionMode = false,
   selected = false,
+  showDate = true,
 }: {
   match: Match;
   onPress: () => void;
   onLongPress?: () => void;
   selectionMode?: boolean;
   selected?: boolean;
+  /** Off when the row sits under a day heading that already says when. */
+  showDate?: boolean;
 }) => {
   const { colors } = useAppTheme();
   const letter = letterOf(match);
@@ -115,10 +113,13 @@ export const MatchRow = ({
           color={colors.textMuted}
         />
         <Text style={[styles.captionText, { color: colors.textMuted }]} numberOfLines={1}>
-          {relativeDate(match.date).toUpperCase()} · {mode === "live" ? "LIVE" : "MANUAL"}
+          {showDate ? `${relativeDate(match.date).toUpperCase()} · ` : ""}
+          {mode === "live" ? "LIVE" : "MANUAL"}
           {unit === "points" ? " · ONE FRAME" : ""}
         </Text>
-        <Text style={[styles.resultWord, { color: countsAsResult(match) ? resultColour : colors.textMuted }]}>{rowWord(match, letter)}</Text>
+        <Text style={[styles.resultWord, { color: countsAsResult(match) ? resultColour : colors.textMuted }]}>
+          {rowWord(match, letter)}
+        </Text>
       </View>
 
       <ScoreStrip
@@ -128,6 +129,18 @@ export const MatchRow = ({
         style={selected ? { borderColor: colors.primary } : undefined}
       />
     </Pressable>
+  );
+};
+
+/** The day a run of matches was played, with how many, above their rows. */
+export const DayHeader = ({ label, count }: { label: string; count: number }) => {
+  const { colors } = useAppTheme();
+  return (
+    <View style={styles.dayHeader} accessibilityRole="header">
+      <Text style={[styles.dayLabel, { color: colors.text }]}>{label.toUpperCase()}</Text>
+      <View style={[styles.dayRule, { backgroundColor: colors.border }]} />
+      {count > 1 ? <Text style={[styles.dayCount, { color: colors.textMuted }]}>{count} MATCHES</Text> : null}
+    </View>
   );
 };
 
@@ -156,6 +169,10 @@ export const SectionHeader = ({
 };
 
 const styles = StyleSheet.create({
+  dayHeader: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, marginBottom: SPACING.sm },
+  dayLabel: { fontFamily: FONTS.board, fontSize: 15, letterSpacing: 1.2 },
+  dayRule: { flex: 1, height: StyleSheet.hairlineWidth },
+  dayCount: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1 },
   pill: {
     alignItems: "center",
     justifyContent: "center",

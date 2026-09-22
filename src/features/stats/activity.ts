@@ -50,3 +50,20 @@ export const calendarWeeks = (counts: Map<string, number>, weeks = 8, now = new 
 
 /** This week, Monday first, for the strip of seven days. */
 export const thisWeek = (counts: Map<string, number>, now = new Date()) => calendarWeeks(counts, 1, now)[0];
+
+/** The last `days` days, oldest first and ending today, for the practice rhythm chart. */
+export const lastDays = (counts: Map<string, number>, days = 28, now = new Date()): CalendarDay[] => {
+  const todayKey = toLocalDateKey(now);
+  return Array.from({ length: days }, (_, index) => {
+    const key = toLocalDateKey(addDays(now, index - (days - 1)));
+    return { key, count: counts.get(key) ?? 0, isFuture: false, isToday: key === todayKey };
+  });
+};
+
+export type BallName = "red" | "yellow" | "green" | "brown" | "blue" | "pink" | "black";
+
+/** The colours in the order they are potted, with their values: the week reads red to black. */
+export const COLOUR_ORDER: BallName[] = ["red", "yellow", "green", "brown", "blue", "pink", "black"];
+
+/** A busy day is worth more: one thing logged is a red, two a yellow, and so on up to the black. */
+export const ballForCount = (count: number): BallName => COLOUR_ORDER[Math.min(7, Math.max(1, count)) - 1];

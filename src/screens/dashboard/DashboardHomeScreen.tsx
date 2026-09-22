@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRoutineScoresStore, useRoutinesStore, useSessionsStore } from "../../store";
+import { useMatchesStore, useRoutineScoresStore, useRoutinesStore, useSessionsStore } from "../../store";
+import { useTourNewsStore } from "../../store/tourNewsStore";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import {
   addDays,
@@ -13,844 +14,541 @@ import {
   toLocalDateKey,
   todayKey,
 } from "../../utils/date";
+import { countByDay, thisWeek } from "../../features/stats/activity";
+import { byNewest, countsAsResult, relativeDate, summariseMatches } from "../../features/matches/matchSummary";
+import { bestOfFor } from "../../features/matches/bestOf";
+import { WeekRail } from "../../components/stats/WeekRail";
+import { ScoreStrip } from "../../components/scoreboard/Scoreboard";
+import { FormStrip } from "../../components/matches/MatchRows";
+import { NewsRow } from "../../components/tour/NewsRow";
+import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
-type RoutineRecommendation = {
-  id: string;
-  name: string;
-  categoryName: string;
-  note: string;
-};
+const DAY_MS = 86_400_000;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const PAGES = [
+  { key: "week", label: "This week" },
+  { key: "next", label: "Next up" },
+  { key: "recent", label: "Recent" },
+  { key: "tour", label: "Pro tour" },
+] as const;
+type PageKey = (typeof PAGES)[number]["key"];
 
-const toDateKey = dateKeyFrom;
+/** Row heights, to work out how many rows a page has room for. */
+const ROW = { next: 64, recent: 56, tour: 80 };
 
-const getDaysAgo = (dateKey: string) => {
-  const today = parseDateKey(todayKey());
-  const target = parseDateKey(dateKey);
-  return Math.max(0, Math.round((today.getTime() - target.getTime()) / DAY_MS));
-};
+const daysAgo = (key: string) =>
+  Math.max(0, Math.round((parseDateKey(todayKey()).getTime() - parseDateKey(key).getTime()) / DAY_MS));
 
+/**
+ * Home, on one screen: what to practise next, the numbers that matter at a glance (streak, this
+ * week, recent form), and four pages to swipe between - the week on the rail with the last
+ * match, what to practise next, what was done lately, and news from the pro tour. The pages
+ * fill whatever height the phone leaves, showing as many rows as fit, so nothing scrolls down.
+ */
 export const DashboardHomeScreen = () => {
   const navigation = useNavigation<any>();
-  const { width } = useWindowDimensions();
   const { colors } = useAppTheme();
   const { templates, logs } = useSessionsStore();
   const { entries } = useRoutineScoresStore();
   const { routines, categories } = useRoutinesStore();
+  const matches = useMatchesStore((state) => state.matches);
+  const news = useTourNewsStore((state) => state.items);
+  const refreshNews = useTourNewsStore((state) => state.refresh);
 
-  const lastTemplate = templates[0];
+  const [pager, setPager] = useState({ width: 0, height: 0 });
+  const [page, setPage] = useState(0);
+  const [railWidth, setRailWidth] = useState(0);
+  const listRef = useRef<FlatList>(null);
 
-  const dashboard = useMemo(() => {
-    const activeDateKeys = new Set<string>();
+  useEffect(() => {
+    void refreshNews();
+  }, [refreshNews]);
 
-    logs.forEach((log) => {
-      activeDateKeys.add(toDateKey(log.date));
+  const template = templates[0];
+  const templateMinutes = useMemo(
+    () =>
+      template
+        ? template.routine_ids.reduce(
+            (sum, id) => sum + (routines.find((routine) => routine.id === id)?.estimated_duration_minutes ?? 0),
+            0
+          )
+        : 0,
+    [routines, template]
+  );
+
+  const home = useMemo(() => {
+    const practiceKeys = [
+      ...logs.map((log) => dateKeyFrom(log.date)),
+      ...entries.map((entry) => dateKeyFrom(entry.recorded_at)),
+    ];
+    const counts = countByDay([
+      ...logs.flatMap((log) => log.results.map(() => dateKeyFrom(log.date))),
+      ...entries.map((entry) => dateKeyFrom(entry.recorded_at)),
+    ]);
+    const active = new Set(practiceKeys);
+    const week = thisWeek(counts);
+    const lastMonday = addDays(startOfWeekMonday(), -7);
+    const lastWeekDays = Array.from({ length: 7 }, (_, index) => toLocalDateKey(addDays(lastMonday, index))).filter(
+      (key) => active.has(key)
+    ).length;
+    const weekDays = week.filter((day) => day.count > 0).length;
+    const weekLogged = week.reduce((sum, day) => sum + day.count, 0);
+
+    // When each routine was last played, to suggest the ones left longest.
+    const lastPlayed = new Map<string, string>();
+    const note = (routineId: string, key: string) => {
+      const known = lastPlayed.get(routineId);
+      if (!known || key > known) lastPlayed.set(routineId, key);
+    };
+    logs.forEach((log) => log.results.forEach((result) => note(result.routine_id, dateKeyFrom(log.date))));
+    entries.forEach((entry) => note(entry.routine_id, dateKeyFrom(entry.recorded_at)));
+
+    const scoreable = routines.filter((routine) => routine.content_type !== "guide");
+    const slipping = weekDays < lastWeekDays || weekDays <= 1;
+    const foundations = categories.find((category) => /foundation|fundamental/i.test(category.name));
+    const byStaleness = [...scoreable].sort((a, b) => {
+      const [x, y] = [lastPlayed.get(a.id), lastPlayed.get(b.id)];
+      if (!x && !y) return a.name.localeCompare(b.name);
+      if (!x) return -1;
+      if (!y) return 1;
+      return x.localeCompare(y);
     });
-
-    entries.forEach((entry) => {
-      activeDateKeys.add(toDateKey(entry.recorded_at));
-    });
-
-    const currentStreak = countStreak(activeDateKeys);
-    const lastPracticeDate = logs[0]?.date ?? entries[0]?.recorded_at;
-    const currentWeekStart = startOfWeekMonday();
-    const previousWeekStart = addDays(currentWeekStart, -7);
-
-    const currentWeekKeys = Array.from({ length: 7 }, (_, index) => toLocalDateKey(addDays(currentWeekStart, index)));
-    const previousWeekKeys = Array.from({ length: 7 }, (_, index) => toLocalDateKey(addDays(previousWeekStart, index)));
-
-    const currentWeekActiveDays = currentWeekKeys.reduce((sum, key) => sum + (activeDateKeys.has(key) ? 1 : 0), 0);
-    const previousWeekActiveDays = previousWeekKeys.reduce((sum, key) => sum + (activeDateKeys.has(key) ? 1 : 0), 0);
-    const completionRate = Math.round((currentWeekActiveDays / 7) * 100);
-    const consistencyDropping =
-      currentWeekActiveDays < previousWeekActiveDays || (currentStreak <= 1 && currentWeekActiveDays <= 2);
-    const totalCompletions = logs.reduce((sum, log) => sum + log.results.length, 0) + entries.length;
-
-    const weeklyLoad = currentWeekKeys.map((key) => {
-      const logCount = logs.reduce((sum, log) => {
-        if (toDateKey(log.date) !== key) return sum;
-        return sum + log.results.length;
-      }, 0);
-      const entryCount = entries.reduce((sum, entry) => {
-        if (toDateKey(entry.recorded_at) !== key) return sum;
-        return sum + 1;
-      }, 0);
-
-      return {
-        key,
-        label: parseDateKey(key).toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3),
-        count: logCount + entryCount,
-      };
-    });
-
-    const maxDailyLoad = Math.max(1, ...weeklyLoad.map((day) => day.count));
-    const weeklyTotal = weeklyLoad.reduce((sum, day) => sum + day.count, 0);
-
-    const lastUsedByRoutineId = new Map<string, string>();
-
-    logs.forEach((log) => {
-      const dateKey = toDateKey(log.date);
-
-      log.results.forEach((result) => {
-        const existing = lastUsedByRoutineId.get(result.routine_id);
-        if (!existing || new Date(dateKey).getTime() > new Date(existing).getTime()) {
-          lastUsedByRoutineId.set(result.routine_id, dateKey);
-        }
-      });
-    });
-
-    entries.forEach((entry) => {
-      const dateKey = toDateKey(entry.recorded_at);
-      const existing = lastUsedByRoutineId.get(entry.routine_id);
-
-      if (!existing || new Date(dateKey).getTime() > new Date(existing).getTime()) {
-        lastUsedByRoutineId.set(entry.routine_id, dateKey);
-      }
-    });
-
-    const scoreableRoutines = routines.filter((routine) => routine.content_type !== "guide");
-
-    const rankedByRecency = [...scoreableRoutines].sort((a, b) => {
-      const aDate = lastUsedByRoutineId.get(a.id);
-      const bDate = lastUsedByRoutineId.get(b.id);
-
-      if (!aDate && !bDate) return a.name.localeCompare(b.name);
-      if (!aDate) return -1;
-      if (!bDate) return 1;
-      return new Date(aDate).getTime() - new Date(bDate).getTime();
-    });
-
-    const foundationsCategory = categories.find((category) => {
-      const label = category.name.toLowerCase();
-      return label.includes("foundation") || label.includes("fundamental");
-    });
-
-    const baseRecommendations =
-      consistencyDropping && foundationsCategory
+    const ordered =
+      slipping && foundations
         ? [
-            ...rankedByRecency.filter((routine) => routine.category_id === foundationsCategory.id),
-            ...rankedByRecency.filter((routine) => routine.category_id !== foundationsCategory.id),
+            ...byStaleness.filter((routine) => routine.category_id === foundations.id),
+            ...byStaleness.filter((routine) => routine.category_id !== foundations.id),
           ]
-        : rankedByRecency;
-
-    const recommendedRoutines: RoutineRecommendation[] = baseRecommendations.slice(0, 3).map((routine) => {
-      const categoryName = categories.find((category) => category.id === routine.category_id)?.name ?? "Practice";
-      const lastUsed = lastUsedByRoutineId.get(routine.id);
-
-      const note = !lastUsed
-        ? "Not logged yet"
-        : getDaysAgo(lastUsed) === 0
-          ? "Played today"
-          : `${getDaysAgo(lastUsed)} day${getDaysAgo(lastUsed) === 1 ? "" : "s"} since last run`;
-
+        : byStaleness;
+    const next = ordered.slice(0, 6).map((routine) => {
+      const last = lastPlayed.get(routine.id);
       return {
         id: routine.id,
         name: routine.name,
-        categoryName,
-        note,
+        category: categories.find((category) => category.id === routine.category_id)?.name ?? "Practice",
+        note: !last ? "Not played yet" : daysAgo(last) === 0 ? "Played today" : `${daysAgo(last)}d since you played it`,
       };
     });
 
-    const recentActivity = [
+    // Routines and matches together, newest first, one line each.
+    const recentRoutines = [
       ...logs.flatMap((log) =>
-        log.results.map((result) => ({
-          routineId: result.routine_id,
-          date: log.recorded_at,
-        }))
+        log.results.map((result) => ({ id: result.routine_id, at: log.recorded_at ?? log.date }))
       ),
-      ...entries.map((entry) => ({
-        routineId: entry.routine_id,
-        date: entry.recorded_at,
-      })),
+      ...entries.map((entry) => ({ id: entry.routine_id, at: entry.recorded_at, score: entry.score })),
     ]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .reduce<{ routineId: string; date: string }[]>((acc, item) => {
-        if (acc.some((existing) => existing.routineId === item.routineId)) return acc;
-        return [...acc, item];
-      }, [])
-      .slice(0, 4)
-      .map((item) => {
-        const routine = scoreableRoutines.find((routineEntry) => routineEntry.id === item.routineId);
-        return {
-          id: item.routineId,
-          name: routine?.name ?? "Routine",
-          date: item.date,
-        };
-      });
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .filter((item, index, list) => list.findIndex((other) => other.id === item.id) === index)
+      .slice(0, 8)
+      .map((item) => ({
+        kind: "routine" as const,
+        key: `r-${item.id}`,
+        id: item.id,
+        at: item.at,
+        title: scoreable.find((routine) => routine.id === item.id)?.name ?? "Routine",
+        detail: "score" in item && item.score ? `Scored ${item.score}` : "Practised",
+      }));
+    const played = [...matches].filter(countsAsResult).sort(byNewest);
+    const recentMatches = played.slice(0, 8).map((match) => ({
+      kind: "match" as const,
+      key: `m-${match.id}`,
+      id: match.id,
+      at: match.date,
+      title: `${match.user_score > match.opponent_score ? "Beat" : match.user_score < match.opponent_score ? "Lost to" : "Drew with"} ${match.opponent_name}`,
+      detail: `${match.user_score}–${match.opponent_score}`,
+    }));
+    const recent = [...recentRoutines, ...recentMatches].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 8);
 
     return {
-      currentStreak,
-      lastPracticeDate,
-      currentWeekActiveDays,
-      previousWeekActiveDays,
-      completionRate,
-      consistencyDropping,
-      recommendedRoutines,
-      recentActivity,
-      totalCompletions,
-      weeklyLoad,
-      maxDailyLoad,
-      weeklyTotal,
+      week,
+      weekDays,
+      weekLogged,
+      lastWeekDays,
+      streak: countStreak(active),
+      form: summariseMatches(matches).form,
+      lastMatch: played[0] ?? null,
+      next,
+      slipping: Boolean(slipping && foundations),
+      recent,
     };
-  }, [categories, entries, logs, routines]);
+  }, [categories, entries, logs, matches, routines]);
 
-  const weekDelta = dashboard.currentWeekActiveDays - dashboard.previousWeekActiveDays;
-  const weekDeltaLabel = `${weekDelta >= 0 ? "+" : ""}${weekDelta} day${Math.abs(weekDelta) === 1 ? "" : "s"}`;
-  const barAnims = useRef(Array.from({ length: 7 }, () => new Animated.Value(0))).current;
+  const startSession = () => {
+    if (template) navigation.navigate("Practice", { screen: "ActiveSession", params: { templateId: template.id } });
+    else navigation.navigate("Practice", { screen: "RoutineCategories", params: { tab: "sessions" } });
+  };
+  const openRoutine = (routineId: string) =>
+    navigation.navigate("Practice", { screen: "RoutineDetail", params: { routineId }, initial: false });
+  const openMatch = (matchId: string) =>
+    navigation.navigate("Matches", { screen: "MatchDetail", params: { matchId }, initial: false });
 
-  useEffect(() => {
-    Animated.stagger(
-      45,
-      barAnims.map((anim, index) =>
-        Animated.timing(anim, {
-          toValue: dashboard.weeklyLoad[index]?.count ?? 0,
-          duration: 320,
-          useNativeDriver: false,
-        })
-      )
-    ).start();
-  }, [barAnims, dashboard.weeklyLoad]);
-
-  const startPrimarySession = () => {
-    if (lastTemplate) {
-      navigation.navigate("Practice", {
-        screen: "ActiveSession",
-        params: { templateId: lastTemplate.id },
-      });
-      return;
-    }
-    navigation.navigate("Practice", { screen: "RoutineCategories", params: { tab: "sessions" } });
+  const goTo = (index: number) => {
+    setPage(index);
+    listRef.current?.scrollToOffset({ offset: index * pager.width, animated: true });
   };
 
-  const carouselPages = ["performance", "recommended", "recent"] as const;
-  const [activePage, setActivePage] = useState(0);
-  const carouselWidth = Math.max(280, width - 24);
+  const fit = (rowHeight: number, reserved = 0) =>
+    Math.max(2, Math.floor((pager.height - reserved + SPACING.sm) / (rowHeight + SPACING.sm)));
+
+  const weekDelta = home.weekDays - home.lastWeekDays;
+
+  // ------------------------------------------------------------------ pages
+
+  const weekPage = () => {
+    const bestOf = home.lastMatch ? bestOfFor(home.lastMatch) : undefined;
+    return (
+      <View style={styles.pageGap}>
+        <View style={[styles.board, { backgroundColor: colors.board, borderColor: colors.boardRaised }]}>
+          <View style={styles.boardHead}>
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.kicker, { color: colors.boardRule }]}>
+              {home.weekLogged} LOGGED THIS WEEK
+            </Text>
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.kicker, { color: colors.boardMuted }]}>
+              {weekDelta === 0 ? "SAME AS LAST WEEK" : `${weekDelta > 0 ? "+" : ""}${weekDelta} ON LAST WEEK`}
+            </Text>
+          </View>
+          <View onLayout={(event) => setRailWidth(event.nativeEvent.layout.width)}>
+            {railWidth ? <WeekRail days={home.week} width={railWidth} /> : null}
+          </View>
+        </View>
+        {home.lastMatch ? (
+          <Pressable
+            onPress={() => openMatch(home.lastMatch!.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`Last match against ${home.lastMatch.opponent_name}. Open it.`}
+          >
+            <Text style={[styles.label, { color: colors.textMuted }]}>
+              LAST MATCH · {relativeDate(home.lastMatch.date).toUpperCase()}
+            </Text>
+            <ScoreStrip
+              left={{
+                name: "You",
+                score: home.lastMatch.user_score,
+                leading: home.lastMatch.user_score > home.lastMatch.opponent_score,
+              }}
+              right={{
+                name: home.lastMatch.opponent_name,
+                score: home.lastMatch.opponent_score,
+                leading: home.lastMatch.opponent_score > home.lastMatch.user_score,
+              }}
+              middle={bestOf ? `(${bestOf})` : "V"}
+            />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => navigation.navigate("Matches", { screen: "NewMatch", initial: false })}
+            accessibilityRole="button"
+            style={[styles.prompt, { borderColor: colors.border }]}
+          >
+            <MaterialCommunityIcons name="trophy-outline" size={20} color={colors.primary} />
+            <Text style={[styles.promptText, { color: colors.text }]}>Record your first match</Text>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+          </Pressable>
+        )}
+      </View>
+    );
+  };
+
+  const nextPage = () => (
+    <View style={styles.pageGap}>
+      {home.slipping ? <Text style={[styles.label, { color: colors.primary }]}>BACK TO BASICS THIS WEEK</Text> : null}
+      {home.next.slice(0, fit(ROW.next, home.slipping ? 24 : 0)).map((routine, index) => (
+        <Pressable
+          key={routine.id}
+          onPress={() => openRoutine(routine.id)}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.row,
+            {
+              height: ROW.next,
+              backgroundColor: pressed ? colors.surfaceMuted : colors.surface,
+              borderColor: colors.border,
+              borderLeftColor: index === 0 ? colors.boardRule : colors.border,
+              borderLeftWidth: index === 0 ? 3 : 1,
+            },
+          ]}
+        >
+          <View style={styles.rowText}>
+            <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
+              {routine.name}
+            </Text>
+            <Text style={[styles.rowMeta, { color: colors.textMuted }]} numberOfLines={1}>
+              {routine.category} · {routine.note}
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  const recentPage = () =>
+    home.recent.length === 0 ? (
+      <View style={[styles.empty, { borderColor: colors.border }]}>
+        <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+          Routines you score and matches you play show up here.
+        </Text>
+      </View>
+    ) : (
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {home.recent.slice(0, fit(ROW.recent, 2)).map((item, index) => (
+          <Pressable
+            key={item.key}
+            onPress={() => (item.kind === "match" ? openMatch(item.id) : openRoutine(item.id))}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.recent,
+              { height: ROW.recent, backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
+              index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border } : null,
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={item.kind === "match" ? "trophy-outline" : "target"}
+              size={18}
+              color={item.kind === "match" ? colors.boardRule : colors.primary}
+            />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
+                {item.title}
+              </Text>
+              <Text style={[styles.rowMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                {item.detail}
+              </Text>
+            </View>
+            <Text style={[styles.when, { color: colors.textMuted }]}>{relativeDate(item.at)}</Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+
+  const tourPage = () => (
+    <View style={styles.pageGap}>
+      {news.length === 0 ? (
+        <View style={[styles.empty, { borderColor: colors.border }]}>
+          <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+            The latest from the World Snooker Tour and BBC Sport appears here once it loads.
+          </Text>
+        </View>
+      ) : (
+        news.slice(0, Math.max(1, fit(ROW.tour, 36))).map((item) => (
+          <View key={item.id} style={{ height: ROW.tour }}>
+            <NewsRow item={item} summary={false} />
+          </View>
+        ))
+      )}
+      <Pressable
+        onPress={() => navigation.navigate("Community", { screen: "TourNews", initial: false })}
+        accessibilityRole="button"
+        style={styles.more}
+      >
+        <Text style={[styles.moreText, { color: colors.primary }]}>All tour news</Text>
+        <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primary} />
+      </Pressable>
+    </View>
+  );
+
+  const renderPage = (key: PageKey) =>
+    key === "week" ? weekPage() : key === "next" ? nextPage() : key === "recent" ? recentPage() : tourPage();
+
+  // ------------------------------------------------------------------ screen
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
-        <View style={[styles.focusHero, { backgroundColor: colors.primaryStrong }]}>
-          <View style={styles.focusGlow} />
-          <Text style={[styles.focusKicker, { color: colors.onPrimary }]}>TODAY'S FOCUS</Text>
-          <Text style={[styles.focusTitle, { color: colors.onPrimary }]}>
-            {lastTemplate ? "Your Next Session" : "Set Your Next Session"}
-          </Text>
-          <Text style={[styles.focusDescription, { color: colors.onPrimary }]}>
-            {lastTemplate
-              ? `${lastTemplate.name} - ${lastTemplate.routine_ids.length} ${lastTemplate.routine_ids.length === 1 ? "routine" : "routines"}`
-              : "Pick the routines you want to work on and save them as a session you can repeat."}
-          </Text>
-          <View style={styles.focusActionsRow}>
-            <Pressable
-              style={[styles.focusPrimaryButton, { backgroundColor: colors.onPrimary }]}
-              onPress={startPrimarySession}
-            >
-              <Text style={[styles.focusPrimaryText, { color: colors.primaryStrong }]}>Start Session</Text>
-              <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primaryStrong} />
-            </Pressable>
-            <Pressable
-              style={[styles.focusSecondaryButton, { borderColor: "rgba(255,255,255,0.45)" }]}
-              onPress={() => navigation.navigate("Practice")}
-            >
-              <Text style={[styles.focusSecondaryText, { color: colors.onPrimary }]}>View Plan</Text>
-            </Pressable>
-          </View>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      {/* Up next */}
+      <View style={[styles.hero, { backgroundColor: colors.board, borderColor: colors.boardRule }]}>
+        <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.kicker, { color: colors.boardRule }]}>
+          {template
+            ? [
+                "UP NEXT",
+                `${template.routine_ids.length} ${template.routine_ids.length === 1 ? "ROUTINE" : "ROUTINES"}`,
+                templateMinutes ? `ABOUT ${templateMinutes} MIN` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            : "UP NEXT"}
+        </Text>
+        <Text
+          maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+          style={[styles.heroTitle, { color: colors.boardText }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {template ? template.name : "Build your first session"}
+        </Text>
+        <View style={styles.heroActions}>
+          <Pressable
+            onPress={startSession}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.start, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+          >
+            <MaterialCommunityIcons name={template ? "play" : "plus"} size={20} color={colors.onPrimary} />
+            <Text style={[styles.startText, { color: colors.onPrimary }]}>
+              {template ? "Start session" : "Create a session"}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("Practice", { screen: "PracticePlan", initial: false })}
+            accessibilityRole="button"
+            accessibilityLabel="This week's plan"
+            style={({ pressed }) => [styles.plan, { borderColor: colors.boardRaised, opacity: pressed ? 0.8 : 1 }]}
+          >
+            <MaterialCommunityIcons name="calendar-check-outline" size={18} color={colors.boardText} />
+            <Text style={[styles.planText, { color: colors.boardText }]}>Plan</Text>
+          </Pressable>
         </View>
+      </View>
 
-        <View style={styles.sectionWrap}>
-          <Text style={[styles.sectionHeading, { color: colors.text }]}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.quickActionCard,
-                { backgroundColor: colors.surface, borderColor: pressed ? colors.primary : colors.border },
-                pressed && styles.quickActionCardPressed,
-              ]}
-              onPress={startPrimarySession}
-            >
-              <MaterialCommunityIcons name="target" size={24} color={colors.primary} />
-              <Text style={[styles.quickActionTitle, { color: colors.text }]}>Start Session</Text>
-              <Text style={[styles.quickActionMeta, { color: colors.textMuted }]}>Focused practice</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.quickActionCard,
-                { backgroundColor: colors.surface, borderColor: pressed ? colors.primary : colors.border },
-                pressed && styles.quickActionCardPressed,
-              ]}
-              onPress={() => navigation.navigate("AICoach")}
-            >
-              <MaterialCommunityIcons name="robot-outline" size={24} color={colors.primary} />
-              <Text style={[styles.quickActionTitle, { color: colors.text }]}>AI Coach</Text>
-              <Text style={[styles.quickActionMeta, { color: colors.textMuted }]}>Review and analysis</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [
-                styles.quickActionCard,
-                { backgroundColor: colors.surface, borderColor: pressed ? colors.primary : colors.border },
-                pressed && styles.quickActionCardPressed,
-              ]}
-              onPress={() => navigation.navigate("Stats")}
-            >
-              <MaterialCommunityIcons name="chart-timeline-variant" size={24} color={colors.primary} />
-              <Text style={[styles.quickActionTitle, { color: colors.text }]}>Stats</Text>
-              <Text style={[styles.quickActionMeta, { color: colors.textMuted }]}>Progress and form</Text>
-            </Pressable>
-          </View>
-        </View>
+      {/* The numbers */}
+      <View style={[styles.numbers, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Pressable onPress={() => navigation.navigate("Stats")} accessibilityRole="button" style={styles.cell}>
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.cellValue, { color: colors.text }]}>
+            {home.streak}
+          </Text>
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.cellLabel, { color: colors.textMuted }]}>
+            DAY STREAK
+          </Text>
+        </Pressable>
+        <View style={[styles.cellRule, { backgroundColor: colors.border }]} />
+        <Pressable onPress={() => navigation.navigate("Stats")} accessibilityRole="button" style={styles.cell}>
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.cellValue, { color: colors.text }]}>
+            {home.weekDays}
+            <Text style={{ color: colors.textMuted }}>/7</Text>
+          </Text>
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.cellLabel, { color: colors.textMuted }]}>
+            DAYS THIS WEEK
+          </Text>
+        </Pressable>
+        <View style={[styles.cellRule, { backgroundColor: colors.border }]} />
+        <Pressable onPress={() => navigation.navigate("Matches")} accessibilityRole="button" style={styles.cell}>
+          {home.form.length ? (
+            <FormStrip form={home.form} size={18} />
+          ) : (
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.cellValue, { color: colors.textMuted }]}>
+              –
+            </Text>
+          )}
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.cellLabel, { color: colors.textMuted }]}>
+            FORM
+          </Text>
+        </Pressable>
+      </View>
 
-        <View style={styles.carouselSection}>
+      {/* Pages */}
+      <View style={styles.tabs} accessibilityRole="tablist">
+        {PAGES.map((item, index) => {
+          const selected = index === page;
+          return (
+            <Pressable
+              key={item.key}
+              onPress={() => goTo(index)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              style={[styles.tab, selected ? { borderBottomColor: colors.boardRule } : null]}
+            >
+              <Text
+                maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+                style={[styles.tabText, { color: selected ? colors.text : colors.textMuted }]}
+                numberOfLines={1}
+              >
+                {item.label.toUpperCase()}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View
+        style={styles.pager}
+        onLayout={(event) =>
+          setPager({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })
+        }
+      >
+        {pager.width ? (
           <FlatList
+            ref={listRef}
             horizontal
             pagingEnabled
-            data={carouselPages as unknown as string[]}
-            keyExtractor={(item) => item}
+            data={PAGES as unknown as Array<(typeof PAGES)[number]>}
+            keyExtractor={(item) => item.key}
             showsHorizontalScrollIndicator={false}
-            snapToInterval={carouselWidth}
-            decelerationRate="fast"
-            contentContainerStyle={styles.carouselTrack}
-            onScroll={(event) => {
-              const x = event.nativeEvent.contentOffset.x;
-              const index = Math.floor((x + carouselWidth * 0.5) / carouselWidth);
-              setActivePage(index);
-            }}
-            scrollEventThrottle={16}
+            extraData={[home, news, railWidth, pager.height]}
+            getItemLayout={(_, index) => ({ length: pager.width, offset: pager.width * index, index })}
+            onMomentumScrollEnd={(event) => setPage(Math.round(event.nativeEvent.contentOffset.x / pager.width))}
             renderItem={({ item }) => (
-              <View style={[styles.carouselPage, { width: carouselWidth }]}>
-                {item === "performance" ? (
-                  <View style={styles.pageShell}>
-                    <View style={styles.pageDominant}>
-                      <View style={styles.insightHeaderRow}>
-                        <Text style={[styles.pageTitle, { color: colors.text }]}>Performance Overview</Text>
-                        <Text
-                          style={[styles.weekDeltaTag, { color: weekDelta >= 0 ? colors.primary : colors.textMuted }]}
-                        >
-                          {weekDeltaLabel}
-                        </Text>
-                      </View>
-                      {dashboard.weeklyTotal === 0 ? (
-                        <View style={styles.chartEmpty}>
-                          <Text style={[styles.chartEmptyTitle, { color: colors.text }]}>
-                            No practice logged this week
-                          </Text>
-                          <Text style={[styles.chartEmptyBody, { color: colors.textMuted }]}>
-                            Log a routine score or a session and your week fills in here.
-                          </Text>
-                          <Pressable
-                            onPress={startPrimarySession}
-                            accessibilityRole="button"
-                            accessibilityLabel="Start a practice session"
-                            style={({ pressed }) => [
-                              styles.chartEmptyAction,
-                              { borderColor: colors.primary, opacity: pressed ? 0.7 : 1 },
-                            ]}
-                          >
-                            <Text style={[styles.chartEmptyActionText, { color: colors.primary }]}>
-                              Start a session
-                            </Text>
-                          </Pressable>
-                        </View>
-                      ) : (
-                        <View style={styles.chartRow}>
-                          {dashboard.weeklyLoad.map((day, index) => {
-                            const isToday = todayKey() === day.key;
-                            return (
-                              <View key={day.key} style={styles.chartBarWrap}>
-                                <View
-                                  style={[
-                                    styles.chartTrack,
-                                    {
-                                      backgroundColor: colors.surface,
-                                      borderWidth: 1,
-                                      borderColor: isToday ? colors.primary : colors.border,
-                                    },
-                                  ]}
-                                >
-                                  <Animated.View
-                                    style={[
-                                      styles.chartFill,
-                                      {
-                                        backgroundColor: day.count > 0 ? colors.primary : colors.border,
-                                        height: barAnims[index].interpolate({
-                                          inputRange: [0, dashboard.maxDailyLoad || 1],
-                                          outputRange: [14, 172],
-                                          extrapolate: "clamp",
-                                        }),
-                                      },
-                                    ]}
-                                  />
-                                </View>
-                                <Text style={[styles.chartDay, { color: isToday ? colors.primary : colors.textMuted }]}>
-                                  {day.label}
-                                </Text>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.statsStrip}>
-                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}>
-                        <Text style={[styles.statValue, { color: colors.text }]}>{dashboard.currentStreak}</Text>
-                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Streak</Text>
-                      </View>
-                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}>
-                        <Text style={[styles.statValue, { color: colors.text }]}>
-                          {dashboard.currentWeekActiveDays}
-                        </Text>
-                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Active Days</Text>
-                      </View>
-                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}>
-                        <Text style={[styles.statValue, { color: colors.text }]}>{dashboard.completionRate}%</Text>
-                        <Text style={[styles.statLabel, { color: colors.textMuted }]}>Completion</Text>
-                      </View>
-                    </View>
-                  </View>
-                ) : null}
-
-                {item === "recommended" ? (
-                  <View style={styles.pageShell}>
-                    <Text style={[styles.pageTitle, { color: colors.text }]}>Recommended Training</Text>
-                    {dashboard.consistencyDropping ? (
-                      <Text style={[styles.recommendationHint, { color: colors.primary }]}>
-                        Focus: fundamentals this week.
-                      </Text>
-                    ) : null}
-                    {dashboard.recommendedRoutines.slice(0, 4).map((routine, index) => (
-                      <Pressable
-                        key={routine.id}
-                        style={({ pressed }) => [
-                          styles.featureRoutineCard,
-                          {
-                            backgroundColor: colors.surface,
-                            borderColor: index === 0 ? colors.primary : "transparent",
-                            transform: [{ scale: pressed ? 0.985 : 1 }],
-                          },
-                        ]}
-                        onPress={() =>
-                          navigation.navigate("Practice", {
-                            screen: "RoutineDetail",
-                            params: { routineId: routine.id },
-                          })
-                        }
-                      >
-                        <View style={styles.listTextWrap}>
-                          <Text style={[styles.listTitle, { color: colors.text }]}>{routine.name}</Text>
-                          <Text style={[styles.listMeta, { color: colors.textMuted }]}>{routine.categoryName}</Text>
-                          <Text style={[styles.featureRoutineMeta, { color: colors.primary }]}>{routine.note}</Text>
-                        </View>
-                        <MaterialCommunityIcons name="chevron-right" size={18} color={colors.primary} />
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-
-                {item === "recent" ? (
-                  <View style={styles.pageShell}>
-                    <View style={styles.pageTopBlock}>
-                      <Text style={[styles.pageTitle, { color: colors.text }]}>Recent Activity</Text>
-                      {dashboard.recentActivity.length === 0 ? (
-                        <Text style={[styles.chartHint, { color: colors.textMuted }]}>No routine activity yet.</Text>
-                      ) : (
-                        <View style={styles.recentListWrap}>
-                          {dashboard.recentActivity.slice(0, 5).map((itemEntry, index) => (
-                            <Pressable
-                              key={`${itemEntry.id}-${itemEntry.date}`}
-                              style={[
-                                styles.recentItem,
-                                { borderColor: "transparent", backgroundColor: "transparent" },
-                                index < 4 && styles.recentItemDivider,
-                              ]}
-                              onPress={() =>
-                                navigation.navigate("Practice", {
-                                  screen: "RoutineDetail",
-                                  params: { routineId: itemEntry.id },
-                                })
-                              }
-                            >
-                              <View style={styles.recentBullet} />
-                              <View style={styles.listTextWrap}>
-                                <Text style={[styles.recentTitle, { color: colors.text }]}>{itemEntry.name}</Text>
-                                <Text style={[styles.listMeta, { color: colors.textMuted }]}>
-                                  {new Date(itemEntry.date).toLocaleDateString()}
-                                </Text>
-                              </View>
-                              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
-                            </Pressable>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-
-                    <View
-                      style={[styles.pageBottomAnchor, styles.recentFooter, { backgroundColor: colors.surfaceMuted }]}
-                    >
-                      <Text style={[styles.recentFooterValue, { color: colors.text }]}>{dashboard.weeklyTotal}</Text>
-                      <Text style={[styles.recentFooterLabel, { color: colors.textMuted }]}>
-                        Total sessions this week
-                      </Text>
-                    </View>
-                  </View>
-                ) : null}
-              </View>
+              <View style={{ width: pager.width, height: pager.height }}>{renderPage(item.key)}</View>
             )}
           />
-
-          <View style={styles.carouselDots}>
-            {carouselPages.map((page, index) => (
-              <View
-                key={page}
-                style={[
-                  styles.carouselDot,
-                  {
-                    backgroundColor: index === activePage ? colors.primary : colors.textMuted,
-                    opacity: index === activePage ? 0.95 : 0.35,
-                    transform: [{ scale: index === activePage ? 1.16 : 1 }],
-                  },
-                ]}
-              />
-            ))}
-          </View>
-        </View>
+        ) : null}
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1, padding: 14, paddingBottom: 8 },
-  topShell: { marginBottom: 6 },
-  headerCaption: { fontSize: 12, fontWeight: "700", letterSpacing: 0.7, textTransform: "uppercase" },
-  headerTitle: { marginTop: 2, fontSize: 28, fontWeight: "900" },
-  focusHero: {
-    borderRadius: 18,
-    padding: 10,
-    marginBottom: 7,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  focusGlow: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 999,
-    right: -44,
-    top: -40,
-    backgroundColor: "rgba(255,255,255,0.05)",
-  },
-  focusKicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
-  focusTitle: { marginTop: 4, fontSize: 21, fontWeight: "900", lineHeight: 24 },
-  focusDescription: { marginTop: 3, fontSize: 12, lineHeight: 15, maxWidth: "100%" },
-  focusActionsRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    gap: 8,
-  },
-  focusPrimaryButton: {
+  screen: { flex: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, gap: SPACING.md },
+  kicker: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.3 },
+  label: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1.2, marginBottom: 6 },
+  hero: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: 4 },
+  heroTitle: { fontFamily: FONTS.boardHeavy, fontSize: 32, lineHeight: 36, letterSpacing: 0.3 },
+  heroActions: { flexDirection: "row", gap: SPACING.sm, marginTop: SPACING.sm },
+  start: {
     flex: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  focusPrimaryText: { fontSize: 13, fontWeight: "900" },
-  focusSecondaryButton: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    justifyContent: "center",
-  },
-  focusSecondaryText: { fontSize: 12, fontWeight: "800" },
-  sectionWrap: {
-    marginTop: 8,
-  },
-  sectionHeading: { fontSize: 16, fontWeight: "900", marginBottom: 8 },
-  quickActionsGrid: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  quickActionCard: {
-    flex: 1,
-    borderWidth: 0,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-  },
-  quickActionCardPressed: {
-    transform: [{ scale: 0.98 }],
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  quickActionTitle: { marginTop: 6, fontSize: 12, fontWeight: "800" },
-  quickActionMeta: { marginTop: 1, fontSize: 10 },
-  pageShell: {
-    flex: 1,
-    gap: 8,
-    justifyContent: "space-between",
-  },
-  pageTopBlock: {
-    flex: 1,
-  },
-  pageBottomAnchor: {
-    marginTop: 8,
-  },
-  recommendedSecondaryWrap: {
-    paddingTop: 2,
-  },
-  pageDominant: {
-    flex: 1.6,
-    borderRadius: 14,
-    padding: 10,
-  },
-  pageTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  statsStrip: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 10,
-  },
-  statChip: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: "900",
-  },
-  statLabel: {
-    marginTop: 2,
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  insightCard: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 10,
-    marginBottom: 0,
-  },
-  insightHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  weekDeltaTag: {
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  metricRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 6,
-  },
-  metricText: { fontSize: 12, lineHeight: 16 },
-  recommendationHint: { marginBottom: 6, fontSize: 11, fontWeight: "700" },
-  featureRoutineCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  featureRoutineTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  featureRoutineMeta: {
-    marginTop: 3,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  supportRoutineRow: {
-    borderRadius: 12,
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  recommendationCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    marginBottom: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  listTextWrap: { flex: 1, marginRight: 10 },
-  listHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 2,
-  },
-  recoTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 6,
-  },
-  recoPill: {
-    fontSize: 10,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  listTitle: { fontSize: 13, fontWeight: "700" },
-  listMeta: { fontSize: 11, marginTop: 2 },
-  chartEmpty: {
-    height: 196,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    gap: 6,
-  },
-  chartEmptyTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  chartEmptyBody: {
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  chartEmptyAction: {
-    marginTop: 8,
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: 18,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  chartEmptyActionText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  chartRow: {
-    marginTop: 4,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  chartBarWrap: { width: 34, alignItems: "center" },
-  chartTrack: {
-    height: 170,
-    width: 24,
-    borderRadius: 13,
-    borderWidth: 1,
-    justifyContent: "flex-end",
-    overflow: "hidden",
-  },
-  chartFill: {
-    position: "absolute",
-    left: -1.5,
-    right: -1.5,
-    bottom: -1.5,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
-  },
-  chartDay: { marginTop: 5, fontSize: 10, fontWeight: "700" },
-  chartHint: { marginTop: 6, fontSize: 11 },
-  recentItem: {
-    borderWidth: 0,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    marginBottom: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  recentListWrap: {
-    marginTop: 3,
-  },
-  recentItemDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(120,120,120,0.18)",
-  },
-  recentBullet: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(90,180,140,0.55)",
-    marginRight: 10,
-    marginTop: 3,
-  },
-  recentTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  recentFooter: {
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    alignItems: "center",
-  },
-  recentFooterValue: {
-    fontSize: 20,
-    fontWeight: "900",
-  },
-  recentFooterLabel: {
-    marginTop: 2,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  carouselSection: {
-    marginTop: 8,
-    flex: 1,
-  },
-  carouselTrack: {
-    paddingRight: 4,
-  },
-  carouselPage: {
-    paddingRight: 8,
-    paddingBottom: 2,
-  },
-  stackedPage: {
-    flex: 1,
-    gap: 8,
-  },
-  stackedCardTop: {
-    flex: 1.05,
-  },
-  stackedCardBottom: {
-    flex: 0.95,
-  },
-  carouselDots: {
-    marginTop: 3,
-    flexDirection: "row",
     justifyContent: "center",
     gap: 6,
+    minHeight: HIT_TARGET + 4,
+    borderRadius: RADIUS.md,
   },
-  carouselDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
+  startText: { fontSize: 16, fontWeight: "800" },
+  plan: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: HIT_TARGET + 4,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
   },
+  planText: { fontSize: 15, fontWeight: "700" },
+  numbers: { flexDirection: "row", alignItems: "stretch", borderWidth: 1, borderRadius: RADIUS.lg },
+  cell: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: SPACING.sm, minHeight: 64 },
+  cellRule: { width: StyleSheet.hairlineWidth, marginVertical: SPACING.sm },
+  cellValue: { fontFamily: FONTS.boardHeavy, fontSize: 26, lineHeight: 28 },
+  cellLabel: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 1 },
+  tabs: { flexDirection: "row", gap: SPACING.md },
+  tab: { paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tabText: { fontFamily: FONTS.board, fontSize: 14, letterSpacing: 1 },
+  pager: { flex: 1, marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg, overflow: "hidden" },
+  pageGap: { gap: SPACING.sm },
+  board: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm },
+  boardHead: { flexDirection: "row", justifyContent: "space-between", gap: SPACING.sm },
+  prompt: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 8,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+  },
+  promptText: { flex: 1, fontSize: 15, fontWeight: "700" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+  },
+  rowText: { flex: 1, minWidth: 0, gap: 2 },
+  rowTitle: { fontSize: 15, fontWeight: "700" },
+  rowMeta: { fontSize: 13 },
+  card: { borderWidth: 1, borderRadius: RADIUS.lg, overflow: "hidden" },
+  recent: { flexDirection: "row", alignItems: "center", gap: SPACING.md, paddingHorizontal: SPACING.md },
+  when: { fontSize: 12 },
+  empty: { borderWidth: 1, borderStyle: "dashed", borderRadius: RADIUS.lg, padding: SPACING.lg },
+  emptyText: { fontSize: 14, lineHeight: 20, textAlign: "center" },
+  more: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: HIT_TARGET - 8, alignSelf: "flex-start" },
+  moreText: { fontSize: 14, fontWeight: "800" },
 });

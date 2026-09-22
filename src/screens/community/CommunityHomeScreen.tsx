@@ -6,6 +6,8 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { useCommunityStore } from "../../store/communityStore";
 import { splitBadges, useChatBadges } from "../../store/chatStore";
+import { useTourNewsStore } from "../../store/tourNewsStore";
+import { NewsRow } from "../../components/tour/NewsRow";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { nameOf, relationTo, type PublicProfile, type Relation } from "../../features/community/types";
@@ -27,6 +29,11 @@ export const CommunityHomeScreen = () => {
     useCommunityStore();
   const [segment, setSegment] = useState<Segment>("friends");
   const badges = splitBadges(useChatBadges());
+  const tourNews = useTourNewsStore((state) => state.items);
+  const refreshNews = useTourNewsStore((state) => state.refresh);
+  useEffect(() => {
+    void refreshNews();
+  }, [refreshNews]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
   const [searching, setSearching] = useState(false);
@@ -283,6 +290,26 @@ export const CommunityHomeScreen = () => {
         ))}
       </View>
 
+      <View style={[styles.tour, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Pressable
+          onPress={() => navigation.navigate("TourNews")}
+          accessibilityRole="button"
+          accessibilityLabel="Pro tour news. See all"
+          style={styles.tourHead}
+        >
+          <MaterialCommunityIcons name="trophy-variant-outline" size={18} color={colors.boardRule} />
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tourKicker, { color: colors.text }]}>
+            FROM THE PRO TOUR
+          </Text>
+          <Text style={[styles.tourMore, { color: colors.primary }]}>See all</Text>
+        </Pressable>
+        {tourNews[0] ? (
+          <NewsRow item={tourNews[0]} summary={false} />
+        ) : (
+          <Text style={[styles.tourEmpty, { color: colors.textMuted }]}>The latest from WST and BBC Sport.</Text>
+        )}
+      </View>
+
       <View style={[styles.segments, { backgroundColor: colors.surfaceMuted }]} accessibilityRole="tablist">
         {(
           [
@@ -517,6 +544,11 @@ const styles = StyleSheet.create({
   gear: { minWidth: 32, minHeight: HIT_TARGET, alignItems: "flex-end", justifyContent: "center" },
   segments: { flexDirection: "row", borderRadius: RADIUS.md, padding: 3, gap: 3 },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
+  tour: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm },
+  tourHead: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 28 },
+  tourKicker: { flex: 1, fontFamily: FONTS.board, fontSize: 15, letterSpacing: 1.2 },
+  tourMore: { fontSize: 14, fontWeight: "800" },
+  tourEmpty: { fontSize: 13 },
   tile: { flexBasis: "47%", flexGrow: 1, borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: 4 },
   tileBadge: {
     position: "absolute",

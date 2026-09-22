@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useMatchesStore, useRoutineScoresStore, useRoutinesStore, useSessionsStore } from "../../store";
@@ -16,7 +16,9 @@ import {
   summariseMatches,
   byNewest,
 } from "../../features/matches/matchSummary";
-import { calendarWeeks, countByDay, longestStreak, thisWeek } from "../../features/stats/activity";
+import { countByDay, lastDays, longestStreak, thisWeek } from "../../features/stats/activity";
+import { WeekRail } from "../../components/stats/WeekRail";
+import { PracticeRhythm, RhythmKey } from "../../components/stats/PracticeRhythm";
 
 type SegmentKey = "overview" | "training" | "matches";
 
@@ -29,7 +31,6 @@ const SEGMENTS: { key: SegmentKey; label: string }[] = [
 /** A win rate over fewer matches than this is noise, so it waits. */
 const MIN_FOR_WIN_RATE = 3;
 
-const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 
 const getWeekStart = (value: string) => startOfWeekMonday(parseDateValue(value));
 
@@ -190,10 +191,11 @@ export const DashboardScreen = () => {
   const { entries } = useRoutineScoresStore();
   const { routines } = useRoutinesStore();
   const { colors } = useAppTheme();
-  const { width } = useWindowDimensions();
   const navigation = useNavigation<any>();
 
   const [activeSegment, setActiveSegment] = useState<SegmentKey>("overview");
+  const [railWidth, setRailWidth] = useState(0);
+  const [rhythmWidth, setRhythmWidth] = useState(0);
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const contentShift = useRef(new Animated.Value(10)).current;
 
@@ -368,13 +370,15 @@ export const DashboardScreen = () => {
     const activeThisWeek = week.filter((day) => day.count > 0).length;
 
     const line =
-      analytics.currentStreak >= 2
-        ? `${analytics.currentStreak} days running. Practise tomorrow to keep it.`
-        : analytics.currentStreak === 1
-          ? "Practised today. Come back tomorrow to make it a streak."
-          : analytics.activeDays
-            ? "Nothing logged today yet. One routine starts a new streak."
-            : "Log a routine or a session and your week fills in here.";
+      activeThisWeek === 7
+        ? "Every day this week: you have cleared the colours."
+        : analytics.currentStreak >= 2
+          ? `${analytics.currentStreak} days running. Practise tomorrow to keep it.`
+          : analytics.currentStreak === 1
+            ? "Practised today. Come back tomorrow to make it a streak."
+            : analytics.activeDays
+              ? "Nothing logged today yet. One routine starts a new streak."
+              : "Log a routine or a session and your week fills in here.";
 
     return (
       <BoardPanel kicker="THIS WEEK" aside={analytics.bestStreak ? `BEST RUN ${analytics.bestStreak}` : undefined}>
@@ -392,28 +396,8 @@ export const DashboardScreen = () => {
           </View>
         </View>
 
-        <View style={styles.weekStrip}>
-          {week.map((day, index) => {
-            const active = day.count > 0;
-            return (
-              <View key={day.key} style={styles.weekDay}>
-                <View
-                  style={[
-                    styles.weekCell,
-                    {
-                      backgroundColor: active ? colors.boardRule : day.isFuture ? "transparent" : colors.boardRaised,
-                      borderColor: day.isToday ? colors.boardText : active ? colors.boardRule : colors.boardRaised,
-                    },
-                  ]}
-                >
-                  {active ? <MaterialCommunityIcons name="check" size={14} color={colors.board} /> : null}
-                </View>
-                <Text style={[styles.weekLetter, { color: day.isToday ? colors.boardText : colors.boardMuted }]}>
-                  {DAY_LETTERS[index]}
-                </Text>
-              </View>
-            );
-          })}
+        <View style={styles.railWrap} onLayout={(event) => setRailWidth(event.nativeEvent.layout.width)}>
+          {railWidth ? <WeekRail days={week} width={railWidth} /> : null}
         </View>
 
         <Text style={[styles.weekLine, { color: colors.boardMuted }]}>{line}</Text>
@@ -421,88 +405,21 @@ export const DashboardScreen = () => {
     );
   };
 
-  /** Eight weeks of practice as a grid, darker squares for busier days. */
+  /** Four weeks of practice as balls standing above the rail, taller and worth more on busier days. */
   const renderCalendar = () => {
-    const weeks = calendarWeeks(analytics.practiceCounts, 8);
-    const busiest = Math.max(1, ...weeks.flat().map((day) => day.count));
-    const gap = 5;
-    const labelColumn = 16;
-    // Screen minus the page padding and the card's own padding and border, then the day letters.
-    const available = width - SPACING.lg * 2 - SPACING.lg * 2 - 2 - labelColumn - gap;
-    const cell = Math.max(14, Math.min(32, Math.floor((available - gap * 7) / 8)));
-
-    const shade = (count: number) => {
-      if (!count) return colors.surfaceMuted;
-      const strength = count / busiest;
-      if (strength > 0.66) return colors.primary;
-      if (strength > 0.33) return `${colors.primary}AA`;
-      return `${colors.primary}55`;
-    };
-
-    const monthOf = (key: string) => new Date(`${key}T12:00:00`).toLocaleDateString("en-GB", { month: "short" });
-
+    const days = lastDays(analytics.practiceCounts, 28);
     return (
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.cardHead}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Last 8 weeks</Text>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Practice rhythm</Text>
           <Text style={[styles.cardAside, { color: colors.textMuted }]}>
-            {analytics.activeDaysLast4Weeks} active {analytics.activeDaysLast4Weeks === 1 ? "day" : "days"} in the last
-            4
+            {analytics.activeDaysLast4Weeks} active {analytics.activeDaysLast4Weeks === 1 ? "day" : "days"} in 4 weeks
           </Text>
         </View>
-
-        <View style={[styles.calendar, { gap }]}>
-          <View style={[styles.calendarLabels, { width: labelColumn, gap }]}>
-            <View style={{ height: 14 }} />
-            {DAY_LETTERS.map((letter, index) => (
-              <Text
-                key={`${letter}-${index}`}
-                style={[styles.calendarLetter, { height: cell, color: colors.textSubtle }]}
-              >
-                {index % 2 === 0 ? letter : ""}
-              </Text>
-            ))}
-          </View>
-
-          {weeks.map((days, column) => {
-            const showMonth = column === 0 || monthOf(days[0].key) !== monthOf(weeks[column - 1][0].key);
-            return (
-              <View key={days[0].key} style={{ gap }}>
-                <Text style={[styles.calendarMonth, { color: colors.textSubtle, width: cell }]} numberOfLines={1}>
-                  {showMonth ? monthOf(days[0].key) : ""}
-                </Text>
-                {days.map((day) => (
-                  <View
-                    key={day.key}
-                    accessibilityLabel={`${day.key}: ${day.count} logged`}
-                    style={{
-                      width: cell,
-                      height: cell,
-                      borderRadius: 5,
-                      backgroundColor: day.isFuture ? "transparent" : shade(day.count),
-                      borderWidth: day.isToday ? 1.5 : 0,
-                      borderColor: colors.text,
-                    }}
-                  />
-                ))}
-              </View>
-            );
-          })}
+        <View onLayout={(event) => setRhythmWidth(event.nativeEvent.layout.width)}>
+          {rhythmWidth ? <PracticeRhythm days={days} width={rhythmWidth} /> : null}
         </View>
-
-        <View style={styles.legend}>
-          <Text style={[styles.legendText, { color: colors.textSubtle }]}>Less</Text>
-          {[0, 0.2, 0.5, 1].map((level) => (
-            <View
-              key={level}
-              style={[
-                styles.legendCell,
-                { backgroundColor: level === 0 ? colors.surfaceMuted : shade(Math.ceil(level * busiest)) },
-              ]}
-            />
-          ))}
-          <Text style={[styles.legendText, { color: colors.textSubtle }]}>More</Text>
-        </View>
+        <RhythmKey />
       </View>
     );
   };
@@ -832,6 +749,7 @@ export const DashboardScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  railWrap: { marginTop: SPACING.md },
   container: { flex: 1 },
   content: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
   body: { gap: SPACING.md },
@@ -855,17 +773,6 @@ const styles = StyleSheet.create({
   streakLabel: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1.6 },
   weekCount: { alignItems: "flex-end" },
   weekCountValue: { fontFamily: FONTS.board, fontSize: 34, fontVariant: ["tabular-nums"] },
-  weekStrip: { flexDirection: "row", justifyContent: "space-between", marginTop: SPACING.lg },
-  weekDay: { alignItems: "center", gap: 6 },
-  weekCell: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  weekLetter: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 0.6 },
   weekLine: { fontSize: 13, fontWeight: "600", lineHeight: 18, marginTop: SPACING.md },
 
   card: {
@@ -877,13 +784,6 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: "800" },
   cardAside: { fontSize: 12, fontWeight: "600" },
 
-  calendar: { flexDirection: "row" },
-  calendarLabels: {},
-  calendarLetter: { fontFamily: FONTS.boardLabel, fontSize: 11, textAlignVertical: "center", lineHeight: 16 },
-  calendarMonth: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 0.4, height: 14 },
-  legend: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: SPACING.md },
-  legendText: { fontSize: 11, fontWeight: "600", marginHorizontal: 2 },
-  legendCell: { width: 12, height: 12, borderRadius: 3 },
 
   grid: { flexDirection: "row", gap: SPACING.md },
   tile: {

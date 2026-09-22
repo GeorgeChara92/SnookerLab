@@ -127,9 +127,7 @@ export const groupByOpponent = (matches: Match[]): OpponentRecord[] => {
     .map(([name, list]) => ({ name, ...summariseMatches(list) }))
     .sort(
       (a, b) =>
-        b.played - a.played ||
-        b.framesWon - b.framesLost - (a.framesWon - a.framesLost) ||
-        a.name.localeCompare(b.name)
+        b.played - a.played || b.framesWon - b.framesLost - (a.framesWon - a.framesLost) || a.name.localeCompare(b.name)
     );
 };
 
@@ -147,6 +145,26 @@ export const relativeDate = (dateStr: string, now = new Date()): string => {
     month: "short",
     ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
   });
+};
+
+/**
+ * Newest-first matches in runs by the day they were played, each run labelled as the rows used
+ * to be ("Today", "Yesterday", "3 days ago", "12 Sept"), so several games on one day sit under
+ * one heading.
+ */
+export const groupByDay = <T extends { date: string }>(
+  items: T[],
+  now = new Date()
+): Array<{ key: string; label: string; items: T[] }> => {
+  const groups: Array<{ key: string; label: string; items: T[] }> = [];
+  items.forEach((item) => {
+    const date = new Date(item.date);
+    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.items.push(item);
+    else groups.push({ key, label: relativeDate(item.date, now), items: [item] });
+  });
+  return groups;
 };
 
 /** Initials for an avatar: "John Smith" is "JS", "John" is "JO". */

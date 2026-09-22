@@ -1,4 +1,4 @@
-import { calendarWeeks, countByDay, longestStreak, thisWeek } from "../activity";
+import { ballForCount, calendarWeeks, countByDay, lastDays, longestStreak, thisWeek } from "../activity";
 
 describe("practice activity", () => {
   it("counts more than one thing on the same day", () => {
@@ -36,5 +36,22 @@ describe("practice activity", () => {
       "2026-09-26",
       "2026-09-27",
     ]);
+  });
+});
+
+describe("the practice rhythm", () => {
+  it("gives the last days oldest first, ending today", () => {
+    const now = new Date(2026, 8, 22, 12);
+    const days = lastDays(new Map([["2026-09-22", 2]]), 28, now);
+    expect(days).toHaveLength(28);
+    expect(days[0].key).toBe("2026-08-26");
+    expect(days[27]).toMatchObject({ key: "2026-09-22", count: 2, isToday: true });
+  });
+
+  it("values a busier day higher, up to the black", () => {
+    expect(ballForCount(1)).toBe("red");
+    expect(ballForCount(3)).toBe("green");
+    expect(ballForCount(7)).toBe("black");
+    expect(ballForCount(12)).toBe("black");
   });
 });

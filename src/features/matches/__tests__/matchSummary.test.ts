@@ -1,6 +1,7 @@
 import type { Match } from "../../../types";
 import {
   describeScore,
+  groupByDay,
   getRecordingMode,
   groupByOpponent,
   initialsOf,
@@ -99,5 +100,19 @@ describe("small helpers", () => {
     expect(relativeDate(new Date(2026, 8, 20, 23, 0).toISOString(), now)).toBe("Yesterday");
     expect(relativeDate(new Date(2026, 8, 21, 0, 5).toISOString(), now)).toBe("Today");
     expect(relativeDate(new Date(2026, 8, 18, 12).toISOString(), now)).toBe("3 days ago");
+  });
+});
+
+describe("matches by day", () => {
+  it("puts several games on one day under one heading", () => {
+    const now = new Date(2026, 8, 22, 18);
+    const groups = groupByDay(
+      [{ date: "2026-09-22T15:00:00" }, { date: "2026-09-22T11:00:00" }, { date: "2026-09-21T20:00:00" }],
+      now
+    );
+    expect(groups.map((group) => [group.label, group.items.length])).toEqual([
+      ["Today", 2],
+      ["Yesterday", 1],
+    ]);
   });
 });

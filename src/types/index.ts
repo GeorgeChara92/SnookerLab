@@ -384,6 +384,8 @@ export type CommunityStackParamList = {
   GroupForm: { groupId?: string };
   SharedRoutine: { id: string };
   Leaderboards: undefined;
+  /** News from the professional tour. */
+  TourNews: undefined;
   /** One routine's leaderboard; the key is a library routine's id or "shared:<id>". */
   RoutineLeaderboard: { routineKey: string; name: string; group?: { name: string; memberIds: string[] } };
 };

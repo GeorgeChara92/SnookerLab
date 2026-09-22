@@ -9,8 +9,14 @@ import { BoardPanel, ScoreStrip, TaleOfTheTape } from "../../components/scoreboa
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { SwipeToDelete } from "../../components/ui/SwipeToDelete";
-import { FormStrip, MatchRow, SectionHeader } from "../../components/matches/MatchRows";
-import { byNewest, getRecordingMode, relativeDate, summariseMatches } from "../../features/matches/matchSummary";
+import { DayHeader, FormStrip, MatchRow, SectionHeader } from "../../components/matches/MatchRows";
+import {
+  byNewest,
+  getRecordingMode,
+  relativeDate,
+  summariseMatches,
+  groupByDay,
+} from "../../features/matches/matchSummary";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -227,39 +233,47 @@ export const OpponentMatchesScreen = () => {
           <Text style={[styles.selectHint, { color: colors.textMuted }]}>Tap the matches you want to delete.</Text>
         ) : null}
 
-        {opponentMatches.map((match) => {
-          const selected = selectedMatchIds.includes(match.id);
-          const row = (
-            <MatchRow
-              key={match.id}
-              match={match}
-              selectionMode={isSelectionMode}
-              selected={selected}
-              onLongPress={() => {
-                if (isSelectionMode) return;
-                setSelecting(true);
-                setSelectedMatchIds([match.id]);
-              }}
-              onPress={() =>
-                isSelectionMode ? toggleSelection(match.id) : navigation.navigate("MatchDetail", { matchId: match.id })
-              }
-            />
-          );
-          // Swiping deletes one at a time; while selecting, a tap is all a row needs to do.
-          return isSelectionMode ? (
-            row
-          ) : (
-            <SwipeToDelete
-              key={match.id}
-              onDelete={() => confirmDeleteOne(match.id)}
-              deleteLabel={`Delete the match from ${relativeDate(match.date)}`}
-              radius={RADIUS.sm}
-              gapBelow={SPACING.md}
-            >
-              {row}
-            </SwipeToDelete>
-          );
-        })}
+        {groupByDay(opponentMatches).map((day) => (
+          <View key={day.key}>
+            <DayHeader label={day.label} count={day.items.length} />
+            {day.items.map((match) => {
+              const selected = selectedMatchIds.includes(match.id);
+              const row = (
+                <MatchRow
+                  key={match.id}
+                  match={match}
+                  showDate={false}
+                  selectionMode={isSelectionMode}
+                  selected={selected}
+                  onLongPress={() => {
+                    if (isSelectionMode) return;
+                    setSelecting(true);
+                    setSelectedMatchIds([match.id]);
+                  }}
+                  onPress={() =>
+                    isSelectionMode
+                      ? toggleSelection(match.id)
+                      : navigation.navigate("MatchDetail", { matchId: match.id })
+                  }
+                />
+              );
+              // Swiping deletes one at a time; while selecting, a tap is all a row needs to do.
+              return isSelectionMode ? (
+                row
+              ) : (
+                <SwipeToDelete
+                  key={match.id}
+                  onDelete={() => confirmDeleteOne(match.id)}
+                  deleteLabel={`Delete the match from ${relativeDate(match.date)}`}
+                  radius={RADIUS.sm}
+                  gapBelow={SPACING.md}
+                >
+                  {row}
+                </SwipeToDelete>
+              );
+            })}
+          </View>
+        ))}
 
         {!isSelectionMode && opponentMatches.length > 1 ? (
           <Text style={[styles.tip, { color: colors.textMuted }]}>
