@@ -60,10 +60,14 @@ export const lastDays = (counts: Map<string, number>, days = 28, now = new Date(
   });
 };
 
-export type BallName = "red" | "yellow" | "green" | "brown" | "blue" | "pink" | "black";
-
-/** The colours in the order they are potted, with their values: the week reads red to black. */
-export const COLOUR_ORDER: BallName[] = ["red", "yellow", "green", "brown", "blue", "pink", "black"];
-
-/** A busy day is worth more: one thing logged is a red, two a yellow, and so on up to the black. */
-export const ballForCount = (count: number): BallName => COLOUR_ORDER[Math.min(7, Math.max(1, count)) - 1];
+/** Runs of days in a row with something logged, as first and last index: [[0, 2], [5, 5]]. */
+export const runsOf = (days: Array<{ count: number }>): Array<[number, number]> => {
+  const runs: Array<[number, number]> = [];
+  days.forEach((day, index) => {
+    if (!day.count) return;
+    const last = runs[runs.length - 1];
+    if (last && last[1] === index - 1) last[1] = index;
+    else runs.push([index, index]);
+  });
+  return runs;
+};

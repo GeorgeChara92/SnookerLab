@@ -17,8 +17,8 @@ import {
   byNewest,
 } from "../../features/matches/matchSummary";
 import { countByDay, lastDays, longestStreak, thisWeek } from "../../features/stats/activity";
-import { WeekRail } from "../../components/stats/WeekRail";
-import { PracticeRhythm, RhythmKey } from "../../components/stats/PracticeRhythm";
+import { WeekTrack } from "../../components/stats/WeekTrack";
+import { RhythmBars } from "../../components/stats/RhythmBars";
 
 type SegmentKey = "overview" | "training" | "matches";
 
@@ -30,7 +30,6 @@ const SEGMENTS: { key: SegmentKey; label: string }[] = [
 
 /** A win rate over fewer matches than this is noise, so it waits. */
 const MIN_FOR_WIN_RATE = 3;
-
 
 const getWeekStart = (value: string) => startOfWeekMonday(parseDateValue(value));
 
@@ -371,7 +370,7 @@ export const DashboardScreen = () => {
 
     const line =
       activeThisWeek === 7
-        ? "Every day this week: you have cleared the colours."
+        ? "Every day this week. That is a perfect week."
         : analytics.currentStreak >= 2
           ? `${analytics.currentStreak} days running. Practise tomorrow to keep it.`
           : analytics.currentStreak === 1
@@ -397,7 +396,7 @@ export const DashboardScreen = () => {
         </View>
 
         <View style={styles.railWrap} onLayout={(event) => setRailWidth(event.nativeEvent.layout.width)}>
-          {railWidth ? <WeekRail days={week} width={railWidth} /> : null}
+          {railWidth ? <WeekTrack days={week} width={railWidth} /> : null}
         </View>
 
         <Text style={[styles.weekLine, { color: colors.boardMuted }]}>{line}</Text>
@@ -405,7 +404,7 @@ export const DashboardScreen = () => {
     );
   };
 
-  /** Four weeks of practice as balls standing above the rail, taller and worth more on busier days. */
+  /** Four weeks of practice, a bar a day, taller on busier days. */
   const renderCalendar = () => {
     const days = lastDays(analytics.practiceCounts, 28);
     return (
@@ -417,9 +416,8 @@ export const DashboardScreen = () => {
           </Text>
         </View>
         <View onLayout={(event) => setRhythmWidth(event.nativeEvent.layout.width)}>
-          {rhythmWidth ? <PracticeRhythm days={days} width={rhythmWidth} /> : null}
+          {rhythmWidth ? <RhythmBars days={days} width={rhythmWidth} /> : null}
         </View>
-        <RhythmKey />
       </View>
     );
   };
@@ -783,7 +781,6 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: SPACING.md },
   cardTitle: { fontSize: 16, fontWeight: "800" },
   cardAside: { fontSize: 12, fontWeight: "600" },
-
 
   grid: { flexDirection: "row", gap: SPACING.md },
   tile: {

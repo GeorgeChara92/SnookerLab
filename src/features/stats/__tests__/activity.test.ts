@@ -1,4 +1,4 @@
-import { ballForCount, calendarWeeks, countByDay, lastDays, longestStreak, thisWeek } from "../activity";
+import { calendarWeeks, countByDay, lastDays, longestStreak, runsOf, thisWeek } from "../activity";
 
 describe("practice activity", () => {
   it("counts more than one thing on the same day", () => {
@@ -48,10 +48,12 @@ describe("the practice rhythm", () => {
     expect(days[27]).toMatchObject({ key: "2026-09-22", count: 2, isToday: true });
   });
 
-  it("values a busier day higher, up to the black", () => {
-    expect(ballForCount(1)).toBe("red");
-    expect(ballForCount(3)).toBe("green");
-    expect(ballForCount(7)).toBe("black");
-    expect(ballForCount(12)).toBe("black");
+  it("joins days in a row into runs", () => {
+    const counts = [1, 2, 0, 0, 3, 1, 1].map((count) => ({ count }));
+    expect(runsOf(counts)).toEqual([
+      [0, 1],
+      [4, 6],
+    ]);
+    expect(runsOf([{ count: 0 }])).toEqual([]);
   });
 });

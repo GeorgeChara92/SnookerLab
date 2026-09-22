@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMatchesStore, useRoutineScoresStore, useRoutinesStore, useSessionsStore } from "../../store";
@@ -14,10 +14,11 @@ import {
   toLocalDateKey,
   todayKey,
 } from "../../utils/date";
-import { countByDay, thisWeek } from "../../features/stats/activity";
+import { countByDay, lastDays, thisWeek } from "../../features/stats/activity";
 import { byNewest, countsAsResult, relativeDate, summariseMatches } from "../../features/matches/matchSummary";
 import { bestOfFor } from "../../features/matches/bestOf";
-import { WeekRail } from "../../components/stats/WeekRail";
+import { WeekTrack } from "../../components/stats/WeekTrack";
+import { RhythmBars } from "../../components/stats/RhythmBars";
 import { ScoreStrip } from "../../components/scoreboard/Scoreboard";
 import { FormStrip } from "../../components/matches/MatchRows";
 import { NewsRow } from "../../components/tour/NewsRow";
@@ -35,6 +36,9 @@ type PageKey = (typeof PAGES)[number]["key"];
 
 /** Row heights, to work out how many rows a page has room for. */
 const ROW = { next: 64, recent: 56, tour: 80 };
+
+/** The pages' height from which This week also shows the last four weeks. */
+const RHYTHM_FROM = 360;
 
 const daysAgo = (key: string) =>
   Math.max(0, Math.round((parseDateKey(todayKey()).getTime() - parseDateKey(key).getTime()) / DAY_MS));
@@ -58,10 +62,17 @@ export const DashboardHomeScreen = () => {
   const [pager, setPager] = useState({ width: 0, height: 0 });
   const [page, setPage] = useState(0);
   const [railWidth, setRailWidth] = useState(0);
+  const [rhythmWidth, setRhythmWidth] = useState(0);
   const listRef = useRef<FlatList>(null);
 
+  // News is checked on opening and whenever the app comes back to the front (at most every
+  // 15 minutes; the store decides).
   useEffect(() => {
     void refreshNews();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshNews();
+    });
+    return () => subscription.remove();
   }, [refreshNews]);
 
   const template = templates[0];
@@ -87,6 +98,7 @@ export const DashboardHomeScreen = () => {
     ]);
     const active = new Set(practiceKeys);
     const week = thisWeek(counts);
+    const month = lastDays(counts, 28);
     const lastMonday = addDays(startOfWeekMonday(), -7);
     const lastWeekDays = Array.from({ length: 7 }, (_, index) => toLocalDateKey(addDays(lastMonday, index))).filter(
       (key) => active.has(key)
@@ -161,6 +173,7 @@ export const DashboardHomeScreen = () => {
 
     return {
       week,
+      month,
       weekDays,
       weekLogged,
       lastWeekDays,
@@ -208,7 +221,7 @@ export const DashboardHomeScreen = () => {
             </Text>
           </View>
           <View onLayout={(event) => setRailWidth(event.nativeEvent.layout.width)}>
-            {railWidth ? <WeekRail days={home.week} width={railWidth} /> : null}
+            {railWidth ? <WeekTrack days={home.week} width={railWidth} /> : null}
           </View>
         </View>
         {home.lastMatch ? (
@@ -245,6 +258,15 @@ export const DashboardHomeScreen = () => {
             <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
           </Pressable>
         )}
+        {/* On a taller phone there is room for the last four weeks too. */}
+        {pager.height >= RHYTHM_FROM ? (
+          <View style={[styles.rhythm, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.label, { color: colors.textMuted }]}>LAST 4 WEEKS</Text>
+            <View onLayout={(event) => setRhythmWidth(event.nativeEvent.layout.width)}>
+              {rhythmWidth ? <RhythmBars days={home.month} width={rhythmWidth} /> : null}
+            </View>
+          </View>
+        ) : null}
       </View>
     );
   };
@@ -470,7 +492,7 @@ export const DashboardHomeScreen = () => {
             data={PAGES as unknown as Array<(typeof PAGES)[number]>}
             keyExtractor={(item) => item.key}
             showsHorizontalScrollIndicator={false}
-            extraData={[home, news, railWidth, pager.height]}
+            extraData={[home, news, railWidth, rhythmWidth, pager.height]}
             getItemLayout={(_, index) => ({ length: pager.width, offset: pager.width * index, index })}
             onMomentumScrollEnd={(event) => setPage(Math.round(event.nativeEvent.contentOffset.x / pager.width))}
             renderItem={({ item }) => (
@@ -518,8 +540,9 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: "row", gap: SPACING.md },
   tab: { paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabText: { fontFamily: FONTS.board, fontSize: 14, letterSpacing: 1 },
-  pager: { flex: 1, marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg, overflow: "hidden" },
+  pager: { flex: 1, overflow: "hidden" },
   pageGap: { gap: SPACING.sm },
+  rhythm: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md },
   board: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm },
   boardHead: { flexDirection: "row", justifyContent: "space-between", gap: SPACING.sm },
   prompt: {
