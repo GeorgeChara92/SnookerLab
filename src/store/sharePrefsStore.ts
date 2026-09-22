@@ -7,7 +7,8 @@ type SharePrefsState = {
   themeId: string | null;
   frames: boolean;
   highBreaks: boolean;
-  set: (prefs: Partial<Pick<SharePrefsState, "themeId" | "frames" | "highBreaks">>) => void;
+  highlights: boolean;
+  set: (prefs: Partial<Pick<SharePrefsState, "themeId" | "frames" | "highBreaks" | "highlights">>) => void;
 };
 
 export const useSharePrefsStore = create<SharePrefsState>()(
@@ -16,13 +17,19 @@ export const useSharePrefsStore = create<SharePrefsState>()(
       themeId: null,
       frames: true,
       highBreaks: true,
+      highlights: true,
       set: (prefs) => set(prefs),
     }),
     {
       name: "share-prefs-storage",
       storage: createJSONStorage(() => safeStorage),
       version: 1,
-      partialize: (state) => ({ themeId: state.themeId, frames: state.frames, highBreaks: state.highBreaks }),
+      partialize: (state) => ({
+        themeId: state.themeId,
+        frames: state.frames,
+        highBreaks: state.highBreaks,
+        highlights: state.highlights,
+      }),
     }
   )
 );

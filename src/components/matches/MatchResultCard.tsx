@@ -5,6 +5,7 @@ import type { MatchCardFrame } from "../../features/matches/breaks";
 import { parseDateValue } from "../../utils/date";
 import { FONTS } from "../../constants";
 import { GRID, ThemeBackground, type CardTheme } from "./cardThemes";
+import type { Highlight } from "../../features/matches/highlights";
 
 /**
  * A match result as a picture to share. A drawn background (the player picks it), and on it
@@ -16,6 +17,8 @@ export const CARD_WIDTH = GRID.width;
 export const CARD_RATIO = GRID.height / GRID.width;
 /** Two rows of four; a longer match shows the first seven and how many more. */
 const MAX_FRAMES_SHOWN = 8;
+/** With a highlight banner there is room for one row of frames. */
+const MAX_FRAMES_WITH_BANNER = 4;
 
 const TYPE: Record<MatchType, string> = {
   casual: "FRIENDLY",
@@ -24,7 +27,7 @@ const TYPE: Record<MatchType, string> = {
   practice: "PRACTICE",
 };
 
-export type CardOptions = { frames: boolean; highBreaks: boolean };
+export type CardOptions = { frames: boolean; highBreaks: boolean; highlights: boolean };
 
 type Props = {
   match: Match;
@@ -36,12 +39,14 @@ type Props = {
   width: number;
   theme: CardTheme;
   options: CardOptions;
+  /** What made the match special, most remarkable first. */
+  highlights: Highlight[];
   /** Unique on screen, for the background's gradients. */
   id: string;
 };
 
 export const MatchResultCard = forwardRef<View, Props>(
-  ({ match, playerName, bestOf, frames, highUser, highOpponent, width, theme, options, id }, ref) => {
+  ({ match, playerName, bestOf, frames, highUser, highOpponent, width, theme, options, highlights, id }, ref) => {
     const k = width / CARD_WIDTH;
     const u = (n: number) => Math.round(n * k * 10) / 10;
     const height = width * CARD_RATIO;
@@ -51,8 +56,11 @@ export const MatchResultCard = forwardRef<View, Props>(
     const date = parseDateValue(match.date)
       .toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
       .toUpperCase();
+    const [lead, ...others] = options.highlights ? highlights : [];
+    const personalBest = options.highlights && highlights.some((item) => item.kind === "personal-best");
     const shownFrames = options.frames ? frames : [];
-    const shown = shownFrames.length > MAX_FRAMES_SHOWN ? shownFrames.slice(0, MAX_FRAMES_SHOWN - 1) : shownFrames;
+    const maxFrames = lead ? MAX_FRAMES_WITH_BANNER : MAX_FRAMES_SHOWN;
+    const shown = shownFrames.length > maxFrames ? shownFrames.slice(0, maxFrames - 1) : shownFrames;
     const showHighs = options.highBreaks && (highUser > 0 || highOpponent > 0);
 
     const row = (name: string, score: number, leading: boolean, first: boolean) => (
@@ -110,9 +118,48 @@ export const MatchResultCard = forwardRef<View, Props>(
           </View>
 
           <View style={{ gap: u(8) }}>
+            {lead ? (
+              <View
+                style={[
+                  styles.banner,
+                  {
+                    backgroundColor: theme.accent,
+                    borderRadius: u(8),
+                    paddingVertical: u(6),
+                    paddingHorizontal: u(12),
+                  },
+                ]}
+              >
+                <Text
+                  allowFontScaling={false}
+                  numberOfLines={1}
+                  style={[styles.bannerText, { fontSize: u(18), letterSpacing: u(1.5) }]}
+                >
+                  {"\u2605 "}
+                  {lead.label}
+                </Text>
+                {others.length ? (
+                  <Text
+                    allowFontScaling={false}
+                    numberOfLines={1}
+                    style={[styles.bannerMore, { fontSize: u(10), letterSpacing: u(1.2) }]}
+                  >
+                    {others
+                      .slice(0, 2)
+                      .map((item) => item.label)
+                      .join("  \u00b7  ")}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
             <Text
               allowFontScaling={false}
-              style={[styles.result, { fontSize: u(44), lineHeight: u(46), letterSpacing: u(5), color: theme.accent }]}
+              style={[
+                styles.result,
+                lead
+                  ? { fontSize: u(30), lineHeight: u(32), letterSpacing: u(4), color: theme.accent }
+                  : { fontSize: u(44), lineHeight: u(46), letterSpacing: u(5), color: theme.accent },
+              ]}
             >
               {result}
             </Text>
@@ -202,6 +249,7 @@ export const MatchResultCard = forwardRef<View, Props>(
                   HIGH BREAK
                 </Text>
                 <Text allowFontScaling={false} style={[styles.highValue, { fontSize: u(24) }]}>
+                  {personalBest ? <Text style={{ color: theme.accent, fontSize: u(12) }}>{"PB  "}</Text> : null}
                   <Text style={{ color: highUser >= highOpponent ? theme.accent : theme.text }}>{highUser}</Text>
                   <Text style={{ color: theme.muted }}>{"  ·  "}</Text>
                   <Text style={{ color: highOpponent > highUser ? theme.accent : theme.text }}>{highOpponent}</Text>
@@ -232,4 +280,7 @@ const styles = StyleSheet.create({
   frameScore: { fontFamily: FONTS.board },
   highs: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   highValue: { fontFamily: FONTS.board },
+  banner: { alignItems: "center" },
+  bannerText: { fontFamily: FONTS.boardHeavy, color: "#10140F" },
+  bannerMore: { fontFamily: FONTS.boardLabel, color: "#10140F", opacity: 0.75, marginTop: 1 },
 });

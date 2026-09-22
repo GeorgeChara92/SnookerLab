@@ -16,6 +16,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore, useMatchesStore } from "../../store";
 import { useSharePrefsStore } from "../../store/sharePrefsStore";
 import { matchCard } from "../../features/matches/breaks";
+import { matchHighlights, type Highlight } from "../../features/matches/highlights";
 import { canShareImages, shareText, shareViewAsImage } from "../../features/share/shareImage";
 import { CARD_RATIO, MatchResultCard } from "./MatchResultCard";
 import { CARD_THEMES, ThemeBackground, themeById } from "./cardThemes";
@@ -27,6 +28,9 @@ const SWATCH = { width: 56, height: 70 };
 /** Room the sheet needs around the card: header, swatches, options and the share button. */
 const CHROME_HEIGHT = 330;
 
+/** Highlights that already say what the high break was. */
+const BREAK_KINDS: Highlight["kind"][] = ["maximum", "century", "personal-best", "fifties"];
+
 export const bestOfFor = (match: Pick<Match, "format" | "target_frames">) => {
   if (match.target_frames) return match.target_frames;
   const parsed = parseInt(String(match.format).replace("best_of_", ""), 10);
@@ -34,13 +38,14 @@ export const bestOfFor = (match: Pick<Match, "format" | "target_frames">) => {
 };
 
 /** The words sent with the picture, or on their own where pictures cannot be shared yet. */
-export const resultMessage = (match: Match, highBreak: number) => {
+export const resultMessage = (match: Match, highBreak: number, highlights: Highlight[] = []) => {
   const verb =
     match.user_score > match.opponent_score ? "Won" : match.user_score < match.opponent_score ? "Lost" : "Drew";
   const bestOf = bestOfFor(match);
   return [
     `${verb} ${match.user_score}–${match.opponent_score} against ${match.opponent_name}${bestOf ? ` (best of ${bestOf})` : ""}.`,
-    highBreak ? `High break ${highBreak}.` : null,
+    ...highlights.slice(0, 3).map((item) => item.sentence),
+    highBreak && !highlights.some((item) => BREAK_KINDS.includes(item.kind)) ? `High break ${highBreak}.` : null,
     "Scored with Snooker Lab.",
   ]
     .filter(Boolean)
@@ -61,20 +66,30 @@ export const ShareMatchSheet = ({
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const username = useAuthStore((state) => state.user?.username);
-  const frames = useMatchesStore((state) => state.liveFramesByMatch[match.id]);
+  const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
+  const matches = useMatchesStore((state) => state.matches);
+  const frames = liveFramesByMatch[match.id];
   const prefs = useSharePrefsStore();
   const cardRef = useRef<View>(null);
   const [sharing, setSharing] = useState(false);
   const images = useMemo(() => canShareImages(), []);
 
   const card = useMemo(() => matchCard(frames ?? []), [frames]);
-  // A century gets the gold card unless the player has picked one.
-  const theme = themeById(prefs.themeId ?? (card.highUser >= 100 ? "century" : undefined));
+  const highlights = useMemo(() => {
+    const bestOf = bestOfFor(match);
+    return matchHighlights(match, matches, liveFramesByMatch, bestOf ? Math.floor(bestOf / 2) + 1 : undefined);
+  }, [match, matches, liveFramesByMatch]);
+  // A century or a maximum opens on the gold card, whatever was picked last time: it is the
+  // moment. Picking another here still wins.
+  const special = highlights.some((item) => item.kind === "maximum" || item.kind === "century");
+  const [pickedHere, setPickedHere] = useState<string | null>(null);
+  const theme = themeById(pickedHere ?? (special ? "century" : (prefs.themeId ?? undefined)));
+  const showHighlights = prefs.highlights !== false;
   const cardWidth = Math.max(
     200,
     Math.min(width - SPACING.lg * 2, 400, (height - insets.top - insets.bottom - CHROME_HEIGHT) / CARD_RATIO)
   );
-  const message = resultMessage(match, card.highUser);
+  const message = resultMessage(match, card.highUser, showHighlights ? highlights : []);
   const hasFrames = card.frames.length > 0;
   const hasHighs = card.highUser > 0 || card.highOpponent > 0;
 
@@ -138,7 +153,8 @@ export const ShareMatchSheet = ({
             highOpponent={card.highOpponent}
             width={cardWidth}
             theme={theme}
-            options={{ frames: prefs.frames, highBreaks: prefs.highBreaks }}
+            options={{ frames: prefs.frames, highBreaks: prefs.highBreaks, highlights: showHighlights }}
+            highlights={highlights}
           />
         </View>
 
@@ -154,7 +170,10 @@ export const ShareMatchSheet = ({
               return (
                 <Pressable
                   key={option.id}
-                  onPress={() => prefs.set({ themeId: option.id })}
+                  onPress={() => {
+                    setPickedHere(option.id);
+                    prefs.set({ themeId: option.id });
+                  }}
                   accessibilityRole="radio"
                   accessibilityState={{ selected }}
                   accessibilityLabel={`${option.name} background`}
@@ -179,8 +198,15 @@ export const ShareMatchSheet = ({
             })}
           </ScrollView>
 
-          {hasFrames || hasHighs ? (
+          {hasFrames || hasHighs || highlights.length ? (
             <View style={styles.toggles}>
+              {highlights.length ? (
+                <Toggle
+                  label="Highlights"
+                  on={showHighlights}
+                  onPress={() => prefs.set({ highlights: !showHighlights })}
+                />
+              ) : null}
               {hasFrames ? (
                 <Toggle label="Frame scores" on={prefs.frames} onPress={() => prefs.set({ frames: !prefs.frames })} />
               ) : null}

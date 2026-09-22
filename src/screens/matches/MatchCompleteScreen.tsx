@@ -12,6 +12,7 @@ import { ShareMatchSheet, bestOfFor } from "../../components/matches/ShareMatchS
 import { FrameTimelineSheet } from "../../components/matches/FrameTimelineSheet";
 import { matchTape } from "../../features/matches/breaks";
 import { matchStory } from "../../features/matches/matchStory";
+import { matchHighlights } from "../../features/matches/highlights";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 const NO_FRAMES: LiveFrameRecord[] = [];
@@ -28,6 +29,8 @@ export const MatchCompleteScreen = () => {
   const insets = useSafeAreaInsets();
   const match = useMatchesStore((state) => state.matches.find((item) => item.id === matchId));
   const storedFrames = useMatchesStore((state) => state.liveFramesByMatch[matchId] ?? NO_FRAMES);
+  const allMatches = useMatchesStore((state) => state.matches);
+  const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
   const username = useAuthStore((state) => state.user?.username);
   const [shareOpen, setShareOpen] = useState(false);
   const [openFrameId, setOpenFrameId] = useState<string | null>(null);
@@ -38,6 +41,10 @@ export const MatchCompleteScreen = () => {
   const bestOf = match ? bestOfFor(match) : undefined;
   const firstTo = bestOf ? Math.floor(bestOf / 2) + 1 : undefined;
   const story = useMemo(() => matchStory(frames, firstTo), [frames, firstTo]);
+  const highlights = useMemo(
+    () => (match ? matchHighlights(match, allMatches, liveFramesByMatch, firstTo) : []),
+    [match, allMatches, liveFramesByMatch, firstTo]
+  );
 
   useEffect(() => {
     Animated.timing(rise, {
@@ -64,23 +71,10 @@ export const MatchCompleteScreen = () => {
     ? `${winnerName} ${winnerName === "You" ? "win" : "wins"} ${Math.max(match.user_score, match.opponent_score)}–${Math.min(match.user_score, match.opponent_score)}`
     : `All square at ${match.user_score}–${match.opponent_score}`;
 
-  const lines = [
-    story.decider ? "Settled in a deciding frame." : null,
-    story.whitewash ? "A whitewash." : null,
-    story.cameFromBehind >= 2 ? `Came back from ${story.cameFromBehind} frames down.` : null,
-    tape.user.high >= 100
-      ? `A century: ${tape.user.high}.`
-      : tape.user.high >= 50
-        ? `High break of ${tape.user.high}.`
-        : null,
-  ].filter(Boolean) as string[];
-
-  const chips = [
-    story.decider ? "DECIDER" : null,
-    story.whitewash ? "WHITEWASH" : null,
-    story.cameFromBehind >= 2 ? "COMEBACK" : null,
-    tape.user.high >= 100 ? "CENTURY" : tape.user.fifties > 0 ? `${tape.user.fifties} × 50+` : null,
-  ].filter(Boolean) as string[];
+  // The same highlights the share card leads with: a maximum, a century, a new best, a
+  // whitewash, a first win over someone.
+  const lines = highlights.map((item) => item.sentence);
+  const chips = highlights.map((item) => item.label).slice(0, 4);
 
   /** Back to the full match, without stacking a second copy if the player came from there. */
   const viewMatch = () => {
