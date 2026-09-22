@@ -183,10 +183,7 @@ export const CommunityHomeScreen = () => {
     <Pressable
       onPress={() => navigation.navigate("PlayerProfile", { userId: profile.id })}
       accessibilityRole="button"
-      style={({ pressed }) => [
-        styles.row,
-        { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
-      ]}
+      style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.surfaceMuted : "transparent" }]}
     >
       <CommunityAvatar profile={profile} size={44} />
       <View style={styles.rowText}>
@@ -201,91 +198,70 @@ export const CommunityHomeScreen = () => {
     </Pressable>
   );
 
+  const hub = [
+    { route: "Chats", icon: "chat-outline", label: "Chats", badge: badges.unread + badges.requests },
+    { route: "Groups", icon: "account-multiple-outline", label: "Groups", badge: 0 },
+    { route: "RoutineLibrary", icon: "table-furniture", label: "Routines", badge: 0 },
+    { route: "Leaderboards", icon: "podium", label: "Boards", badge: 0 },
+  ] as const;
+
+  const hasName = Boolean(me.displayName && me.displayName.trim() && me.displayName.trim() !== me.handle);
+
   const header = (
     <View style={styles.header}>
-      <Pressable
-        onPress={() => navigation.navigate("PlayerProfile", { userId: me.id })}
-        accessibilityRole="button"
-        accessibilityLabel="Your community profile"
-        style={[styles.meCard, { backgroundColor: colors.board, borderColor: colors.boardRule }]}
-      >
-        <CommunityAvatar profile={me} size={52} />
-        <View style={styles.rowText}>
-          <Text style={[styles.meName, { color: colors.boardText }]} numberOfLines={1}>
-            {nameOf(me)}
-          </Text>
-          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.meHandle, { color: colors.boardRule }]}>
-            @{me.handle}
-          </Text>
-        </View>
-        <View style={styles.meCount}>
-          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.meCountValue, { color: colors.boardText }]}>
-            {friends.length}
-          </Text>
-          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.meCountLabel, { color: colors.boardMuted }]}>
-            {friends.length === 1 ? "FRIEND" : "FRIENDS"}
-          </Text>
-        </View>
+      {/* Who you are */}
+      <View style={styles.me}>
+        <Pressable
+          onPress={() => navigation.navigate("PlayerProfile", { userId: me.id })}
+          accessibilityRole="button"
+          accessibilityLabel="Your community profile"
+          style={styles.meMain}
+        >
+          <CommunityAvatar profile={me} size={48} />
+          <View style={styles.rowText}>
+            <Text style={[styles.meName, { color: colors.text }]} numberOfLines={1}>
+              {hasName ? me.displayName : `@${me.handle}`}
+            </Text>
+            <Text style={[styles.meMeta, { color: colors.textMuted }]} numberOfLines={1}>
+              {hasName ? `@${me.handle} · ` : ""}
+              {friends.length} {friends.length === 1 ? "friend" : "friends"}
+            </Text>
+          </View>
+        </Pressable>
         <Pressable
           onPress={() => navigation.navigate("CommunitySettings", {})}
           accessibilityRole="button"
           accessibilityLabel="Community settings and privacy"
-          hitSlop={8}
-          style={styles.gear}
+          style={({ pressed }) => [styles.gear, { backgroundColor: pressed ? colors.surfaceMuted : colors.surface }]}
         >
-          <MaterialCommunityIcons name="cog-outline" size={22} color={colors.boardMuted} />
+          <MaterialCommunityIcons name="cog-outline" size={20} color={colors.textMuted} />
         </Pressable>
-      </Pressable>
+      </View>
 
-      <View style={styles.tiles}>
-        {(
-          [
-            {
-              route: "Chats",
-              icon: "chat-outline",
-              title: "Chats",
-              hint: badges.requests
-                ? `${badges.requests} new ${badges.requests === 1 ? "request" : "requests"}`
-                : "Friends and groups",
-              badge: badges.unread + badges.requests,
-            },
-            {
-              route: "Groups",
-              icon: "account-multiple-outline",
-              title: "Groups",
-              hint: "Clubs, leagues, teams",
-              badge: 0,
-            },
-            {
-              route: "RoutineLibrary",
-              icon: "table-furniture",
-              title: "Routines",
-              hint: "Top, new, friends'",
-              badge: 0,
-            },
-            { route: "Leaderboards", icon: "podium", title: "Leaderboards", hint: "Level, breaks, routines", badge: 0 },
-          ] as const
-        ).map((tile) => (
+      {/* Where to go */}
+      <View style={[styles.hub, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {hub.map((item, index) => (
           <Pressable
-            key={tile.route}
-            onPress={() => navigation.navigate(tile.route)}
+            key={item.route}
+            onPress={() => navigation.navigate(item.route)}
             accessibilityRole="button"
+            accessibilityLabel={item.badge ? `${item.label}, ${item.badge} new` : item.label}
             style={({ pressed }) => [
-              styles.tile,
-              { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+              styles.hubItem,
+              index > 0 ? { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border } : null,
+              { backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
             ]}
           >
-            <View style={[styles.tileIcon, { backgroundColor: colors.board }]}>
-              <MaterialCommunityIcons name={tile.icon} size={22} color={colors.boardRule} />
-              {tile.badge ? (
-                <View style={[styles.tileBadge, { backgroundColor: colors.danger, borderColor: colors.surface }]}>
-                  <Text style={styles.tileBadgeText}>{tile.badge > 99 ? "99+" : tile.badge}</Text>
+            <View>
+              <MaterialCommunityIcons name={item.icon} size={24} color={colors.primary} />
+              {item.badge ? (
+                <View style={[styles.hubBadge, { backgroundColor: colors.danger, borderColor: colors.surface }]}>
+                  <Text style={styles.hubBadgeText}>{item.badge > 99 ? "99+" : item.badge}</Text>
                 </View>
               ) : null}
             </View>
-            <Text style={[styles.tileTitle, { color: colors.text }]}>{tile.title}</Text>
-            <Text style={[styles.tileHint, { color: colors.textMuted }]} numberOfLines={1}>
-              {tile.hint}
+            <Text style={[styles.hubLabel, { color: colors.text }]} numberOfLines={1}>
+              {item.label}
             </Text>
           </Pressable>
         ))}
@@ -293,27 +269,23 @@ export const CommunityHomeScreen = () => {
 
       <LiveNow onOpen={(matchId) => navigation.navigate("LiveMatch", { matchId })} />
 
-      <View style={[styles.tour, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Pressable
-          onPress={() => navigation.navigate("TourNews")}
-          accessibilityRole="button"
-          accessibilityLabel="Pro tour news. See all"
-          style={styles.tourHead}
-        >
-          <MaterialCommunityIcons name="trophy-variant-outline" size={18} color={colors.boardRule} />
-          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tourKicker, { color: colors.text }]}>
-            FROM THE PRO TOUR
-          </Text>
-          <Text style={[styles.tourMore, { color: colors.primary }]}>See all</Text>
-        </Pressable>
-        {tourNews[0] ? (
+      {/* The pro tour, one story */}
+      {tourNews[0] ? (
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.sectionLabel, { color: colors.text }]}>
+              PRO TOUR
+            </Text>
+            <Pressable onPress={() => navigation.navigate("TourNews")} accessibilityRole="button" hitSlop={8}>
+              <Text style={[styles.sectionMore, { color: colors.primary }]}>All news</Text>
+            </Pressable>
+          </View>
           <NewsRow item={tourNews[0]} summary={false} />
-        ) : (
-          <Text style={[styles.tourEmpty, { color: colors.textMuted }]}>The latest from WST and BBC Sport.</Text>
-        )}
-      </View>
+        </View>
+      ) : null}
 
-      <View style={[styles.segments, { backgroundColor: colors.surfaceMuted }]} accessibilityRole="tablist">
+      {/* Your people */}
+      <View style={[styles.tabs, { borderBottomColor: colors.border }]} accessibilityRole="tablist">
         {(
           [
             { value: "friends", label: "Friends" },
@@ -328,13 +300,14 @@ export const CommunityHomeScreen = () => {
               onPress={() => setSegment(item.value)}
               accessibilityRole="tab"
               accessibilityState={{ selected }}
-              style={[styles.segment, selected ? { backgroundColor: colors.surface } : null]}
+              style={[styles.tab, selected ? { borderBottomColor: colors.boardRule } : null]}
             >
               <Text
-                style={[styles.segmentText, { color: selected ? colors.text : colors.textMuted }]}
+                maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+                style={[styles.tabText, { color: selected ? colors.text : colors.textMuted }]}
                 numberOfLines={1}
               >
-                {item.label}
+                {item.label.toUpperCase()}
               </Text>
               {item.badge ? (
                 <View style={[styles.badge, { backgroundColor: colors.danger }]}>
@@ -455,7 +428,7 @@ export const CommunityHomeScreen = () => {
             />
           )
         }
-        ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+        ItemSeparatorComponent={() => <View style={[styles.divider, { backgroundColor: colors.border }]} />}
       />
     );
   }
@@ -487,7 +460,7 @@ export const CommunityHomeScreen = () => {
             right={<Action profile={item} relation={relationTo(userId, item.id, friendships, blocked)} />}
           />
         )}
-        ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+        ItemSeparatorComponent={() => <View style={[styles.divider, { backgroundColor: colors.border }]} />}
       />
     );
   }
@@ -519,7 +492,7 @@ export const CommunityHomeScreen = () => {
           right={<MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />}
         />
       )}
-      ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+      ItemSeparatorComponent={() => <View style={[styles.divider, { backgroundColor: colors.border }]} />}
     />
   );
 };
@@ -530,33 +503,31 @@ const styles = StyleSheet.create({
   header: { gap: SPACING.md, marginBottom: SPACING.md },
   joinIcon: { width: 84, height: 84, borderRadius: 42, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   joinTitle: { fontSize: 26, fontWeight: "800", textAlign: "center" },
-  meCard: {
-    flexDirection: "row",
+  me: { flexDirection: "row", alignItems: "center", gap: SPACING.sm },
+  meMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: SPACING.md, minHeight: HIT_TARGET },
+  meName: { fontSize: 20, fontWeight: "800" },
+  meMeta: { fontSize: 14, marginTop: 1 },
+  gear: {
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderRadius: HIT_TARGET / 2,
     alignItems: "center",
-    gap: SPACING.md,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
+    justifyContent: "center",
   },
-  meName: { fontSize: 18, fontWeight: "800" },
-  meHandle: { fontFamily: FONTS.boardLabel, fontSize: 15, letterSpacing: 0.5 },
-  meCount: { alignItems: "center" },
-  meCountValue: { fontFamily: FONTS.boardHeavy, fontSize: 28, lineHeight: 30 },
-  meCountLabel: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 1 },
-  gear: { minWidth: 32, minHeight: HIT_TARGET, alignItems: "flex-end", justifyContent: "center" },
-  segments: { flexDirection: "row", borderRadius: RADIUS.md, padding: 3, gap: 3 },
-  tiles: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
-  tour: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: SPACING.sm },
-  tourHead: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 28 },
-  tourKicker: { flex: 1, fontFamily: FONTS.board, fontSize: 15, letterSpacing: 1.2 },
-  tourMore: { fontSize: 14, fontWeight: "800" },
-  tourEmpty: { fontSize: 13 },
-  tile: { flexBasis: "47%", flexGrow: 1, borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: 4 },
-  tileBadge: {
+  hub: { flexDirection: "row", borderWidth: 1, borderRadius: RADIUS.lg, overflow: "hidden" },
+  hubItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: SPACING.md,
+    minHeight: 76,
+  },
+  hubLabel: { fontSize: 13, fontWeight: "700" },
+  hubBadge: {
     position: "absolute",
     top: -6,
-    right: -8,
+    right: -12,
     minWidth: 20,
     height: 20,
     borderRadius: 10,
@@ -565,27 +536,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
   },
-  tileBadgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
-  tileIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: RADIUS.md,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  tileTitle: { fontSize: 16, fontWeight: "800" },
-  tileHint: { fontSize: 12 },
-  segment: {
-    flex: 1,
+  hubBadgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
+  section: { gap: SPACING.sm },
+  sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  sectionLabel: { fontFamily: FONTS.board, fontSize: 15, letterSpacing: 1.2 },
+  sectionMore: { fontSize: 14, fontWeight: "700" },
+  tabs: { flexDirection: "row", gap: SPACING.lg, borderBottomWidth: StyleSheet.hairlineWidth, marginTop: SPACING.xs },
+  tab: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 6,
-    minHeight: 40,
-    borderRadius: RADIUS.sm,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+    marginBottom: -StyleSheet.hairlineWidth,
   },
-  segmentText: { fontSize: 14, fontWeight: "700" },
+  tabText: { fontFamily: FONTS.board, fontSize: 15, letterSpacing: 1 },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: 44 + SPACING.md },
   badge: {
     minWidth: 18,
     height: 18,
@@ -610,9 +577,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: SPACING.md,
-    borderWidth: 1,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
+    borderRadius: RADIUS.md,
   },
   rowText: { flex: 1, minWidth: 0 },
   rowName: { fontSize: 16, fontWeight: "800" },
