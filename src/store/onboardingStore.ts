@@ -42,8 +42,9 @@ export const useOnboardingStore = create<OnboardingState>()(
     {
       name: "onboarding-storage",
       storage: createJSONStorage(() => safeStorage),
-      version: 2,
-      // Version 1 kept one flag for the whole phone; start the per-account list afresh.
+      version: 3,
+      // Version 1 kept one flag for the whole phone, and version 2 could wrongly mark new accounts
+      // as done (an unreadable sign-up date); start the per-account list afresh.
       migrate: (persisted: any) => ({ toursDone: [], seenVersion: persisted?.seenVersion ?? null }),
       partialize: (state) => ({ toursDone: state.toursDone, seenVersion: state.seenVersion }),
     }

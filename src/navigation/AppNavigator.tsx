@@ -181,8 +181,9 @@ export const AppNavigator = () => {
     const access_token = params.access_token;
     const refresh_token = params.refresh_token;
     const type = params.type;
+    const token_hash = params.token_hash;
 
-    return { access_token, refresh_token, type };
+    return { access_token, refresh_token, type, token_hash };
   };
 
   useEffect(() => {
@@ -234,7 +235,15 @@ export const AppNavigator = () => {
         return;
       }
 
-      const { access_token, refresh_token, type } = extractAuthParams(url);
+      const { access_token, refresh_token, type, token_hash } = extractAuthParams(url);
+
+      // A password reset from the website carries a one-time code; the app spends it itself.
+      if (token_hash && type === "recovery") {
+        const { error } = await supabase.auth.verifyOtp({ token_hash, type: "recovery" });
+        if (!error) setRequiresPasswordReset(true);
+        return;
+      }
+
       if (!access_token || !refresh_token) return;
 
       const { error } = await supabase.auth.setSession({ access_token, refresh_token });

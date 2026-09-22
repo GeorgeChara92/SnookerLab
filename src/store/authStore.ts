@@ -15,6 +15,7 @@ const mapAuthUser = (authUser: any): User => ({
   bio: authUser.user_metadata?.bio,
   cue_preference: authUser.user_metadata?.cue_preference,
   skill_level: authUser.user_metadata?.skill_level,
+  tour_seen: authUser.user_metadata?.tour_seen === true,
   // app_metadata is written only by the service role (the RevenueCat webhook and the
   // sync-subscription function), so the tier cannot be forged from the client.
   subscription_tier: authUser.app_metadata?.subscription_tier,
