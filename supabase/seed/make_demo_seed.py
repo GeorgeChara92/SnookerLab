@@ -15,8 +15,11 @@ from pathlib import Path
 
 random.seed(147)
 
-DEMO = "__DEMO_HANDLE__"
-FRIENDS = ["georgechara", "georgechara_test"]
+DEMO = "georgechara_test"
+FRIENDS = ["georgechara", "__no_second_friend__"]
+# Names shown while screenshots are taken. Put back afterwards with restore_names.sql.
+DEMO_NAME = "You"
+FRIEND_NAME = "Danny Hale"
 
 OPPONENTS = ["Dave Wilson", "Mark Ellis", "Ryan Cole", "Jamie Barker", "Chris Hale", "Tom Price"]
 
@@ -129,6 +132,10 @@ w("  c uuid;")
 w("  l uuid;")
 w("begin")
 w(f"  if demo is null then raise exception 'No profile with the handle {DEMO}. Create the account in the app and pick that handle first.'; end if;")
+w("")
+w("  -- Screenshot names.")
+w(f"  update public.profiles set display_name = {q(DEMO_NAME)} where id = demo;")
+w(f"  if pal is not null then update public.profiles set display_name = {q(FRIEND_NAME)} where id = pal; end if;")
 w("")
 w("  -- A clean slate for the demo account only.")
 w("  delete from public.live_scores where user_id = demo;")

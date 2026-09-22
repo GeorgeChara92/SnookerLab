@@ -2,15 +2,19 @@
 -- Set the demo account's handle below (and the friends', if different), then run it all.
 do $$
 declare
-  demo uuid := (select id from public.profiles where handle = '__DEMO_HANDLE__');
+  demo uuid := (select id from public.profiles where handle = 'georgechara_test');
   pal uuid := (select id from public.profiles where handle = 'georgechara');
-  pal2 uuid := (select id from public.profiles where handle = 'georgechara_test');
+  pal2 uuid := (select id from public.profiles where handle = '__no_second_friend__');
   m uuid;
   g uuid;
   c uuid;
   l uuid;
 begin
-  if demo is null then raise exception 'No profile with the handle __DEMO_HANDLE__. Create the account in the app and pick that handle first.'; end if;
+  if demo is null then raise exception 'No profile with the handle georgechara_test. Create the account in the app and pick that handle first.'; end if;
+
+  -- Screenshot names.
+  update public.profiles set display_name = 'You' where id = demo;
+  if pal is not null then update public.profiles set display_name = 'Danny Hale' where id = pal; end if;
 
   -- A clean slate for the demo account only.
   delete from public.live_scores where user_id = demo;
