@@ -18,20 +18,20 @@ const NEW_FOR_MS = 14 * 86_400_000;
  */
 export const OnboardingHost = () => {
   const user = useAuthStore((state) => state.user);
-  const { open, seenVersion, openTour, openWhatsNew, close, finishTour, markSeen } = useOnboardingStore();
+  const { open, seenVersion, openTour, openWhatsNew, close, finishTour, skipTour, markSeen } = useOnboardingStore();
 
   useEffect(() => {
     if (!user?.id) return;
     const timer = setTimeout(() => {
       const state = useOnboardingStore.getState();
       if (state.open) return;
-      if (!state.tourDone) {
+      if (!state.toursDone.includes(user.id)) {
         const age = Date.now() - new Date(user.created_at).getTime();
         if (Number.isFinite(age) && age < NEW_FOR_MS) {
           openTour();
           return;
         }
-        useOnboardingStore.setState({ tourDone: true });
+        skipTour(user.id);
       }
       if (unseenNotes(APP_VERSION, state.seenVersion).length) openWhatsNew();
       else markSeen(APP_VERSION);
@@ -47,7 +47,7 @@ export const OnboardingHost = () => {
   }, [seenVersion]);
 
   const onTourDone = (choice: TourChoice) => {
-    finishTour(APP_VERSION);
+    finishTour(user?.id ?? null, APP_VERSION);
     if (!choice || !navigationRef.isReady()) return;
     // Once the tour has gone, take them where they chose.
     setTimeout(() => {

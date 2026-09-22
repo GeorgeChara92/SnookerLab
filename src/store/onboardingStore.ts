@@ -3,38 +3,49 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { safeStorage } from "../utils/storage";
 
 /**
- * The welcome tour and the "What's new" sheet: whether this phone has been through the tour,
- * the last version whose notes were shown, and which of the two is open right now.
+ * The welcome tour and the "What's new" sheet: which accounts have been through the tour on this
+ * phone (per account, so a new account on a phone someone else used still gets it), the last
+ * version whose notes were shown, and which of the two is open right now.
  */
 type OnboardingState = {
-  tourDone: boolean;
+  toursDone: string[];
   seenVersion: string | null;
   open: "tour" | "whatsNew" | null;
   openTour: () => void;
   openWhatsNew: () => void;
   close: () => void;
-  finishTour: (version: string) => void;
+  finishTour: (userId: string | null, version: string) => void;
+  skipTour: (userId: string) => void;
   markSeen: (version: string) => void;
 };
 
 export const useOnboardingStore = create<OnboardingState>()(
   persist(
     (set) => ({
-      tourDone: false,
+      toursDone: [],
       seenVersion: null,
       open: null,
       openTour: () => set({ open: "tour" }),
       openWhatsNew: () => set({ open: "whatsNew" }),
       close: () => set({ open: null }),
       // Someone who has just been shown round does not need telling what is new as well.
-      finishTour: (version) => set({ tourDone: true, seenVersion: version, open: null }),
+      finishTour: (userId, version) =>
+        set((state) => ({
+          toursDone: userId ? [...state.toursDone.filter((id) => id !== userId), userId].slice(-20) : state.toursDone,
+          seenVersion: version,
+          open: null,
+        })),
+      skipTour: (userId) =>
+        set((state) => ({ toursDone: [...state.toursDone.filter((id) => id !== userId), userId].slice(-20) })),
       markSeen: (version) => set({ seenVersion: version }),
     }),
     {
       name: "onboarding-storage",
       storage: createJSONStorage(() => safeStorage),
-      version: 1,
-      partialize: (state) => ({ tourDone: state.tourDone, seenVersion: state.seenVersion }),
+      version: 2,
+      // Version 1 kept one flag for the whole phone; start the per-account list afresh.
+      migrate: (persisted: any) => ({ toursDone: [], seenVersion: persisted?.seenVersion ?? null }),
+      partialize: (state) => ({ toursDone: state.toursDone, seenVersion: state.seenVersion }),
     }
   )
 );
