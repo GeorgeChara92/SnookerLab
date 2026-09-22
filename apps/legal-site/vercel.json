@@ -21,15 +21,25 @@
     }
   ],
   "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/privacy", "destination": "/privacy.html" },
-    { "source": "/terms", "destination": "/terms.html" },
-    { "source": "/support", "destination": "/support.html" },
-    { "source": "/email-confirmed", "destination": "/email-confirmed.html" },
-    { "source": "/email-confirmed/:path*", "destination": "/email-confirmed.html" },
-    { "source": "/auth/confirm", "destination": "/email-confirmed.html" },
-    { "source": "/auth/confirm/:path*", "destination": "/email-confirmed.html" },
-    { "source": "/auth/callback", "destination": "/email-confirmed.html" },
-    { "source": "/auth/callback/:path*", "destination": "/email-confirmed.html" }
+    {
+      "source": "/email-confirmed/:path*",
+      "destination": "/email-confirmed"
+    },
+    {
+      "source": "/auth/confirm",
+      "destination": "/email-confirmed"
+    },
+    {
+      "source": "/auth/confirm/:path*",
+      "destination": "/email-confirmed"
+    },
+    {
+      "source": "/auth/callback",
+      "destination": "/email-confirmed"
+    },
+    {
+      "source": "/auth/callback/:path*",
+      "destination": "/email-confirmed"
+    }
   ]
 }
