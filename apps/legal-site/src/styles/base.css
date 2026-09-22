@@ -1,13 +1,13 @@
 /* Snookered website — tokens and base.
    Light and calm by default; deep baize green is kept for the product (dark panels, the scoreboard). */
 :root {
-  --paper: #f4f6f3;
-  --paper-2: #eaefeb;
+  --paper: #eef2ee;
+  --paper-2: #e3eae5;
   --card: #ffffff;
   --ink: #0c1713;
   --ink-2: #3a4a43;
   --ink-3: #66766f;
-  --line: rgba(12, 23, 19, 0.09);
+  --line: rgba(12, 23, 19, 0.1);
   --line-2: rgba(12, 23, 19, 0.16);
 
   --baize: #0c2a20;
@@ -166,6 +166,16 @@ h4 {
   font-size: clamp(26px, 3vw, 36px);
 }
 
+.lead a {
+  color: var(--mint-ink);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.dark .lead a {
+  color: var(--mint);
+}
+
 .lead {
   margin: 0;
   max-width: 36em;
@@ -288,11 +298,11 @@ h4 {
 
 /* ------------------------------------------------------------------ sections */
 .section {
-  padding-block: clamp(80px, 11vw, 144px);
+  padding-block: clamp(64px, 8vw, 112px);
 }
 
 .section.tight {
-  padding-block: clamp(56px, 8vw, 96px);
+  padding-block: clamp(48px, 6vw, 80px);
 }
 
 .section.alt {
@@ -312,7 +322,7 @@ h4 {
   display: grid;
   gap: 18px;
   max-width: 760px;
-  margin-bottom: clamp(40px, 6vw, 72px);
+  margin-bottom: clamp(30px, 4vw, 52px);
 }
 
 .section-head.center {

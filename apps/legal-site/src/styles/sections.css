@@ -1,111 +1,3 @@
-/* ------------------------------------------------------------------ bento (home) */
-.bento {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.bento-card {
-  border-radius: 32px;
-  background: var(--card);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
-  transition: box-shadow 250ms var(--ease), translate 250ms var(--ease);
-}
-
-.bento-card:hover {
-  translate: 0 -3px;
-  box-shadow: 0 2px 4px rgba(12, 23, 19, 0.05), 0 24px 48px -16px rgba(12, 23, 19, 0.22), 0 0 0 1px var(--line);
-}
-
-.bento-card.wide {
-  grid-column: 1 / -1;
-}
-
-.bento-link {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  height: 100%;
-  text-decoration: none;
-}
-
-.bento-card.wide .bento-link {
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: none;
-}
-
-.bento-copy {
-  padding: clamp(28px, 4vw, 44px);
-}
-
-.bento-card.wide .bento-copy {
-  align-self: center;
-}
-
-.bento-copy > p:not(.eyebrow) {
-  margin: 14px 0 22px;
-  color: var(--ink-2);
-  max-width: 30em;
-}
-
-.bento-go {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--mint-ink);
-}
-
-.bento-go .arrow {
-  width: 16px;
-  height: 16px;
-  transition: translate 200ms var(--ease);
-}
-
-.bento-card:hover .arrow {
-  translate: 3px 0;
-}
-
-/* The phone rises from the bottom edge of the card on a soft baize wash. */
-.bento-shot {
-  align-self: end;
-  height: 320px;
-  overflow: hidden;
-  padding: 36px 36px 0;
-  background: radial-gradient(ellipse 70% 90% at 50% 100%, var(--mint-soft), transparent 70%);
-}
-
-.bento-card.wide .bento-shot {
-  height: 420px;
-  background: radial-gradient(ellipse 80% 80% at 50% 100%, rgba(47, 179, 127, 0.22), transparent 70%), var(--baize);
-}
-
-.bento-shot .phone {
-  width: min(250px, 100%);
-  margin-inline: auto;
-  translate: 0 8px;
-  transition: translate 400ms var(--ease);
-}
-
-.bento-card:hover .bento-shot .phone {
-  translate: 0 -4px;
-}
-
-@media (max-width: 860px) {
-  .bento {
-    grid-template-columns: 1fr;
-  }
-
-  .bento-card.wide .bento-link {
-    grid-template-columns: 1fr;
-  }
-
-  .bento-card.wide .bento-shot {
-    height: 340px;
-  }
-}
-
 /* ------------------------------------------------------------------ have a go */
 .have-a-go {
   position: relative;
@@ -237,57 +129,9 @@
   }
 }
 
-/* ------------------------------------------------------------------ plans teaser */
-.mini-plans {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.mini-plan {
-  padding: 28px;
-  border-radius: 24px;
-  background: var(--card);
-  box-shadow: var(--shadow-sm);
-}
-
-.mini-plan.featured {
-  box-shadow: inset 0 0 0 1.5px var(--brass), var(--shadow-md);
-}
-
-.mini-plan h3 {
-  font-size: 26px;
-}
-
-.mini-plan p {
-  margin: 8px 0 0;
-  color: var(--ink-2);
-  font-size: 15px;
-}
-
-.mini-plan .mini-plan-key {
-  margin-top: 20px;
-  padding-top: 16px;
-  color: var(--ink);
-  font-weight: 600;
-  box-shadow: 0 -1px 0 var(--line);
-}
-
-.center-link {
-  display: flex;
-  justify-content: center;
-  margin-top: 40px;
-}
-
-@media (max-width: 760px) {
-  .mini-plans {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* ------------------------------------------------------------------ inner page hero */
 .page-hero {
-  padding: clamp(56px, 9vw, 120px) 0 clamp(40px, 6vw, 72px);
+  padding: clamp(44px, 6vw, 88px) 0 clamp(32px, 4vw, 56px);
   background: radial-gradient(ellipse 50% 70% at 90% 0%, rgba(47, 179, 127, 0.12), transparent 70%);
 }
 
@@ -320,7 +164,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 80vh;
+  min-height: 74vh;
   padding-block: 40px;
 }
 
@@ -369,6 +213,7 @@
 
 .story-inline {
   display: none;
+  min-width: 0;
 }
 
 .story-sticky {
@@ -861,7 +706,7 @@
 
 /* ------------------------------------------------------------------ cta */
 .cta-section {
-  padding-block: clamp(40px, 6vw, 80px) clamp(80px, 10vw, 120px);
+  padding-block: clamp(32px, 4vw, 64px) clamp(64px, 8vw, 104px);
 }
 
 .cta {

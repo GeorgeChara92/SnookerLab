@@ -1,7 +1,10 @@
 import { Eye, Flag, MessageCircle, Search } from "lucide-react";
+import { Phone } from "../components/Phone";
+import { LiveBoard } from "../components/Scoreboard";
+import { ArRoutineDemo, CoachReport, RoutineBuilderDemo } from "../components/Showcase";
 import { Cta, FeatureStory, PageHero, Reveal, Strip, type Story } from "../components/Blocks";
 
-const Sep = () => <i className="strip-sep" aria-hidden="true" />;
+const Sep = ({ hide }: { hide?: boolean }) => <i className={`strip-sep ${hide ? "hide-sm" : ""}`} aria-hidden="true" />;
 
 export function Scoring() {
   const stories: Story[] = [
@@ -64,11 +67,12 @@ export function Scoring() {
             <span className="strip-dim">(7)</span>
             <span className="strip-num">1</span>
             <span className="strip-name">Danny</span>
-            <Sep />
+            <Sep hide />
             <span className="strip-dim hide-sm">Break</span>
             <span className="strip-num hide-sm">64</span>
           </Strip>
         }
+        aside={<LiveBoard />}
       />
       <FeatureStory stories={stories} />
       <Cta title="Rack them up." body="Snookered is coming to iPhone. Want to know when it lands, or have a question about scoring? Get in touch." />
@@ -76,63 +80,64 @@ export function Scoring() {
   );
 }
 
-function CoachSteps() {
-  const steps = [
-    ["Film a clip", "A few shots or a short break, on your phone."],
-    ["The coach watches it", "Stance, cue action, and what happened on the table."],
-    ["You get a plan", "What to work on first, and the routines that train it."],
-  ];
-  return (
-    <div className="coach">
-      <p className="coach-title">How the coach works</p>
-      <ol>
-        {steps.map(([title, body], index) => (
-          <li key={title}>
-            <span className="coach-step num">{index + 1}</span>
-            <span>
-              <strong>{title}</strong>
-              {body}
-            </span>
-          </li>
-        ))}
-      </ol>
-      <p className="coach-note">Coaching is guidance, not a substitute for a qualified coach.</p>
-    </div>
-  );
-}
-
 export function Practice() {
   const stories: Story[] = [
+    {
+      id: "builder",
+      kicker: "Routine builder",
+      title: "Build the routine you need.",
+      body: "Place the balls where you want them on a full-size table, zoom in to get them exact, then name the routine and set a score to aim for. Every change can be undone, and nothing is lost if you step back to the table.",
+      points: [
+        "Place any ball anywhere, with the app keeping the layout legal",
+        "Set a target score so there is always a number to beat",
+        "Share it with a link or a QR code, or pin it to your group",
+        "Set it up on the real table with AR",
+      ],
+      visual: <RoutineBuilderDemo />,
+    },
     {
       id: "routines",
       kicker: "Routines",
       title: "Every routine has a number to beat.",
-      body: "Pick a routine and Snookered keeps the score for you: your best, your average and how it is trending. There is a leaderboard on every one, so you can see who has the best line-up in your group.",
+      body: "A library of proper routines, from the line-up to the colours. Snookered keeps your best, your average and how it is trending, and there is a leaderboard on every one.",
       points: [
         "Routines for potting, safety, position and break-building",
-        "Progress and a personal best for each routine",
+        "Progress and a personal best for each",
         "A leaderboard on every routine",
-        "Build your own on a table diagram and share it with a link or QR code",
+        "Browse what other players have built and shared",
       ],
       screen: "routine",
       alt: "A routine in Snookered, with progress and a leaderboard",
     },
     {
-      id: "plans",
-      kicker: "Plans and streaks",
-      title: "Know what to practise tonight.",
-      body: "Set a goal and Snookered lays out your week: what to practise and for how long. Your home screen always shows the next session, and your streak keeps you coming back.",
-      points: ["Weekly plans and goals", "The next session, ready to start in one tap", "Streaks and a week track of the days you played"],
-      screen: "dashboard",
-      alt: "The home screen: the next session, the streak and this week",
+      id: "ar",
+      kicker: "AR set-up",
+      title: "Laid out on the real table.",
+      body: "Point the camera at the table and every ball of the routine gets a ghost on the cloth, so a fifteen-ball layout takes seconds. This part is still in development.",
+      points: ["Ghosts show where each ball goes", "Works with the routines you build", "The table diagram works without the camera"],
+      visual: <ArRoutineDemo />,
     },
     {
       id: "coach",
       kicker: "AI coach",
       title: "A coach that watches you play.",
-      body: "Film yourself at the table and the AI coach watches the clip, then tells you what it saw, what to work on first, and which routines will help.",
-      points: ["Feedback on the clip you filmed, not generic tips", "Routines picked for what it found", "Reviews on every plan, more on paid plans"],
-      visual: <CoachSteps />,
+      body: "Film a few shots or a short break and upload it. The coach watches the clip, points to the moments that matter, tells you what to work on first, and picks the routines that train it.",
+      points: [
+        "Feedback on your own clip, with the times it happened",
+        "One clear thing to fix first, not a list of twenty",
+        "Routines chosen for what it found",
+        "Reviews on every plan, more on the paid ones",
+      ],
+      visual: <CoachReport />,
+    },
+    {
+      id: "plans",
+      kicker: "Plans and streaks",
+      title: "Know what to practise tonight.",
+      body: "Set a goal and Snookered lays out your week: what to practise and for how long. Your home screen shows the next session, and the streak keeps you honest.",
+      points: ["Weekly plans and goals", "The next session, ready to start in one tap", "A week track of the days you played"],
+      screen: "dashboard",
+      alt: "The home screen: the next session, the streak and this week",
     },
   ];
   return (
@@ -140,18 +145,19 @@ export function Practice() {
       <PageHero
         eyebrow="Practice"
         title="Practice with a point to it."
-        lead="A library of proper routines, from the line-up to the colours, each with its own progress and personal best. Plan the week, keep a streak going, and see it pay off in your matches."
+        lead="Build your own routines, run the ones that suit your game, and get a coach to watch you play. Every session counts towards a number you can see."
         strip={
           <Strip label="Routine: the line-up, personal best 54" tag="Routine">
             <span className="strip-name">Line-up</span>
             <Sep />
             <span className="strip-dim">PB</span>
             <span className="strip-num">54</span>
-            <Sep />
+            <Sep hide />
             <span className="strip-dim hide-sm">Streak</span>
             <span className="strip-num hide-sm">6</span>
           </Strip>
         }
+        aside={<RoutineBuilderDemo />}
       />
       <FeatureStory stories={stories} />
       <Cta title="Chalk up." body="Snookered is coming to iPhone. Questions about routines or the coach? We read every message." />
@@ -230,6 +236,12 @@ export function Community() {
             <span className="strip-num">1</span>
             <span className="strip-name">Danny</span>
           </Strip>
+        }
+        aside={
+          <div className="phones-duo">
+            <Phone screen="community" alt="Community: friends, groups and the pro tour" sizes="(max-width: 900px) 42vw, 220px" />
+            <Phone screen="group" alt="A group with a feed of results and achievements" sizes="(max-width: 900px) 42vw, 220px" />
+          </div>
         }
       />
       <FeatureStory stories={stories} />

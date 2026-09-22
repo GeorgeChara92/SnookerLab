@@ -3,12 +3,12 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(244, 246, 243, 0);
+  background: rgba(238, 242, 238, 0);
   transition: background-color 200ms var(--ease), box-shadow 200ms var(--ease);
 }
 
 .header.raised {
-  background: rgba(244, 246, 243, 0.82);
+  background: rgba(238, 242, 238, 0.84);
   -webkit-backdrop-filter: saturate(1.4) blur(16px);
   backdrop-filter: saturate(1.4) blur(16px);
   box-shadow: 0 1px 0 var(--line);
@@ -182,7 +182,7 @@
 
 /* ------------------------------------------------------------------ footer */
 .footer {
-  padding: clamp(56px, 8vw, 88px) 0 40px;
+  padding: clamp(48px, 6vw, 72px) 0 36px;
 }
 
 .footer-inner {
@@ -690,7 +690,7 @@
 
 /* ------------------------------------------------------------------ home hero */
 .hero {
-  padding: clamp(28px, 5vw, 64px) 0 clamp(72px, 9vw, 120px);
+  padding: clamp(24px, 4vw, 52px) 0 clamp(56px, 7vw, 96px);
   overflow: clip;
 }
 

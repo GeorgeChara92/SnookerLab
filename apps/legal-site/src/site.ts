@@ -23,6 +23,12 @@ export const ROUTES: RouteMeta[] = [
       "Snooker practice routines with personal bests and leaderboards, weekly plans and streaks, and an AI coach that watches you play.",
   },
   {
+    path: "/scan-snooker",
+    title: "Scan Snooker · Snookered",
+    description:
+      "Scan Snooker: record where the balls were, then replace them in AR after a foul and a miss, and set routines up on the real table.",
+  },
+  {
     path: "/community",
     title: "Community · Snookered",
     description:
@@ -52,6 +58,7 @@ export const metaFor = (path: string) => ROUTES.find((route) => route.path === p
 export const NAV = [
   { to: "/scoring", label: "Scoring" },
   { to: "/practice", label: "Practice" },
+  { to: "/scan-snooker", label: "Scan Snooker" },
   { to: "/community", label: "Community" },
   { to: "/plans", label: "Plans" },
 ];

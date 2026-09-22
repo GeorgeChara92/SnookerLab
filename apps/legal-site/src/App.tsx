@@ -4,6 +4,7 @@ import { MotionConfig } from "motion/react";
 import { Footer, Header, ScrollToTop } from "./components/Chrome";
 import Home from "./pages/Home";
 import { Community, Practice, Scoring } from "./pages/Features";
+import ScanSnooker from "./pages/ScanSnooker";
 import { NotFound, Plans, Privacy, Support, Terms } from "./pages/Info";
 import { metaFor } from "./site";
 import "@fontsource-variable/bricolage-grotesque";
@@ -14,6 +15,7 @@ import "@fontsource/barlow-condensed/800.css";
 import "./styles/base.css";
 import "./styles/layout.css";
 import "./styles/sections.css";
+import "./styles/features.css";
 
 /** Keeps the tab title and description right as the visitor moves between pages. */
 function Meta() {
@@ -40,6 +42,7 @@ export function App() {
           <Route path="/" element={<Home />} />
           <Route path="/scoring" element={<Scoring />} />
           <Route path="/practice" element={<Practice />} />
+          <Route path="/scan-snooker" element={<ScanSnooker />} />
           <Route path="/community" element={<Community />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/support" element={<Support />} />

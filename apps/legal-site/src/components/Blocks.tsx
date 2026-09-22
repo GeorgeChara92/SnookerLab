@@ -36,28 +36,54 @@ export function Strip({ label, tag, live, children }: { label: string; tag: stri
   );
 }
 
+/** A slot for a screenshot we have not taken yet, so the layout is final before the image lands. */
+export function Placeholder({ label, note }: { label: string; note?: string }) {
+  return (
+    <div className="placeholder" role="img" aria-label={`${label} (screenshot coming soon)`}>
+      <span className="placeholder-ball ball red" aria-hidden="true" />
+      <b>{label}</b>
+      {note && <span>{note}</span>}
+      <em>Screenshot coming soon</em>
+    </div>
+  );
+}
+
 export function PageHero({
   eyebrow,
   title,
   lead,
   strip,
+  aside,
+  soon,
 }: {
   eyebrow: string;
   title: ReactNode;
   lead: ReactNode;
   strip?: ReactNode;
+  aside?: ReactNode;
+  soon?: boolean;
 }) {
   return (
-    <section className="page-hero">
-      <div className="wrap">
-        <Reveal>
-          <p className="eyebrow">{eyebrow}</p>
-          <h1 className="display-xl">{title}</h1>
-        </Reveal>
-        <Reveal delay={0.08}>
-          <p className="lead page-hero-lead">{lead}</p>
-        </Reveal>
-        {strip && <Reveal delay={0.16}>{strip}</Reveal>}
+    <section className={`page-hero ${aside ? "with-aside" : ""}`}>
+      <div className="wrap page-hero-grid">
+        <div>
+          <Reveal>
+            <p className="eyebrow">
+              {eyebrow}
+              {soon && <span className="soon">In development</span>}
+            </p>
+            <h1 className="display-xl">{title}</h1>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <p className="lead page-hero-lead">{lead}</p>
+          </Reveal>
+          {strip && <Reveal delay={0.16}>{strip}</Reveal>}
+        </div>
+        {aside && (
+          <Reveal delay={0.12} className="page-hero-aside">
+            {aside}
+          </Reveal>
+        )}
       </div>
     </section>
   );

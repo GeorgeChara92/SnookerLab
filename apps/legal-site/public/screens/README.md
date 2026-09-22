@@ -1,18 +1,36 @@
 # App screenshots for the website
 
-Drop PNG screenshots here with these names and they appear on the site automatically
-(until then each slot shows a placeholder). Full-screen iPhone screenshots, dark mode.
+Drop full-screen iPhone screenshots (dark mode) in here with the names below, then run
+`npm run build` — the build makes each one in three sizes as WebP and the site picks the
+right one per slot. Reference a screen in code with `<Phone screen="routine" … />`.
 
-| File                 | Screen                          |
-| -------------------- | ------------------------------- |
-| live-scoring.png     | Live scoring, mid-frame         |
-| routine.png          | A routine: progress, leaderboard |
-| community.png        | Community home                  |
-| dashboard.png        | Home                            |
-| match-overview.png   | Match overview                  |
-| share-card.png       | The share card                  |
-| stats.png            | Stats                           |
-| group.png            | A group (Feed or Boards)        |
-| live-match.png       | Following a live match          |
-| ai-coach.png         | An AI coach report              |
-| pro-tour.png         | Pro Tour news                   |
+## In use now
+
+| File               | Screen                            |
+| ------------------ | --------------------------------- |
+| dashboard.png      | Home                              |
+| live-scoring.png   | Live scoring, mid-frame           |
+| match-overview.png | Match overview                    |
+| share-card.png     | The share card                    |
+| routine.png        | A routine: progress, leaderboard  |
+| stats.png          | Stats                             |
+| community.png      | Community home                    |
+| group.png          | A group (Feed or Boards)          |
+| live-match.png     | Following a live match            |
+
+## Wanted next
+
+These slots use a drawn graphic or a "screenshot coming soon" placeholder until the real
+screenshot lands. Add the file, then swap the placeholder for `<Phone screen="…" />`.
+
+| File               | Screen                                              | Where it goes           |
+| ------------------ | --------------------------------------------------- | ----------------------- |
+| routine-builder.png| The routine builder with balls placed on the table   | Home, Practice          |
+| ai-coach.png       | An AI coach report, with the findings               | Home, Practice          |
+| scan-snooker.png   | Scan Snooker in the camera, ghosts on the table     | Home, Scan Snooker page |
+| ar-routine.png     | A routine being set up in AR                        | Scan Snooker page       |
+| chat.png           | A group chat with a match or routine shared into it | Community               |
+| tournament.png     | A tournament draw or league table                   | Home ("everything else")|
+
+Keep copyrighted content out of shots (for example the Pro Tour news thumbnails), and
+avoid real players' names.
