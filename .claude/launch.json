@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "website",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve@14", "apps/legal-site", "-l", "5500"],
+      "port": 5500
+    }
+  ]
+}
