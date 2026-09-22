@@ -2,8 +2,16 @@ export const getAuthEmailActionErrorMessage = (error: any) => {
   const raw = typeof error?.message === "string" ? error.message : "";
   const msg = raw.toLowerCase();
 
-  if (msg.includes("rate limit") || msg.includes("too many") || msg.includes("email rate limit")) {
-    return "Too many email requests were sent recently. Please wait a minute and try again.";
+  // The hourly cap on emails from the whole app, not just this person.
+  if (msg.includes("email rate limit")) {
+    return "We have sent a lot of emails in the last hour. Try again a little later, and check your inbox and spam for one we already sent.";
+  }
+  // Asking again for the same email within a minute.
+  if (msg.includes("security purposes") || msg.includes("seconds")) {
+    return "An email is already on its way. Give it a minute before asking for another.";
+  }
+  if (msg.includes("rate limit") || msg.includes("too many")) {
+    return "Too many requests in a short time. Wait a few minutes, then try again.";
   }
 
   if (msg.includes("invalid email")) {
@@ -28,19 +36,26 @@ export const getAuthErrorMessage = (error: any, action: "sign-in" | "sign-up") =
   if (/confirm|verif/.test(msg)) {
     return "Confirm your email address first: open the link we sent you, then sign in.";
   }
-  if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("user already exists")) {
+  if (
+    msg.includes("already registered") ||
+    msg.includes("already been registered") ||
+    msg.includes("user already exists")
+  ) {
     return "There is already an account with that email. Sign in instead, or reset your password.";
   }
   if (msg.includes("password") && (msg.includes("at least") || msg.includes("weak") || msg.includes("short"))) {
     return "Choose a longer password: at least 6 characters.";
   }
+  if (msg.includes("email rate limit")) {
+    return "We have sent a lot of emails in the last hour, so we cannot send your confirmation right now. Try again a little later.";
+  }
   if (msg.includes("rate limit") || msg.includes("too many")) {
-    return "Too many attempts in a short time. Wait a minute, then try again.";
+    return "Too many attempts in a short time. Wait a few minutes, then try again.";
   }
   if (msg.includes("network") || msg.includes("fetch") || msg.includes("timed out") || msg.includes("offline")) {
     return "Could not reach Snooker Lab. Check your connection and try again.";
   }
-  if (msg.includes("invalid email") || msg.includes("email address") && msg.includes("invalid")) {
+  if (msg.includes("invalid email") || (msg.includes("email address") && msg.includes("invalid"))) {
     return "That email address does not look right. Check it and try again.";
   }
   return action === "sign-in"
