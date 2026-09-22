@@ -41,6 +41,7 @@ import { initBilling, isBillingConfigured } from "../services/billing";
 import { UnlockQueueProvider } from "../components/achievements/UnlockQueueProvider";
 import { AchievementWatcher } from "../components/achievements/AchievementWatcher";
 import { SendToChatScreen } from "../screens/community/SendToChatScreen";
+import { OnboardingHost } from "../components/onboarding/OnboardingHost";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -315,6 +316,7 @@ export const AppNavigator = () => {
               <Stack.Screen name="Auth" component={AuthNavigator} />
             )}
           </Stack.Navigator>
+          {isAuthenticated && !requiresPasswordReset && readyUserId === userId ? <OnboardingHost /> : null}
         </NavigationContainer>
       </AchievementWatcher>
     </UnlockQueueProvider>

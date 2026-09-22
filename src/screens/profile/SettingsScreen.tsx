@@ -3,6 +3,8 @@ import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, 
 import { useNavigation, useNavigationState, type NavigationProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useOnboardingStore } from "../../store/onboardingStore";
+import { APP_VERSION } from "../../components/onboarding/OnboardingHost";
 import { AppButton } from "../../components/ui/AppButton";
 import { AppCard } from "../../components/ui/AppCard";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
@@ -45,7 +47,15 @@ type SettingsRowProps = {
   chevron?: boolean;
 };
 
-const SettingsRow: React.FC<SettingsRowProps & { colors: any }> = ({ icon, label, value, onPress, danger, chevron = true, colors }) => (
+const SettingsRow: React.FC<SettingsRowProps & { colors: any }> = ({
+  icon,
+  label,
+  value,
+  onPress,
+  danger,
+  chevron = true,
+  colors,
+}) => (
   <Pressable
     style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.surfaceMuted : "transparent" }]}
     onPress={onPress}
@@ -61,7 +71,11 @@ const SettingsRow: React.FC<SettingsRowProps & { colors: any }> = ({ icon, label
   </Pressable>
 );
 
-const SettingsSection: React.FC<{ title: string; children: React.ReactNode; colors: any }> = ({ title, children, colors }) => (
+const SettingsSection: React.FC<{ title: string; children: React.ReactNode; colors: any }> = ({
+  title,
+  children,
+  colors,
+}) => (
   <View style={styles.section}>
     <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>{title}</Text>
     <View style={[styles.sectionContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -73,6 +87,15 @@ const SettingsSection: React.FC<{ title: string; children: React.ReactNode; colo
 export const SettingsScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp<ProfileStackParamList & RootStackParamList>>();
+  // Settings is a sheet iOS will not show the tour over, so it closes first and the tour follows.
+  const reopen = (which: "tour" | "whatsNew") => {
+    (navigation as any).getParent?.()?.goBack?.() ?? (navigation as any).goBack();
+    setTimeout(() => {
+      const store = useOnboardingStore.getState();
+      if (which === "tour") store.openTour();
+      else store.openWhatsNew();
+    }, 450);
+  };
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const waiting = useOutboxStore((state) => state.jobs);
@@ -116,12 +139,12 @@ export const SettingsScreen = () => {
   };
   const subscription = useSubscriptionAccess();
   const { user, resetPassword, resendEmailVerification, deleteAccount, resetProfile, isLoading } = useAuthStore();
-  
+
   const [showResetModal, setShowResetModal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetCode, setResetCode] = useState("");
   const [resetCodeInput, setResetCodeInput] = useState("");
-  
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteCode, setDeleteCode] = useState("");
@@ -164,7 +187,8 @@ export const SettingsScreen = () => {
     if (!email) {
       dialog.alert({
         title: "No email on this account",
-        message: "There is no email address on your profile, so we cannot send a reset link. Get in touch with support and we will sort it out.",
+        message:
+          "There is no email address on your profile, so we cannot send a reset link. Get in touch with support and we will sort it out.",
         icon: "email-alert-outline",
       });
       return;
@@ -193,7 +217,8 @@ export const SettingsScreen = () => {
     if (!email) {
       dialog.alert({
         title: "No email on this account",
-        message: "There is no email address on your profile, so we cannot send a verification link. Get in touch with support and we will sort it out.",
+        message:
+          "There is no email address on your profile, so we cannot send a verification link. Get in touch with support and we will sort it out.",
         icon: "email-alert-outline",
       });
       return;
@@ -342,7 +367,8 @@ export const SettingsScreen = () => {
               <View style={styles.usageItem}>
                 <Text style={[styles.usageLabel, { color: colors.textMuted }]}>Matches</Text>
                 <Text style={[styles.usageValue, { color: colors.text }]}>
-                  {matchesUsed}{matchesLimit !== null ? ` / ${matchesLimit}` : ""}
+                  {matchesUsed}
+                  {matchesLimit !== null ? ` / ${matchesLimit}` : ""}
                 </Text>
                 {matchesLimit !== null && (
                   <View style={[styles.usageBar, { backgroundColor: colors.surfaceMuted }]}>
@@ -350,7 +376,7 @@ export const SettingsScreen = () => {
                       style={[
                         styles.usageBarFill,
                         {
-                          backgroundColor: (matchesUsed / matchesLimit) > 0.9 ? colors.danger : colors.primary,
+                          backgroundColor: matchesUsed / matchesLimit > 0.9 ? colors.danger : colors.primary,
                           width: `${Math.min(100, (matchesUsed / matchesLimit) * 100)}%`,
                         },
                       ]}
@@ -361,7 +387,8 @@ export const SettingsScreen = () => {
               <View style={styles.usageItem}>
                 <Text style={[styles.usageLabel, { color: colors.textMuted }]}>AI Analyses</Text>
                 <Text style={[styles.usageValue, { color: colors.text }]}>
-                  {aiUsed}{aiLimit !== null ? ` / ${aiLimit}` : ""}
+                  {aiUsed}
+                  {aiLimit !== null ? ` / ${aiLimit}` : ""}
                 </Text>
                 {aiLimit !== null && (
                   <View style={[styles.usageBar, { backgroundColor: colors.surfaceMuted }]}>
@@ -369,7 +396,7 @@ export const SettingsScreen = () => {
                       style={[
                         styles.usageBarFill,
                         {
-                          backgroundColor: (aiUsed / aiLimit) > 0.9 ? colors.danger : colors.primary,
+                          backgroundColor: aiUsed / aiLimit > 0.9 ? colors.danger : colors.primary,
                           width: `${Math.min(100, (aiUsed / aiLimit) * 100)}%`,
                         },
                       ]}
@@ -386,16 +413,9 @@ export const SettingsScreen = () => {
           </View>
 
           <View style={styles.subscriptionActions}>
-            <AppButton
-              label="View Plans"
-              onPress={() => navigation.navigate("SubscriptionPlans")}
-            />
+            <AppButton label="View Plans" onPress={() => navigation.navigate("SubscriptionPlans")} />
             {subscription.tier !== "free" && (
-              <AppButton
-                label="Manage"
-                variant="secondary"
-                onPress={openCustomerCenter}
-              />
+              <AppButton label="Manage" variant="secondary" onPress={openCustomerCenter} />
             )}
           </View>
         </AppCard>
@@ -411,12 +431,7 @@ export const SettingsScreen = () => {
             colors={colors}
           />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingsRow
-            icon="lock"
-            label="Reset Password"
-            onPress={handlePasswordReset}
-            colors={colors}
-          />
+          <SettingsRow icon="lock" label="Reset Password" onPress={handlePasswordReset} colors={colors} />
         </SettingsSection>
 
         {/* Sync Section */}
@@ -454,6 +469,16 @@ export const SettingsScreen = () => {
 
         {/* Support Section */}
         <SettingsSection title="SUPPORT & POLICIES" colors={colors}>
+          <SettingsRow icon="map-marker-path" label="Take the tour" onPress={() => reopen("tour")} colors={colors} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingsRow
+            icon="star-four-points-outline"
+            label="What's new"
+            value={`Version ${APP_VERSION}`}
+            onPress={() => reopen("whatsNew")}
+            colors={colors}
+          />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
           <SettingsRow
             icon="shield-check"
             label="Privacy Policy"
@@ -478,27 +503,14 @@ export const SettingsScreen = () => {
 
         {/* Danger Zone */}
         <SettingsSection title="DATA MANAGEMENT" colors={colors}>
-          <SettingsRow
-            icon="refresh"
-            label="Reset Profile"
-            onPress={startResetFlow}
-            colors={colors}
-          />
+          <SettingsRow icon="refresh" label="Reset Profile" onPress={startResetFlow} colors={colors} />
         </SettingsSection>
 
         <SettingsSection title="DANGER ZONE" colors={colors}>
-          <SettingsRow
-            icon="account-remove"
-            label="Delete Account"
-            onPress={startDeleteFlow}
-            danger
-            colors={colors}
-          />
+          <SettingsRow icon="account-remove" label="Delete Account" onPress={startDeleteFlow} danger colors={colors} />
         </SettingsSection>
 
-        <Text style={[styles.footerText, { color: colors.textMuted }]}>
-          SnookerLab v1.0.0
-        </Text>
+        <Text style={[styles.footerText, { color: colors.textMuted }]}>SnookerLab v1.0.0</Text>
 
         <View style={{ height: Math.max(80, insets.bottom + 40) }} />
       </ScrollView>
@@ -574,7 +586,15 @@ const styles = StyleSheet.create({
   planInfo: { flex: 1 },
   planLabel: { fontSize: 12, fontWeight: "600", marginBottom: 2 },
   planName: { fontSize: 22, fontWeight: "800" },
-  planBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  planBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
   planBadgeText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
   usageSection: { marginBottom: 16 },
   usageRow: { flexDirection: "row", gap: 20 },
