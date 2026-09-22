@@ -23,6 +23,16 @@
 
 html {
   scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+section[id] {
+  scroll-margin-top: 72px;
+}
+
+a,
+button {
+  touch-action: manipulation;
 }
 
 body {
@@ -91,11 +101,13 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(52px, 9vw, 104px);
+  font-size: clamp(52px, 8vw, 100px);
+  text-wrap: balance;
 }
 
 h2 {
   font-size: clamp(40px, 6vw, 68px);
+  text-wrap: balance;
 }
 
 /* ------------------------------------------------------------------ top bar */
@@ -237,6 +249,83 @@ h2 {
 
 .link-button.solid:hover {
   background: #5ad6a3;
+}
+
+
+/* The hero's product shot: three phones, and the scoreboard laid over them like a broadcast graphic. */
+.stage {
+  position: relative;
+  height: clamp(520px, 52vw, 640px);
+}
+
+.device {
+  position: absolute;
+  width: clamp(200px, 21vw, 270px);
+  aspect-ratio: 1206 / 2622;
+  border-radius: 40px;
+  padding: 9px;
+  background: linear-gradient(145deg, #2c3633, #0d1311);
+  box-shadow:
+    0 60px 100px -40px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1.5px #3a4642;
+}
+
+.device img {
+  width: 100%;
+  height: 100%;
+  border-radius: 32px;
+  object-fit: cover;
+}
+
+.device.front {
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.device.back {
+  top: 44px;
+  opacity: 0.55;
+  filter: saturate(0.8);
+}
+
+.device.back.left {
+  left: 0;
+  transform: rotate(-6deg);
+}
+
+.device.back.right {
+  right: 0;
+  transform: rotate(6deg);
+}
+
+.stage .board-demo {
+  position: absolute;
+  left: -4%;
+  bottom: -28px;
+  width: min(380px, 78%);
+  z-index: 3;
+}
+
+.stage .board {
+  padding: 16px 18px 12px;
+}
+
+.stage .name {
+  font-size: clamp(22px, 2.4vw, 28px);
+}
+
+.stage .points {
+  font-size: clamp(20px, 2.2vw, 26px);
+}
+
+.stage .frames {
+  font-size: clamp(36px, 4vw, 46px);
+}
+
+.stage .at-table {
+  height: 30px;
 }
 
 /* The scoreboard */
@@ -562,9 +651,23 @@ figcaption {
   border-top: 1px solid rgba(34, 73, 60, 0.5);
 }
 
+.tour .shot {
+  width: min(300px, 78vw);
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.tour figcaption {
+  margin-top: 18px;
+  text-align: left;
+  color: var(--muted);
+  font-size: 16px;
+}
+
 .tour-strip {
   display: flex;
-  gap: 22px;
+  justify-content: center;
+  gap: clamp(22px, 4vw, 56px);
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-padding-inline: max(16px, calc((100% - 1120px) / 2));
@@ -786,6 +889,30 @@ figcaption {
 
 /* ------------------------------------------------------------------ smaller screens */
 @media (max-width: 900px) {
+  .tour-strip {
+    justify-content: flex-start;
+  }
+
+  .stage {
+    height: clamp(480px, 118vw, 620px);
+    max-width: 560px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .device {
+    width: clamp(170px, 44vw, 250px);
+  }
+
+  .stage .board-demo {
+    left: 0;
+    bottom: -20px;
+  }
+
+  .hero {
+    padding-bottom: 88px;
+  }
+
   .hero-grid,
   .band-grid {
     grid-template-columns: 1fr;

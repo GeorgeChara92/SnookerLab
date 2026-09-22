@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en-GB">
+<html lang="en-GB" style="color-scheme: dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -32,7 +32,7 @@
       <div class="wrap bar-inner">
         <a class="brand" href="/" aria-label="Snooker Lab home">
           <img src="/icon-512.jpg" alt="" width="32" height="32" />
-          <span>Snooker Lab</span>
+          <span translate="no">Snooker Lab</span>
         </a>
         <nav class="nav" aria-label="Primary">
           <a href="#score">Scoring</a>
@@ -69,32 +69,49 @@
             </div>
           </div>
 
-          <!-- The live scoreboard: a break building ball by ball. -->
-          <figure class="board-demo" aria-label="A live scoreboard: a break building, ball by ball">
-            <div class="board">
-              <div class="board-head">
-                <span class="live"><i></i>LIVE</span>
-                <span class="board-meta">FRAME <b id="demo-frame">4</b> · BEST OF 7</span>
-              </div>
-              <div class="side">
-                <span class="at-table" id="at-you"></span>
-                <span class="name">You</span>
-                <span class="points" id="demo-you-points">0</span>
-                <span class="frames" id="demo-you-frames">2</span>
-              </div>
-              <div class="side">
-                <span class="at-table" id="at-them"></span>
-                <span class="name">Danny</span>
-                <span class="points" id="demo-them-points">38</span>
-                <span class="frames" id="demo-them-frames">1</span>
-              </div>
-              <div class="break-row">
-                <span class="break-label">BREAK <b id="demo-break">0</b></span>
-                <span class="balls" id="demo-balls" aria-hidden="true"></span>
-              </div>
+          <!-- Three real screens, with the live scoreboard laid over them like a TV graphic. -->
+          <div class="stage">
+            <div class="device back left" aria-hidden="true">
+              <img src="/screens/live-match.png" alt="" width="1206" height="2622" />
             </div>
-            <figcaption>Friends following along see every pot as it happens.</figcaption>
-          </figure>
+            <div class="device back right" aria-hidden="true">
+              <img src="/screens/stats.png" alt="" width="1206" height="2622" />
+            </div>
+            <div class="device front">
+              <img
+                src="/screens/dashboard.png"
+                alt="The Snooker Lab home screen: the next session, your streak and form, and this week"
+                width="1206"
+                height="2622"
+                fetchpriority="high"
+              />
+            </div>
+
+            <figure class="board-demo" aria-label="A live scoreboard: a break building, ball by ball">
+              <div class="board">
+                <div class="board-head">
+                  <span class="live"><i></i>LIVE</span>
+                  <span class="board-meta">FRAME <b id="demo-frame">4</b> · BEST OF 7</span>
+                </div>
+                <div class="side">
+                  <span class="at-table" id="at-you"></span>
+                  <span class="name">You</span>
+                  <span class="points" id="demo-you-points">0</span>
+                  <span class="frames" id="demo-you-frames">2</span>
+                </div>
+                <div class="side">
+                  <span class="at-table" id="at-them"></span>
+                  <span class="name">Danny</span>
+                  <span class="points" id="demo-them-points">38</span>
+                  <span class="frames" id="demo-them-frames">1</span>
+                </div>
+                <div class="break-row">
+                  <span class="break-label">BREAK <b id="demo-break">0</b></span>
+                  <span class="balls" id="demo-balls" aria-hidden="true"></span>
+                </div>
+              </div>
+            </figure>
+          </div>
         </div>
       </section>
 
@@ -117,12 +134,7 @@
           </div>
           <figure class="shot" data-shot="live-scoring">
             <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">Live scoring</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/live-scoring.png" alt="Live scoring in Snooker Lab" loading="lazy" onerror="this.remove()" />
+              <img src="/screens/live-scoring.png" alt="Live scoring in Snooker Lab" width="1206" height="2622" loading="lazy" />
             </div>
           </figure>
         </div>
@@ -148,12 +160,7 @@
           </div>
           <figure class="shot" data-shot="routine">
             <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">A routine and its progress</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/routine.png" alt="A routine and its progress in Snooker Lab" loading="lazy" onerror="this.remove()" />
+              <img src="/screens/routine.png" alt="A routine and its progress in Snooker Lab" width="1206" height="2622" loading="lazy" />
             </div>
           </figure>
         </div>
@@ -179,12 +186,7 @@
           </div>
           <figure class="shot" data-shot="community">
             <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">Community</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/community.png" alt="Community in Snooker Lab" loading="lazy" onerror="this.remove()" />
+              <img src="/screens/community.png" alt="Community in Snooker Lab" width="1206" height="2622" loading="lazy" />
             </div>
           </figure>
         </div>
@@ -196,86 +198,24 @@
           <p class="kicker">A look inside</p>
           <h2 id="tour-title">Every screen, built for the table.</h2>
         </div>
-        <div class="tour-strip" tabindex="0" aria-label="Screens from the app, scroll sideways">
-          <figure class="shot small" data-shot="dashboard">
+        <div class="tour-strip" tabindex="0" aria-label="Screens from the app">
+          <figure class="shot">
             <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">Home</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/dashboard.png" alt="Home in Snooker Lab" loading="lazy" onerror="this.remove()" />
+              <img src="/screens/match-overview.png" alt="A match in Snooker Lab: the scoreboard, high breaks and match statistics" width="1206" height="2622" loading="lazy" />
             </div>
+            <figcaption>Every match, frame by frame, with the numbers that matter.</figcaption>
           </figure>
-          <figure class="shot small" data-shot="match-overview">
+          <figure class="shot">
             <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">Match overview</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/match-overview.png" alt="Match overview in Snooker Lab" loading="lazy" onerror="this.remove()" />
+              <img src="/screens/share-card.png" alt="The share card for a result, leading with a 77 break" width="1206" height="2622" loading="lazy" />
             </div>
+            <figcaption>A result card worth posting, led by the big moment.</figcaption>
           </figure>
-          <figure class="shot small" data-shot="share-card">
+          <figure class="shot">
             <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">Share card</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/share-card.png" alt="Share card in Snooker Lab" loading="lazy" onerror="this.remove()" />
+              <img src="/screens/group.png" alt="A group in Snooker Lab, with a member playing live and a feed of achievements" width="1206" height="2622" loading="lazy" />
             </div>
-          </figure>
-          <figure class="shot small" data-shot="stats">
-            <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">Stats</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/stats.png" alt="Stats in Snooker Lab" loading="lazy" onerror="this.remove()" />
-            </div>
-          </figure>
-          <figure class="shot small" data-shot="group">
-            <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">A group</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/group.png" alt="A group in Snooker Lab" loading="lazy" onerror="this.remove()" />
-            </div>
-          </figure>
-          <figure class="shot small" data-shot="live-match">
-            <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">Following a live match</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/live-match.png" alt="Following a live match in Snooker Lab" loading="lazy" onerror="this.remove()" />
-            </div>
-          </figure>
-          <figure class="shot small" data-shot="ai-coach">
-            <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">AI coach report</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/ai-coach.png" alt="AI coach report in Snooker Lab" loading="lazy" onerror="this.remove()" />
-            </div>
-          </figure>
-          <figure class="shot small" data-shot="pro-tour">
-            <div class="shot-frame">
-              <div class="shot-empty" aria-hidden="true">
-                <span class="shot-icon"></span>
-                <span class="shot-label">Pro Tour news</span>
-                <span class="shot-note">Screenshot coming soon</span>
-              </div>
-              <img src="/screens/pro-tour.png" alt="Pro Tour news in Snooker Lab" loading="lazy" onerror="this.remove()" />
-            </div>
+            <figcaption>Your league or club night, with its own feed and chat.</figcaption>
           </figure>
         </div>
       </section>
@@ -368,7 +308,7 @@
 
     <footer class="foot">
       <div class="wrap foot-inner">
-        <p class="brand small"><img src="/icon-512.jpg" alt="" width="24" height="24" /><span>Snooker Lab</span></p>
+        <p class="brand small"><img src="/icon-512.jpg" alt="" width="24" height="24" /><span translate="no">Snooker Lab</span></p>
         <nav aria-label="Footer">
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
