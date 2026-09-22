@@ -233,7 +233,10 @@ export const MatchCompleteScreen = () => {
                 { label: "50+ breaks", left: tape.user.fifties, right: tape.opponent.fifties },
                 { label: "Pots", left: tape.user.pots, right: tape.opponent.pots },
                 { label: "Fouls", left: tape.user.fouls, right: tape.opponent.fouls },
-              ]}
+              ].filter(
+                // Pots and fouls are only known for matches scored ball by ball.
+                (row) => (row.label !== "Pots" && row.label !== "Fouls") || tape.user.pots + tape.opponent.pots > 0
+              )}
             />
           </BoardPanel>
         ) : null}

@@ -81,6 +81,11 @@ export const RoutineLeaderboardCard = ({
           ) : null}
         </View>
       )}
+      {entries?.length === 1 && mine ? (
+        <Text style={[styles.empty, styles.alone, { color: colors.boardMuted }]}>
+          Just you so far. Share the routine or add friends and see who can beat it.
+        </Text>
+      ) : null}
       {entries && entries.length > 0 ? (
         <Pressable onPress={onSeeAll} accessibilityRole="button" style={styles.more} hitSlop={6}>
           <Text style={[styles.moreText, { color: colors.boardRule }]}>See the whole board</Text>
@@ -93,6 +98,7 @@ export const RoutineLeaderboardCard = ({
 
 const styles = StyleSheet.create({
   empty: { fontSize: 14, lineHeight: 20, marginTop: SPACING.xs },
+  alone: { marginTop: SPACING.md, textAlign: "center" },
   list: { gap: SPACING.xs, marginTop: SPACING.xs },
   gap: { alignSelf: "center" },
   more: {
