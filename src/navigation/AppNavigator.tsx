@@ -40,6 +40,7 @@ import { useAppTheme } from "../hooks/useAppTheme";
 import { initBilling, isBillingConfigured } from "../services/billing";
 import { UnlockQueueProvider } from "../components/achievements/UnlockQueueProvider";
 import { AchievementWatcher } from "../components/achievements/AchievementWatcher";
+import { SendToChatScreen } from "../screens/community/SendToChatScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -308,6 +309,7 @@ export const AppNavigator = () => {
               <>
                 <Stack.Screen name="Main" component={MainTabNavigator} />
                 <Stack.Screen name="ProfileModal" component={ProfileNavigator} options={{ presentation: "modal" }} />
+                <Stack.Screen name="SendToChat" component={SendToChatScreen} options={{ presentation: "modal" }} />
               </>
             ) : (
               <Stack.Screen name="Auth" component={AuthNavigator} />

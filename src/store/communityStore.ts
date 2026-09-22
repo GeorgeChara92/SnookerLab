@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { supabase } from "../api/supabase";
 import { safeStorage } from "../utils/storage";
 import { setBlockedWords } from "../features/community/wordFilter";
+import { loadShareActivity, saveShareActivity } from "../features/community/groupFeed";
 import {
   PROFILE_COLUMNS,
   friendshipFromRow,
@@ -31,6 +32,9 @@ type CommunityState = {
   profiles: Record<string, PublicProfile>;
   blocked: string[];
   isAdmin: boolean;
+  /** Whether the player's results go in friends' and groups' feeds. */
+  shareActivity: boolean;
+  setShareActivity: (value: boolean) => Promise<boolean>;
   setOwner: (userId: string | null) => void;
   hydrate: (userId: string) => Promise<void>;
   saveMe: (
@@ -89,10 +93,20 @@ export const useCommunityStore = create<CommunityState>()(
         profiles: {},
         blocked: [],
         isAdmin: false,
+        shareActivity: true,
 
         setOwner: (userId) => {
           if (get().ownerId === userId) return;
-          set({ ownerId: userId, me: null, loaded: false, friendships: [], profiles: {}, blocked: [], isAdmin: false });
+          set({
+            ownerId: userId,
+            me: null,
+            loaded: false,
+            friendships: [],
+            profiles: {},
+            blocked: [],
+            isAdmin: false,
+            shareActivity: true,
+          });
         },
 
         hydrate: async (userId) => {
@@ -117,6 +131,9 @@ export const useCommunityStore = create<CommunityState>()(
             blocked,
             isAdmin: Boolean(adminResult.data),
             loaded: true,
+          });
+          void loadShareActivity(userId).then((value) => {
+            if (get().ownerId === userId) set({ shareActivity: value });
           });
           await loadProfiles([
             ...friendships.map((item) => (item.requester === userId ? item.addressee : item.requester)),
@@ -144,6 +161,15 @@ export const useCommunityStore = create<CommunityState>()(
           }
           set({ me: profileFromRow(data ?? { ...me, ...row }) });
           return { ok: true };
+        },
+
+        setShareActivity: async (value) => {
+          const { ownerId, shareActivity } = get();
+          if (!ownerId) return false;
+          set({ shareActivity: value });
+          const ok = await saveShareActivity(ownerId, value);
+          if (!ok) set({ shareActivity });
+          return ok;
         },
 
         handleIsFree: async (handle) => {
@@ -273,6 +299,7 @@ export const useCommunityStore = create<CommunityState>()(
         profiles: state.profiles,
         blocked: state.blocked,
         isAdmin: state.isAdmin,
+        shareActivity: state.shareActivity,
       }),
     }
   )

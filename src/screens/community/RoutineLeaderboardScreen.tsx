@@ -10,13 +10,18 @@ import { routineLeaderboard, type BoardEntry } from "../../features/community/sh
 import { RADIUS, SPACING } from "../../constants";
 
 /**
- * One routine's leaderboard in full: every player's best, for everyone or just friends. Lives
+ * One routine's leaderboard in full: every player's best, for everyone, friends, or a group's
+ * members when opened from the group. Lives
  * in both the Practice and Community tabs, so players open on whichever tab the player is in.
  */
 export const RoutineLeaderboardScreen = () => {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
-  const { routineKey, name } = route.params as { routineKey: string; name: string };
+  const { routineKey, name, group } = route.params as {
+    routineKey: string;
+    name: string;
+    group?: { name: string; memberIds: string[] };
+  };
   const { colors } = useAppTheme();
   const me = useAuthStore((state) => state.user?.id ?? null);
   const friendships = useCommunityStore((state) => state.friendships);
@@ -29,7 +34,8 @@ export const RoutineLeaderboardScreen = () => {
     ],
     [friendships, me]
   );
-  const [scope, setScope] = useState<"everyone" | "friends">("everyone");
+  const [scope, setScope] = useState<"everyone" | "friends" | "group">(group ? "group" : "everyone");
+  const scopes = group ? (["group", "friends", "everyone"] as const) : (["everyone", "friends"] as const);
   const [entries, setEntries] = useState<BoardEntry[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -39,11 +45,11 @@ export const RoutineLeaderboardScreen = () => {
 
   const load = useCallback(async () => {
     const result = await routineLeaderboard(routineKey, {
-      friends: scope === "friends" ? friends : undefined,
+      friends: scope === "friends" ? friends : scope === "group" ? group?.memberIds : undefined,
       limit: 200,
     });
     setEntries(result.entries);
-  }, [friends, routineKey, scope]);
+  }, [friends, group?.memberIds, routineKey, scope]);
 
   useEffect(() => {
     setEntries(null);
@@ -79,7 +85,7 @@ export const RoutineLeaderboardScreen = () => {
       ListHeaderComponent={
         <View style={styles.header}>
           <View style={[styles.segments, { backgroundColor: colors.surfaceMuted }]} accessibilityRole="tablist">
-            {(["everyone", "friends"] as const).map((option) => {
+            {scopes.map((option) => {
               const selected = scope === option;
               return (
                 <Pressable
@@ -90,7 +96,7 @@ export const RoutineLeaderboardScreen = () => {
                   style={[styles.segment, selected ? { backgroundColor: colors.surface } : null]}
                 >
                   <Text style={[styles.segmentText, { color: selected ? colors.text : colors.textMuted }]}>
-                    {option === "everyone" ? "Everyone" : "Friends"}
+                    {option === "everyone" ? "Everyone" : option === "friends" ? "Friends" : "Group"}
                   </Text>
                 </Pressable>
               );

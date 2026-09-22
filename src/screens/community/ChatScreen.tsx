@@ -9,11 +9,11 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { HeaderIconButton } from "../../navigation/stackOptions";
 import { supabase } from "../../api/supabase";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -24,6 +24,8 @@ import { useDialog } from "../../components/ui/DialogProvider";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { GroupBadge } from "../../components/community/GroupBadge";
 import { ReportSheet } from "../../components/community/ReportSheet";
+import { ChatShareCard } from "../../components/community/ChatShareCard";
+import { shareFromMessage, type RoutineShare } from "../../features/community/chatShare";
 import { containsBlockedWord } from "../../features/community/wordFilter";
 import { nameOf, type PublicProfile } from "../../features/community/types";
 import {
@@ -60,8 +62,9 @@ export const ChatScreen = () => {
   const navigation = useNavigation<any>();
   const { conversationId } = route.params as { conversationId: string };
   const { colors } = useAppTheme();
-  const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.min(280, Math.round(width * 0.72));
   const dialog = useDialog();
   const me = useAuthStore((state) => state.user?.id ?? null);
   const inboxRow = useChatStore((state) => state.inbox.find((row) => row.conversationId === conversationId));
@@ -280,6 +283,16 @@ export const ChatScreen = () => {
     });
   };
 
+  const openRoutine = (share: RoutineShare) => {
+    if (share.sharedId) navigation.navigate("SharedRoutine", { id: share.sharedId });
+    else if (share.libraryId)
+      navigation.navigate("Practice", {
+        screen: "RoutineDetail",
+        params: { routineId: share.libraryId },
+        initial: false,
+      });
+  };
+
   // Newest first for the inverted list, with a day label where the day changes.
   const rows = useMemo(() => {
     const out: Array<
@@ -333,6 +346,34 @@ export const ChatScreen = () => {
             const { message, showName } = item;
             const mine = message.sender === me;
             const sender = people[message.sender];
+            const share = message.hidden ? null : shareFromMessage(message.kind, message.payload);
+            if (share) {
+              return (
+                <View style={[styles.messageRow, mine ? styles.mineRow : null]}>
+                  {kind === "group" && !mine ? (
+                    <View style={styles.avatarSlot}>
+                      {showName ? <CommunityAvatar profile={sender} size={28} /> : null}
+                    </View>
+                  ) : null}
+                  <Pressable onLongPress={() => onLongPress(message)} delayLongPress={350} style={styles.shareWrap}>
+                    {showName ? (
+                      <Text style={[styles.senderName, { color: colors.primary }]} numberOfLines={1}>
+                        {nameOf(sender)}
+                      </Text>
+                    ) : null}
+                    <ChatShareCard
+                      share={share}
+                      senderName={mine ? "You" : nameOf(sender)}
+                      width={cardWidth}
+                      onPress={share.kind === "routine" ? () => openRoutine(share) : undefined}
+                    />
+                    <Text style={[styles.time, styles.shareTime, { color: colors.textMuted }]}>
+                      {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  </Pressable>
+                </View>
+              );
+            }
             return (
               <View style={[styles.messageRow, mine ? styles.mineRow : null]}>
                 {kind === "group" && !mine ? (
@@ -386,7 +427,7 @@ export const ChatScreen = () => {
             {
               backgroundColor: colors.surface,
               borderTopColor: colors.border,
-              paddingBottom: insets.bottom + SPACING.sm,
+              paddingBottom: SPACING.sm,
             },
           ]}
         >
@@ -424,7 +465,7 @@ export const ChatScreen = () => {
             {
               backgroundColor: colors.surface,
               borderTopColor: colors.border,
-              paddingBottom: insets.bottom + SPACING.sm,
+              paddingBottom: SPACING.sm,
             },
           ]}
         >
@@ -461,7 +502,7 @@ export const ChatScreen = () => {
           </View>
         </View>
       ) : kind === "group" ? (
-        <View style={[styles.note, { borderTopColor: colors.border, paddingBottom: insets.bottom + SPACING.sm }]}>
+        <View style={[styles.note, { borderTopColor: colors.border, paddingBottom: SPACING.sm }]}>
           <MaterialCommunityIcons name="bullhorn-outline" size={18} color={colors.textMuted} />
           <Text style={[styles.noteText, { color: colors.textMuted }]}>Only admins post in this group.</Text>
         </View>
@@ -516,6 +557,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendIcon: { marginLeft: 2 },
+  shareWrap: { maxWidth: "80%", gap: 4 },
+  shareTime: { alignSelf: "flex-end" },
   error: { fontSize: 12, fontWeight: "600" },
   request: { borderTopWidth: StyleSheet.hairlineWidth, padding: SPACING.md, gap: SPACING.sm },
   requestText: { fontSize: 14, lineHeight: 20, textAlign: "center" },

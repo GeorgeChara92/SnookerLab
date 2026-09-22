@@ -11,19 +11,13 @@ import { formatScore, routineProgress } from "../routines/progress";
  * takes a score, and each custom routine that is shared or was saved from the community. Only
  * bests that have changed are sent, all in one go.
  */
-export const useLeaderboardSync = (userId: string | null) => {
-  const loaded = useCommunityStore((state) => state.loaded);
-  const hasHandle = useCommunityStore((state) => Boolean(state.me?.handle));
+/** The player's best on every routine that has a leaderboard, with its name. */
+export const useRoutineBests = () => {
   const entries = useRoutineScoresStore((state) => state.entries);
   const logs = useSessionsStore((state) => state.logs);
   const custom = useCustomRoutinesStore((state) => state.routines);
-  const sent = useRef<Record<string, string>>({});
 
-  useEffect(() => {
-    sent.current = {};
-  }, [userId]);
-
-  const bests = useMemo(() => {
+  return useMemo(() => {
     const boards = [
       ...DEFAULT_ROUTINES.filter((routine) => routine.content_type !== "guide").map((routine) => ({
         key: routine.id,
@@ -39,6 +33,7 @@ export const useLeaderboardSync = (userId: string | null) => {
         if (!progress.best) return null;
         return {
           routine_key: key,
+          name: routine.name,
           best: progress.best.value,
           best_raw: formatScore(progress.best.value, progress.kind).slice(0, 20),
           kind: progress.kind,
@@ -47,6 +42,17 @@ export const useLeaderboardSync = (userId: string | null) => {
       })
       .filter((row): row is NonNullable<typeof row> => row !== null);
   }, [custom, entries, logs]);
+};
+
+export const useLeaderboardSync = (userId: string | null) => {
+  const loaded = useCommunityStore((state) => state.loaded);
+  const hasHandle = useCommunityStore((state) => Boolean(state.me?.handle));
+  const bests = useRoutineBests();
+  const sent = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    sent.current = {};
+  }, [userId]);
 
   useEffect(() => {
     // Only once the player is part of the community: a leaderboard needs a name to show.
@@ -59,7 +65,7 @@ export const useLeaderboardSync = (userId: string | null) => {
     void supabase
       .from("routine_bests")
       .upsert(
-        changed.map((row) => ({ ...row, user_id: userId, updated_at: new Date().toISOString() })),
+        changed.map(({ name: _name, ...row }) => ({ ...row, user_id: userId, updated_at: new Date().toISOString() })),
         { onConflict: "routine_key,user_id" }
       )
       .then(({ error }) => {

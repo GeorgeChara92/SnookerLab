@@ -11,6 +11,8 @@ import { BoardPanel, ScoreStrip, TaleOfTheTape } from "../../components/scoreboa
 import { ShareMatchSheet, bestOfFor } from "../../components/matches/ShareMatchSheet";
 import { EditMatchSheet } from "../../components/matches/EditMatchSheet";
 import { FrameTimelineSheet } from "../../components/matches/FrameTimelineSheet";
+import { openSendToChat } from "../../navigation/navigationRef";
+import { matchShareFor } from "../../features/community/matchShare";
 import { countsAsResult } from "../../features/matches/matchSummary";
 import { matchTape } from "../../features/matches/breaks";
 import { parseDateValue } from "../../utils/date";
@@ -214,6 +216,23 @@ export const MatchDetailScreen = () => {
               <Text style={[styles.secondaryText, { color: colors.text }]}>Edit details</Text>
             </Pressable>
           </View>
+          {result ? (
+            <Pressable
+              onPress={() => {
+                const { matches, liveFramesByMatch } = useMatchesStore.getState();
+                openSendToChat(matchShareFor(match, matches, liveFramesByMatch));
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.secondary,
+                styles.sendWide,
+                { borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.8 : 1 },
+              ]}
+            >
+              <MaterialCommunityIcons name="send-outline" size={18} color={colors.text} />
+              <Text style={[styles.secondaryText, { color: colors.text }]}>Send in a chat</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Match statistics */}
@@ -354,6 +373,7 @@ const styles = StyleSheet.create({
   },
   primaryText: { fontSize: 16, fontWeight: "800" },
   secondaryRow: { flexDirection: "row", gap: SPACING.sm },
+  sendWide: { flex: 0, alignSelf: "stretch" },
   secondary: {
     flex: 1,
     flexDirection: "row",

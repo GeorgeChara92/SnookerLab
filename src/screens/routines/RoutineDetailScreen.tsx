@@ -9,6 +9,7 @@ import { getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLa
 import { getGuidePlaybookByRoutineId } from "../../features/guides/guidePlaybooks";
 import { RoutineProgressCard } from "../../components/routines/RoutineProgressCard";
 import { RoutineLeaderboardCard } from "../../components/community/RoutineLeaderboardCard";
+import { openSendToChat } from "../../navigation/navigationRef";
 
 const scoringTypeLabel = (type: ScoringType): string => {
   switch (type) {
@@ -403,6 +404,20 @@ export const RoutineDetailScreen = () => {
           >
             <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>Record Score</Text>
           </Pressable>
+          <Pressable
+            style={[styles.primaryButton, styles.sendButton, { borderColor: colors.border }]}
+            accessibilityRole="button"
+            onPress={() =>
+              openSendToChat({
+                kind: "routine",
+                name: routine.name,
+                subtitle: routine.max_score ? `Up to ${routine.max_score}` : null,
+                libraryId: routine.id,
+              })
+            }
+          >
+            <Text style={[styles.primaryButtonText, { color: colors.text }]}>Send in a chat</Text>
+          </Pressable>
         </>
       )}
     </ScrollView>
@@ -660,6 +675,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 2,
+  },
+  sendButton: {
+    borderWidth: 1,
+    marginTop: 10,
   },
   primaryButtonText: {
     color: "#FFFFFF",

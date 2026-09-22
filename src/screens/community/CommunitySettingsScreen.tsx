@@ -52,6 +52,8 @@ export const CommunitySettingsScreen = () => {
   const [statsPrivacy, setStatsPrivacy] = useState<Privacy>(me?.statsPrivacy ?? "friends");
   const [messagePrivacy, setMessagePrivacy] = useState<Privacy>(me?.messagePrivacy ?? "everyone");
   const [leaderboards, setLeaderboards] = useState(me?.leaderboards ?? true);
+  const shareActivity = useCommunityStore((state) => state.shareActivity);
+  const setShareActivity = useCommunityStore((state) => state.setShareActivity);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [handleState, setHandleState] = useState<HandleState>("idle");
   const [saving, setSaving] = useState(false);
@@ -258,6 +260,22 @@ export const CommunitySettingsScreen = () => {
               </Text>
             </View>
             <Switch value={leaderboards} onValueChange={setLeaderboards} trackColor={{ true: colors.primary }} />
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={styles.switchRow}>
+            <View style={styles.flex}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Share my results</Text>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>
+                Wins, centuries, new bests and level-ups, in your friends&apos; and groups&apos; feeds. A plain loss is
+                never posted.
+              </Text>
+            </View>
+            <Switch
+              value={shareActivity}
+              onValueChange={(value) => void setShareActivity(value)}
+              trackColor={{ true: colors.primary }}
+            />
           </View>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />

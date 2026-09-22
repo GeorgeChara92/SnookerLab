@@ -8,6 +8,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { useCustomRoutinesStore } from "../../store";
 import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
+import { openSendToChat } from "../../navigation/navigationRef";
 import { summarise } from "../../features/scanSnooker/position";
 import { arSupport } from "../../../modules/snooker-ar";
 import { toRoutine } from "../../features/customRoutines/customRoutine";
@@ -196,6 +197,28 @@ export const CustomRoutineScreen = () => {
           </Text>
         </Pressable>
       ) : null}
+
+      <Pressable
+        onPress={() =>
+          openSendToChat(
+            {
+              kind: "routine",
+              name: routine.name,
+              subtitle: routine.maxScore ? `Max score ${routine.maxScore}` : summarise(routine.balls),
+              sharedId: routine.sharedId ?? routine.sourceSharedId ?? null,
+            },
+            routine.id
+          )
+        }
+        accessibilityRole="button"
+        style={({ pressed }) => [
+          styles.primary,
+          { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+        ]}
+      >
+        <MaterialCommunityIcons name="send-outline" size={20} color={colors.text} />
+        <Text style={[styles.primaryText, { color: colors.text }]}>Send in a chat</Text>
+      </Pressable>
 
       <ShareRoutineSheet
         visible={sharing}

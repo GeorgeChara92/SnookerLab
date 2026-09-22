@@ -11,6 +11,7 @@ import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { RoutineLeaderboardCard } from "../../components/community/RoutineLeaderboardCard";
 import { ReportSheet } from "../../components/community/ReportSheet";
 import { ShareRoutineSheet } from "../../components/community/ShareRoutineSheet";
+import { openSendToChat } from "../../navigation/navigationRef";
 import { summarise } from "../../features/scanSnooker/position";
 import { nameOf } from "../../features/community/types";
 import {
@@ -216,6 +217,24 @@ export const SharedRoutineScreen = () => {
           ]}
         >
           <MaterialCommunityIcons name="qrcode" size={20} color={colors.text} />
+        </Pressable>
+        <Pressable
+          onPress={() =>
+            openSendToChat({
+              kind: "routine",
+              name: routine.name,
+              subtitle: routine.maxScore ? `Max score ${routine.maxScore}` : summarise(routine.balls),
+              sharedId: id,
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Send in a chat"
+          style={({ pressed }) => [
+            styles.action,
+            { borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.8 : 1 },
+          ]}
+        >
+          <MaterialCommunityIcons name="send-outline" size={20} color={colors.text} />
         </Pressable>
       </View>
 

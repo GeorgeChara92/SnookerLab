@@ -15,6 +15,7 @@ import type { Match } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore, useMatchesStore } from "../../store";
 import { useSharePrefsStore } from "../../store/sharePrefsStore";
+import { bestOfFor } from "../../features/matches/bestOf";
 import { matchCard } from "../../features/matches/breaks";
 import { matchHighlights, type Highlight } from "../../features/matches/highlights";
 import { canShareImages, shareText, shareViewAsImage } from "../../features/share/shareImage";
@@ -31,11 +32,7 @@ const CHROME_HEIGHT = 330;
 /** Highlights that already say what the high break was. */
 const BREAK_KINDS: Highlight["kind"][] = ["maximum", "century", "personal-best", "fifties"];
 
-export const bestOfFor = (match: Pick<Match, "format" | "target_frames">) => {
-  if (match.target_frames) return match.target_frames;
-  const parsed = parseInt(String(match.format).replace("best_of_", ""), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-};
+export { bestOfFor };
 
 /** The words sent with the picture, or on their own where pictures cannot be shared yet. */
 export const resultMessage = (match: Match, highBreak: number, highlights: Highlight[] = []) => {

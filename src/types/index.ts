@@ -1,3 +1,5 @@
+import type { ChatShare } from "../features/community/chatShare";
+
 export type SkillLevel = "beginner" | "intermediate" | "advanced" | "professional";
 export type DifficultyLevel = "beginner" | "intermediate" | "advanced";
 export type RoutineContentType = "routine" | "guide";
@@ -282,6 +284,8 @@ export type RootStackParamList = {
   Loading: undefined;
   Main: undefined;
   ProfileModal: undefined;
+  /** Sending a routine or match result to a chat; a custom routine is shared by link first. */
+  SendToChat: { share: ChatShare; customRoutineId?: string };
 };
 
 export type AuthStackParamList = {
@@ -381,7 +385,7 @@ export type CommunityStackParamList = {
   SharedRoutine: { id: string };
   Leaderboards: undefined;
   /** One routine's leaderboard; the key is a library routine's id or "shared:<id>". */
-  RoutineLeaderboard: { routineKey: string; name: string };
+  RoutineLeaderboard: { routineKey: string; name: string; group?: { name: string; memberIds: string[] } };
 };
 
 export type StatsStackParamList = {

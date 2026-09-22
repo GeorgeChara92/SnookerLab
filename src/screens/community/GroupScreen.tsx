@@ -11,6 +11,9 @@ import { useDialog } from "../../components/ui/DialogProvider";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { GroupBadge } from "../../components/community/GroupBadge";
 import { ReportSheet } from "../../components/community/ReportSheet";
+import { FeedItemRow } from "../../components/community/FeedItemRow";
+import { GroupBoards } from "../../components/community/GroupBoards";
+import { loadFeed, type FeedItem } from "../../features/community/groupFeed";
 import { nameOf, type PublicProfile } from "../../features/community/types";
 import {
   getGroup,
@@ -23,9 +26,12 @@ import {
 } from "../../features/community/chat";
 import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
+type Tab = "feed" | "boards" | "members";
+
 /**
- * A group: who it is, its chat, its members and their roles. Members invite friends (if the
- * group lets them); the owner and admins run it; anyone can report it or leave.
+ * A group: who it is, its chat, and three tabs - the feed of what members have done, the
+ * group's leaderboards and pinned routines, and the members and their roles. Members invite
+ * friends (if the group lets them); the owner and admins run it; anyone can report it or leave.
  */
 export const GroupScreen = () => {
   const route = useRoute<any>();
@@ -45,6 +51,9 @@ export const GroupScreen = () => {
   const [inviting, setInviting] = useState(false);
   const [invited, setInvited] = useState<Set<string>>(new Set());
   const [reporting, setReporting] = useState(false);
+  const [tab, setTab] = useState<Tab>("feed");
+  const [feed, setFeed] = useState<FeedItem[] | null>(null);
+  const [moreFeed, setMoreFeed] = useState(false);
 
   const load = useCallback(async () => {
     const info = await getGroup(groupId);
@@ -52,6 +61,10 @@ export const GroupScreen = () => {
     setMembers(info?.members ?? []);
     setConversationId(info?.conversationId ?? null);
     setLoading(false);
+    const ids = (info?.members ?? []).map((member) => member.profile.id);
+    const items = await loadFeed(ids);
+    setFeed(items);
+    setMoreFeed(items.length >= 30);
     if (info) navigation.setOptions({ title: info.group.name });
   }, [groupId, navigation]);
 
@@ -64,6 +77,11 @@ export const GroupScreen = () => {
   const myRole = members.find((member) => member.profile.id === me)?.role ?? null;
   const runs = myRole === "owner" || myRole === "admin";
   const canInvite = myRole !== null && (group?.whoCanInvite === "everyone" || runs);
+  const memberIds = useMemo(() => members.map((member) => member.profile.id), [members]);
+  const byId = useMemo(
+    () => Object.fromEntries(members.map((member) => [member.profile.id, member.profile])),
+    [members]
+  );
 
   const friends = useMemo(
     () =>
@@ -230,42 +248,122 @@ export const GroupScreen = () => {
         </Pressable>
       )}
 
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Members</Text>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {members.map((member, index) => (
-          <Pressable
-            key={member.profile.id}
-            onPress={() => manage(member)}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.member,
-              index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border } : null,
-              { backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
-            ]}
-          >
-            <CommunityAvatar profile={member.profile} size={38} />
-            <View style={styles.memberText}>
-              <Text style={[styles.memberName, { color: colors.text }]} numberOfLines={1}>
-                {member.profile.id === me ? "You" : nameOf(member.profile)}
+      <View style={[styles.tabs, { backgroundColor: colors.surfaceMuted }]} accessibilityRole="tablist">
+        {(["feed", "boards", "members"] as const).map((option) => {
+          const selected = tab === option;
+          return (
+            <Pressable
+              key={option}
+              onPress={() => setTab(option)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              style={[styles.tab, selected ? { backgroundColor: colors.surface } : null]}
+            >
+              <Text style={[styles.tabText, { color: selected ? colors.text : colors.textMuted }]} numberOfLines={1}>
+                {option === "feed" ? "Feed" : option === "boards" ? "Boards" : `Members · ${members.length}`}
               </Text>
-              {member.profile.handle ? (
-                <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
-                  @{member.profile.handle}
-                </Text>
-              ) : null}
-            </View>
-            {member.role !== "member" ? (
-              <View
-                style={[styles.role, { backgroundColor: member.role === "owner" ? colors.board : colors.surfaceMuted }]}
-              >
-                <Text style={[styles.roleText, { color: member.role === "owner" ? colors.boardRule : colors.text }]}>
-                  {member.role === "owner" ? "Owner" : "Admin"}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-        ))}
+            </Pressable>
+          );
+        })}
       </View>
+
+      {tab === "feed" ? (
+        !myRole ? (
+          <Text style={[styles.note, { color: colors.textMuted }]}>
+            Join the group to see what its members have been up to.
+          </Text>
+        ) : feed === null ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : feed.length === 0 ? (
+          <View style={[styles.emptyFeed, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <MaterialCommunityIcons name="newspaper-variant-outline" size={28} color={colors.primary} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nothing yet</Text>
+            <Text style={[styles.note, styles.centreText, { color: colors.textMuted }]}>
+              Wins, centuries, new personal bests and level-ups by members show up here as they happen.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.feed}>
+            {feed.map((item) => (
+              <FeedItemRow
+                key={item.id}
+                item={item}
+                profile={byId[item.userId]}
+                isMe={item.userId === me}
+                onOpenPlayer={() => navigation.navigate("PlayerProfile", { userId: item.userId })}
+              />
+            ))}
+            {moreFeed ? (
+              <Pressable
+                onPress={async () => {
+                  const older = await loadFeed(memberIds, feed[feed.length - 1].createdAt);
+                  setMoreFeed(older.length >= 30);
+                  setFeed((prev) => [...(prev ?? []), ...older]);
+                }}
+                accessibilityRole="button"
+                style={styles.more}
+              >
+                <Text style={[styles.moreText, { color: colors.primary }]}>Show older</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        )
+      ) : null}
+
+      {tab === "boards" ? (
+        <GroupBoards
+          groupId={groupId}
+          groupName={group.name}
+          memberIds={memberIds}
+          me={me}
+          canPin={runs}
+          onOpenPlayer={(userId) => navigation.navigate("PlayerProfile", { userId })}
+          onOpenBoard={(routineKey, name) =>
+            navigation.navigate("RoutineLeaderboard", { routineKey, name, group: { name: group.name, memberIds } })
+          }
+        />
+      ) : null}
+
+      {tab === "members" ? (
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {members.map((member, index) => (
+            <Pressable
+              key={member.profile.id}
+              onPress={() => manage(member)}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.member,
+                index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border } : null,
+                { backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
+              ]}
+            >
+              <CommunityAvatar profile={member.profile} size={38} />
+              <View style={styles.memberText}>
+                <Text style={[styles.memberName, { color: colors.text }]} numberOfLines={1}>
+                  {member.profile.id === me ? "You" : nameOf(member.profile)}
+                </Text>
+                {member.profile.handle ? (
+                  <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+                    @{member.profile.handle}
+                  </Text>
+                ) : null}
+              </View>
+              {member.role !== "member" ? (
+                <View
+                  style={[
+                    styles.role,
+                    { backgroundColor: member.role === "owner" ? colors.board : colors.surfaceMuted },
+                  ]}
+                >
+                  <Text style={[styles.roleText, { color: member.role === "owner" ? colors.boardRule : colors.text }]}>
+                    {member.role === "owner" ? "Owner" : "Admin"}
+                  </Text>
+                </View>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.footer}>
         {myRole ? (
@@ -371,7 +469,16 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
   },
   secondaryText: { fontSize: 15, fontWeight: "700" },
-  sectionTitle: { fontSize: 18, fontWeight: "800", marginTop: SPACING.sm },
+  tabs: { flexDirection: "row", borderRadius: RADIUS.md, padding: 3, marginTop: SPACING.sm },
+  tab: { flex: 1, minHeight: 38, borderRadius: RADIUS.sm, alignItems: "center", justifyContent: "center" },
+  tabText: { fontSize: 14, fontWeight: "700" },
+  note: { fontSize: 14, lineHeight: 20 },
+  centreText: { textAlign: "center" },
+  feed: { gap: SPACING.sm },
+  emptyFeed: { alignItems: "center", gap: SPACING.xs, borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.lg },
+  emptyTitle: { fontSize: 16, fontWeight: "800" },
+  more: { alignItems: "center", justifyContent: "center", minHeight: HIT_TARGET },
+  moreText: { fontSize: 15, fontWeight: "800" },
   card: { borderWidth: 1, borderRadius: RADIUS.lg, overflow: "hidden" },
   member: {
     flexDirection: "row",
