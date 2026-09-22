@@ -316,7 +316,7 @@ export default function Home() {
           "A leaderboard on every routine, so your mates can take you on",
           "Browse the routines other players have built",
         ]}
-        visual={<Phone screen="routine-builder" alt="The routine builder: balls placed on a table diagram, with the ball palette below" sizes="(max-width: 900px) 70vw, 300px" />}
+        visual={<Phone screen="routine-builder" alt="The routine builder: balls placed on a table diagram, with the ball palette below" sizes="(max-width: 900px) 74vw, 300px" />}
         link={{ to: "/practice", label: "Explore practice" }}
       />
       <Feature
@@ -346,7 +346,7 @@ export default function Home() {
           "One clear thing to fix first, not a list of twenty",
           "Routines chosen for what it found",
         ]}
-        visual={<Phone screen="ai-coach" alt="An AI coach report: technique, what went well and what to work on" sizes="(max-width: 900px) 70vw, 300px" />}
+        visual={<Phone screen="ai-coach" alt="An AI coach report: technique, what went well and what to work on" sizes="(max-width: 900px) 74vw, 300px" />}
         link={{ to: "/practice#coach", label: "More on the coach" }}
       />
       <Community />

@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/images.mjs && vite",
-    "build": "node scripts/images.mjs && vite build && vite build --ssr src/entry-server.tsx --outDir dist-server && node scripts/prerender.mjs",
+    "build": "node scripts/images.mjs && node scripts/og.mjs && vite build && vite build --ssr src/entry-server.tsx --outDir dist-server && node scripts/prerender.mjs",
     "preview": "vite preview --port 5500",
     "typecheck": "tsc --noEmit"
   },

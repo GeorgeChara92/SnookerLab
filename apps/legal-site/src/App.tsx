@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Route, Routes, useLocation } from "react-router";
 import { MotionConfig } from "motion/react";
 import { Footer, Header, ScrollToTop } from "./components/Chrome";
+import { TableSprite } from "./components/Table";
 import Home from "./pages/Home";
 import { Community, Practice, Scoring } from "./pages/Features";
 import ScanSnooker from "./pages/ScanSnooker";
@@ -36,6 +37,7 @@ export function App() {
       </a>
       <ScrollToTop />
       <Meta />
+      <TableSprite />
       <Header />
       <main id="main">
         <Routes>

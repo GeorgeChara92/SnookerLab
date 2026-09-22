@@ -19,7 +19,7 @@
 .section:not(.dark) .soon,
 .page-hero .soon {
   background: rgba(146, 110, 26, 0.12);
-  color: #8a6a12;
+  color: #87670f;
 }
 
 /* ------------------------------------------------------------------ standouts band */
@@ -166,6 +166,13 @@
   justify-self: center;
   width: 100%;
   max-width: 560px;
+}
+
+/* A single phone in a feature row stays the same size as everywhere else. */
+.feature-visual > .phone,
+.page-hero-aside > .phone {
+  width: min(300px, 74%);
+  margin-inline: auto;
 }
 
 .phones-duo {

@@ -15,8 +15,16 @@ for (const route of ROUTES) {
   console.log("prerendered", route.path, "->", file);
 }
 
+const today = new Date().toISOString().slice(0, 10);
+// The home page changes most; the legal pages barely move.
+const weight = (path) => (path === "/" ? "1.0" : path === "/privacy" || path === "/terms" ? "0.3" : "0.8");
 const urls = ROUTES.filter((route) => route.path !== "/404")
-  .map((route) => `<url><loc>https://snookeredapp.com${route.path}</loc></url>`)
+  .map(
+    (route) =>
+      `
+  <url><loc>https://snookeredapp.com${route.path === "/" ? "/" : route.path}</loc>` +
+      `<lastmod>${today}</lastmod><changefreq>monthly</changefreq><priority>${weight(route.path)}</priority></url>`
+  )
   .join("");
 await writeFile(
   path.join(dist, "sitemap.xml"),

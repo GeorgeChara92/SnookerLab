@@ -32,7 +32,8 @@ const BALL_FILL: Record<TableBall, [string, string, string]> = {
   black: ["#6e7a7c", "#15191a", "#000000"],
 };
 
-export function TableDefs() {
+/** One shared set of gradients for every table on the page (see TableSprite). */
+function Defs() {
   return (
     <defs>
       {(Object.keys(BALL_FILL) as TableBall[]).map((ball) => (
@@ -54,6 +55,15 @@ export function TableDefs() {
   );
 }
 
+/** Rendered once per page, so the gradients have one set of ids rather than one per table. */
+export function TableSprite() {
+  return (
+    <svg width="0" height="0" aria-hidden="true" focusable="false" style={{ position: "absolute" }}>
+      <Defs />
+    </svg>
+  );
+}
+
 /** The table itself: cushions, pockets, baulk line, the D and the spots. Balls go in as children. */
 export function Table({ children, className, label }: { children?: ReactNode; className?: string; label: string }) {
   const pockets = [
@@ -71,7 +81,6 @@ export function Table({ children, className, label }: { children?: ReactNode; cl
       role="img"
       aria-label={label}
     >
-      <TableDefs />
       <rect x={-RAIL} y={-RAIL} width={T.length + RAIL * 2} height={T.width + RAIL * 2} rx={70} fill="#4a2c18" />
       <rect x={-RAIL + 18} y={-RAIL + 18} width={T.length + RAIL * 2 - 36} height={T.width + RAIL * 2 - 36} rx={56} fill="#5b3620" />
       <rect x={-34} y={-34} width={T.length + 68} height={T.width + 68} rx={18} fill="#156b42" />

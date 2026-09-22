@@ -6,51 +6,51 @@ export type RouteMeta = { path: string; title: string; description: string };
 export const ROUTES: RouteMeta[] = [
   {
     path: "/",
-    title: "Snookered · The snooker app for scoring, practice and friends",
+    title: "Snookered · Snooker scoring, practice and club app",
     description:
-      "Snookered is the all-in-one snooker app: score every frame live, practise with purpose, play your friends for real and follow the pro tour.",
+      "The all-in-one snooker app: score frames ball by ball, build practice routines, get AI coaching from a clip of your game, and play friends in matches that count. Coming soon to iPhone.",
   },
   {
     path: "/scoring",
-    title: "Scoring · Snookered",
+    title: "Snooker scoring app: score every frame ball by ball · Snookered",
     description:
-      "Live snooker scoring ball by ball: points remaining, snookers required, fouls, breaks and a match overview you can share.",
+      "Live snooker scoring on your phone: points remaining, snookers required, fouls and breaks worked out as you play, with a match overview and share card at the end.",
   },
   {
     path: "/practice",
-    title: "Practice · Snookered",
+    title: "Snooker practice routines, routine builder and AI coach · Snookered",
     description:
-      "Snooker practice routines with personal bests and leaderboards, weekly plans and streaks, and an AI coach that watches you play.",
+      "Snooker practice that counts: build your own routines, run the line-up and more with a personal best on each, keep a weekly plan and streak, and get AI coaching from a clip.",
   },
   {
     path: "/scan-snooker",
-    title: "Scan Snooker · Snookered",
+    title: "Scan Snooker: replace the balls after a miss in AR · Snookered",
     description:
-      "Scan Snooker: record where the balls were, then replace them in AR after a foul and a miss, and set routines up on the real table.",
+      "Scan the table before a snooker, then put every ball back exactly where it was after a foul and a miss, using AR ghosts on the real table. Also sets routines up ball by ball.",
   },
   {
     path: "/community",
-    title: "Community · Snookered",
+    title: "Snooker club groups, friend matches and live scores · Snookered",
     description:
-      "Play friends in matches that count for both of you, follow their matches live, and run groups for your league or club.",
+      "Play friends in matches that count for both players, follow their frames live, and run a group for your snooker club or league with its own chat, feed and leaderboards.",
   },
   {
     path: "/plans",
-    title: "Plans · Snookered",
-    description: "Snookered plans: Free, Half-Century and Century. Compare matches, tournaments and AI coach reviews.",
+    title: "Plans and pricing · Snookered",
+    description: "Snookered plans: Free, Half-Century and Century. Compare matches, tournaments and AI coach reviews a month. Free to start, billed through your Apple account.",
   },
   {
     path: "/support",
-    title: "Support · Snookered",
-    description: "Get help with Snookered: your account, subscriptions, the AI coach and more.",
+    title: "Support and help · Snookered",
+    description: "Help with Snookered: your account, subscriptions, the AI coach, confirmation emails and reporting. Email us and a person will reply within two working days.",
   },
   {
     path: "/privacy",
     title: "Privacy Policy · Snookered",
-    description: "What data Snookered collects, why, and the controls available to you.",
+    description: "What data Snookered collects, why it is collected, who processes it, and the controls you have over your account and your data.",
   },
-  { path: "/terms", title: "Terms of Use · Snookered", description: "The terms for using the Snookered app." },
-  { path: "/404", title: "Page not found · Snookered", description: "That page could not be found." },
+  { path: "/terms", title: "Terms of Use · Snookered", description: "The terms for using the Snookered snooker app: your account, subscriptions, acceptable use, AI coaching guidance and content ownership." },
+  { path: "/404", title: "Page not found · Snookered", description: "That page could not be found. Head back to the Snookered home page." },
 ];
 
 export const metaFor = (path: string) => ROUTES.find((route) => route.path === path) ?? ROUTES[ROUTES.length - 1];
