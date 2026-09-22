@@ -22,6 +22,22 @@ const HeaderBackArrow: React.FC<{ tintColor?: string }> = ({ tintColor }) => {
   );
 };
 
+/**
+ * An icon button for a header, the same fixed square as the back arrow so iOS centres it inside
+ * its round glass button instead of pushing the icon to one side.
+ */
+export const HeaderIconButton: React.FC<{
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  color: string;
+  label: string;
+  onPress: () => void;
+  size?: number;
+}> = ({ icon, color, label, onPress, size = 22 }) => (
+  <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={styles.backButton}>
+    <MaterialCommunityIcons name={icon} size={size} color={color} />
+  </Pressable>
+);
+
 export const useAppStackScreenOptions = (withProfileShortcut = true): NativeStackNavigationOptions => {
   const { colors } = useAppTheme();
 

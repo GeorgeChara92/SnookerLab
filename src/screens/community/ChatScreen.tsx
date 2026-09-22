@@ -14,6 +14,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { HeaderIconButton } from "../../navigation/stackOptions";
 import { supabase } from "../../api/supabase";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
@@ -182,22 +183,16 @@ export const ChatScreen = () => {
       ),
       headerRight: () =>
         inboxRow && !isRequest ? (
-          <Pressable
+          <HeaderIconButton
+            icon={inboxRow.muted ? "bell-off-outline" : "bell-outline"}
+            color={colors.textMuted}
+            label={inboxRow.muted ? "Unmute" : "Mute"}
             onPress={async () => {
               if (!me) return;
               await setMuted(conversationId, me, !inboxRow.muted);
               void refreshInbox();
             }}
-            accessibilityRole="button"
-            accessibilityLabel={inboxRow.muted ? "Unmute" : "Mute"}
-            hitSlop={10}
-          >
-            <MaterialCommunityIcons
-              name={inboxRow.muted ? "bell-off-outline" : "bell-outline"}
-              size={22}
-              color={colors.textMuted}
-            />
-          </Pressable>
+          />
         ) : null,
     });
   }, [
@@ -460,7 +455,7 @@ export const ChatScreen = () => {
               {sending ? (
                 <ActivityIndicator size="small" color={colors.onPrimary} />
               ) : (
-                <MaterialCommunityIcons name="send" size={20} color={colors.onPrimary} />
+                <MaterialCommunityIcons name="send" size={20} color={colors.onPrimary} style={styles.sendIcon} />
               )}
             </Pressable>
           </View>
@@ -520,6 +515,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  sendIcon: { marginLeft: 2 },
   error: { fontSize: 12, fontWeight: "600" },
   request: { borderTopWidth: StyleSheet.hairlineWidth, padding: SPACING.md, gap: SPACING.sm },
   requestText: { fontSize: 14, lineHeight: 20, textAlign: "center" },
