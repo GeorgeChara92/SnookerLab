@@ -3,325 +3,322 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SnookerLab | Train smarter. Compete better.</title>
+    <title>Snooker Lab · Your snooker, on the scoreboard</title>
     <meta
       name="description"
-      content="SnookerLab is the modern snooker training platform with AI coaching, AR routine setup, performance analytics, and match tracking."
+      content="Snooker Lab is the all-in-one snooker app: score every frame live, practise with purpose, play your friends for real and follow the pro tour."
     />
+    <meta name="theme-color" content="#07170f" />
+    <meta property="og:title" content="Snooker Lab · Your snooker, on the scoreboard" />
+    <meta
+      property="og:description"
+      content="Score every frame live, practise with purpose, play your friends for real and follow the pro tour."
+    />
+    <meta property="og:image" content="/icon-512.jpg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icon-512.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Sora:wght@600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/site.css" />
   </head>
-  <body class="landing">
-    <a class="skip-link" href="#main-content">Skip to content</a>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
 
-    <header class="site-header">
-      <div class="container nav-shell">
-        <a href="#top" class="brand-mark" aria-label="SnookerLab home">SNOOKERLAB</a>
-        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
-        <nav id="site-nav" class="site-nav" aria-label="Primary">
-          <a href="#features">Features</a>
-          <a href="#showcase">Product</a>
-          <a href="#difference">Why SnookerLab</a>
-          <a href="#pricing">Plans</a>
+    <header class="bar">
+      <div class="wrap bar-inner">
+        <a class="brand" href="/" aria-label="Snooker Lab home">
+          <img src="/icon-512.jpg" alt="" width="32" height="32" />
+          <span>Snooker Lab</span>
+        </a>
+        <nav class="nav" aria-label="Primary">
+          <a href="#score">Scoring</a>
+          <a href="#practise">Practice</a>
+          <a href="#play">Community</a>
+          <a href="#plans">Plans</a>
           <a href="/support">Support</a>
-          <a class="button ghost small" href="/privacy">Privacy</a>
-          <a class="button primary small" href="#final-cta">Get Early Access</a>
         </nav>
       </div>
     </header>
 
-    <main id="main-content">
-      <section id="top" class="hero-block">
-        <div class="container hero-grid">
-          <div class="hero-copy reveal">
-            <p class="eyebrow">Performance platform for serious snooker players</p>
-            <h1>Train smarter. Compete better.</h1>
+    <main id="main">
+      <!-- ------------------------------------------------------------------ hero -->
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
+            <p class="kicker">The all-in-one snooker app</p>
+            <h1>Your snooker,<br />on the scoreboard.</h1>
             <p class="lead">
-              SnookerLab combines AI coaching, AR setup guidance, advanced statistics, and match tracking into one
-              modern training ecosystem.
+              Score every frame ball by ball, practise with a plan, play your friends for real and follow the pro
+              tour. Everything you do at the table, in one place.
             </p>
             <div class="hero-actions">
-              <a class="button primary" href="#final-cta">Download the App</a>
-              <a class="button ghost" href="#showcase">Explore Product</a>
+              <span class="store" aria-label="Coming soon to the App Store">
+                <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22">
+                  <path
+                    fill="currentColor"
+                    d="M16.37 12.6c-.02-2.3 1.88-3.4 1.97-3.46-1.07-1.57-2.74-1.78-3.33-1.8-1.42-.14-2.77.83-3.49.83-.72 0-1.83-.81-3-.79-1.55.02-2.97.9-3.77 2.28-1.6 2.78-.41 6.9 1.15 9.16.76 1.1 1.67 2.34 2.86 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.77.74 2.98.72 1.23-.02 2.01-1.12 2.76-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.01-2.39-.92-2.41-3.64zM14.1 5.86c.63-.77 1.06-1.83.94-2.9-.91.04-2.02.61-2.67 1.37-.58.67-1.1 1.76-.96 2.8 1.02.08 2.06-.52 2.69-1.27z"
+                  />
+                </svg>
+                <span><small>Coming soon to</small>the App Store</span>
+              </span>
+              <a class="link-button" href="#score">See what it does <span aria-hidden="true">↓</span></a>
             </div>
-            <ul class="hero-points" aria-label="Core value">
-              <li>Build deliberate practice sessions in minutes</li>
-              <li>Track progression across training and competition</li>
-              <li>Use AR and AI tools to sharpen technical decision-making</li>
+          </div>
+
+          <!-- The live scoreboard: a break building ball by ball. -->
+          <figure class="board-demo" aria-label="A live scoreboard: a break building, ball by ball">
+            <div class="board">
+              <div class="board-head">
+                <span class="live"><i></i>LIVE</span>
+                <span class="board-meta">FRAME <b id="demo-frame">4</b> · BEST OF 7</span>
+              </div>
+              <div class="side">
+                <span class="at-table" id="at-you"></span>
+                <span class="name">You</span>
+                <span class="points" id="demo-you-points">0</span>
+                <span class="frames" id="demo-you-frames">2</span>
+              </div>
+              <div class="side">
+                <span class="at-table" id="at-them"></span>
+                <span class="name">Judd</span>
+                <span class="points" id="demo-them-points">38</span>
+                <span class="frames" id="demo-them-frames">1</span>
+              </div>
+              <div class="break-row">
+                <span class="break-label">BREAK <b id="demo-break">0</b></span>
+                <span class="balls" id="demo-balls" aria-hidden="true"></span>
+              </div>
+            </div>
+            <figcaption>Friends following along see every pot as it happens.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------------ score -->
+      <section id="score" class="band">
+        <div class="wrap band-grid">
+          <div class="band-copy">
+            <p class="kicker">Score</p>
+            <h2>Every frame, ball by ball.</h2>
+            <p>
+              Tap the balls as they go down. Snooker Lab keeps the score, the breaks, the fouls and the points left
+              on the table, knows when snookers are needed, and settles the frame when it is done.
+            </p>
+            <ul class="ticks">
+              <li>Live scoring or just the result, whichever suits the night</li>
+              <li>Breaks, centuries and personal bests picked out automatically</li>
+              <li>A match overview the moment the last frame ends, ready to share</li>
+              <li>Scores save without signal and sync when you are back online</li>
             </ul>
           </div>
-
-          <div class="hero-visual reveal delay-1" aria-hidden="true">
-            <div class="phone-stack">
-              <article class="phone-card main-screen">
-                <div class="screen-head">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                </div>
-                <div class="screen-title">Session Performance</div>
-                <div class="mini-chart">
-                  <span style="height: 44%"></span>
-                  <span style="height: 68%"></span>
-                  <span style="height: 56%"></span>
-                  <span style="height: 82%"></span>
-                  <span style="height: 78%"></span>
-                  <span style="height: 94%"></span>
-                </div>
-                <div class="screen-list">
-                  <div><strong>Pot success</strong><span>79%</span></div>
-                  <div><strong>Long pot conversion</strong><span>61%</span></div>
-                  <div><strong>Break consistency</strong><span>+14%</span></div>
-                </div>
-              </article>
-              <article class="phone-card side-screen one">
-                <p>AR Routine Setup</p>
-                <div class="radar"></div>
-              </article>
-              <article class="phone-card side-screen two">
-                <p>AI Coach Analysis</p>
-                <div class="text-lines"></div>
-              </article>
+          <div class="phone" aria-hidden="true">
+            <div class="screen">
+              <p class="screen-kicker">FRAME 3 · BALL ON: RED</p>
+              <div class="score-pair">
+                <div><b>56</b><span>You</span></div>
+                <div class="dim"><b>12</b><span>Judd</span></div>
+              </div>
+              <p class="screen-note">43 remaining · Break 32</p>
+              <div class="log">
+                <p><span>You</span><b>Break 32 · on now</b></p>
+                <p><span>Judd</span><b>Foul · 4 to you</b></p>
+                <p><span>You</span><b>Break 20</b></p>
+                <p><span>Judd</span><b>Break 12</b></p>
+              </div>
+              <div class="ball-pad">
+                <i class="b red"></i><i class="b yellow"></i><i class="b green"></i><i class="b brown"></i>
+                <i class="b blue"></i><i class="b pink"></i><i class="b black"></i>
+              </div>
+              <div class="screen-row">
+                <span>Foul</span><span>End visit</span><span>Undo</span>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="features" class="section-block">
-        <div class="container">
-          <div class="section-head reveal">
-            <p class="eyebrow">Feature highlights</p>
-            <h2>Every tool needed to improve your game</h2>
+      <!-- ------------------------------------------------------------------ practise -->
+      <section id="practise" class="band band-alt">
+        <div class="wrap band-grid flip">
+          <div class="band-copy">
+            <p class="kicker">Practise</p>
+            <h2>Practice with a point to it.</h2>
             <p>
-              SnookerLab is designed for players who want structure, evidence, and consistency across practice and
-              match performance.
+              A library of proper routines, from the line-up to the colours, each with its own progress chart and
+              personal best. Plan your week, set goals, keep a streak going, and build your own routines on a table
+              diagram.
             </p>
+            <ul class="ticks">
+              <li>Progress and personal bests for every routine</li>
+              <li>Weekly plans, goals and streaks</li>
+              <li>Build routines of your own and share them with a link or QR code</li>
+              <li>A leaderboard on every routine: see who has the best line-up</li>
+            </ul>
           </div>
-          <div class="feature-grid">
-            <article class="feature-card reveal">
-              <h3>AI Coach</h3>
-              <p>Upload training clips and receive structured, actionable technique feedback.</p>
-            </article>
-            <article class="feature-card reveal delay-1">
-              <h3>AR Routine Setup</h3>
-              <p>Place balls with precision so your drills are repeatable and consistent.</p>
-            </article>
-            <article class="feature-card reveal delay-2">
-              <h3>Scan Snooker AR</h3>
-              <p>Use guided AR placement and reference tools to restore and verify table setups quickly.</p>
-            </article>
-            <article class="feature-card reveal">
-              <h3>Match Tracking &amp; Tournaments</h3>
-              <p>Record frames, monitor trends, and manage tournament progress in one place.</p>
-            </article>
-            <article class="feature-card reveal delay-1">
-              <h3>Practice Builder</h3>
-              <p>Create custom sessions around specific outcomes, not random routines.</p>
-            </article>
-            <article class="feature-card reveal delay-2">
-              <h3>Statistics &amp; Insights</h3>
-              <p>Understand what is improving, what is flat, and where to focus next.</p>
-            </article>
-            <article class="feature-card reveal">
-              <h3>Achievements &amp; Progression</h3>
-              <p>Stay motivated with meaningful progression linked to real training behaviours.</p>
-            </article>
+          <div class="phone" aria-hidden="true">
+            <div class="screen">
+              <div class="mini-board">
+                <p class="screen-kicker gold">4 LOGGED THIS WEEK</p>
+                <div class="track">
+                  <span class="on run-start"></span><span class="on run-mid"></span><span class="on run-end"></span
+                  ><span></span><span class="today"></span><span class="future"></span><span class="future"></span>
+                </div>
+                <div class="track-days"><span>M</span><span>T</span><span>W</span><span>T</span><b>F</b><span>S</span><span>S</span></div>
+              </div>
+              <div class="routine">
+                <p class="routine-name">The Line-up</p>
+                <p class="routine-meta">Best 72 · up 14 this month</p>
+                <div class="spark">
+                  <i style="height: 30%"></i><i style="height: 42%"></i><i style="height: 38%"></i
+                  ><i style="height: 55%"></i><i style="height: 61%"></i><i style="height: 58%"></i
+                  ><i style="height: 74%"></i><i class="best" style="height: 88%"></i>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="showcase" class="section-block compact-top">
-        <div class="container showcase-grid">
-          <div class="section-head reveal">
-            <p class="eyebrow">Product showcase</p>
-            <h2>Built for players, coaches, and competitors</h2>
-            <p>Drop in your final app screenshots later. The structure is ready for launch content.</p>
-          </div>
-          <div class="showcase-cards">
-            <article class="showcase-card reveal">
-              <header>
-                <h3>Session Planner</h3>
-                <p>Set goals, drill blocks, and target outcomes.</p>
-              </header>
-              <div class="screen-placeholder">Replace with real screen</div>
-            </article>
-            <article class="showcase-card reveal delay-1">
-              <header>
-                <h3>AR Table Setup</h3>
-                <p>Precise ball placement with guided reticle flow.</p>
-              </header>
-              <div class="screen-placeholder">Replace with real screen</div>
-            </article>
-            <article class="showcase-card reveal delay-2">
-              <header>
-                <h3>Performance Dashboard</h3>
-                <p>Visual trend lines and confidence tracking over time.</p>
-              </header>
-              <div class="screen-placeholder">Replace with real screen</div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section id="difference" class="section-block">
-        <div class="container split-grid">
-          <div class="reveal">
-            <p class="eyebrow">Why it is different</p>
-            <h2>More than a score tracker</h2>
+      <!-- ------------------------------------------------------------------ play -->
+      <section id="play" class="band">
+        <div class="wrap band-grid">
+          <div class="band-copy">
+            <p class="kicker">Play</p>
+            <h2>Your club, in your pocket.</h2>
             <p>
-              Most snooker apps stop at logging. SnookerLab combines training design, AR setup, AI feedback, and match
-              intelligence in one connected workflow.
+              Play a friend and the match counts for both of you once they confirm the score. Follow their matches
+              live, frame by frame. Start a group for your league or your Tuesday night crowd, with its own chat, feed
+              and leaderboards.
             </p>
+            <ul class="ticks">
+              <li>Head-to-heads that both players agree on</li>
+              <li>Follow friends’ matches live as they are scored</li>
+              <li>Groups with chat, a feed of wins and centuries, and pinned routines</li>
+              <li>You choose who sees your stats and who can message you</li>
+            </ul>
           </div>
-          <ul class="difference-list reveal delay-1">
-            <li><strong>AI + AR + analytics</strong><span>One workflow from setup to review.</span></li>
-            <li><strong>Built for improvement</strong><span>Designed to support decision-making, not just data storage.</span></li>
-            <li><strong>Competition ready</strong><span>Track training and match performance in the same system.</span></li>
-            <li><strong>Player progression</strong><span>Measure consistency and growth over months, not single sessions.</span></li>
-          </ul>
-        </div>
-      </section>
-
-      <section id="progress" class="section-block compact-top">
-        <div class="container">
-          <div class="section-head reveal">
-            <p class="eyebrow">Player development</p>
-            <h2>Turn practice into measurable progression</h2>
-          </div>
-          <div class="timeline-grid">
-            <article class="timeline-card reveal">
-              <span>01</span>
-              <h3>Plan with intent</h3>
-              <p>Build sessions around shot type, cue-ball control, safety, and break-building outcomes.</p>
-            </article>
-            <article class="timeline-card reveal delay-1">
-              <span>02</span>
-              <h3>Execute and log</h3>
-              <p>Track attempts, session notes, and match context without losing flow during training.</p>
-            </article>
-            <article class="timeline-card reveal delay-2">
-              <span>03</span>
-              <h3>Review the evidence</h3>
-              <p>Use AI analysis and statistics to identify recurring strengths and mistakes.</p>
-            </article>
-            <article class="timeline-card reveal">
-              <span>04</span>
-              <h3>Refine and repeat</h3>
-              <p>Adjust your next cycle with objective feedback and clearer performance targets.</p>
-            </article>
+          <div class="phone" aria-hidden="true">
+            <div class="screen">
+              <p class="screen-kicker"><span class="dot-live"></span> MEMBERS PLAYING NOW</p>
+              <div class="live-card">
+                <div class="lc-head"><span class="live small"><i></i>LIVE</span><span>BEST OF 5</span></div>
+                <div class="lc-side"><em class="lc-at"></em><span>SAM</span><b>2</b></div>
+                <div class="lc-side"><em></em><span>JO</span><b>1</b></div>
+                <p class="lc-now">FRAME 4 · 61–8 · BREAK 47</p>
+              </div>
+              <p class="screen-kicker">CONFIRM A RESULT</p>
+              <div class="confirm">
+                <p>Alex recorded your match</p>
+                <div class="confirm-score"><span>You</span><b>3</b><em>(5)</em><b class="dim">1</b><span>Alex</span></div>
+                <div class="confirm-actions"><span>Not right</span><span class="yes">Confirm</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="testimonials" class="section-block">
-        <div class="container">
-          <div class="section-head reveal">
-            <p class="eyebrow">Social proof structure</p>
-            <h2>Ready for coach and player feedback</h2>
-            <p>Placeholder layout for verified testimonials. Replace these cards with real quotes before launch.</p>
-          </div>
-          <div class="proof-grid">
-            <article class="proof-card reveal">
-              <h3>Club Player (placeholder)</h3>
-              <p>"Add verified player feedback here once collected."</p>
-            </article>
-            <article class="proof-card reveal delay-1">
-              <h3>Coach (placeholder)</h3>
-              <p>"Use this card for coaching perspective on structure and usability."</p>
-            </article>
-            <article class="proof-card reveal delay-2">
-              <h3>Competitive Player (placeholder)</h3>
-              <p>"Use this card for tournament-use credibility and progression outcomes."</p>
-            </article>
-          </div>
+      <!-- ------------------------------------------------------------------ everything else -->
+      <section class="more">
+        <div class="wrap">
+          <h2 class="more-title">And the rest of it.</h2>
+          <dl class="more-list">
+            <div>
+              <dt>AI coach</dt>
+              <dd>Film yourself at the table and the coach watches it, then tells you what to work on and which routines will help.</dd>
+            </div>
+            <div>
+              <dt>Pro tour news</dt>
+              <dd>The latest from the World Snooker Tour and BBC Sport, right next to your own game.</dd>
+            </div>
+            <div>
+              <dt>Tournaments</dt>
+              <dd>Run a knockout or a league for your club, with the draw, fixtures and results kept for you.</dd>
+            </div>
+            <div>
+              <dt>Achievements and levels</dt>
+              <dd>Earn your way up for the things that matter: centuries, streaks, wins and practice.</dd>
+            </div>
+            <div>
+              <dt>Stats that mean something</dt>
+              <dd>Form, high breaks, head-to-heads and your practice rhythm, without wading through charts.</dd>
+            </div>
+            <div>
+              <dt>Share your results</dt>
+              <dd>A result card that leads with the big moment, whether that is the maximum, the century or the comeback.</dd>
+            </div>
+          </dl>
         </div>
       </section>
 
-      <section id="pricing" class="section-block compact-top">
-        <div class="container">
-          <div class="section-head reveal">
-            <p class="eyebrow">Plans</p>
-            <h2>Flexible plans for every stage</h2>
-            <p>Use as a launch-ready structure. Pricing and limits can be updated at any time.</p>
-          </div>
-          <div class="pricing-grid">
-            <article class="price-card reveal">
+      <!-- ------------------------------------------------------------------ plans -->
+      <section id="plans" class="plans">
+        <div class="wrap">
+          <p class="kicker">Plans</p>
+          <h2>Start free. Go further when you want to.</h2>
+          <div class="plan-grid">
+            <article class="plan">
               <h3>Free</h3>
-              <p class="price">£0</p>
+              <p class="plan-line">Track your practice and see where you stand.</p>
               <ul>
-                <li>Core session tracking</li>
-                <li>Basic match logging</li>
-                <li>Starter statistics</li>
+                <li>12 matches a month</li>
+                <li>1 tournament a month</li>
+                <li>1 AI coach review a month</li>
+                <li>Practice routines and sessions</li>
               </ul>
-              <a class="button ghost" href="#final-cta">Get Started</a>
             </article>
-            <article class="price-card featured reveal delay-1">
-              <p class="tag">Most popular</p>
-              <h3>Pro</h3>
-              <p class="price">TBC</p>
+            <article class="plan featured">
+              <p class="plan-tag">For weekly players</p>
+              <h3>Half-Century</h3>
+              <p class="plan-line">For players practising every week.</p>
               <ul>
-                <li>Full practice builder</li>
-                <li>AR routine and Scan Snooker tools</li>
-                <li>Advanced performance insights</li>
+                <li>40 matches a month</li>
+                <li>4 tournaments a month</li>
+                <li>8 AI coach reviews a month</li>
+                <li>The full routine library and advanced tracking</li>
               </ul>
-              <a class="button primary" href="#final-cta">Join Waitlist</a>
             </article>
-            <article class="price-card reveal delay-2">
-              <h3>Premium</h3>
-              <p class="price">TBC</p>
+            <article class="plan">
+              <h3>Century</h3>
+              <p class="plan-line">Everything, for players chasing centuries.</p>
               <ul>
-                <li>AI Coach video analysis</li>
-                <li>Expanded analytics and progression</li>
-                <li>Priority feature access</li>
+                <li>Unlimited matches</li>
+                <li>Unlimited tournaments</li>
+                <li>20 AI coach reviews a month</li>
+                <li>The full analytics suite and early access to new features</li>
               </ul>
-              <a class="button ghost" href="#final-cta">Register Interest</a>
             </article>
           </div>
+          <p class="plan-note">Prices are shown in the App Store. Cancel any time in your Apple account.</p>
         </div>
       </section>
 
-      <section id="final-cta" class="section-block final-cta">
-        <div class="container cta-panel reveal">
-          <p class="eyebrow">Ready to improve your game?</p>
-          <h2>Start building smarter sessions today</h2>
-          <p>Download SnookerLab or join the early access list for premium AI and AR tools.</p>
-          <form class="waitlist-form" action="#" method="post">
-            <label for="waitlist-email" class="sr-only">Email address</label>
-            <input id="waitlist-email" type="email" name="email" placeholder="name@example.com" required />
-            <button type="submit" class="button primary">Join Waitlist</button>
-          </form>
-          <div class="cta-actions">
-            <a class="button ghost" href="#top">Back to top</a>
-            <a class="button ghost" href="/support">Contact support</a>
-          </div>
+      <!-- ------------------------------------------------------------------ close -->
+      <section class="close">
+        <div class="wrap close-inner">
+          <img src="/icon-512.jpg" alt="" width="96" height="96" />
+          <h2>See you at the table.</h2>
+          <p>Snooker Lab is coming to iPhone. Questions in the meantime? We read every message.</p>
+          <a class="link-button solid" href="/support">Get in touch</a>
         </div>
       </section>
     </main>
 
-    <footer class="site-footer">
-      <div class="container footer-grid">
-        <div>
-          <p class="brand-mark">SNOOKERLAB</p>
-          <p class="footer-note">Modern snooker training and performance platform.</p>
-        </div>
-        <nav aria-label="Footer navigation" class="footer-links">
-          <a href="#features">Features</a>
-          <a href="#pricing">Plans</a>
+    <footer class="foot">
+      <div class="wrap foot-inner">
+        <p class="brand small"><img src="/icon-512.jpg" alt="" width="24" height="24" /><span>Snooker Lab</span></p>
+        <nav aria-label="Footer">
           <a href="/privacy">Privacy</a>
           <a href="/terms">Terms</a>
-          <a href="/support">Contact</a>
+          <a href="/support">Support</a>
         </nav>
-      </div>
-      <div class="container footer-bottom">
-        <small>© <span id="year"></span> SnookerLab. All rights reserved.</small>
+        <small>© <span id="year">2026</span> Snooker Lab. News headlines belong to their publishers.</small>
       </div>
     </footer>
 
-    <script src="/marketing.js" defer></script>
+    <script src="/site.js" defer></script>
   </body>
 </html>
