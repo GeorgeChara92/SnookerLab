@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.description    = 'Finds the table, reports camera rays for calibration and scanning, and draws balls and table lines.'
   s.license        = 'UNLICENSED'
   s.author         = 'Snooker Lab'
-  s.homepage       = 'https://snooker-lab.vercel.app'
+  s.homepage       = 'https://snookeredapp.com'
   s.platforms      = { :ios => '15.1' }
   s.swift_version  = '5.4'
   s.source         = { git: '' }

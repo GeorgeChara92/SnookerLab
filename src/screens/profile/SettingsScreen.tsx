@@ -18,9 +18,9 @@ import { isBillingConfigured, openNativeSubscriptionSettings, presentCustomerCen
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 import { flushOutbox, refreshEverything, useOutboxStore } from "../../sync";
 
-const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snooker-lab.vercel.app/privacy";
-const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snooker-lab.vercel.app/terms";
-const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookerlab.app";
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snookeredapp.com/privacy";
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snookeredapp.com/terms";
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookeredapp.com";
 
 const createChallenge = () => Math.random().toString(36).toUpperCase().slice(2, 8);
 

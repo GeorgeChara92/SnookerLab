@@ -16,8 +16,8 @@ import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 type Props = NativeStackScreenProps<AuthStackParamList, "Register">;
 type Field = "username" | "email" | "password";
 
-const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snooker-lab.vercel.app/privacy";
-const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snooker-lab.vercel.app/terms";
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snookeredapp.com/privacy";
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snookeredapp.com/terms";
 
 const looksLikeEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
 

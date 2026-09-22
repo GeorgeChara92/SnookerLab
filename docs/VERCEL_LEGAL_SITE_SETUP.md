@@ -32,31 +32,31 @@ Compatibility rewrites are also configured for:
 
 Suggested domain:
 
-- `https://snooker-lab.vercel.app`
+- `https://snookeredapp.com`
 
 Then verify:
 
-- `https://snooker-lab.vercel.app/privacy`
-- `https://snooker-lab.vercel.app/terms`
-- `https://snooker-lab.vercel.app/support`
+- `https://snookeredapp.com/privacy`
+- `https://snookeredapp.com/terms`
+- `https://snookeredapp.com/support`
 
 ## 3) Wire mobile app URLs
 
 Set these in your mobile app envs (local + EAS):
 
-- `EXPO_PUBLIC_PRIVACY_URL=https://snooker-lab.vercel.app/privacy`
-- `EXPO_PUBLIC_TERMS_URL=https://snooker-lab.vercel.app/terms`
-- `EXPO_PUBLIC_AUTH_CONFIRM_REDIRECT_URL=https://snooker-lab.vercel.app/email-confirmed`
+- `EXPO_PUBLIC_PRIVACY_URL=https://snookeredapp.com/privacy`
+- `EXPO_PUBLIC_TERMS_URL=https://snookeredapp.com/terms`
+- `EXPO_PUBLIC_AUTH_CONFIRM_REDIRECT_URL=https://snookeredapp.com/email-confirmed`
 
 If you want support to open the support page instead of email, add:
 
-- `EXPO_PUBLIC_SUPPORT_URL=https://snooker-lab.vercel.app/support`
+- `EXPO_PUBLIC_SUPPORT_URL=https://snookeredapp.com/support`
 
 ## 4) Supabase Auth redirect URLs
 
 In Supabase Auth URL configuration, allow both:
 
-- `https://snooker-lab.vercel.app/email-confirmed` (email confirmation success page)
+- `https://snookeredapp.com/email-confirmed` (email confirmation success page)
 - `snookerlab://auth/callback` (mobile auth deep-link callback)
 
 ## 5) Store listing alignment

@@ -13,7 +13,7 @@ import { getSkillLabel, getCuePreferenceLabel, getCountryByCode } from "../../co
 import { usePlayerProgress } from "../../features/profile/playerProgress";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
-const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookerlab.app";
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookeredapp.com";
 
 /** A win rate over fewer matches than this says nothing. */
 const MIN_FOR_WIN_RATE = 3;

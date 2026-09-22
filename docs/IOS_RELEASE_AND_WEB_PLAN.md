@@ -143,9 +143,9 @@ If you do not want to restructure now, keep current mobile app in place and add 
 
 Use public web URLs for legal/support pages:
 
-- `https://snookerlab.app/privacy`
-- `https://snookerlab.app/terms`
-- `https://snookerlab.app/support`
+- `https://snookeredapp.com/privacy`
+- `https://snookeredapp.com/terms`
+- `https://snookeredapp.com/support`
 
 For auth callbacks, continue using deep links:
 

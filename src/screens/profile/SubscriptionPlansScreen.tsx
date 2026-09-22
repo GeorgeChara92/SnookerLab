@@ -37,8 +37,8 @@ import type { SubscriptionTier } from "../../types";
 
 type PaidTier = Exclude<SubscriptionTier, "free">;
 
-const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snooker-lab.vercel.app/privacy";
-const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snooker-lab.vercel.app/terms";
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snookeredapp.com/privacy";
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snookeredapp.com/terms";
 
 /** Automatic refreshes (focus, foreground, store events) are throttled to this. */
 const AUTO_REFRESH_INTERVAL_MS = 15000;

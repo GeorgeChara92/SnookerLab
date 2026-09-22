@@ -45,8 +45,8 @@ Copy for App Store Connect, written to Apple's limits. Character counts are in b
 > PLANS
 > Snookered is free to start. Half-Century and Century plans raise your monthly match, tournament and AI coach limits and unlock the full routine library and analytics. Payment is charged to your Apple account. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel them in your Apple account settings.
 >
-> Terms of Use: https://snooker-lab.vercel.app/terms
-> Privacy Policy: https://snooker-lab.vercel.app/privacy
+> Terms of Use: https://snookeredapp.com/terms
+> Privacy Policy: https://snookeredapp.com/privacy
 
 ## Keywords (100 max, comma-separated, no spaces after commas)
 
@@ -60,9 +60,9 @@ Avoid player names (for example "Trump" or "O'Sullivan") and "WST" as keywords. 
 
 ## URLs
 
-- **Support URL:** https://snooker-lab.vercel.app/support
-- **Marketing URL:** https://snooker-lab.vercel.app
-- **Privacy Policy URL:** https://snooker-lab.vercel.app/privacy
+- **Support URL:** https://snookeredapp.com/support
+- **Marketing URL:** https://snookeredapp.com
+- **Privacy Policy URL:** https://snookeredapp.com/privacy
 
 ## Category
 
