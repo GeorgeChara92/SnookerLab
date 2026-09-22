@@ -1,4 +1,5 @@
 import type { Routine } from "../../types";
+import { containsBlockedWord } from "../community/wordFilter";
 import { summarise, type PlacedBall } from "../scanSnooker/position";
 
 /**
@@ -40,8 +41,11 @@ export const validateDraft = (draft: RoutineDraft) => {
   const name = draft.name.trim();
   if (!name) problems.name = "Give the routine a name.";
   else if (name.length > NAME_MAX) problems.name = `Keep the name to ${NAME_MAX} characters.`;
-  if (draft.description.trim().length > DESCRIPTION_MAX)
-    problems.description = `Keep the description to ${DESCRIPTION_MAX} characters.`;
+  // Routines can be shared and appear in the public library, so the same filter as chat applies.
+  else if (containsBlockedWord(name)) problems.name = "Please choose a different name.";
+  const description = draft.description.trim();
+  if (description.length > DESCRIPTION_MAX) problems.description = `Keep the description to ${DESCRIPTION_MAX} characters.`;
+  else if (containsBlockedWord(description)) problems.description = "Please reword the description.";
   const score = draft.maxScore.trim();
   if (score) {
     const value = Number(score);

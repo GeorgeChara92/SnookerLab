@@ -11,6 +11,8 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useAIAnalysesStore } from "../../store";
 import { supabase } from "../../api/supabase";
+import { useConsentStore } from "../../store/consentStore";
+import { Linking } from "react-native";
 import type { AICoachStackParamList, AnalysisType } from "../../types";
 import { TierPaywallModal } from "../../components/subscription";
 import { isSubscriptionLimitError } from "../../constants";
@@ -21,6 +23,8 @@ import {
 } from "../../features/ai/analysisLabels";
 
 // One vocabulary for the whole AI Coach, so what you pick here is what the report calls it.
+const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snookeredapp.com/privacy";
+
 const ANALYSIS_TYPES: { label: string; value: AnalysisType }[] = ANALYSIS_TYPE_ORDER.map((value) => ({
   value,
   label: ANALYSIS_TYPE_INFO[value].label,
@@ -138,6 +142,8 @@ export const VideoUploadScreen = () => {
   const [showNotes, setShowNotes] = useState(false);
   const { colors } = useAppTheme();
   const dialog = useDialog();
+  const coachAnalysisAt = useConsentStore((state) => state.coachAnalysisAt);
+  const allowCoachAnalysis = useConsentStore((state) => state.allowCoachAnalysis);
   const subscription = useSubscriptionAccess();
   const { createAnalysis, runAnalysis } = useAIAnalysesStore();
 
@@ -241,10 +247,32 @@ export const VideoUploadScreen = () => {
     }
   };
 
+  /** Clips are analysed by Google's Gemini API, so the first one asks before it is sent. */
+  const askToSend = () =>
+    new Promise<boolean>((resolve) => {
+      if (coachAnalysisAt) {
+        resolve(true);
+        return;
+      }
+      dialog.confirm({
+        title: "Send clips for analysis?",
+        message:
+          "Your clip is uploaded to your Snookered account and sent to Google's Gemini API, which watches it and writes the report. Only you can see your clips and reports in the app. The Privacy Policy explains what is kept and for how long.",
+        icon: "robot-outline",
+        confirmLabel: "Send clips",
+        onConfirm: () => {
+          allowCoachAnalysis();
+          resolve(true);
+        },
+        onCancel: () => resolve(false),
+      });
+    });
+
   const uploadVideo = async () => {
     if (!video) return;
     if (!checkLimit()) return;
     if (!validateClipLength(video)) return;
+    if (!(await askToSend())) return;
 
     const authUser = (await supabase.auth.getUser()).data.user;
     if (!authUser) {
@@ -489,6 +517,16 @@ export const VideoUploadScreen = () => {
             </View>
           ) : (
             <View style={styles.uploadActions}>
+              <Text style={[styles.privacyNote, { color: colors.textMuted }]}>
+                Your clip is sent to Google&apos;s Gemini API to be analysed. Only you see your clips and reports.{" "}
+                <Text
+                  style={[styles.privacyLink, { color: colors.primary }]}
+                  accessibilityRole="link"
+                  onPress={() => void Linking.openURL(PRIVACY_URL)}
+                >
+                  Privacy Policy
+                </Text>
+              </Text>
               <AppButton label="Send for analysis" onPress={uploadVideo} />
             </View>
           )}
@@ -596,4 +634,6 @@ const styles = StyleSheet.create({
   progressFill: { height: "100%", borderRadius: 3 },
   progressPercent: { marginTop: 8, fontSize: 12, fontWeight: "600" },
   uploadActions: { marginTop: 8 },
+  privacyNote: { fontSize: 12, lineHeight: 17, marginBottom: 12 },
+  privacyLink: { fontSize: 12, textDecorationLine: "underline" },
 });

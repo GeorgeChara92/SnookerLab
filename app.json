@@ -37,9 +37,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Snookered needs access to your videos so you can choose a clip of your practice for AI coaching analysis.",
-          "cameraPermission": "Snookered uses the camera to record practice clips for AI coaching, and to scan the table so balls can be put back in the right place.",
-          "microphonePermission": false
+          "photosPermission": "Snookered needs access to your videos so you can pick a clip of your practice for the coach to look at.",
+          "cameraPermission": "Snookered uses the camera to record practice clips for the coach, and to scan the table so the balls can be put back where they were.",
+          "microphonePermission": "Snookered uses the microphone only while you record a practice clip with the camera, because a video recording includes its sound."
         }
       ]
     ],
