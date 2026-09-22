@@ -155,7 +155,7 @@ export function ScanDemo({ caption = true }: { caption?: boolean }) {
         <span className="corner bl" />
         <span className="corner br" />
         <div className="scan-tilt">
-          <Table label="Scan Snooker: the balls are recorded, moved by a miss, then put back where they were using ghosts on the table">
+          <Table label="Scan a snooker: the balls are recorded, moved by a miss, then put back where they were using ghosts on the table">
             {ghosts &&
               BEFORE.map((ball, index) => (
                 <motion.g key={`ghost-${index}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
@@ -259,7 +259,7 @@ export function CoachReport() {
     <div className="coach-report" ref={ref}>
       <div className="coach-head">
         <span className="coach-badge">
-          <Sparkles aria-hidden="true" strokeWidth={2} /> AI coach report
+          <Sparkles aria-hidden="true" strokeWidth={2} /> Coach report
         </span>
         <span className="coach-example">Example</span>
       </div>

@@ -27,8 +27,8 @@ screenshot lands. Add the file, then swap the placeholder for `<Phone screen="â€
 | ------------------ | --------------------------------------------------- | ----------------------- |
 | routine-builder.png| The routine builder with balls placed on the table   | Home, Practice          |
 | ai-coach.png       | An AI coach report, with the findings               | Home, Practice          |
-| scan-snooker.png   | Scan Snooker in the camera, ghosts on the table     | Home, Scan Snooker page |
-| ar-routine.png     | A routine being set up in AR                        | Scan Snooker page       |
+| scan-snooker.png   | Scan a Snooker in the camera, ghosts on the table     | Home, Scan a Snooker page |
+| ar-routine.png     | A routine being set up in AR                        | Scan a Snooker page     |
 | chat.png           | A group chat with a match or routine shared into it | Community               |
 | tournament.png     | A tournament draw or league table                   | Home ("everything else")|
 

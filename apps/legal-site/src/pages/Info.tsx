@@ -117,7 +117,7 @@ export function Support() {
       <PageHero
         eyebrow="Support"
         title="Help is a message away."
-        lead="Questions about your account, a subscription, the AI coach or something not working? Email us and a person will reply."
+        lead="Questions about your account, a subscription, Coach or something not working? Email us and a person will reply."
         strip={
           <Strip label="Support: email us" tag="Email">
             <span className="strip-name lower">support</span>

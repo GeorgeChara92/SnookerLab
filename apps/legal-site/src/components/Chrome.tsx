@@ -46,7 +46,7 @@ export function Header() {
         </nav>
         <div className="header-end">
           <Link className="btn btn-primary header-cta" to="/#launch">
-            Join the launch list
+            Get notified
           </Link>
           <button
             type="button"
@@ -108,7 +108,7 @@ export function Footer() {
             <Link to="/practice">Practice</Link>
             <Link to="/coach">Coach</Link>
             <Link to="/community">Community</Link>
-            <Link to="/scan-snooker">Scan Snooker</Link>
+            <Link to="/scan-snooker">Scan a Snooker</Link>
             <Link to="/plans">Plans</Link>
           </div>
           <div>

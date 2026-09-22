@@ -19,6 +19,47 @@ import "./styles/layout.css";
 import "./styles/sections.css";
 import "./styles/features.css";
 
+/** Shows each .rv block as it arrives. Without an observer, or with reduced motion, everything shows at once. */
+function useReveals() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const blocks = Array.from(document.querySelectorAll<HTMLElement>(".rv:not(.in)"));
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced || !("IntersectionObserver" in window)) {
+      blocks.forEach((block) => block.classList.add("in"));
+      return;
+    }
+    const show = (block: HTMLElement) => {
+      block.classList.add("in");
+      seen.unobserve(block);
+    };
+    const seen = new IntersectionObserver(
+      (entries) => entries.forEach((entry) => entry.isIntersecting && show(entry.target as HTMLElement)),
+      { rootMargin: "0px 0px -8% 0px" }
+    );
+    blocks.forEach((block) => seen.observe(block));
+
+    // A fast scroll can outrun the observer, so anything already past the fold is shown anyway.
+    let queued = false;
+    const sweep = () => {
+      queued = false;
+      blocks.forEach((block) => {
+        if (!block.classList.contains("in") && block.getBoundingClientRect().top < window.innerHeight) show(block);
+      });
+    };
+    const onScroll = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(sweep);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      seen.disconnect();
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [pathname]);
+}
+
 /** Keeps the tab title and description right as the visitor moves between pages. */
 function Meta() {
   const { pathname } = useLocation();
@@ -31,6 +72,7 @@ function Meta() {
 }
 
 export function App() {
+  useReveals();
   return (
     <MotionConfig reducedMotion="user">
       <a className="skip" href="#main">

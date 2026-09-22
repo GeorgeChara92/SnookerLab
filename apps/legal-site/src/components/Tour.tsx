@@ -107,24 +107,28 @@ export function AppTour() {
 }
 
 const LOOP = [
-  { step: "Score", body: "Track every frame without slowing the game down." },
-  { step: "Practise", body: "Build routines around the parts of your game that need it." },
-  { step: "Improve", body: "Use your stats and coaching feedback to see what is changing." },
-  { step: "Compete", body: "Play your mates, settle the result, and see how you stack up." },
+  { step: "Play", body: "Score your matches and track every frame." },
+  { step: "Analyse", body: "See the numbers behind your game." },
+  { step: "Practise", body: "Build routines around what you need to improve." },
+  { step: "Improve", body: "Use Coach to turn your own game into feedback you can act on." },
+  { step: "Play again", body: "See whether the work is actually paying off." },
 ];
 
-/** The loop the whole app runs on. */
+/** The loop the whole app runs on: what happens in matches feeds what you do in practice. */
 export function CoreLoop() {
   return (
     <section className="section tight loop-section">
       <div className="wrap">
-        <Reveal className="section-head">
-          <p className="eyebrow">How it works</p>
-          <h2 className="display-l">Score. Practise. Improve. Compete.</h2>
+        <Reveal className="section-head split">
+          <div>
+            <p className="eyebrow">How it works</p>
+            <h2 className="display-l">Play. Practise. Improve. Repeat.</h2>
+          </div>
+          <p className="lead">Snookered joins up what happens in your matches with what you do in practice.</p>
         </Reveal>
         <ol className="loop">
           {LOOP.map((item, index) => (
-            <Reveal key={item.step} delay={index * 0.06} className="loop-step">
+            <Reveal key={item.step} delay={index * 0.05} className="loop-step">
               <span className="loop-number num">{index + 1}</span>
               <h3>{item.step}</h3>
               <p>{item.body}</p>
@@ -155,9 +159,10 @@ export function LaunchList() {
         <Reveal className="launch dark">
           <div className="launch-copy">
             <p className="eyebrow">Coming soon to iPhone</p>
-            <h2 className="display-l">Be first on the table.</h2>
+            <h2 className="display-l">See you at the table.</h2>
             <p className="lead">
-              Snookered is finishing up for the App Store. Ask to join the launch list and we will tell you the day it lands.
+              Snookered is finishing up for the App Store. Be first on the table: ask for a nudge and we will tell you the day
+              it lands.
             </p>
           </div>
           <form className="launch-form" onSubmit={send}>
@@ -174,7 +179,7 @@ export function LaunchList() {
                 onChange={(event) => setEmail(event.target.value)}
               />
               <button type="submit" className="btn btn-primary">
-                Join the launch list <ArrowRight aria-hidden="true" strokeWidth={2} className="arrow" />
+                Get notified at launch <ArrowRight aria-hidden="true" strokeWidth={2} className="arrow" />
               </button>
             </div>
             <p className="launch-note">

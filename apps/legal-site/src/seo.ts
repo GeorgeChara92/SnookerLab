@@ -25,7 +25,7 @@ const app = {
     "@type": "Offer",
     price: "0",
     priceCurrency: "GBP",
-    description: "Free plan with 12 matches, 1 tournament and 1 AI coach review a month.",
+    description: "Free plan with 12 matches, 1 tournament and 1 Coach review a month.",
   },
 };
 
@@ -91,7 +91,7 @@ const SCAN_FAQ: [string, string][] = [
   ["Do I need the newest iPhone?", "No. Any iPhone that runs the app can scan. Phones with LiDAR are more accurate, and every phone can use the table diagram."],
   ["What if the balls hide the spots?", "Calibration only needs two landmarks, and pockets count, so there is almost always a pair you can see."],
   ["Can I use it without the camera?", "Yes. Place the balls on the table diagram instead: same positions, same replace step, no AR."],
-  ["When will it be ready?", "Scan Snooker is in testing now and will arrive in an update."],
+  ["When will it be ready?", "Scan a Snooker is in testing now and will arrive in an update."],
 ];
 
 const COACH_FAQ: [string, string][] = [
@@ -118,7 +118,7 @@ export function structuredData(path: string) {
       "/scoring": "Scoring",
       "/practice": "Practice",
       "/coach": "Coach",
-      "/scan-snooker": "Scan Snooker",
+      "/scan-snooker": "Scan a Snooker",
       "/community": "Community",
       "/plans": "Plans",
       "/support": "Support",

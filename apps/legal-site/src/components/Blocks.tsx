@@ -1,24 +1,24 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { Link } from "react-router";
-import { AnimatePresence, motion, useInView, type HTMLMotionProps } from "motion/react";
+import { AnimatePresence, motion, useInView } from "motion/react";
 import { ArrowRight, Check, Minus, Plus } from "lucide-react";
 import { Phone } from "./Phone";
 import type { Screen } from "../site";
 
-const EASE = [0.2, 0, 0, 1] as const;
-
-/** Fades content up once as it comes on screen. */
-export function Reveal({ delay = 0, children, ...rest }: HTMLMotionProps<"div"> & { delay?: number }) {
+/**
+ * Fades content up once as it comes on screen. The hidden state is CSS on <html class="js">
+ * and an observer (see App) adds .in, so anything the observer misses simply shows.
+ */
+export function Reveal({
+  delay = 0,
+  className,
+  children,
+  ...rest
+}: ComponentPropsWithoutRef<"div"> & { delay?: number }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "0px 0px -10% 0px" }}
-      transition={{ duration: 0.6, ease: EASE, delay }}
-      {...rest}
-    >
+    <div className={`rv ${className ?? ""}`} style={{ ["--rv-delay" as string]: `${delay}s` }} {...rest}>
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -226,7 +226,7 @@ export function Cta({
               <span className="store on-dark" aria-label="Coming soon to the App Store">
                 <AppleLogo />
                 <span>
-                  <small>Coming soon to</small>the App Store
+                  <small>Coming soon to</small>{" "}the App Store
                 </span>
               </span>
               <Link className="btn btn-ghost" to="/support">

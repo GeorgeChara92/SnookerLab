@@ -24,12 +24,12 @@ function Hero() {
           <Reveal>
             <p className="eyebrow">The snooker app</p>
             <h1 className="display-xl">
-              Your snooker game, <span className="hero-accent">in one place.</span>
+              Your snooker, <span className="hero-accent">on the scoreboard.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.08}>
             <p className="lead">
-              Score matches. Practise with purpose. Track your progress, get coaching on your own game, and play your mates.
+              Score matches. Practise with purpose. Track your progress, get coaching from your own game and play your mates.
             </p>
           </Reveal>
           <Reveal delay={0.16} className="hero-actions">
@@ -138,7 +138,7 @@ function Scoring() {
     <section className="section dark have-a-go" id="scoring">
       <div className="wrap have-grid">
         <Reveal className="have-copy">
-          <p className="eyebrow">Scoring</p>
+          <p className="eyebrow">Live scoring · have a go</p>
           <h2 className="display-l">Tap the ball. That is it.</h2>
           <p className="lead">
             Snookered keeps the score, the break and the points left on the table, knows when snookers are needed, and settles
@@ -165,7 +165,7 @@ function Scoring() {
 
 const SECONDARY: { icon: typeof Trophy; title: string; body: string; to?: string; soon?: boolean }[] = [
   { icon: Trophy, title: "Tournaments", body: "Knockouts and leagues for your club, with the draw, fixtures and results kept for you." },
-  { icon: ScanLine, title: "Scan Snooker", body: "Record a snooker, then put every ball back in AR after a miss.", to: "/scan-snooker", soon: true },
+  { icon: ScanLine, title: "Scan a Snooker", body: "Scan the table before a snooker, then put every ball back in AR after a miss.", to: "/scan-snooker", soon: true },
   { icon: Users, title: "Groups and boards", body: "A group for your league, with chat, a feed of results and pinned routines.", to: "/community" },
   { icon: Newspaper, title: "Pro tour news", body: "The latest from the World Snooker Tour and BBC Sport, next to your own game." },
   { icon: Medal, title: "Achievements", body: "Level up for the things that matter: centuries, streaks, wins and practice." },
@@ -178,8 +178,8 @@ function Secondary() {
       <div className="wrap">
         <Reveal className="section-head split">
           <div>
-            <p className="eyebrow">The rest of it</p>
-            <h2 className="display-l">And everything else.</h2>
+            <p className="eyebrow">More for your game</p>
+            <h2 className="display-l">And there’s more.</h2>
           </div>
           <p className="lead">The parts you meet once you are in: club nights, your league, and the bits that make a season.</p>
         </Reveal>
@@ -247,11 +247,11 @@ function Gallery() {
         </Reveal>
       </div>
       <div className="gallery" tabIndex={0} aria-label="More screens from the app">
-        {GALLERY.map((item, index) => (
-          <Reveal key={item.screen} delay={index * 0.05} className="gallery-item">
+        {GALLERY.map((item) => (
+          <div key={item.screen} className="gallery-item">
             <Phone screen={item.screen} alt={item.alt} sizes="(max-width: 860px) 62vw, 250px" />
             <p>{item.caption}</p>
-          </Reveal>
+          </div>
         ))}
       </div>
     </section>
@@ -267,9 +267,9 @@ export default function Home() {
       <Scoring />
       <Feature
         id="practice"
-        eyebrow="Practice"
         tone="alt"
         flip
+        eyebrow="Practice"
         title="Practice with a point to it."
         body="Build a routine around the part of your game that needs it, or run one from the library. Each has a score to beat, your progress over time, and a leaderboard."
         points={[
@@ -287,7 +287,23 @@ export default function Home() {
         link={{ to: "/practice", label: "Explore practice" }}
       />
       <Feature
+        id="scan"
+        tone="dark"
+        eyebrow="Scan a Snooker · AR"
+        soon
+        title="Put the balls back, like the referees on TV."
+        body="Scan the table before you play the snooker. If the escape misses, a ghost of every ball appears on the real table, so everything goes back exactly where it was."
+        points={[
+          "Calibrates from any two spots or pockets",
+          "A table diagram to check and tweak the scan",
+          "The same camera sets a routine up, ball by ball",
+        ]}
+        visual={<ScanDemo />}
+        link={{ to: "/scan-snooker", label: "How it works" }}
+      />
+      <Feature
         id="coach"
+        flip
         eyebrow="Coach"
         title="Turn your game into feedback."
         body="Film a few shots, upload the clip, and get a report on your technique: what is working, the one thing to fix first, and the routines that train it."
@@ -306,19 +322,8 @@ export default function Home() {
         link={{ to: "/coach", label: "See how the coach works" }}
       />
       <Feature
-        id="stats"
-        eyebrow="Stats"
-        tone="alt"
-        flip
-        title="The numbers that actually matter."
-        body="Form over your recent matches, your practice week by week, high breaks and head-to-heads. Enough to tell whether you are playing better than last month, without wading through charts."
-        visual={
-          <Phone screen="stats" alt="The stats screen: this week, form and practice rhythm" sizes="(max-width: 900px) 74vw, 300px" />
-        }
-        link={{ to: "/scoring", label: "More on matches and stats" }}
-      />
-      <Feature
         id="community"
+        tone="alt"
         eyebrow="Community"
         title="Play the people you know."
         body="Add the friend you played and the match counts for both of you once they confirm it. Follow their frames live, and run a group for your league with its own chat, feed and leaderboards."
@@ -336,20 +341,15 @@ export default function Home() {
         link={{ to: "/community", label: "Explore community" }}
       />
       <Feature
-        id="scan"
-        eyebrow="Scan Snooker · AR"
-        soon
-        tone="dark"
+        id="stats"
         flip
-        title="Put the balls back, like the referees on TV."
-        body="Scan the table before you play the snooker. If the escape misses, a ghost of every ball appears on the real table, so everything goes back exactly where it was."
-        points={[
-          "Calibrates from any two spots or pockets",
-          "A table diagram to check and tweak the scan",
-          "The same camera sets a routine up, ball by ball",
-        ]}
-        visual={<ScanDemo />}
-        link={{ to: "/scan-snooker", label: "How Scan Snooker works" }}
+        eyebrow="Stats"
+        title="The numbers that actually matter."
+        body="Form over your recent matches, your practice week by week, high breaks and head-to-heads. Enough to tell whether you are playing better than last month, without wading through charts."
+        visual={
+          <Phone screen="stats" alt="The stats screen: this week, form and practice rhythm" sizes="(max-width: 900px) 74vw, 300px" />
+        }
+        link={{ to: "/scoring", label: "More on matches and stats" }}
       />
       <Gallery />
       <Secondary />

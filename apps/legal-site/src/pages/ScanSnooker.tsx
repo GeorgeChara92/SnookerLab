@@ -30,12 +30,12 @@ export default function ScanSnooker() {
   return (
     <>
       <PageHero
-        eyebrow="Scan Snooker"
+        eyebrow="Scan a Snooker"
         soon
         title="Replace the balls properly."
         lead="In a club with no referee, putting the balls back after a foul and a miss is guesswork, and it costs frames. Scan the table first and Snookered shows you exactly where everything was."
         strip={
-          <Strip label="Scan Snooker: six balls recorded, ready to replace" tag="Scan">
+          <Strip label="Scan a snooker: six balls recorded, ready to replace" tag="Scan">
             <span className="strip-name">6 balls</span>
             <i className="strip-sep" aria-hidden="true" />
             <span className="strip-dim hide-sm">Recorded</span>
@@ -107,7 +107,7 @@ export default function ScanSnooker() {
             </ul>
           </Reveal>
           <Reveal delay={0.1} className="feature-visual">
-            <Placeholder label="Scan Snooker on an iPhone" note="Ghost balls on the real table, after a miss" />
+            <Placeholder label="Scan a Snooker on an iPhone" note="Ghost balls on the real table, after a miss" />
           </Reveal>
         </div>
       </section>
@@ -145,7 +145,7 @@ export default function ScanSnooker() {
         </div>
       </section>
 
-      <Cta title="Fancy testing it?" body="If you have a table and an iPhone, we would love your help trying Scan Snooker on a real table." />
+      <Cta title="Fancy testing it?" body="If you have a table and an iPhone, we would love your help testing it on a real table." />
     </>
   );
 }

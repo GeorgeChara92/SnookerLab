@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Check, LineChart, Upload, Video, Wand2 } from "lucide-react";
+import { Check, LineChart, Target, Upload, Video, Wand2 } from "lucide-react";
 import { Phone } from "../components/Phone";
 import { CoachReport } from "../components/Showcase";
 import { Arrow, Faq, PageHero, Reveal, Strip } from "../components/Blocks";
@@ -9,7 +9,8 @@ const STEPS = [
   { icon: Video, title: "Record a clip", body: "Prop your phone up and play. A few shots or a short break is plenty." },
   { icon: Upload, title: "Upload it", body: "Pick the clip in the app. It is yours: nobody else sees it." },
   { icon: Wand2, title: "It watches the video", body: "The coach reads your stance, cue action and what happened on the table." },
-  { icon: LineChart, title: "Work on one thing", body: "You get what went well, what to fix first, and the routines that train it." },
+  { icon: LineChart, title: "Get the feedback", body: "What went well, what to fix first, and why it matters on the table." },
+  { icon: Target, title: "Practise it", body: "It picks the routines that train the fix, ready to run in your next session." },
 ];
 
 /** Straight from a real report, so the page shows the output rather than describing it. */
@@ -33,8 +34,8 @@ export default function Coach() {
     <>
       <PageHero
         eyebrow="Coach"
-        title="Your personal snooker coach."
-        lead="Record a clip of your game and get AI-powered feedback on your technique, what you are doing well, and the one thing to work on next."
+        title="A coach that watches you play."
+        lead="Record a clip of your game and get AI-powered feedback on your technique, the moments that matter, and what to work on next."
         strip={
           <Strip label="Coach report: technique, reviewed" tag="Report">
             <span className="strip-name">Technique</span>
@@ -48,7 +49,7 @@ export default function Coach() {
       <section className="section tight alt">
         <div className="wrap">
           <Reveal className="section-head split">
-            <h2 className="display-l">Four steps, one evening.</h2>
+            <h2 className="display-l">Five steps, one evening.</h2>
             <p className="lead">No sensors, no marker dots on the cue, no special table. Just your phone propped on a chair.</p>
           </Reveal>
           <div className="steps">

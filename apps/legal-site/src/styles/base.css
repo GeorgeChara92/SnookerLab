@@ -353,3 +353,26 @@ h4 {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ------------------------------------------------------------------ reveal on scroll */
+/* Hidden only when scripting is on, so the content is always there without it. */
+.js .rv {
+  opacity: 0;
+  translate: 0 14px;
+  transition:
+    opacity 600ms var(--ease) var(--rv-delay, 0s),
+    translate 600ms var(--ease) var(--rv-delay, 0s);
+}
+
+.js .rv.in {
+  opacity: 1;
+  translate: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js .rv {
+    opacity: 1;
+    translate: none;
+    transition: none;
+  }
+}

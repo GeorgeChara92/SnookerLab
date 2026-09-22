@@ -8,7 +8,7 @@ export const ROUTES: RouteMeta[] = [
     path: "/",
     title: "Snookered · Snooker scoring, practice and club app",
     description:
-      "The all-in-one snooker app: score frames ball by ball, build practice routines, get AI coaching from a clip of your game, and play friends in matches that count. Coming soon to iPhone.",
+      "Score matches ball by ball, practise with purpose, track your progress, get coaching from a clip of your own game and play your mates. Coming soon to iPhone.",
   },
   {
     path: "/scoring",
@@ -30,9 +30,9 @@ export const ROUTES: RouteMeta[] = [
   },
   {
     path: "/scan-snooker",
-    title: "Scan Snooker: replace the balls after a miss in AR · Snookered",
+    title: "Scan a Snooker: replace the balls after a miss in AR · Snookered",
     description:
-      "Scan the table before a snooker, then put every ball back exactly where it was after a foul and a miss, using AR ghosts on the real table. Also sets routines up ball by ball.",
+      "Scan the table before you play a snooker, then put every ball back exactly where it was after a foul and a miss, using AR ghosts on the real table.",
   },
   {
     path: "/community",
@@ -71,7 +71,7 @@ export const NAV = [
 
 /** In the menu and the footer, not the top bar: it is a feature, not a section of the site. */
 export const MORE_NAV = [
-  { to: "/scan-snooker", label: "Scan Snooker" },
+  { to: "/scan-snooker", label: "Scan a Snooker" },
   { to: "/support", label: "Support" },
 ];
 
@@ -95,7 +95,7 @@ export const PLANS = [
     name: "Free",
     line: "Start your game.",
     who: "For players trying it out.",
-    items: ["12 matches a month", "1 tournament a month", "1 AI coach review a month", "Practice routines and sessions"],
+    items: ["12 matches a month", "1 tournament a month", "1 Coach review a month", "Practice routines and sessions"],
   },
   {
     name: "Half-Century",
@@ -105,7 +105,7 @@ export const PLANS = [
     items: [
       "40 matches a month",
       "4 tournaments a month",
-      "8 AI coach reviews a month",
+      "8 Coach reviews a month",
       "The full routine library and advanced tracking",
     ],
   },
@@ -116,7 +116,7 @@ export const PLANS = [
     items: [
       "Unlimited matches",
       "Unlimited tournaments",
-      "20 AI coach reviews a month",
+      "20 Coach reviews a month",
       "The full analytics suite and early access to new features",
     ],
   },
@@ -125,7 +125,7 @@ export const PLANS = [
 export const COMPARE: [string, string, string, string][] = [
   ["Matches a month", "12", "40", "Unlimited"],
   ["Tournaments a month", "1", "4", "Unlimited"],
-  ["AI coach reviews a month", "1", "8", "20"],
+  ["Coach reviews a month", "1", "8", "20"],
   ["Practice routines and sessions", "yes", "yes", "yes"],
   ["Playing friends and groups", "yes", "yes", "yes"],
   ["The full routine library", "no", "yes", "yes"],
