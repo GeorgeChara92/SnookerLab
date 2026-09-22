@@ -371,6 +371,13 @@ export type CommunityStackParamList = {
   RoutineLibrary: undefined;
   /** Every routine leaderboard, searchable. */
   RoutineBoards: undefined;
+  Chats: undefined;
+  Chat: { conversationId: string };
+  NewChat: undefined;
+  Groups: undefined;
+  Group: { groupId: string };
+  /** Creating a group, or its settings when given one. */
+  GroupForm: { groupId?: string };
   SharedRoutine: { id: string };
   Leaderboards: undefined;
   /** One routine's leaderboard; the key is a library routine's id or "shared:<id>". */

@@ -12,6 +12,7 @@ import { CommunityAvatar, flagOf } from "../../components/community/CommunityAva
 import { ReportSheet } from "../../components/community/ReportSheet";
 import { SharedRoutineCard } from "../../components/community/SharedRoutineCard";
 import { routinesBy, type SharedRoutine } from "../../features/community/sharedRoutines";
+import { startDirect } from "../../features/community/chat";
 import { nameOf, relationTo, type PublicProfile, type PublicStats } from "../../features/community/types";
 import { LEVELS } from "../../constants/achievements";
 import { getCountryByCode, getCuePreferenceLabel } from "../../constants/profileOptions";
@@ -233,6 +234,42 @@ export const PlayerProfileScreen = () => {
         </View>
         {profile.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profile.bio}</Text> : null}
       </View>
+
+      {relation !== "self" &&
+      relation !== "blocked" &&
+      profile.messagePrivacy !== "nobody" &&
+      (relation === "friends" || profile.messagePrivacy === "everyone") ? (
+        <Pressable
+          onPress={async () => {
+            setBusy(true);
+            const result = await startDirect(otherId);
+            setBusy(false);
+            if (result.ok) navigation.navigate("Chat", { conversationId: result.value });
+            else
+              dialog.alert({
+                title: `You cannot message ${name}`,
+                message: result.message,
+                icon: "message-lock-outline",
+              });
+          }}
+          disabled={busy}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.primary,
+            {
+              backgroundColor: colors.surface,
+              borderWidth: 1,
+              borderColor: colors.primary,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <MaterialCommunityIcons name="chat-outline" size={20} color={colors.primary} />
+          <Text style={[styles.primaryText, { color: colors.primary }]}>
+            {relation === "friends" ? "Message" : "Send a message request"}
+          </Text>
+        </Pressable>
+      ) : null}
 
       {primary ? (
         <Pressable

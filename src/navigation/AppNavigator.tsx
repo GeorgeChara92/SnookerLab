@@ -14,6 +14,7 @@ import {
 } from "../store";
 import { useScanSnookerStore } from "../store/scanSnookerStore";
 import { useCommunityStore } from "../store/communityStore";
+import { useChatStore } from "../store/chatStore";
 import { navigationRef } from "./navigationRef";
 import { routineIdFromLink } from "../features/community/links";
 
@@ -97,6 +98,8 @@ export const AppNavigator = () => {
       useScanSnookerStore.getState().setOwner(id);
       useCommunityStore.getState().setOwner(id);
       void useCommunityStore.getState().hydrate(id);
+      useChatStore.getState().setOwner(id);
+      void useChatStore.getState().refresh();
       // Not waited for: positions are only needed once a match is open.
       void useScanSnookerStore.getState().hydrate(id);
       const loaded = Promise.allSettled([
@@ -145,6 +148,7 @@ export const AppNavigator = () => {
     usePracticePlanStore.getState().setOwner(null);
     useScanSnookerStore.getState().setOwner(null);
     useCommunityStore.getState().setOwner(null);
+    useChatStore.getState().setOwner(null);
     setReadyUserId(null);
   }, []);
 

@@ -5,6 +5,7 @@ import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { useCommunityStore } from "../../store/communityStore";
+import { splitBadges, useChatBadges } from "../../store/chatStore";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { nameOf, relationTo, type PublicProfile, type Relation } from "../../features/community/types";
@@ -25,6 +26,7 @@ export const CommunityHomeScreen = () => {
   const { me, loaded, friendships, profiles, blocked, hydrate, search, sendRequest, accept, removeFriendship } =
     useCommunityStore();
   const [segment, setSegment] = useState<Segment>("friends");
+  const badges = splitBadges(useChatBadges());
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
   const [searching, setSearching] = useState(false);
@@ -230,8 +232,30 @@ export const CommunityHomeScreen = () => {
       <View style={styles.tiles}>
         {(
           [
-            { route: "RoutineLibrary", icon: "table-furniture", title: "Routines", hint: "Top, new, friends'" },
-            { route: "Leaderboards", icon: "podium", title: "Leaderboards", hint: "Level, breaks, routines" },
+            {
+              route: "Chats",
+              icon: "chat-outline",
+              title: "Chats",
+              hint: badges.requests
+                ? `${badges.requests} new ${badges.requests === 1 ? "request" : "requests"}`
+                : "Friends and groups",
+              badge: badges.unread + badges.requests,
+            },
+            {
+              route: "Groups",
+              icon: "account-multiple-outline",
+              title: "Groups",
+              hint: "Clubs, leagues, teams",
+              badge: 0,
+            },
+            {
+              route: "RoutineLibrary",
+              icon: "table-furniture",
+              title: "Routines",
+              hint: "Top, new, friends'",
+              badge: 0,
+            },
+            { route: "Leaderboards", icon: "podium", title: "Leaderboards", hint: "Level, breaks, routines", badge: 0 },
           ] as const
         ).map((tile) => (
           <Pressable
@@ -245,6 +269,11 @@ export const CommunityHomeScreen = () => {
           >
             <View style={[styles.tileIcon, { backgroundColor: colors.board }]}>
               <MaterialCommunityIcons name={tile.icon} size={22} color={colors.boardRule} />
+              {tile.badge ? (
+                <View style={[styles.tileBadge, { backgroundColor: colors.danger, borderColor: colors.surface }]}>
+                  <Text style={styles.tileBadgeText}>{tile.badge > 99 ? "99+" : tile.badge}</Text>
+                </View>
+              ) : null}
             </View>
             <Text style={[styles.tileTitle, { color: colors.text }]}>{tile.title}</Text>
             <Text style={[styles.tileHint, { color: colors.textMuted }]} numberOfLines={1}>
@@ -487,8 +516,21 @@ const styles = StyleSheet.create({
   meCountLabel: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 1 },
   gear: { minWidth: 32, minHeight: HIT_TARGET, alignItems: "flex-end", justifyContent: "center" },
   segments: { flexDirection: "row", borderRadius: RADIUS.md, padding: 3, gap: 3 },
-  tiles: { flexDirection: "row", gap: SPACING.sm },
-  tile: { flex: 1, borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: 4 },
+  tiles: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
+  tile: { flexBasis: "47%", flexGrow: 1, borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: 4 },
+  tileBadge: {
+    position: "absolute",
+    top: -6,
+    right: -8,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  tileBadgeText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
   tileIcon: {
     width: 40,
     height: 40,

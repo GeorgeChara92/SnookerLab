@@ -23,6 +23,7 @@ import {
 } from "../store";
 import { useScanSnookerStore } from "../store/scanSnookerStore";
 import { useCommunityStore } from "../store/communityStore";
+import { useChatStore } from "../store/chatStore";
 import { hasPendingWrites, type SyncScope } from "./outbox";
 
 /**
@@ -45,6 +46,11 @@ const TABLE_SCOPES: Record<string, SyncScope> = {
   scan_positions: "scans",
   friendships: "community",
   blocks: "community",
+  messages: "chat",
+  conversations: "chat",
+  conversation_members: "chat",
+  group_members: "chat",
+  group_invites: "chat",
 };
 
 const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
@@ -57,6 +63,7 @@ const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
   plan: (userId) => usePracticePlanStore.getState().hydrate(userId),
   scans: (userId) => useScanSnookerStore.getState().hydrate(userId),
   community: (userId) => useCommunityStore.getState().hydrate(userId),
+  chat: () => useChatStore.getState().refresh(),
 };
 
 /** A burst of changes (a fixture, its frames, the tournament row) should cause one refresh. */

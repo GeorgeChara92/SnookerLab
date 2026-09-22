@@ -8,6 +8,7 @@ import { PracticeNavigator } from "./PracticeNavigator";
 import { CommunityNavigator } from "./CommunityNavigator";
 import { useAuthStore } from "../store";
 import { useCommunityStore } from "../store/communityStore";
+import { splitBadges, useChatBadges } from "../store/chatStore";
 import { MatchesNavigator } from "./MatchesNavigator";
 import { StatsNavigator } from "./StatsNavigator";
 import { AICoachNavigator } from "./AICoachNavigator";
@@ -24,9 +25,12 @@ export const MainTabNavigator = () => {
   const { colors } = useAppTheme();
   const userId = useAuthStore((state) => state.user?.id ?? null);
   // Friend requests waiting for this player, on the Community tab.
-  const waiting = useCommunityStore(
+  const friendRequests = useCommunityStore(
     (state) => state.friendships.filter((item) => item.status === "pending" && item.addressee === userId).length
   );
+  const chat = splitBadges(useChatBadges());
+  // Friend requests, message requests and chats with something unread.
+  const waiting = friendRequests + chat.requests + chat.unread;
 
   return (
     <Tab.Navigator
