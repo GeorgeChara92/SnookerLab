@@ -387,7 +387,13 @@ export const RoutineDetailScreen = () => {
                   <View style={styles.entryHeader}>
                     <Text style={[styles.entryScore, { color: colors.text }]}>{entry.score}</Text>
                     <Text style={[styles.entryDate, { color: colors.textMuted }]}>
-                      {new Date(entry.recorded_at).toLocaleString()}
+                      {new Date(entry.recorded_at).toLocaleDateString(undefined, {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      })}
+                      {" · "}
+                      {new Date(entry.recorded_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </Text>
                   </View>
                   {entry.notes ? (

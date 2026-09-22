@@ -226,7 +226,11 @@ export const DashboardScreen = () => {
   const analytics = useMemo(() => {
     // Practice days: session logs and routine scores. Matches are shown separately.
     const practiceDayKeys = [...logs.map((log) => log.date), ...entries.map((entry) => dateKeyFrom(entry.recorded_at))];
-    const practiceCounts = countByDay(practiceDayKeys);
+    // Counted as Home counts them: each routine played, in a session or on its own.
+    const practiceCounts = countByDay([
+      ...logs.flatMap((log) => log.results.map(() => dateKeyFrom(log.date))),
+      ...entries.map((entry) => dateKeyFrom(entry.recorded_at)),
+    ]);
     const activeDayKeys = new Set(practiceDayKeys);
 
     const now = new Date();
