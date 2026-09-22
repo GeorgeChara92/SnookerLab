@@ -4,8 +4,14 @@
     {
       "name": "website",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "serve@14", "apps/legal-site", "-l", "5500"],
-      "port": 5500
+      "runtimeArgs": ["--yes", "serve@14", "apps/legal-site/dist", "-l", "5611"],
+      "port": 5611
+    },
+    {
+      "name": "website-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/legal-site", "run", "dev", "--", "--port", "5612", "--strictPort"],
+      "port": 5612
     }
   ]
 }
