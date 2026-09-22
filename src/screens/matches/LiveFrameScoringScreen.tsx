@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -18,6 +18,9 @@ import { useAuthStore, useMatchesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppDialog, type DialogRequest } from "../../components/ui/AppDialog";
 import { FoulSheet } from "../../components/matches/FoulSheet";
+import { useLiveBroadcast } from "../../features/matches/useLiveBroadcast";
+import { useSharePrefsStore } from "../../store/sharePrefsStore";
+import { HeaderIconButton } from "../../navigation/stackOptions";
 import {
   BALL_POINTS,
   COLOR_SEQUENCE,
@@ -34,7 +37,9 @@ import {
   switchPlayer,
   type LiveBall,
   type LiveFoulType,
-  type LiveFrameState, lastBallFor } from "../../features/matches/liveFrameEngine";
+  type LiveFrameState,
+  lastBallFor,
+} from "../../features/matches/liveFrameEngine";
 import { clearLiveFrame, loadLiveFrame, saveLiveFrame } from "../../features/matches/liveFrameStorage";
 import { RADIUS, SCRIM, SPACING, DISPLAY_TEXT_SCALE } from "../../constants";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -112,11 +117,15 @@ export const LiveFrameScoringScreen = () => {
   const { width: screenWidth } = useWindowDimensions();
   const { colors, isDark } = useAppTheme();
   const { user } = useAuthStore();
-  const { getMatchById, getFrameRecordsByMatchId, getNextFrameNumber, saveFrameRecord, updateMatch, deleteMatch } = useMatchesStore();
+  const { getMatchById, getFrameRecordsByMatchId, getNextFrameNumber, saveFrameRecord, updateMatch, deleteMatch } =
+    useMatchesStore();
   const match = getMatchById(route.params.matchId);
 
   const frameRecords = getFrameRecordsByMatchId(route.params.matchId);
-  const frameNumber = useMemo(() => getNextFrameNumber(route.params.matchId), [getNextFrameNumber, route.params.matchId, frameRecords.length]);
+  const frameNumber = useMemo(
+    () => getNextFrameNumber(route.params.matchId),
+    [getNextFrameNumber, route.params.matchId, frameRecords.length]
+  );
   const [frame, setFrame] = useState<LiveFrameState>(() => createInitialLiveFrameState(frameNumber));
   const frameRef = useRef(frame);
   const hasRestoredFrameRef = useRef(false);
@@ -187,8 +196,35 @@ export const LiveFrameScoringScreen = () => {
   }, [isMatchComplete, match, navigation]);
   const stakes = nextFrameStakes(matchFrameWins, firstToWins);
 
+  // Friends and groups can follow the match while it is scored; the header switch turns it off.
+  const live = useLiveBroadcast({
+    match,
+    frame,
+    records: frameRecords,
+    bestOf: bestOfFrames,
+    finished: isMatchComplete,
+  });
+  const setSharePrefs = useSharePrefsStore((state) => state.set);
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: live.available
+        ? () => (
+            <HeaderIconButton
+              icon={live.sharing ? "access-point" : "access-point-off"}
+              color={live.sharing ? colors.primary : colors.textMuted}
+              label={live.sharing ? "Live: friends can follow. Tap to stop" : "Not shared live. Tap to share"}
+              onPress={() => setSharePrefs({ liveSharing: !live.sharing })}
+            />
+          )
+        : undefined,
+    });
+  }, [colors.primary, colors.textMuted, live.available, live.sharing, navigation, setSharePrefs]);
+
   const frameStats = useMemo(() => summarizeFrameStats(frame), [frame]);
-  const selectedSavedFrame = useMemo(() => frameRecords.find((record) => record.id === selectedSavedFrameId), [frameRecords, selectedSavedFrameId]);
+  const selectedSavedFrame = useMemo(
+    () => frameRecords.find((record) => record.id === selectedSavedFrameId),
+    [frameRecords, selectedSavedFrameId]
+  );
   const scoreDiff = Math.abs(frame.userScore - frame.opponentScore);
   const potCounts = useMemo(() => {
     const createEmptyCounts = (): Record<LiveBall, number> => ({
@@ -232,7 +268,17 @@ export const LiveFrameScoringScreen = () => {
         potCounts: potCounts.opponent,
       },
     ],
-    [frame.atTable, frame.highestBreakOpponent, frame.highestBreakUser, frame.opponentScore, frame.userScore, opponentLabel, potCounts.opponent, potCounts.user, userLabel]
+    [
+      frame.atTable,
+      frame.highestBreakOpponent,
+      frame.highestBreakUser,
+      frame.opponentScore,
+      frame.userScore,
+      opponentLabel,
+      potCounts.opponent,
+      potCounts.user,
+      userLabel,
+    ]
   );
 
   const orderedPlayerCards = useMemo(
@@ -409,7 +455,10 @@ export const LiveFrameScoringScreen = () => {
     return ["#737373", "#252525", "#070707"];
   };
 
-  const applyFrameMutation = (mutator: (state: LiveFrameState) => LiveFrameState, options?: { scoreChange?: boolean }) => {
+  const applyFrameMutation = (
+    mutator: (state: LiveFrameState) => LiveFrameState,
+    options?: { scoreChange?: boolean }
+  ) => {
     // Read from a ref so rapid taps always build on the latest state, and keep side effects
     // out of the state updater (React may run updaters twice).
     const current = frameRef.current;
@@ -487,7 +536,9 @@ export const LiveFrameScoringScreen = () => {
 
   const applyFoul = () => {
     const penalty = Math.max(foulValue, minimumFoulValue);
-    applyFrameMutation((state) => recordFoul(state, foulValue, foulType, foulNote.trim() || undefined), { scoreChange: true });
+    applyFrameMutation((state) => recordFoul(state, foulValue, foulType, foulNote.trim() || undefined), {
+      scoreChange: true,
+    });
     showFoulBanner(`${FOUL_LABELS[foulType]} (+${penalty})`);
     setFoulNote("");
     setIsFoulOpen(false);
@@ -537,25 +588,23 @@ export const LiveFrameScoringScreen = () => {
 
       // The match is over: the overview opens by itself once the frame is in the store.
       if (projectedMatchWinner) return;
-      setDialog(
-        {
-              title: abandoned ? "Frame abandoned" : "Frame saved",
-              message: abandoned
-                ? "Saved for your records. It does not count for either player."
-                : `${frame.userScore}-${frame.opponentScore} to ${frameWinner === "user" ? userLabel : opponentLabel}.`,
-              tone: "success",
-              icon: abandoned ? "archive-outline" : "check-circle-outline",
-              confirmLabel: "Next frame",
-              cancelLabel: "Back to match",
-              onConfirm: () => {
-                const nextFrame = createInitialLiveFrameState(frame.frameNumber + 1, frame.atTable);
-                frameRef.current = nextFrame;
-                setFrame(nextFrame);
-                setUndoStack([]);
-              },
-              onCancel: () => navigation.goBack(),
-            }
-      );
+      setDialog({
+        title: abandoned ? "Frame abandoned" : "Frame saved",
+        message: abandoned
+          ? "Saved for your records. It does not count for either player."
+          : `${frame.userScore}-${frame.opponentScore} to ${frameWinner === "user" ? userLabel : opponentLabel}.`,
+        tone: "success",
+        icon: abandoned ? "archive-outline" : "check-circle-outline",
+        confirmLabel: "Next frame",
+        cancelLabel: "Back to match",
+        onConfirm: () => {
+          const nextFrame = createInitialLiveFrameState(frame.frameNumber + 1, frame.atTable);
+          frameRef.current = nextFrame;
+          setFrame(nextFrame);
+          setUndoStack([]);
+        },
+        onCancel: () => navigation.goBack(),
+      });
     } catch (error) {
       setDialog({
         title: "Could not save the frame",
@@ -628,7 +677,16 @@ export const LiveFrameScoringScreen = () => {
     });
 
     return unsubscribe;
-  }, [deleteMatch, frame.events.length, frame.opponentScore, frame.userScore, frameRecords.length, isSaving, match, navigation]);
+  }, [
+    deleteMatch,
+    frame.events.length,
+    frame.opponentScore,
+    frame.userScore,
+    frameRecords.length,
+    isSaving,
+    match,
+    navigation,
+  ]);
 
   useEffect(() => {
     if (!match) {
@@ -641,7 +699,7 @@ export const LiveFrameScoringScreen = () => {
 
   if (!match) {
     return (
-      <View style={[styles.missingWrap, { backgroundColor: colors.background }]}> 
+      <View style={[styles.missingWrap, { backgroundColor: colors.background }]}>
         <Text style={[styles.missingText, { color: colors.textMuted }]}>Match not found</Text>
         <Text style={[styles.missingSubtext, { color: colors.textMuted }]}>Redirecting to matches...</Text>
       </View>
@@ -649,14 +707,18 @@ export const LiveFrameScoringScreen = () => {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: ui.page }]}> 
+    <View style={[styles.screen, { backgroundColor: ui.page }]}>
       {/* Faded out while tucked away: empty and half off-screen, they showed as two stray circles. */}
       <Animated.View
         pointerEvents="none"
         style={[
           styles.foulBanner,
           {
-            opacity: foulBannerY.interpolate({ inputRange: [-70, -20, 0], outputRange: [0, 1, 1], extrapolate: "clamp" }),
+            opacity: foulBannerY.interpolate({
+              inputRange: [-70, -20, 0],
+              outputRange: [0, 1, 1],
+              extrapolate: "clamp",
+            }),
             transform: [{ translateY: foulBannerY }],
           },
         ]}
@@ -668,7 +730,11 @@ export const LiveFrameScoringScreen = () => {
         style={[
           styles.noticeBanner,
           {
-            opacity: noticeBannerY.interpolate({ inputRange: [-70, -20, 0], outputRange: [0, 1, 1], extrapolate: "clamp" }),
+            opacity: noticeBannerY.interpolate({
+              inputRange: [-70, -20, 0],
+              outputRange: [0, 1, 1],
+              extrapolate: "clamp",
+            }),
             transform: [{ translateY: noticeBannerY }],
           },
         ]}
@@ -676,7 +742,7 @@ export const LiveFrameScoringScreen = () => {
         <Text style={styles.noticeBannerText}>{potNotice ?? ""}</Text>
       </Animated.View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 12, paddingBottom: insets.bottom + 188 }]}> 
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: 12, paddingBottom: insets.bottom + 188 }]}>
         <View style={[styles.scoreboard, { backgroundColor: ui.panel, borderColor: ui.border }]}>
           <View style={styles.scoreboardTop}>
             <Text style={[styles.scoreboardFrame, { color: ui.textMuted }]}>
@@ -736,7 +802,12 @@ export const LiveFrameScoringScreen = () => {
                         {card.score}
                       </Animated.Text>
                     </View>
-                    <View style={[styles.scoreUnderline, { backgroundColor: card.isActive ? colors.primary : "transparent" }]} />
+                    <View
+                      style={[
+                        styles.scoreUnderline,
+                        { backgroundColor: card.isActive ? colors.primary : "transparent" },
+                      ]}
+                    />
                     <Text style={[styles.scoreMeta, { color: ui.textMuted }]}>
                       {card.isActive ? "At the table" : `High break ${card.highBreak}`}
                     </Text>
@@ -782,7 +853,6 @@ export const LiveFrameScoringScreen = () => {
               <Text style={[styles.snookerBannerText, { color: ui.text }]}>Scores level - black re-spotted</Text>
             </View>
           ) : null}
-
         </View>
 
         <View style={styles.tabRow}>
@@ -802,7 +872,9 @@ export const LiveFrameScoringScreen = () => {
               ]}
               onPress={() => setActiveTab(tab.key as "match" | "stats" | "log")}
             >
-              <Text style={[styles.tabPillText, { color: activeTab === tab.key ? colors.onPrimary : ui.textMuted }]}>{tab.label}</Text>
+              <Text style={[styles.tabPillText, { color: activeTab === tab.key ? colors.onPrimary : ui.textMuted }]}>
+                {tab.label}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -824,28 +896,33 @@ export const LiveFrameScoringScreen = () => {
                 keyboardType="numeric"
                 editable={!isUpdatingRace}
                 accessibilityLabel="Frames in this match"
-                style={[styles.raceInput, { borderColor: ui.borderStrong, backgroundColor: ui.panelSoft, color: ui.text }]}
+                style={[
+                  styles.raceInput,
+                  { borderColor: ui.borderStrong, backgroundColor: ui.panelSoft, color: ui.text },
+                ]}
                 placeholder="Best of"
                 placeholderTextColor={ui.textMuted}
               />
             </View>
-            {isUpdatingRace ? <Text style={[styles.matchContext, { color: ui.textMuted }]}>Updating match length...</Text> : null}
+            {isUpdatingRace ? (
+              <Text style={[styles.matchContext, { color: ui.textMuted }]}>Updating match length...</Text>
+            ) : null}
           </View>
         ) : null}
 
         {activeTab === "stats" ? (
-          <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
+          <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}>
             <Text style={[styles.sectionTitle, { color: ui.text }]}>Frame Stats</Text>
             <View style={styles.infoRow}>
-              <View style={[styles.infoChip, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
+              <View style={[styles.infoChip, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}>
                 <Text style={[styles.infoChipLabel, { color: ui.textMuted }]}>Reds</Text>
                 <Text style={[styles.infoChipValue, { color: ui.text }]}>{frame.redsRemaining}</Text>
               </View>
-              <View style={[styles.infoChip, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
+              <View style={[styles.infoChip, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}>
                 <Text style={[styles.infoChipLabel, { color: ui.textMuted }]}>Remaining</Text>
                 <Text style={[styles.infoChipValue, { color: ui.text }]}>{pointsRemaining}</Text>
               </View>
-              <View style={[styles.infoChip, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}> 
+              <View style={[styles.infoChip, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}>
                 <Text style={[styles.infoChipLabel, { color: ui.textMuted }]}>Phase</Text>
                 <Text style={[styles.infoChipValue, { color: ui.text }]}>{frame.phase.toUpperCase()}</Text>
               </View>
@@ -877,19 +954,26 @@ export const LiveFrameScoringScreen = () => {
 
         {activeTab === "log" ? (
           <>
-            <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
+            <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}>
               <Text style={[styles.sectionTitle, { color: ui.text }]}>Frame Log</Text>
               {frame.events.length === 0 ? (
                 <Text style={[styles.emptyLog, { color: ui.textMuted }]}>No events yet.</Text>
               ) : (
                 frame.events.slice(0, 22).map((event) => {
-                  const stamp = new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  const stamp = new Date(event.timestamp).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
                   let message = "";
 
-                  if (event.kind === "pot") message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball} (+${event.points})`;
-                  if (event.kind === "foul") message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType] : "foul"})`;
-                  if (event.kind === "visit_end") message = `${event.player === "user" ? userLabel : opponentLabel} ended visit`;
-                  if (event.kind === "switch") message = `Turn switched from ${event.player === "user" ? userLabel : opponentLabel}`;
+                  if (event.kind === "pot")
+                    message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball} (+${event.points})`;
+                  if (event.kind === "foul")
+                    message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType] : "foul"})`;
+                  if (event.kind === "visit_end")
+                    message = `${event.player === "user" ? userLabel : opponentLabel} ended visit`;
+                  if (event.kind === "switch")
+                    message = `Turn switched from ${event.player === "user" ? userLabel : opponentLabel}`;
                   if (event.kind === "re_rack") message = "Frame re-racked";
 
                   return (
@@ -902,7 +986,7 @@ export const LiveFrameScoringScreen = () => {
               )}
             </View>
 
-            <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}> 
+            <View style={[styles.eventCard, { backgroundColor: ui.panelAlt, borderColor: ui.border }]}>
               <Text style={[styles.sectionTitle, { color: ui.text }]}>Saved Frames</Text>
               {frameRecords.length === 0 ? (
                 <Text style={[styles.emptyLog, { color: ui.textMuted }]}>No saved frames yet.</Text>
@@ -911,9 +995,15 @@ export const LiveFrameScoringScreen = () => {
                   .slice()
                   .sort((a, b) => b.frame_number - a.frame_number)
                   .map((record) => (
-                    <Pressable key={record.id} style={[styles.savedFrameRow, { backgroundColor: ui.panelSoft, borderColor: ui.border }]} onPress={() => setSelectedSavedFrameId(record.id)}>
+                    <Pressable
+                      key={record.id}
+                      style={[styles.savedFrameRow, { backgroundColor: ui.panelSoft, borderColor: ui.border }]}
+                      onPress={() => setSelectedSavedFrameId(record.id)}
+                    >
                       <Text style={[styles.savedFrameTitle, { color: ui.text }]}>Frame {record.frame_number}</Text>
-                      <Text style={[styles.savedFrameScore, { color: ui.text }]}>{record.user_score}-{record.opponent_score}</Text>
+                      <Text style={[styles.savedFrameScore, { color: ui.text }]}>
+                        {record.user_score}-{record.opponent_score}
+                      </Text>
                       <Text style={[styles.savedFrameMeta, { color: ui.textMuted }]}>Tap to view full log</Text>
                     </Pressable>
                   ))
@@ -923,8 +1013,8 @@ export const LiveFrameScoringScreen = () => {
         ) : null}
       </ScrollView>
 
-      <View style={styles.stickyInputWrap}> 
-        <View style={[styles.inputPanel, { backgroundColor: ui.panelAlt, borderColor: "transparent" }]}> 
+      <View style={styles.stickyInputWrap}>
+        <View style={[styles.inputPanel, { backgroundColor: ui.panelAlt, borderColor: "transparent" }]}>
           <View style={styles.ballRow}>
             {BALL_META.map((ballMeta) => (
               <Pressable
@@ -951,22 +1041,43 @@ export const LiveFrameScoringScreen = () => {
           </View>
 
           <View style={styles.actionPillRow}>
-            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }, undoStack.length === 0 && styles.disabledPill]} onPress={handleUndo} disabled={undoStack.length === 0}>
+            <Pressable
+              style={[
+                styles.actionPill,
+                { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt },
+                undoStack.length === 0 && styles.disabledPill,
+              ]}
+              onPress={handleUndo}
+              disabled={undoStack.length === 0}
+            >
               <Text style={[styles.actionPillText, { color: ui.text }]}>Undo</Text>
             </Pressable>
-            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={openFoulSheet} disabled={isFrameComplete}>
+            <Pressable
+              style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
+              onPress={openFoulSheet}
+              disabled={isFrameComplete}
+            >
               <Text style={[styles.actionPillText, { color: ui.text }]}>Foul</Text>
             </Pressable>
-            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => endVisit(state))}>
+            <Pressable
+              style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
+              onPress={() => applyFrameMutation((state) => endVisit(state))}
+            >
               <Text style={[styles.actionPillText, { color: ui.text }]}>Safety</Text>
             </Pressable>
           </View>
 
           <View style={styles.actionPillRow}>
-            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => endVisit(state))}>
+            <Pressable
+              style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
+              onPress={() => applyFrameMutation((state) => endVisit(state))}
+            >
               <Text style={[styles.actionPillText, { color: ui.text }]}>End Break</Text>
             </Pressable>
-            <Pressable style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]} onPress={() => applyFrameMutation((state) => switchPlayer(state))}>
+            <Pressable
+              style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
+              onPress={() => applyFrameMutation((state) => switchPlayer(state))}
+            >
               <Text style={[styles.actionPillText, { color: ui.text }]}>Switch</Text>
             </Pressable>
             <Pressable
@@ -992,11 +1103,21 @@ export const LiveFrameScoringScreen = () => {
           </Pressable>
 
           <View style={styles.quietRow}>
-            <Pressable onPress={handleReRack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Re-rack this frame">
+            <Pressable
+              onPress={handleReRack}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Re-rack this frame"
+            >
               <Text style={[styles.quietAction, { color: ui.textMuted }]}>Re-rack</Text>
             </Pressable>
             <Text style={[styles.quietDot, { color: ui.textMuted }]}>·</Text>
-            <Pressable onPress={handleAbandonFrame} hitSlop={8} accessibilityRole="button" accessibilityLabel="Abandon this frame">
+            <Pressable
+              onPress={handleAbandonFrame}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Abandon this frame"
+            >
               <Text style={[styles.quietAction, { color: ui.textMuted }]}>Abandon frame</Text>
             </Pressable>
           </View>
@@ -1023,7 +1144,12 @@ export const LiveFrameScoringScreen = () => {
         onDismiss={() => setDialog(null)}
       />
 
-      <Modal visible={!!selectedSavedFrame} transparent animationType="fade" onRequestClose={() => setSelectedSavedFrameId(null)}>
+      <Modal
+        visible={!!selectedSavedFrame}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedSavedFrameId(null)}
+      >
         <Pressable style={styles.modalOverlay} onPress={() => setSelectedSavedFrameId(null)} accessibilityLabel="Close">
           <Pressable
             style={[styles.modalCard, styles.savedLogModal, { backgroundColor: ui.panel, borderColor: ui.border }]}
@@ -1032,40 +1158,46 @@ export const LiveFrameScoringScreen = () => {
           >
             <View style={[styles.modalAccentBar, { backgroundColor: ui.accent }]} />
             <View style={styles.savedLogBody}>
-            <Text style={[styles.modalTitle, { color: ui.text }]}>Frame {selectedSavedFrame?.frame_number} log</Text>
-            <ScrollView style={styles.savedLogScroll}>
-              {(selectedSavedFrame?.events ?? []).length === 0 ? (
-                <Text style={[styles.emptyLog, { color: ui.textMuted }]}>No events stored.</Text>
-              ) : (
-                (selectedSavedFrame?.events ?? []).map((event) => {
-                  let message = "";
-                  if (event.kind === "pot") message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball} (+${event.points})`;
-                  if (event.kind === "foul") message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType as LiveFoulType] : "foul"})`;
-                  if (event.kind === "visit_end") message = `${event.player === "user" ? userLabel : opponentLabel} ended visit`;
-                  if (event.kind === "switch") message = `Turn switched from ${event.player === "user" ? userLabel : opponentLabel}`;
-                  if (event.kind === "re_rack") message = "Frame re-racked";
-                  if (event.kind === "frame_saved") message = "Frame saved";
+              <Text style={[styles.modalTitle, { color: ui.text }]}>Frame {selectedSavedFrame?.frame_number} log</Text>
+              <ScrollView style={styles.savedLogScroll}>
+                {(selectedSavedFrame?.events ?? []).length === 0 ? (
+                  <Text style={[styles.emptyLog, { color: ui.textMuted }]}>No events stored.</Text>
+                ) : (
+                  (selectedSavedFrame?.events ?? []).map((event) => {
+                    let message = "";
+                    if (event.kind === "pot")
+                      message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball} (+${event.points})`;
+                    if (event.kind === "foul")
+                      message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType as LiveFoulType] : "foul"})`;
+                    if (event.kind === "visit_end")
+                      message = `${event.player === "user" ? userLabel : opponentLabel} ended visit`;
+                    if (event.kind === "switch")
+                      message = `Turn switched from ${event.player === "user" ? userLabel : opponentLabel}`;
+                    if (event.kind === "re_rack") message = "Frame re-racked";
+                    if (event.kind === "frame_saved") message = "Frame saved";
 
-                  return (
-                    <View key={event.id} style={styles.eventRow}>
-                      <Text style={[styles.eventMessage, { color: ui.text }]}>{message}</Text>
-                      <Text style={[styles.eventTime, { color: ui.textMuted }]}>{new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
-                    </View>
-                  );
-                })
-              )}
-            </ScrollView>
-            <Pressable
-              onPress={() => setSelectedSavedFrameId(null)}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              style={({ pressed }) => [
-                styles.savedLogClose,
-                { backgroundColor: ui.panelSoft, borderColor: ui.border, opacity: pressed ? 0.85 : 1 },
-              ]}
-            >
-              <Text style={[styles.savedLogCloseText, { color: ui.text }]}>Close</Text>
-            </Pressable>
+                    return (
+                      <View key={event.id} style={styles.eventRow}>
+                        <Text style={[styles.eventMessage, { color: ui.text }]}>{message}</Text>
+                        <Text style={[styles.eventTime, { color: ui.textMuted }]}>
+                          {new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </Text>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
+              <Pressable
+                onPress={() => setSelectedSavedFrameId(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                style={({ pressed }) => [
+                  styles.savedLogClose,
+                  { backgroundColor: ui.panelSoft, borderColor: ui.border, opacity: pressed ? 0.85 : 1 },
+                ]}
+              >
+                <Text style={[styles.savedLogCloseText, { color: ui.text }]}>Close</Text>
+              </Pressable>
             </View>
           </Pressable>
         </Pressable>
@@ -1127,7 +1259,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     maxWidth: "100%",
   },
-  scoreBallWrap: { width: SCORE_BALL, height: SCORE_BALL, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  scoreBallWrap: {
+    width: SCORE_BALL,
+    height: SCORE_BALL,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
   scoreBall: {
     position: "absolute",
     width: SCORE_BALL,

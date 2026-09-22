@@ -13,6 +13,7 @@ import { GroupBadge } from "../../components/community/GroupBadge";
 import { ReportSheet } from "../../components/community/ReportSheet";
 import { FeedItemRow } from "../../components/community/FeedItemRow";
 import { GroupBoards } from "../../components/community/GroupBoards";
+import { LiveNow } from "../../components/matches/LiveNow";
 import { loadFeed, type FeedItem } from "../../features/community/groupFeed";
 import { nameOf, type PublicProfile } from "../../features/community/types";
 import {
@@ -266,6 +267,14 @@ export const GroupScreen = () => {
           );
         })}
       </View>
+
+      {tab === "feed" && myRole ? (
+        <LiveNow
+          only={memberIds}
+          title="MEMBERS PLAYING NOW"
+          onOpen={(matchId) => navigation.navigate("LiveMatch", { matchId })}
+        />
+      ) : null}
 
       {tab === "feed" ? (
         !myRole ? (

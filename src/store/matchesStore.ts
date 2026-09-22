@@ -4,6 +4,8 @@ import { safeStorage } from "../utils/storage";
 import { LiveFrameRecord, Match } from "../types";
 import { supabase } from "../api/supabase";
 import { flushOutbox, queueWrite, registerSyncHandler } from "../sync/outbox";
+import { mirrorFrame, mirrorMatch } from "../features/matches/linked";
+import { matchFinished } from "../features/community/activityItems";
 
 interface MatchesState {
   ownerUserId: string | null;
@@ -21,6 +23,10 @@ interface MatchesState {
   getOpponents: () => string[];
   setOwnerUserId: (userId: string | null) => void;
   hydrateMatchesForUser: (userId: string) => Promise<void>;
+  /** Finished matches friends scored against the player, waiting for them to confirm. */
+  linkRequests: Array<{ match: Match; scorerName: string }>;
+  /** The player's answer to a friend's match: confirm it, say it is wrong, or take it off. */
+  respondToMatch: (matchId: string, answer: "confirmed" | "disputed" | "removed") => Promise<boolean>;
 }
 
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -43,6 +49,7 @@ const mapDbMatch = (row: any): Match => ({
   user_id: row.user_id,
   opponent_name: row.opponent_name,
   opponent_id: row.opponent_id ?? undefined,
+  opponent_status: row.opponent_status ?? undefined,
   date: row.date,
   location: row.location ?? undefined,
   match_type: row.match_type,
@@ -92,6 +99,53 @@ const currentUserId = async () => {
 };
 
 const isMissingTableError = (error: any) => error?.code === "42P01";
+
+/**
+ * Matches friends scored against the player, from the player's side. Confirmed ones join the
+ * player's record; finished ones still waiting are requests to answer. If linking is not set
+ * up yet on the server, there are simply none.
+ */
+const loadLinkedMatches = async (userId: string) => {
+  const empty = {
+    confirmed: [] as Match[],
+    frames: {} as Record<string, LiveFrameRecord[]>,
+    requests: [] as Array<{ match: Match; scorerName: string }>,
+  };
+  const { data: rows, error } = await supabase
+    .from("matches")
+    .select("*")
+    .eq("opponent_id", userId)
+    .in("opponent_status", ["pending", "confirmed"]);
+  if (error || !rows?.length) return empty;
+
+  const scorerIds = [...new Set(rows.map((row) => row.user_id as string))];
+  const [{ data: people }, { data: frameRows }] = await Promise.all([
+    supabase.from("profiles").select("id, display_name, handle").in("id", scorerIds),
+    supabase
+      .from("match_frames")
+      .select("*")
+      .in(
+        "match_id",
+        rows.map((row) => row.id)
+      )
+      .order("frame_number", { ascending: true }),
+  ]);
+  const nameOf = (id: string) => {
+    const person = (people ?? []).find((row) => row.id === id);
+    return person?.display_name || (person?.handle ? `@${person.handle}` : "A friend");
+  };
+
+  const frames = groupFramesByMatch((frameRows ?? []).map(mapDbFrame).map(mirrorFrame));
+  const confirmed: Match[] = [];
+  const requests: Array<{ match: Match; scorerName: string }> = [];
+  rows.forEach((row) => {
+    const source = mapDbMatch(row);
+    const mirrored = mirrorMatch(source, nameOf(source.user_id));
+    if (source.opponent_status === "confirmed") confirmed.push(mirrored);
+    else if (matchFinished(source)) requests.push({ match: mirrored, scorerName: nameOf(source.user_id) });
+  });
+  return { confirmed, frames, requests };
+};
 
 /**
  * The writes behind a saved frame, an edited match and a deleted one, each in a shape that can
@@ -155,6 +209,7 @@ export const useMatchesStore = create<MatchesState>()(
       matches: [],
       liveFramesByMatch: {},
       isLoading: false,
+      linkRequests: [],
 
       addMatch: async (matchData) => {
         const authUser = (await supabase.auth.getUser()).data.user;
@@ -189,6 +244,8 @@ export const useMatchesStore = create<MatchesState>()(
       },
 
       updateMatch: async (id, updates) => {
+        // A friend's match is theirs to change.
+        if (get().matches.find((item) => item.id === id)?.linked_by) return;
         const userId = await currentUserId();
         if (!userId) throw new Error("You need to be signed in to update a match.");
 
@@ -240,6 +297,7 @@ export const useMatchesStore = create<MatchesState>()(
       },
 
       deleteMatch: async (id) => {
+        if (get().matches.find((item) => item.id === id)?.linked_by) return;
         const userId = await currentUserId();
         if (!userId) throw new Error("You need to be signed in to delete a match.");
 
@@ -268,6 +326,7 @@ export const useMatchesStore = create<MatchesState>()(
       },
 
       saveFrameRecord: async (matchId, frameData) => {
+        if (get().matches.find((item) => item.id === matchId)?.linked_by) return;
         const userId = await currentUserId();
         if (!userId) throw new Error("You need to be signed in to save a frame.");
 
@@ -351,6 +410,18 @@ export const useMatchesStore = create<MatchesState>()(
         }
       },
 
+      respondToMatch: async (matchId, answer) => {
+        const { error } = await supabase.rpc("respond_to_match", { target: matchId, answer });
+        if (error) {
+          console.warn("Could not answer the match:", error.message);
+          return false;
+        }
+        const owner = get().ownerUserId;
+        set((state) => ({ linkRequests: state.linkRequests.filter((item) => item.match.id !== matchId) }));
+        if (owner) await get().hydrateMatchesForUser(owner);
+        return true;
+      },
+
       getFrameRecordsByMatchId: (matchId) => get().liveFramesByMatch[matchId] ?? [],
 
       getNextFrameNumber: (matchId) => {
@@ -369,7 +440,7 @@ export const useMatchesStore = create<MatchesState>()(
       setOwnerUserId: (userId) => {
         set((state) => {
           if (state.ownerUserId === userId) return state;
-          return { ownerUserId: userId, matches: [], liveFramesByMatch: {}, isLoading: !!userId };
+          return { ownerUserId: userId, matches: [], liveFramesByMatch: {}, linkRequests: [], isLoading: !!userId };
         });
       },
 
@@ -393,10 +464,14 @@ export const useMatchesStore = create<MatchesState>()(
           if (framesError && !isMissingTableError(framesError)) throw framesError;
 
           const frames = (frameRows ?? []).map(mapDbFrame);
+          const linked = await loadLinkedMatches(userId);
 
           set({
-            matches: (matchRows ?? []).map(mapDbMatch),
-            liveFramesByMatch: groupFramesByMatch(frames),
+            matches: [...(matchRows ?? []).map(mapDbMatch), ...linked.confirmed].sort(
+              (a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at)
+            ),
+            liveFramesByMatch: { ...groupFramesByMatch(frames), ...linked.frames },
+            linkRequests: linked.requests,
             isLoading: false,
           });
         } catch (error) {

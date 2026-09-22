@@ -92,6 +92,7 @@ export const MatchCompleteScreen = () => {
   const rematch = () =>
     navigation.replace("NewMatch", {
       opponentName: match.opponent_name,
+      opponentId: match.opponent_id,
       location: match.location || undefined,
       targetFrames: bestOf,
       matchType: match.match_type,

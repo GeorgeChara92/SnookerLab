@@ -114,7 +114,12 @@ export interface Match {
   id: string;
   user_id: string;
   opponent_name: string;
+  /** A friend the match is linked to; it counts for them too once they confirm it. */
   opponent_id?: string;
+  /** For a linked match: whether the friend has confirmed the result. */
+  opponent_status?: "pending" | "confirmed" | "disputed" | "removed";
+  /** Set on a match a friend scored against the player: the friend's id. Read-only here. */
+  linked_by?: string;
   date: string;
   location?: string;
   match_type: MatchType;
@@ -336,7 +341,7 @@ export type MatchesStackParamList = {
   MatchComplete: { matchId: string };
   /** A new match, set up from an opponent or a rematch when given. */
   NewMatch:
-    | { opponentName?: string; location?: string; targetFrames?: number; matchType?: MatchType }
+    | { opponentName?: string; opponentId?: string; location?: string; targetFrames?: number; matchType?: MatchType }
     | undefined;
   NewTournament:
     | {
@@ -386,6 +391,8 @@ export type CommunityStackParamList = {
   Leaderboards: undefined;
   /** News from the professional tour. */
   TourNews: undefined;
+  /** Following a match someone is scoring. */
+  LiveMatch: { matchId: string };
   /** One routine's leaderboard; the key is a library routine's id or "shared:<id>". */
   RoutineLeaderboard: { routineKey: string; name: string; group?: { name: string; memberIds: string[] } };
 };

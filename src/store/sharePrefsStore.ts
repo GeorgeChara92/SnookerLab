@@ -2,13 +2,17 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { safeStorage } from "../utils/storage";
 
-/** How the player last styled a result card, so the next one starts the same way. */
+/** How the player last styled a result card, so the next one starts the same way, and live sharing. */
 type SharePrefsState = {
   themeId: string | null;
   frames: boolean;
   highBreaks: boolean;
   highlights: boolean;
-  set: (prefs: Partial<Pick<SharePrefsState, "themeId" | "frames" | "highBreaks" | "highlights">>) => void;
+  /** Whether matches scored live can be followed by friends and groups. */
+  liveSharing: boolean;
+  set: (
+    prefs: Partial<Pick<SharePrefsState, "themeId" | "frames" | "highBreaks" | "highlights" | "liveSharing">>
+  ) => void;
 };
 
 export const useSharePrefsStore = create<SharePrefsState>()(
@@ -18,6 +22,7 @@ export const useSharePrefsStore = create<SharePrefsState>()(
       frames: true,
       highBreaks: true,
       highlights: true,
+      liveSharing: true,
       set: (prefs) => set(prefs),
     }),
     {
@@ -29,6 +34,7 @@ export const useSharePrefsStore = create<SharePrefsState>()(
         frames: state.frames,
         highBreaks: state.highBreaks,
         highlights: state.highlights,
+        liveSharing: state.liveSharing,
       }),
     }
   )

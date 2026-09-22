@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMatchesStore } from "../../store";
+import { useAuthStore, useMatchesStore } from "../../store";
 import type { MatchResult, MatchType, MatchesStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
@@ -13,6 +13,9 @@ import { isSubscriptionLimitError, DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS
 import { parseDateValue, todayKey } from "../../utils/date";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { findOpponent, knownOpponents, searchOpponents } from "../../features/matches/opponents";
+import { useCommunityStore } from "../../store/communityStore";
+import { CommunityAvatar } from "../../components/community/CommunityAvatar";
+import { nameOf, type PublicProfile } from "../../features/community/types";
 
 type Mode = "live" | "result";
 
@@ -31,6 +34,7 @@ const shortDate = (value: string) =>
  * Setting up a match. The opponent comes first, and picking someone already played fills in
  * the rest from last time - the venue, the format, the kind of match - so a regular opponent
  * is two taps from the first frame. A rematch or an opponent's page arrives with it all set.
+ * Picking a friend links the match to them: once they confirm it, it counts for both.
  */
 export const NewMatchScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<MatchesStackParamList>>();
@@ -46,6 +50,34 @@ export const NewMatchScreen = () => {
   const known = useMemo(() => knownOpponents(matches), [matches]);
   const [mode, setMode] = useState<Mode>("live");
   const [opponent, setOpponent] = useState(prefill?.opponentName ?? "");
+  const [friend, setFriend] = useState<PublicProfile | null>(null);
+  const me = useAuthStore((state) => state.user?.id ?? null);
+  const { friendships, profiles } = useCommunityStore();
+  const friends = useMemo(
+    () =>
+      friendships
+        .filter((item) => item.status === "accepted")
+        .map((item) => profiles[item.requester === me ? item.addressee : item.requester])
+        .filter((profile): profile is PublicProfile => Boolean(profile))
+        .sort((a, b) => nameOf(a).localeCompare(nameOf(b))),
+    [friendships, me, profiles]
+  );
+  // A rematch against a friend stays linked.
+  useEffect(() => {
+    if (!prefill?.opponentId || friend) return;
+    const found = friends.find((item) => item.id === prefill.opponentId);
+    if (found) setFriend(found);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [friends, prefill?.opponentId]);
+  const friendMatches = useMemo(() => {
+    const needle = opponent.trim().toLowerCase().replace(/^@/, "");
+    return friends
+      .filter(
+        (item) =>
+          !needle || nameOf(item).toLowerCase().includes(needle) || Boolean(item.handle?.toLowerCase().includes(needle))
+      )
+      .slice(0, 4);
+  }, [friends, opponent]);
   const [location, setLocation] = useState(prefill?.location ?? "");
   const [bestOf, setBestOf] = useState(prefill?.targetFrames ?? 5);
   const [matchType, setMatchType] = useState<MatchType>(prefill?.matchType ?? "casual");
@@ -79,6 +111,13 @@ export const NewMatchScreen = () => {
 
   const pick = (name: string) => {
     setOpponent(name);
+    setFriend(null);
+    setFocused(false);
+  };
+
+  const pickFriend = (profile: PublicProfile) => {
+    setOpponent(nameOf(profile));
+    setFriend(profile);
     setFocused(false);
   };
 
@@ -109,6 +148,7 @@ export const NewMatchScreen = () => {
       const created = await addMatch({
         user_id: "",
         opponent_name: name,
+        opponent_id: friend?.id,
         date: todayKey(),
         location: location.trim() || undefined,
         match_type: matchType,
@@ -178,6 +218,7 @@ export const NewMatchScreen = () => {
             value={opponent}
             onChangeText={(text) => {
               setOpponent(text);
+              setFriend(null);
               setFocused(true);
             }}
             onFocus={() => setFocused(true)}
@@ -196,6 +237,56 @@ export const NewMatchScreen = () => {
             </Pressable>
           ) : null}
         </View>
+
+        {focused && friendMatches.length ? (
+          <View style={[styles.suggestions, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.groupLabel, { color: colors.textMuted }]}>FRIENDS · COUNTS FOR BOTH OF YOU</Text>
+            {friendMatches.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => pickFriend(item)}
+                accessibilityRole="button"
+                accessibilityLabel={`Play ${nameOf(item)}. The match counts for both of you.`}
+                style={({ pressed }) => [
+                  styles.suggestion,
+                  { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+                  { backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
+                ]}
+              >
+                <CommunityAvatar profile={item} size={32} />
+                <View style={styles.flex}>
+                  <Text style={[styles.suggestionName, { color: colors.text }]} numberOfLines={1}>
+                    {nameOf(item)}
+                  </Text>
+                  {item.handle ? (
+                    <Text style={[styles.suggestionMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                      @{item.handle}
+                    </Text>
+                  ) : null}
+                </View>
+                <MaterialCommunityIcons name="link-variant" size={18} color={colors.primary} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {friend && !focused ? (
+          <View style={[styles.linked, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+            <CommunityAvatar profile={friend} size={32} />
+            <Text style={[styles.linkedText, { color: colors.text }]}>
+              Linked to {friend.handle ? `@${friend.handle}` : nameOf(friend)}. Once they confirm the result, it counts
+              for both of you.
+            </Text>
+            <Pressable
+              onPress={() => setFriend(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Unlink the friend"
+              hitSlop={10}
+            >
+              <MaterialCommunityIcons name="link-variant-off" size={18} color={colors.textMuted} />
+            </Pressable>
+          </View>
+        ) : null}
 
         {focused && suggestions.length ? (
           <View style={[styles.suggestions, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -399,6 +490,22 @@ const styles = StyleSheet.create({
   },
   opponentInput: { flex: 1, fontSize: 18, fontWeight: "700", paddingVertical: SPACING.sm },
   suggestions: { borderWidth: 1, borderRadius: RADIUS.md, overflow: "hidden" },
+  groupLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+  },
+  linked: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    padding: SPACING.sm,
+  },
+  linkedText: { flex: 1, fontSize: 13, lineHeight: 18 },
   suggestion: {
     flexDirection: "row",
     alignItems: "center",

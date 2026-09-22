@@ -11,6 +11,7 @@ import { RoutineLeaderboardScreen } from "../screens/community/RoutineLeaderboar
 import { RoutineBoardsScreen } from "../screens/community/RoutineBoardsScreen";
 import { ChatsScreen } from "../screens/community/ChatsScreen";
 import { TourNewsScreen } from "../screens/community/TourNewsScreen";
+import { LiveMatchScreen } from "../screens/community/LiveMatchScreen";
 import { ChatScreen } from "../screens/community/ChatScreen";
 import { NewChatScreen } from "../screens/community/NewChatScreen";
 import { GroupsScreen } from "../screens/community/GroupsScreen";
@@ -38,6 +39,7 @@ export const CommunityNavigator = () => {
       <Stack.Screen name="SharedRoutine" component={SharedRoutineScreen} options={{ title: "Routine" }} />
       <Stack.Screen name="Leaderboards" component={LeaderboardsScreen} options={{ title: "Leaderboards" }} />
       <Stack.Screen name="TourNews" component={TourNewsScreen} options={{ title: "Pro Tour" }} />
+      <Stack.Screen name="LiveMatch" component={LiveMatchScreen} options={{ title: "Live" }} />
       <Stack.Screen name="RoutineBoards" component={RoutineBoardsScreen} options={{ title: "Routine leaderboards" }} />
       <Stack.Screen name="Chats" component={ChatsScreen} options={{ title: "Chats" }} />
       <Stack.Screen name="Chat" component={ChatScreen} options={{ title: "" }} />

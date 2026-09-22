@@ -6,7 +6,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { DashboardNavigator } from "./DashboardNavigator";
 import { PracticeNavigator } from "./PracticeNavigator";
 import { CommunityNavigator } from "./CommunityNavigator";
-import { useAuthStore } from "../store";
+import { useAuthStore, useMatchesStore } from "../store";
 import { useCommunityStore } from "../store/communityStore";
 import { splitBadges, useChatBadges } from "../store/chatStore";
 import { MatchesNavigator } from "./MatchesNavigator";
@@ -31,6 +31,7 @@ export const MainTabNavigator = () => {
   const chat = splitBadges(useChatBadges());
   // Friend requests, message requests and chats with something unread.
   const waiting = friendRequests + chat.requests + chat.unread;
+  const matchRequests = useMatchesStore((state) => state.linkRequests.length);
 
   return (
     <Tab.Navigator
@@ -96,6 +97,8 @@ export const MainTabNavigator = () => {
         component={MatchesNavigator}
         options={({ route }) => ({
           tabBarLabel: "Matches",
+          tabBarBadge: matchRequests > 0 ? matchRequests : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.danger, fontSize: 11 },
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="trophy-outline" size={size} color={color} />,
           // Scan Snooker is a full-screen camera: no tab bar over it.
           ...(FULL_SCREEN_ROUTES.has(getFocusedRouteNameFromRoute(route) ?? "")

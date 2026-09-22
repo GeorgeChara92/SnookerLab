@@ -6,6 +6,7 @@ import { SyncBanner } from "../../components/ui/SyncBanner";
 import { SwipeToDelete } from "../../components/ui/SwipeToDelete";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { DayHeader, FormStrip, MatchRow, SectionHeader } from "../../components/matches/MatchRows";
+import { LinkRequests } from "../../components/matches/LinkRequests";
 import { TierPaywallModal } from "../../components/subscription";
 import { useMatchesStore, useTournamentsStore } from "../../store";
 import type { MatchesStackParamList, Tournament } from "../../types";
@@ -169,6 +170,7 @@ export const MatchesListScreen = () => {
       showsVerticalScrollIndicator={false}
     >
       <SyncBanner scope="matches" noun="score" />
+      <LinkRequests />
 
       {/* ---------------------------------------------------------------- actions */}
       <View style={styles.actions}>
@@ -310,21 +312,29 @@ export const MatchesListScreen = () => {
           {groupByDay(visibleMatches).map((day) => (
             <View key={day.key}>
               <DayHeader label={day.label} count={day.items.length} />
-              {day.items.map((match) => (
-                <SwipeToDelete
-                  key={match.id}
-                  onDelete={() => confirmDeleteMatch(match)}
-                  deleteLabel={`Delete the match against ${match.opponent_name}`}
-                  radius={RADIUS.sm}
-                  gapBelow={SPACING.md}
-                >
+              {day.items.map((match) => {
+                const row = (
                   <MatchRow
                     match={match}
                     showDate={false}
                     onPress={() => navigation.navigate("MatchDetail", { matchId: match.id })}
                   />
-                </SwipeToDelete>
-              ))}
+                );
+                // A friend's match is theirs to delete; it can be taken off the record from its page.
+                return match.linked_by ? (
+                  <View key={match.id}>{row}</View>
+                ) : (
+                  <SwipeToDelete
+                    key={match.id}
+                    onDelete={() => confirmDeleteMatch(match)}
+                    deleteLabel={`Delete the match against ${match.opponent_name}`}
+                    radius={RADIUS.sm}
+                    gapBelow={SPACING.md}
+                  >
+                    {row}
+                  </SwipeToDelete>
+                );
+              })}
             </View>
           ))}
         </>

@@ -156,9 +156,9 @@ export const getPointsRemaining = (state: LiveFrameState): number => {
   return COLOR_SEQUENCE.slice(state.nextColorIndex).reduce((acc, color) => acc + BALL_POINTS[color], 0);
 };
 
-export const getSnookersRequired = (state: LiveFrameState):
-  | { player: LiveSide; count: number; scoreDiff: number; pointsRemaining: number }
-  | undefined => {
+export const getSnookersRequired = (
+  state: LiveFrameState
+): { player: LiveSide; count: number; scoreDiff: number; pointsRemaining: number } | undefined => {
   if (state.phase === "ended") return undefined;
 
   const pointsRemaining = getPointsRemaining(state);

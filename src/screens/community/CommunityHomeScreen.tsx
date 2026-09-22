@@ -8,6 +8,7 @@ import { useCommunityStore } from "../../store/communityStore";
 import { splitBadges, useChatBadges } from "../../store/chatStore";
 import { useTourNewsStore } from "../../store/tourNewsStore";
 import { NewsRow } from "../../components/tour/NewsRow";
+import { LiveNow } from "../../components/matches/LiveNow";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { nameOf, relationTo, type PublicProfile, type Relation } from "../../features/community/types";
@@ -289,6 +290,8 @@ export const CommunityHomeScreen = () => {
           </Pressable>
         ))}
       </View>
+
+      <LiveNow onOpen={(matchId) => navigation.navigate("LiveMatch", { matchId })} />
 
       <View style={[styles.tour, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Pressable

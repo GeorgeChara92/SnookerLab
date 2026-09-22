@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore, useMatchesStore } from "../../store";
-import type { LiveFrameRecord, MatchType, MatchesStackParamList } from "../../types";
+import type { LiveFrameRecord, Match, MatchType, MatchesStackParamList } from "../../types";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { BoardPanel, ScoreStrip, TaleOfTheTape } from "../../components/scoreboard/Scoreboard";
@@ -27,6 +27,39 @@ const TYPE_LABEL: Record<MatchType, string> = {
 
 const NO_FRAMES: LiveFrameRecord[] = [];
 
+/** What the link to a friend says: who scored it, or where the friend stands on it. */
+const linkLine = (
+  match: Match,
+  linkedIn: boolean
+): {
+  text: string;
+  icon: "account-check-outline" | "clock-outline" | "alert-circle-outline" | "link-variant-off";
+  tone: "good" | "muted" | "danger";
+} | null => {
+  const name = match.opponent_name;
+  if (linkedIn)
+    return { text: `Scored by ${name}. It counts in your record too.`, icon: "account-check-outline", tone: "good" };
+  if (!match.opponent_id) return null;
+  switch (match.opponent_status) {
+    case "confirmed":
+      return { text: `Confirmed by ${name}. It counts for both of you.`, icon: "account-check-outline", tone: "good" };
+    case "disputed":
+      return {
+        text: `${name} says this result is not right. Edit it and they will be asked again.`,
+        icon: "alert-circle-outline",
+        tone: "danger",
+      };
+    case "removed":
+      return { text: `${name} took this off their record.`, icon: "link-variant-off", tone: "muted" };
+    default:
+      return {
+        text: `Linked to ${name}. They will be asked to confirm the result.`,
+        icon: "clock-outline",
+        tone: "muted",
+      };
+  }
+};
+
 /**
  * One match: the result as a broadcast scoreboard, what to do next (carry on scoring, share
  * it), the match statistics and every frame. Details are changed in a sheet, so the page reads
@@ -46,6 +79,7 @@ export const MatchDetailScreen = () => {
   const match = useMatchesStore((state) => state.matches.find((item) => item.id === matchId));
   const storedFrames = useMatchesStore((state) => state.liveFramesByMatch[matchId] ?? NO_FRAMES);
   const deleteMatch = useMatchesStore((state) => state.deleteMatch);
+  const respondToMatch = useMatchesStore((state) => state.respondToMatch);
   const username = useAuthStore((state) => state.user?.username);
 
   const [openFrameId, setOpenFrameId] = useState<string | null>(null);
@@ -69,7 +103,9 @@ export const MatchDetailScreen = () => {
   const firstTo = bestOf ? Math.floor(bestOf / 2) + 1 : undefined;
   const complete = firstTo ? match.user_score >= firstTo || match.opponent_score >= firstTo : false;
   const typedScore = frames.length === 0 && (match.user_score > 0 || match.opponent_score > 0);
-  const canScoreLive = !typedScore && !complete;
+  // A match a friend scored is theirs: shown here, counted here, changed only by them.
+  const linkedIn = Boolean(match.linked_by);
+  const canScoreLive = !typedScore && !complete && !linkedIn;
   const inProgress = canScoreLive && frames.length > 0;
   const result = countsAsResult(match);
   const won = match.user_score > match.opponent_score;
@@ -82,6 +118,21 @@ export const MatchDetailScreen = () => {
   });
 
   const status = inProgress ? "IN PROGRESS" : !result ? "NOT STARTED" : won ? "WON" : lost ? "LOST" : "DRAWN";
+
+  const link = linkLine(match, linkedIn);
+
+  const confirmRemove = () =>
+    dialog.confirm({
+      title: "Take this off your record?",
+      message: `It stays in ${match.opponent_name}'s matches, but stops counting in yours.`,
+      tone: "danger",
+      icon: "link-variant-off",
+      confirmLabel: "Take it off",
+      cancelLabel: "Keep it",
+      onConfirm: async () => {
+        if (await respondToMatch(match.id, "removed")) navigation.goBack();
+      },
+    });
 
   const confirmDelete = () =>
     dialog.confirm({
@@ -154,6 +205,22 @@ export const MatchDetailScreen = () => {
           ) : null}
         </BoardPanel>
 
+        {link ? (
+          <View
+            style={[
+              styles.link,
+              { backgroundColor: colors.surface, borderColor: link.tone === "danger" ? colors.danger : colors.border },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={link.icon}
+              size={18}
+              color={link.tone === "danger" ? colors.danger : link.tone === "good" ? colors.primary : colors.textMuted}
+            />
+            <Text style={[styles.linkText, { color: colors.text }]}>{link.text}</Text>
+          </View>
+        ) : null}
+
         {/* What to do next */}
         <View style={styles.actions}>
           {primaryAction ? (
@@ -188,6 +255,7 @@ export const MatchDetailScreen = () => {
                 onPress={() =>
                   navigation.navigate("NewMatch", {
                     opponentName: match.opponent_name,
+                    opponentId: match.opponent_id,
                     location: match.location || undefined,
                     targetFrames: bestOf,
                     matchType: match.match_type,
@@ -204,17 +272,19 @@ export const MatchDetailScreen = () => {
                 <Text style={[styles.secondaryText, { color: colors.text }]}>Rematch</Text>
               </Pressable>
             ) : null}
-            <Pressable
-              onPress={() => setEditOpen(true)}
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.secondary,
-                { borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.8 : 1 },
-              ]}
-            >
-              <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.text} />
-              <Text style={[styles.secondaryText, { color: colors.text }]}>Edit details</Text>
-            </Pressable>
+            {linkedIn ? null : (
+              <Pressable
+                onPress={() => setEditOpen(true)}
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.secondary,
+                  { borderColor: colors.border, backgroundColor: colors.surface, opacity: pressed ? 0.8 : 1 },
+                ]}
+              >
+                <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.text} />
+                <Text style={[styles.secondaryText, { color: colors.text }]}>Edit details</Text>
+              </Pressable>
+            )}
           </View>
           {result ? (
             <Pressable
@@ -320,12 +390,18 @@ export const MatchDetailScreen = () => {
         ) : null}
 
         <Pressable
-          onPress={confirmDelete}
+          onPress={linkedIn ? confirmRemove : confirmDelete}
           accessibilityRole="button"
           style={({ pressed }) => [styles.delete, { opacity: pressed ? 0.6 : 1 }]}
         >
-          <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.danger} />
-          <Text style={[styles.deleteText, { color: colors.danger }]}>Delete match</Text>
+          <MaterialCommunityIcons
+            name={linkedIn ? "link-variant-off" : "trash-can-outline"}
+            size={18}
+            color={colors.danger}
+          />
+          <Text style={[styles.deleteText, { color: colors.danger }]}>
+            {linkedIn ? "Take off my record" : "Delete match"}
+          </Text>
         </Pressable>
       </ScrollView>
 
@@ -345,6 +421,15 @@ export const MatchDetailScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  link: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+  },
+  linkText: { flex: 1, fontSize: 14, lineHeight: 20 },
   flex: { flex: 1 },
   content: { padding: SPACING.lg, gap: SPACING.md },
   missing: { flex: 1, alignItems: "center", justifyContent: "center", gap: SPACING.sm, padding: SPACING.xl },
