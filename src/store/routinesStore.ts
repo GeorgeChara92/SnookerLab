@@ -35,10 +35,7 @@ const ROUTINE_ORDER_BY_CATEGORY: Record<string, string[]> = {
     "routine-two-cushion-escape",
     "routine-three-cushion-escape",
   ],
-  "cat-straight-cueing": [
-    "routine-straight-cueing-line",
-    "routine-cueing-secret-session",
-  ],
+  "cat-straight-cueing": ["routine-straight-cueing-line", "routine-cueing-secret-session"],
   "cat-cue-ball-control": [
     "routine-cue-ball-control",
     "routine-top-spin-control",
@@ -48,10 +45,7 @@ const ROUTINE_ORDER_BY_CATEGORY: Record<string, string[]> = {
     "routine-deep-screw",
     "routine-side-spin-control",
   ],
-  "cat-long-potting": [
-    "routine-long-potting-classic",
-    "routine-long-blue-straight-cue",
-  ],
+  "cat-long-potting": ["routine-long-potting-classic", "routine-long-blue-straight-cue"],
 };
 
 interface RoutinesState {

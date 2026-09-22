@@ -34,9 +34,13 @@ type CommunityState = {
   setOwner: (userId: string | null) => void;
   hydrate: (userId: string) => Promise<void>;
   saveMe: (
-    patch: Partial<Pick<PublicProfile, "handle" | "bio" | "discoverable" | "messagePrivacy" | "statsPrivacy">>
+    patch: Partial<
+      Pick<PublicProfile, "handle" | "bio" | "discoverable" | "messagePrivacy" | "statsPrivacy" | "leaderboards">
+    >
   ) => Promise<Result>;
   handleIsFree: (handle: string) => Promise<boolean>;
+  /** Of these handles, the ones nobody has. */
+  freeHandles: (handles: string[]) => Promise<string[]>;
   search: (query: string) => Promise<PublicProfile[]>;
   loadProfile: (id: string) => Promise<{ profile: PublicProfile | null; stats: PublicStats | null }>;
   sendRequest: (to: string) => Promise<Result>;
@@ -129,6 +133,7 @@ export const useCommunityStore = create<CommunityState>()(
           if (patch.discoverable !== undefined) row.discoverable = patch.discoverable;
           if (patch.messagePrivacy !== undefined) row.message_privacy = patch.messagePrivacy;
           if (patch.statsPrivacy !== undefined) row.stats_privacy = patch.statsPrivacy;
+          if (patch.leaderboards !== undefined) row.leaderboards = patch.leaderboards;
           const { data, error } = await supabase
             .from("profiles")
             .upsert(row, { onConflict: "id" })
@@ -144,6 +149,13 @@ export const useCommunityStore = create<CommunityState>()(
         handleIsFree: async (handle) => {
           const { data } = await supabase.from("profiles").select("id").eq("handle", handle).maybeSingle();
           return !data || data.id === get().ownerId;
+        },
+
+        freeHandles: async (handles) => {
+          if (!handles.length) return [];
+          const { data } = await supabase.from("profiles").select("handle").in("handle", handles);
+          const taken = new Set((data ?? []).map((row) => row.handle as string));
+          return handles.filter((handle) => !taken.has(handle));
         },
 
         search: async (query) => {

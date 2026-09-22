@@ -15,16 +15,19 @@ import type { PublicStats } from "./types";
 export const useCommunitySync = (userId: string | null) => {
   const user = useAuthStore((state) => state.user);
   const loaded = useCommunityStore((state) => state.loaded);
+  const onBoards = useCommunityStore((state) => state.me?.leaderboards ?? true);
   const achievementsHydrated = useAchievementsStore((state) => state.hydrated);
   const matches = useMatchesStore((state) => state.matches);
   const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
   const { stats, unlocked } = usePlayerProgress();
   const sentProfile = useRef("");
   const sentStats = useRef("");
+  const sentBoard = useRef("");
 
   useEffect(() => {
     sentProfile.current = "";
     sentStats.current = "";
+    sentBoard.current = "";
   }, [userId]);
 
   const profile = useMemo(
@@ -37,6 +40,7 @@ export const useCommunitySync = (userId: string | null) => {
             avatar_url: user.profile_image_url ?? null,
             country_code: user.country_code ?? null,
             skill_level: user.skill_level ?? null,
+            cue_preference: user.cue_preference ?? null,
           }
         : null,
     [user]
@@ -71,6 +75,27 @@ export const useCommunitySync = (userId: string | null) => {
       achievements: unlocked.length,
     };
   }, [liveFramesByMatch, matches, stats, unlocked.length]);
+
+  // The numbers the all-player leaderboards rank by, or nothing while the player opts out.
+  useEffect(() => {
+    if (!userId || !loaded || !achievementsHydrated) return;
+    const board = onBoards
+      ? { best_break: summary.bestBreak, centuries: summary.centuries, matches_won: summary.matchesWon }
+      : { best_break: null, centuries: null, matches_won: null };
+    const key = JSON.stringify(board);
+    if (key === sentBoard.current) return;
+    sentBoard.current = key;
+    void supabase
+      .from("profiles")
+      .update(board)
+      .eq("id", userId)
+      .then(({ error }) => {
+        if (error) {
+          sentBoard.current = "";
+          console.warn("Could not update leaderboard numbers:", error.message);
+        }
+      });
+  }, [achievementsHydrated, loaded, onBoards, summary, userId]);
 
   useEffect(() => {
     // Wait for the player's own numbers to finish loading, so a half-loaded record is never shared.

@@ -21,6 +21,8 @@ type Row = {
   balls: PlacedBall[];
   created_at: string;
   updated_at: string;
+  shared_id?: string | null;
+  source_shared_id?: string | null;
 };
 
 const fromRow = (row: Row): CustomRoutine => ({
@@ -31,6 +33,8 @@ const fromRow = (row: Row): CustomRoutine => ({
   balls: Array.isArray(row.balls) ? row.balls : [],
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+  sharedId: row.shared_id ?? null,
+  sourceSharedId: row.source_shared_id ?? null,
 });
 
 const toRow = (routine: CustomRoutine, userId: string) => ({
@@ -42,6 +46,8 @@ const toRow = (routine: CustomRoutine, userId: string) => ({
   balls: routine.balls,
   created_at: routine.createdAt,
   updated_at: routine.updatedAt,
+  shared_id: routine.sharedId ?? null,
+  source_shared_id: routine.sourceSharedId ?? null,
 });
 
 type Pending = Record<string, "upsert" | "delete">;
@@ -58,7 +64,10 @@ type CustomRoutinesState = {
     description: string | null;
     maxScore: number | null;
     balls: PlacedBall[];
+    sourceSharedId?: string | null;
   }) => CustomRoutine;
+  /** Records the community copy of a routine, or clears it. */
+  setShared: (id: string, sharedId: string | null) => void;
   remove: (id: string) => void;
   getById: (id: string) => CustomRoutine | undefined;
 };
@@ -105,7 +114,7 @@ export const useCustomRoutinesStore = create<CustomRoutinesState>()(
         hydrate: async (userId) => {
           const { data, error } = await supabase
             .from("custom_routines")
-            .select("id, name, description, max_score, balls, created_at, updated_at")
+            .select("id, name, description, max_score, balls, created_at, updated_at, shared_id, source_shared_id")
             .eq("user_id", userId)
             .order("updated_at", { ascending: false });
           if (get().ownerId !== userId) return;
@@ -122,7 +131,7 @@ export const useCustomRoutinesStore = create<CustomRoutinesState>()(
           await Promise.all(Object.keys(pending).map(push));
         },
 
-        save: ({ id, name, description, maxScore, balls }) => {
+        save: ({ id, name, description, maxScore, balls, sourceSharedId }) => {
           const now = new Date().toISOString();
           const existing = id ? get().routines.find((item) => item.id === id) : undefined;
           const routine: CustomRoutine = {
@@ -133,6 +142,8 @@ export const useCustomRoutinesStore = create<CustomRoutinesState>()(
             balls,
             createdAt: existing?.createdAt ?? now,
             updatedAt: now,
+            sharedId: existing?.sharedId ?? null,
+            sourceSharedId: existing?.sourceSharedId ?? sourceSharedId ?? null,
           };
           set((state) => ({
             routines: [routine, ...state.routines.filter((item) => item.id !== routine.id)].sort(newestFirst),
@@ -140,6 +151,16 @@ export const useCustomRoutinesStore = create<CustomRoutinesState>()(
           }));
           void push(routine.id);
           return routine;
+        },
+
+        setShared: (id, sharedId) => {
+          const routine = get().routines.find((item) => item.id === id);
+          if (!routine) return;
+          set((state) => ({
+            routines: state.routines.map((item) => (item.id === id ? { ...item, sharedId } : item)),
+            pending: { ...state.pending, [id]: "upsert" },
+          }));
+          void push(id);
         },
 
         remove: (id) => {

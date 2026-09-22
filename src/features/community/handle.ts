@@ -23,6 +23,32 @@ export const suggestHandle = (name: string | null | undefined) => {
   return base.length >= 3 ? base : `${base}player`.slice(0, 20);
 };
 
+/**
+ * Other handles to offer when the one wanted is taken: the same name with a snooker flavour or
+ * a number, each a valid handle. The caller checks which of them are free.
+ */
+export const handleAlternatives = (wanted: string, name?: string | null) => {
+  const base =
+    cleanHandle(wanted)
+      .replace(/[._]+$/, "")
+      .slice(0, 14) || suggestHandle(name).slice(0, 14);
+  const fromName = cleanHandle(name ?? "")
+    .replace(/[._]+$/, "")
+    .slice(0, 14);
+  const year = String(new Date().getFullYear()).slice(2);
+  const candidates = [
+    `${base}147`,
+    `${base}_snooker`,
+    `${base}.cues`,
+    `the.${base}`,
+    `${base}${year}`,
+    fromName && fromName !== base ? `${fromName}_${base.slice(0, 5)}` : "",
+    `${base}_${Math.floor(10 + Math.random() * 89)}`,
+    `${base}${Math.floor(100 + Math.random() * 899)}`,
+  ];
+  return [...new Set(candidates.map((item) => item.slice(0, 20)))].filter((item) => item && !handleProblem(item));
+};
+
 /** Why a handle cannot be used, or null if it can. */
 export const handleProblem = (handle: string): string | null => {
   if (handle.length < 3) return "At least 3 characters.";

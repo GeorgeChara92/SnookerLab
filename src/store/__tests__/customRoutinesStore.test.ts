@@ -37,7 +37,12 @@ describe("custom routines kept with the account", () => {
     expect(store().routines[0].id).toBe(routine.id);
     await flush();
     expect(mockUpsert).toHaveBeenCalledTimes(1);
-    expect((mockUpsert.mock.calls[0] as any)[0]).toMatchObject({ id: routine.id, user_id: "u1", name: "Line-up", max_score: 15 });
+    expect((mockUpsert.mock.calls[0] as any)[0]).toMatchObject({
+      id: routine.id,
+      user_id: "u1",
+      name: "Line-up",
+      max_score: 15,
+    });
     expect(store().pending).toEqual({});
   });
 
@@ -55,7 +60,15 @@ describe("custom routines kept with the account", () => {
 
   it("loads routines built on another device", async () => {
     mockServer = [
-      { id: "r1", name: "From the tablet", description: null, max_score: null, balls: [], created_at: "2026-09-20T10:00:00Z", updated_at: "2026-09-20T10:00:00Z" },
+      {
+        id: "r1",
+        name: "From the tablet",
+        description: null,
+        max_score: null,
+        balls: [],
+        created_at: "2026-09-20T10:00:00Z",
+        updated_at: "2026-09-20T10:00:00Z",
+      },
     ];
     await store().hydrate("u1");
     expect(store().getById("r1")?.name).toBe("From the tablet");
@@ -63,7 +76,15 @@ describe("custom routines kept with the account", () => {
 
   it("deletes everywhere, and a delete made offline is not undone by the next load", async () => {
     mockServer = [
-      { id: "r1", name: "Old", description: null, max_score: null, balls: [], created_at: "2026-09-20T10:00:00Z", updated_at: "2026-09-20T10:00:00Z" },
+      {
+        id: "r1",
+        name: "Old",
+        description: null,
+        max_score: null,
+        balls: [],
+        created_at: "2026-09-20T10:00:00Z",
+        updated_at: "2026-09-20T10:00:00Z",
+      },
     ];
     await store().hydrate("u1");
     mockFail = true;

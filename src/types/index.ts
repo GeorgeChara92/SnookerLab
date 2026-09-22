@@ -318,6 +318,7 @@ export type PracticeStackParamList = SessionsStackParamList & {
   CustomRoutineBuilder: { routineId?: string } | undefined;
   /** Setting a routine up on the real table with the camera. */
   RoutineAR: { routineId: string };
+  RoutineLeaderboard: { routineKey: string; name: string };
 };
 
 export type MatchesStackParamList = {
@@ -367,6 +368,11 @@ export type CommunityStackParamList = {
   /** The player's handle, bio and privacy; the first-time setup when `setup` is true. */
   CommunitySettings: { setup?: boolean };
   AdminReports: undefined;
+  RoutineLibrary: undefined;
+  SharedRoutine: { id: string };
+  Leaderboards: undefined;
+  /** One routine's leaderboard; the key is a library routine's id or "shared:<id>". */
+  RoutineLeaderboard: { routineKey: string; name: string };
 };
 
 export type StatsStackParamList = {

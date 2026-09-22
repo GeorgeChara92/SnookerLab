@@ -65,7 +65,13 @@ interface AuthState {
   isAuthenticated: boolean;
   requiresPasswordReset: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, username: string, skillLevel?: SkillLevel, countryCode?: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    username: string,
+    skillLevel?: SkillLevel,
+    countryCode?: string
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   resendEmailVerification: (email: string) => Promise<void>;
@@ -75,7 +81,11 @@ interface AuthState {
   setRequiresPasswordReset: (value: boolean) => void;
   updateAvatarPreset: (presetId: string) => Promise<void>;
   uploadProfilePhoto: (photoUri: string) => Promise<void>;
-  updateProfile: (updates: { skill_level?: SkillLevel; country_code?: string; cue_preference?: string }) => Promise<void>;
+  updateProfile: (updates: {
+    skill_level?: SkillLevel;
+    country_code?: string;
+    cue_preference?: string;
+  }) => Promise<void>;
   setUser: (user: User | any | null) => void;
 }
 
@@ -95,7 +105,12 @@ export const useAuthStore = create<AuthState>()(
             password,
           });
           if (error) throw error;
-          set({ user: mapAuthUser(data.user), session: data.session, isAuthenticated: true, requiresPasswordReset: false });
+          set({
+            user: mapAuthUser(data.user),
+            session: data.session,
+            isAuthenticated: true,
+            requiresPasswordReset: false,
+          });
         } finally {
           set({ isLoading: false });
         }
@@ -292,12 +307,10 @@ export const useAuthStore = create<AuthState>()(
           const fileResponse = await fetch(photoUri);
           const fileBlob = await fileResponse.blob();
 
-          const { error: uploadError } = await supabase.storage
-            .from("profile-images")
-            .upload(path, fileBlob, {
-              contentType: fileBlob.type || "image/jpeg",
-              upsert: true,
-            });
+          const { error: uploadError } = await supabase.storage.from("profile-images").upload(path, fileBlob, {
+            contentType: fileBlob.type || "image/jpeg",
+            upsert: true,
+          });
 
           if (uploadError) throw uploadError;
 

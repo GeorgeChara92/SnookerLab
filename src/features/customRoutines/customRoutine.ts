@@ -13,6 +13,16 @@ export type CustomRoutine = {
   balls: PlacedBall[];
   createdAt: string;
   updatedAt: string;
+  /** The community copy, once the player has shared it. */
+  sharedId?: string | null;
+  /** The shared routine this was saved from, when it came from someone else. */
+  sourceSharedId?: string | null;
+};
+
+/** Where a custom routine's scores count on a leaderboard, if anywhere. */
+export const leaderboardKeyFor = (routine: Pick<CustomRoutine, "sharedId" | "sourceSharedId">) => {
+  const shared = routine.sharedId ?? routine.sourceSharedId;
+  return shared ? `shared:${shared}` : null;
 };
 
 /** Where custom routines sit among the routine categories. */
@@ -30,7 +40,8 @@ export const validateDraft = (draft: RoutineDraft) => {
   const name = draft.name.trim();
   if (!name) problems.name = "Give the routine a name.";
   else if (name.length > NAME_MAX) problems.name = `Keep the name to ${NAME_MAX} characters.`;
-  if (draft.description.trim().length > DESCRIPTION_MAX) problems.description = `Keep the description to ${DESCRIPTION_MAX} characters.`;
+  if (draft.description.trim().length > DESCRIPTION_MAX)
+    problems.description = `Keep the description to ${DESCRIPTION_MAX} characters.`;
   const score = draft.maxScore.trim();
   if (score) {
     const value = Number(score);

@@ -12,6 +12,7 @@ import { CommunityAvatar, flagOf } from "../../components/community/CommunityAva
 import { ReportSheet } from "../../components/community/ReportSheet";
 import { nameOf, relationTo, type PublicProfile, type PublicStats } from "../../features/community/types";
 import { LEVELS } from "../../constants/achievements";
+import { getCountryByCode, getCuePreferenceLabel } from "../../constants/profileOptions";
 import type { CommunityStackParamList } from "../../types";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
@@ -169,6 +170,27 @@ export const PlayerProfileScreen = () => {
           ? `${name} shares their stats with friends.`
           : null;
 
+  // What the player has filled in on their profile.
+  const country = getCountryByCode(profile.countryCode ?? undefined);
+  const details: Array<{ icon: keyof typeof MaterialCommunityIcons.glyphMap; label: string; value: string }> = [
+    ...(country ? [{ icon: "earth" as const, label: "Country", value: `${country.emoji} ${country.name}` }] : []),
+    ...(profile.skillLevel && SKILL[profile.skillLevel]
+      ? [{ icon: "chart-bell-curve-cumulative" as const, label: "Standard", value: SKILL[profile.skillLevel] }]
+      : []),
+    ...(profile.cuePreference
+      ? [{ icon: "billiards-rack" as const, label: "Cue", value: getCuePreferenceLabel(profile.cuePreference) }]
+      : []),
+    ...(profile.joinedAt
+      ? [
+          {
+            icon: "calendar-account-outline" as const,
+            label: "Member since",
+            value: new Date(profile.joinedAt).toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+          },
+        ]
+      : []),
+  ];
+
   const tiles: Array<{ label: string; value: string }> = stats
     ? [
         { label: "MATCHES", value: `${stats.matchesPlayed}` },
@@ -204,13 +226,6 @@ export const PlayerProfileScreen = () => {
               LEVEL {profile.level} · {levelTitle.toUpperCase()}
             </Text>
           </View>
-          {profile.skillLevel && SKILL[profile.skillLevel] ? (
-            <View style={[styles.tag, { backgroundColor: colors.surfaceMuted }]}>
-              <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tagText, { color: colors.textMuted }]}>
-                {SKILL[profile.skillLevel].toUpperCase()}
-              </Text>
-            </View>
-          ) : null}
         </View>
         {profile.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profile.bio}</Text> : null}
       </View>
@@ -246,6 +261,26 @@ export const PlayerProfileScreen = () => {
             {primary.label}
           </Text>
         </Pressable>
+      ) : null}
+
+      {details.length ? (
+        <View style={[styles.about, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {details.map((item, index) => (
+            <View
+              key={item.label}
+              style={[
+                styles.aboutRow,
+                index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border } : null,
+              ]}
+            >
+              <MaterialCommunityIcons name={item.icon} size={20} color={colors.textMuted} />
+              <Text style={[styles.aboutLabel, { color: colors.textMuted }]}>{item.label}</Text>
+              <Text style={[styles.aboutValue, { color: colors.text }]} numberOfLines={2}>
+                {item.value}
+              </Text>
+            </View>
+          ))}
+        </View>
       ) : null}
 
       {relation !== "blocked" ? (
@@ -350,6 +385,10 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
   },
   noteText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  about: { borderWidth: 1, borderRadius: RADIUS.lg, paddingHorizontal: SPACING.md },
+  aboutRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, minHeight: HIT_TARGET + 4 },
+  aboutLabel: { width: 104, fontSize: 14, fontWeight: "600" },
+  aboutValue: { flex: 1, fontSize: 15, fontWeight: "700", textAlign: "right" },
   safety: { flexDirection: "row", justifyContent: "center", gap: SPACING.xl, marginTop: SPACING.md },
   safetyButton: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: HIT_TARGET },
   safetyText: { fontSize: 15, fontWeight: "700" },

@@ -6,6 +6,7 @@ import { usePlayerProgress } from "../../features/profile/playerProgress";
 import { supabase } from "../../api/supabase";
 import { useLevelSeenStore } from "../../store/levelSeenStore";
 import { useCommunitySync } from "../../features/community/useCommunitySync";
+import { useLeaderboardSync } from "../../features/community/useLeaderboardSync";
 import { useUnlockQueue } from "./UnlockQueueProvider";
 
 /** Straight after sign in, levels already reached are not celebrated again (see useAchievementUnlocker). */
@@ -39,6 +40,7 @@ const AchievementWatcherInner: React.FC<{ children: React.ReactNode; userId: str
   useAchievementUnlocker();
   useLevelUpCelebration(userId);
   useCommunitySync(userId);
+  useLeaderboardSync(userId);
   useProgressOnProfile(userId);
   return <>{children}</>;
 };

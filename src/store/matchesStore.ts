@@ -135,11 +135,7 @@ const pushFrameSync = async (job: FrameSync) => {
 };
 
 const pushMatchUpdate = async (job: { matchId: string; payload: Record<string, any>; userId: string }) => {
-  const { error } = await supabase
-    .from("matches")
-    .update(job.payload)
-    .eq("id", job.matchId)
-    .eq("user_id", job.userId);
+  const { error } = await supabase.from("matches").update(job.payload).eq("id", job.matchId).eq("user_id", job.userId);
   if (error) throw error;
 };
 

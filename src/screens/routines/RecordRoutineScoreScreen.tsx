@@ -10,12 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  useNavigation,
-  useRoute,
-  type NavigationProp,
-  type RouteProp,
-} from "@react-navigation/native";
+import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import type { PracticeStackParamList } from "../../types";
 import { useRoutineScoresStore, useRoutinesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -165,12 +160,12 @@ export const RecordRoutineScoreScreen = () => {
 
     try {
       setIsSaving(true);
-        await addEntry({
-          routine_id: routine.id,
-          routine_name: routine.name,
-          score: built.value,
-          notes: notes.trim() || undefined,
-        });
+      await addEntry({
+        routine_id: routine.id,
+        routine_name: routine.name,
+        score: built.value,
+        notes: notes.trim() || undefined,
+      });
 
       dialog.alert({
         title: "Score saved",
@@ -200,104 +195,127 @@ export const RecordRoutineScoreScreen = () => {
       keyboardVerticalOffset={90}
     >
       <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-      <Pressable style={[styles.dismissKeyboard, { backgroundColor: colors.surfaceMuted }]} onPress={() => Keyboard.dismiss()}>
-        <Text style={[styles.dismissKeyboardText, { color: colors.text }]}>Done Editing</Text>
-      </Pressable>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-        <Text style={[styles.heading, { color: colors.text }]}>Record Score</Text>
-        <Text style={[styles.routineName, { color: colors.text }]}>{routine?.name ?? "Routine"}</Text>
-        <Text style={[styles.meta, { color: colors.textMuted }]}>Date: {new Date().toLocaleString()}</Text>
-        <Text style={[styles.helpText, { color: colors.textMuted }]}>{scoringHelp}</Text>
-
-        {scoringType === "percentage" ? (
-          <View style={styles.modeWrap}>
-            <View style={styles.modeRow}>
-              <Pressable
-                onPress={() => setEntryMode("direct")}
-                style={[
-                  styles.modeChip,
-                  {
-                    backgroundColor: entryMode === "direct" ? colors.primary : colors.surfaceMuted,
-                    borderColor: entryMode === "direct" ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Text style={{ color: entryMode === "direct" ? colors.onPrimary : colors.text, fontWeight: "700" }}>Percent</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setEntryMode("fraction")}
-                style={[
-                  styles.modeChip,
-                  {
-                    backgroundColor: entryMode === "fraction" ? colors.primary : colors.surfaceMuted,
-                    borderColor: entryMode === "fraction" ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Text style={{ color: entryMode === "fraction" ? colors.onPrimary : colors.text, fontWeight: "700" }}>Made/Attempts</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
-
-        {scoringType === "percentage" && entryMode === "fraction" ? (
-          <>
-            <Text style={[styles.label, { color: colors.text }]}>Made</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
-              placeholder="e.g. 18"
-              placeholderTextColor={colors.textMuted}
-              value={made}
-              onChangeText={setMade}
-              keyboardType="numeric"
-            />
-            <Text style={[styles.label, { color: colors.text }]}>Attempts</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
-              placeholder="e.g. 25"
-              placeholderTextColor={colors.textMuted}
-              value={attempts}
-              onChangeText={setAttempts}
-              keyboardType="numeric"
-            />
-          </>
-        ) : (
-          <>
-            <Text style={[styles.label, { color: colors.text }]}>Log {getScoringUnitLabel(scoringType)}</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
-              placeholder={
-                scoringType === "points"
-                  ? "e.g. 42"
-                  : scoringType === "count"
-                    ? "e.g. 8"
-                    : scoringType === "time"
-                      ? "e.g. 07:35"
-                      : "e.g. 72"
-              }
-              placeholderTextColor={colors.textMuted}
-              value={score}
-              onChangeText={setScore}
-              keyboardType={scoringType === "time" ? "numbers-and-punctuation" : "numeric"}
-            />
-          </>
-        )}
-
-        <Text style={[styles.label, { color: colors.text }]}>Notes (optional)</Text>
-        <TextInput
-          style={[styles.input, styles.notesInput, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text }]}
-          placeholder="What went well? What needs work?"
-          placeholderTextColor={colors.textMuted}
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          textAlignVertical="top"
-        />
-
-        <Pressable style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: isSaving ? 0.7 : 1 }]} onPress={saveResult}>
-          <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>Save Result</Text>
+        <Pressable
+          style={[styles.dismissKeyboard, { backgroundColor: colors.surfaceMuted }]}
+          onPress={() => Keyboard.dismiss()}
+        >
+          <Text style={[styles.dismissKeyboardText, { color: colors.text }]}>Done Editing</Text>
         </Pressable>
-      </View>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.heading, { color: colors.text }]}>Record Score</Text>
+          <Text style={[styles.routineName, { color: colors.text }]}>{routine?.name ?? "Routine"}</Text>
+          <Text style={[styles.meta, { color: colors.textMuted }]}>Date: {new Date().toLocaleString()}</Text>
+          <Text style={[styles.helpText, { color: colors.textMuted }]}>{scoringHelp}</Text>
+
+          {scoringType === "percentage" ? (
+            <View style={styles.modeWrap}>
+              <View style={styles.modeRow}>
+                <Pressable
+                  onPress={() => setEntryMode("direct")}
+                  style={[
+                    styles.modeChip,
+                    {
+                      backgroundColor: entryMode === "direct" ? colors.primary : colors.surfaceMuted,
+                      borderColor: entryMode === "direct" ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: entryMode === "direct" ? colors.onPrimary : colors.text, fontWeight: "700" }}>
+                    Percent
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setEntryMode("fraction")}
+                  style={[
+                    styles.modeChip,
+                    {
+                      backgroundColor: entryMode === "fraction" ? colors.primary : colors.surfaceMuted,
+                      borderColor: entryMode === "fraction" ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: entryMode === "fraction" ? colors.onPrimary : colors.text, fontWeight: "700" }}>
+                    Made/Attempts
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          {scoringType === "percentage" && entryMode === "fraction" ? (
+            <>
+              <Text style={[styles.label, { color: colors.text }]}>Made</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text },
+                ]}
+                placeholder="e.g. 18"
+                placeholderTextColor={colors.textMuted}
+                value={made}
+                onChangeText={setMade}
+                keyboardType="numeric"
+              />
+              <Text style={[styles.label, { color: colors.text }]}>Attempts</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text },
+                ]}
+                placeholder="e.g. 25"
+                placeholderTextColor={colors.textMuted}
+                value={attempts}
+                onChangeText={setAttempts}
+                keyboardType="numeric"
+              />
+            </>
+          ) : (
+            <>
+              <Text style={[styles.label, { color: colors.text }]}>Log {getScoringUnitLabel(scoringType)}</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text },
+                ]}
+                placeholder={
+                  scoringType === "points"
+                    ? "e.g. 42"
+                    : scoringType === "count"
+                      ? "e.g. 8"
+                      : scoringType === "time"
+                        ? "e.g. 07:35"
+                        : "e.g. 72"
+                }
+                placeholderTextColor={colors.textMuted}
+                value={score}
+                onChangeText={setScore}
+                keyboardType={scoringType === "time" ? "numbers-and-punctuation" : "numeric"}
+              />
+            </>
+          )}
+
+          <Text style={[styles.label, { color: colors.text }]}>Notes (optional)</Text>
+          <TextInput
+            style={[
+              styles.input,
+              styles.notesInput,
+              { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.text },
+            ]}
+            placeholder="What went well? What needs work?"
+            placeholderTextColor={colors.textMuted}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            textAlignVertical="top"
+          />
+
+          <Pressable
+            style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: isSaving ? 0.7 : 1 }]}
+            onPress={saveResult}
+          >
+            <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>Save Result</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

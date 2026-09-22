@@ -30,7 +30,8 @@ export const RoutinesListScreen = () => {
 
   const category = useMemo(() => categories.find((item) => item.id === categoryId), [categories, categoryId]);
   const categoryRoutines = getRoutinesByCategory(categoryId);
-  const categoryContainsOnlyGuides = categoryRoutines.length > 0 && categoryRoutines.every((item) => item.content_type === "guide");
+  const categoryContainsOnlyGuides =
+    categoryRoutines.length > 0 && categoryRoutines.every((item) => item.content_type === "guide");
   const itemLabel = categoryContainsOnlyGuides ? "guide" : "routine";
   const iconName = getRoutineCategoryIconName(categoryId);
 
@@ -40,9 +41,11 @@ export const RoutinesListScreen = () => {
 
   if (!category) {
     return (
-      <View style={[styles.emptyState, { backgroundColor: colors.background }]}> 
+      <View style={[styles.emptyState, { backgroundColor: colors.background }]}>
         <Text style={[styles.emptyTitle, { color: colors.text }]}>Category not found</Text>
-        <Text style={[styles.emptyBody, { color: colors.textMuted }]}>This category is unavailable. Go back and choose another one.</Text>
+        <Text style={[styles.emptyBody, { color: colors.textMuted }]}>
+          This category is unavailable. Go back and choose another one.
+        </Text>
       </View>
     );
   }
@@ -61,13 +64,15 @@ export const RoutinesListScreen = () => {
         />
       )}
       ListHeaderComponent={
-        <View style={[styles.headerCard, { borderColor: colors.border, backgroundColor: colors.surface }]}> 
-          <View style={[styles.iconWrap, { backgroundColor: `${category.color}22` }]}> 
+        <View style={[styles.headerCard, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+          <View style={[styles.iconWrap, { backgroundColor: `${category.color}22` }]}>
             <MaterialCommunityIcons name={iconName as any} size={22} color={category.color} />
           </View>
           <View style={styles.headerTextWrap}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>{category.name}</Text>
-            <Text style={[styles.headerMeta, { color: colors.textMuted }]}>{categoryRoutines.length} {categoryRoutines.length === 1 ? itemLabel : `${itemLabel}s`}</Text>
+            <Text style={[styles.headerMeta, { color: colors.textMuted }]}>
+              {categoryRoutines.length} {categoryRoutines.length === 1 ? itemLabel : `${itemLabel}s`}
+            </Text>
           </View>
         </View>
       }

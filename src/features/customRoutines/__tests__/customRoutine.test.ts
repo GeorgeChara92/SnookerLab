@@ -41,7 +41,13 @@ describe("custom routines", () => {
       updatedAt: "2026-09-21T18:00:00Z",
     };
     const routine = toRoutine(custom);
-    expect(routine).toMatchObject({ id: custom.id, category_id: "cat-custom", scoring_type: "points", max_score: 27, is_system_routine: false });
+    expect(routine).toMatchObject({
+      id: custom.id,
+      category_id: "cat-custom",
+      scoring_type: "points",
+      max_score: 27,
+      is_system_routine: false,
+    });
     expect(routine.summary).toBe("6 colours");
     expect(toRoutine({ ...custom, maxScore: null }).scoring_type).toBe("count");
   });

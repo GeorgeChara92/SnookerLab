@@ -27,9 +27,10 @@ const chainFor = (table: string, op: string, payload?: any) => {
     select: () => chain,
     single: () => chain,
     then: (resolve: any, reject: any) =>
-      Promise.resolve(
-        failTable === table ? { data: null, error: failWith } : { data: null, error: null }
-      ).then(resolve, reject),
+      Promise.resolve(failTable === table ? { data: null, error: failWith } : { data: null, error: null }).then(
+        resolve,
+        reject
+      ),
   };
 
   return chain;

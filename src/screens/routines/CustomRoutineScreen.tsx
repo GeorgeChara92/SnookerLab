@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
@@ -12,6 +12,9 @@ import { summarise } from "../../features/scanSnooker/position";
 import { arSupport } from "../../../modules/snooker-ar";
 import { toRoutine } from "../../features/customRoutines/customRoutine";
 import { RoutineProgressCard } from "../../components/routines/RoutineProgressCard";
+import { RoutineLeaderboardCard } from "../../components/community/RoutineLeaderboardCard";
+import { ShareRoutineSheet } from "../../components/community/ShareRoutineSheet";
+import { leaderboardKeyFor } from "../../features/customRoutines/customRoutine";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /** One of the player's own routines: the table to set up, what it is, and a score to record. */
@@ -26,6 +29,7 @@ export const CustomRoutineScreen = () => {
   const { width, height } = useWindowDimensions();
   const tableHeight = Math.round(Math.min(height * 0.5, (width - SPACING.lg * 2) * 1.95));
   const asRoutine = useMemo(() => (routine ? toRoutine(routine) : null), [routine]);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     navigation.setOptions({ title: routine?.name ?? "Routine" });
@@ -79,6 +83,18 @@ export const CustomRoutineScreen = () => {
 
       {asRoutine ? <RoutineProgressCard routine={asRoutine} /> : null}
 
+      {leaderboardKeyFor(routine) ? (
+        <RoutineLeaderboardCard
+          routineKey={leaderboardKeyFor(routine)!}
+          onSeeAll={() =>
+            navigation.navigate("RoutineLeaderboard", { routineKey: leaderboardKeyFor(routine)!, name: routine.name })
+          }
+          onOpenPlayer={(userId) =>
+            (navigation as any).navigate("Community", { screen: "PlayerProfile", params: { userId } })
+          }
+        />
+      ) : null}
+
       {arSupport().available ? (
         <Pressable
           onPress={() => navigation.navigate("RoutineAR", { routineId: routine.id })}
@@ -107,6 +123,39 @@ export const CustomRoutineScreen = () => {
         <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.onPrimary} />
         <Text style={[styles.primaryText, { color: colors.onPrimary }]}>Record score</Text>
       </Pressable>
+
+      {!routine.sourceSharedId ? (
+        <Pressable
+          onPress={() => setSharing(true)}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.primary,
+            {
+              backgroundColor: colors.surface,
+              borderWidth: 1,
+              borderColor: colors.border,
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <MaterialCommunityIcons
+            name={routine.sharedId ? "qrcode" : "account-group-outline"}
+            size={20}
+            color={colors.text}
+          />
+          <Text style={[styles.primaryText, { color: colors.text }]}>
+            {routine.sharedId ? "Shared · link and QR code" : "Share to community"}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      <ShareRoutineSheet
+        visible={sharing}
+        onClose={() => setSharing(false)}
+        own={routine}
+        name={routine.name}
+        onOpenCommunity={() => (navigation as any).navigate("Community")}
+      />
 
       <View style={styles.row}>
         <Pressable

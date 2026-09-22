@@ -13,6 +13,13 @@ export type PublicProfile = {
   discoverable: boolean;
   messagePrivacy: Privacy;
   statsPrivacy: Privacy;
+  cuePreference: string | null;
+  /** Whether they appear on leaderboards. */
+  leaderboards: boolean;
+  bestBreak: number | null;
+  centuries: number | null;
+  matchesWon: number | null;
+  joinedAt: string | null;
 };
 
 export type Privacy = "everyone" | "friends" | "nobody";
@@ -67,10 +74,16 @@ export const profileFromRow = (row: any): PublicProfile => ({
   discoverable: row.discoverable ?? true,
   messagePrivacy: row.message_privacy ?? "everyone",
   statsPrivacy: row.stats_privacy ?? "friends",
+  cuePreference: row.cue_preference ?? null,
+  leaderboards: row.leaderboards ?? true,
+  bestBreak: row.best_break ?? null,
+  centuries: row.centuries ?? null,
+  matchesWon: row.matches_won ?? null,
+  joinedAt: row.joined_at ?? null,
 });
 
 export const PROFILE_COLUMNS =
-  "id, handle, display_name, avatar_preset, avatar_url, country_code, skill_level, bio, level, xp, discoverable, message_privacy, stats_privacy";
+  "id, handle, display_name, avatar_preset, avatar_url, country_code, skill_level, bio, level, xp, discoverable, message_privacy, stats_privacy, cue_preference, leaderboards, best_break, centuries, matches_won, joined_at";
 
 export const friendshipFromRow = (row: any): Friendship => ({
   id: row.id,

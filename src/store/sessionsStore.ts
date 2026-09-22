@@ -98,7 +98,11 @@ export const useSessionsStore = create<SessionsState>()(
         const authUser = (await supabase.auth.getUser()).data.user;
         if (!authUser) throw new Error("You need to be signed in to delete a template.");
 
-        const { error } = await supabase.from("session_templates").delete().eq("id", templateId).eq("user_id", authUser.id);
+        const { error } = await supabase
+          .from("session_templates")
+          .delete()
+          .eq("id", templateId)
+          .eq("user_id", authUser.id);
         if (error) throw error;
 
         set((state) => ({
@@ -221,7 +225,11 @@ export const useSessionsStore = create<SessionsState>()(
 
       hydrateSessionsForUser: async (userId) => {
         const [{ data: templateRows, error: templateError }, { data: logRows, error: logError }] = await Promise.all([
-          supabase.from("session_templates").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+          supabase
+            .from("session_templates")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false }),
           supabase.from("session_logs").select("*").eq("user_id", userId).order("recorded_at", { ascending: false }),
         ]);
 

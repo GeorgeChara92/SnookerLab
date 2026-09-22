@@ -15,6 +15,19 @@ import {
 import { useScanSnookerStore } from "../store/scanSnookerStore";
 import { useCommunityStore } from "../store/communityStore";
 import { navigationRef } from "./navigationRef";
+import { routineIdFromLink } from "../features/community/links";
+
+/** A routine link that arrived before the app was ready to show it. */
+let pendingRoutineId: string | null = null;
+
+const openRoutine = (id: string) => {
+  if (navigationRef.isReady() && navigationRef.getRootState()?.routeNames?.includes("Main")) {
+    navigationRef.navigate("Main", { screen: "Community", params: { screen: "SharedRoutine", params: { id } } });
+    pendingRoutineId = null;
+  } else {
+    pendingRoutineId = id;
+  }
+};
 import { supabase } from "../api/supabase";
 import { startSync, stopSync } from "../sync";
 import { MainTabNavigator } from "./MainTabNavigator";
@@ -119,6 +132,13 @@ export const AppNavigator = () => {
     ]
   );
 
+  // A routine link opened before sign in, or while the app was starting, opens once it is ready.
+  useEffect(() => {
+    if (!readyUserId || !pendingRoutineId) return;
+    const timer = setTimeout(() => pendingRoutineId && openRoutine(pendingRoutineId), 600);
+    return () => clearTimeout(timer);
+  }, [readyUserId]);
+
   const forgetUser = useCallback(() => {
     loadingFor.current = null;
     useCustomRoutinesStore.getState().setOwner(null);
@@ -200,6 +220,13 @@ export const AppNavigator = () => {
 
     const handleAuthDeepLink = async (url: string | null) => {
       if (!url || disposed) return;
+
+      // A shared routine's link: open it (once signed in).
+      const routineId = routineIdFromLink(url);
+      if (routineId) {
+        openRoutine(routineId);
+        return;
+      }
 
       const { access_token, refresh_token, type } = extractAuthParams(url);
       if (!access_token || !refresh_token) return;

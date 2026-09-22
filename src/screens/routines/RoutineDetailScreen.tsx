@@ -1,11 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View, Image } from "react-native";
-import {
-  useRoute,
-  useNavigation,
-  type NavigationProp,
-  type RouteProp,
-} from "@react-navigation/native";
+import { useRoute, useNavigation, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useRoutinesStore, useRoutineScoresStore } from "../../store";
 import type { PracticeStackParamList, ScoringType } from "../../types";
 import { getYoutubeThumbnailUrl, getYoutubeWatchUrl } from "../../utils/youtube";
@@ -13,6 +8,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
 import { getGuidePlaybookByRoutineId } from "../../features/guides/guidePlaybooks";
 import { RoutineProgressCard } from "../../components/routines/RoutineProgressCard";
+import { RoutineLeaderboardCard } from "../../components/community/RoutineLeaderboardCard";
 
 const scoringTypeLabel = (type: ScoringType): string => {
   switch (type) {
@@ -81,22 +77,20 @@ export const RoutineDetailScreen = () => {
     setSelectedGuide("primary");
   }, [routineId, hasImageGuide, hasPrimary, hasAlt]);
 
-  const activeVideoId =
-    selectedGuide === "alt"
-      ? altVideoId ?? primaryVideoId
-      : primaryVideoId ?? altVideoId;
+  const activeVideoId = selectedGuide === "alt" ? (altVideoId ?? primaryVideoId) : (primaryVideoId ?? altVideoId);
 
   const activeTitle =
     selectedGuide === "alt"
-      ? routine?.youtube_alt_title ?? routine?.youtube_title
-      : routine?.youtube_title ?? routine?.youtube_alt_title;
+      ? (routine?.youtube_alt_title ?? routine?.youtube_title)
+      : (routine?.youtube_title ?? routine?.youtube_alt_title);
 
   const activeChannel =
     selectedGuide === "alt"
-      ? routine?.youtube_alt_channel ?? routine?.youtube_channel
-      : routine?.youtube_channel ?? routine?.youtube_alt_channel;
+      ? (routine?.youtube_alt_channel ?? routine?.youtube_channel)
+      : (routine?.youtube_channel ?? routine?.youtube_alt_channel);
 
-  const thumbnail = selectedGuide === "image" ? undefined : activeVideoId ? getYoutubeThumbnailUrl(activeVideoId) : undefined;
+  const thumbnail =
+    selectedGuide === "image" ? undefined : activeVideoId ? getYoutubeThumbnailUrl(activeVideoId) : undefined;
   const youtubeUrl = activeVideoId
     ? getYoutubeWatchUrl(activeVideoId)
     : selectedGuide === "alt"
@@ -111,18 +105,23 @@ export const RoutineDetailScreen = () => {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} style={[styles.container, { backgroundColor: colors.background }]}> 
-      <View style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+    <ScrollView
+      contentContainerStyle={styles.content}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <View style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.heroTopRow}>
           <View style={[styles.iconChip, { backgroundColor: colors.surfaceMuted }]}>
             <Text style={styles.icon}>{routine.icon ?? "🎱"}</Text>
           </View>
           <View style={styles.metaPillsRow}>
-            <View style={[styles.metaPill, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
+            <View style={[styles.metaPill, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
               <Text style={[styles.metaPillText, { color: colors.textMuted }]}>{categoryName ?? "Practice"}</Text>
             </View>
-            <View style={[styles.metaPill, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
-              <Text style={[styles.metaPillText, { color: colors.textMuted }]}>{isGuide ? "guide" : routine.difficulty}</Text>
+            <View style={[styles.metaPill, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+              <Text style={[styles.metaPillText, { color: colors.textMuted }]}>
+                {isGuide ? "guide" : routine.difficulty}
+              </Text>
             </View>
           </View>
         </View>
@@ -130,17 +129,22 @@ export const RoutineDetailScreen = () => {
         <Text style={[styles.summary, { color: colors.textMuted }]}>{routine.summary ?? routine.description}</Text>
       </View>
 
-      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Guides & Reference</Text>
 
-        {(hasPrimary || hasAlt) ? (
+        {hasPrimary || hasAlt ? (
           <View style={styles.videoPickerRow}>
             {hasPrimary ? (
               <Pressable
                 style={[styles.videoPickerButton, selectedGuide === "primary" && styles.videoPickerButtonActive]}
                 onPress={() => setSelectedGuide("primary")}
               >
-                <Text style={[styles.videoPickerButtonText, selectedGuide === "primary" && styles.videoPickerButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.videoPickerButtonText,
+                    selectedGuide === "primary" && styles.videoPickerButtonTextActive,
+                  ]}
+                >
                   {isGuide ? "Video Tutorial" : "Main Video"}
                 </Text>
               </Pressable>
@@ -151,7 +155,9 @@ export const RoutineDetailScreen = () => {
                 style={[styles.videoPickerButton, selectedGuide === "alt" && styles.videoPickerButtonActive]}
                 onPress={() => setSelectedGuide("alt")}
               >
-                <Text style={[styles.videoPickerButtonText, selectedGuide === "alt" && styles.videoPickerButtonTextActive]}>
+                <Text
+                  style={[styles.videoPickerButtonText, selectedGuide === "alt" && styles.videoPickerButtonTextActive]}
+                >
                   Alt Video
                 </Text>
               </Pressable>
@@ -162,7 +168,12 @@ export const RoutineDetailScreen = () => {
                 style={[styles.videoPickerButton, selectedGuide === "image" && styles.videoPickerButtonActive]}
                 onPress={() => setSelectedGuide("image")}
               >
-                <Text style={[styles.videoPickerButtonText, selectedGuide === "image" && styles.videoPickerButtonTextActive]}>
+                <Text
+                  style={[
+                    styles.videoPickerButtonText,
+                    selectedGuide === "image" && styles.videoPickerButtonTextActive,
+                  ]}
+                >
                   Setup Image
                 </Text>
               </Pressable>
@@ -184,7 +195,9 @@ export const RoutineDetailScreen = () => {
         {selectedGuide !== "image" ? (
           <>
             {activeTitle ? <Text style={[styles.videoMetaTitle, { color: colors.text }]}>{activeTitle}</Text> : null}
-            {activeChannel ? <Text style={[styles.videoMetaChannel, { color: colors.textMuted }]}>Channel: {activeChannel}</Text> : null}
+            {activeChannel ? (
+              <Text style={[styles.videoMetaChannel, { color: colors.textMuted }]}>Channel: {activeChannel}</Text>
+            ) : null}
             <View style={styles.videoActions}>
               {youtubeUrl ? (
                 <Pressable style={styles.youtubeButton} onPress={() => Linking.openURL(youtubeUrl)}>
@@ -198,107 +211,110 @@ export const RoutineDetailScreen = () => {
 
       {isGuide ? (
         <>
-          <View style={[styles.guideLeadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.guideLeadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.guideLeadTitle, { color: colors.text }]}>Start Here</Text>
             <Text style={[styles.guideLeadBody, { color: colors.textMuted }]}>
               {guidePlaybook?.intro ?? routine.setup_instructions}
             </Text>
-            <View style={[styles.guideDisclaimer, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
+            <View
+              style={[styles.guideDisclaimer, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+            >
               <Text style={[styles.guideDisclaimerTitle, { color: colors.text }]}>Personal Fit Matters</Text>
               <Text style={[styles.guideDisclaimerBody, { color: colors.textMuted }]}>
-                Fundamentals are your starting framework, not a fixed mold. Keep the core principles, then adapt details to your body type, flexibility, and natural timing.
+                Fundamentals are your starting framework, not a fixed mold. Keep the core principles, then adapt details
+                to your body type, flexibility, and natural timing.
               </Text>
             </View>
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Why This Fundamental Matters</Text>
             {(guidePlaybook?.importance ?? []).map((item, index) => (
-              <Text key={`${routine.id}-importance-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-importance-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 • {item}
               </Text>
             ))}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Where to Start</Text>
             {(guidePlaybook?.whereToStart ?? []).map((item, index) => (
-              <Text key={`${routine.id}-start-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-start-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 {index + 1}. {item}
               </Text>
             ))}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Step-by-Step Practice Plan</Text>
             {(guidePlaybook?.stepByStep ?? routine.steps ?? []).map((item, index) => (
-              <Text key={`${routine.id}-detailed-step-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-detailed-step-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 {index + 1}. {item}
               </Text>
             ))}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Progression Path</Text>
             {(guidePlaybook?.progression ?? []).map((item, index) => (
-              <Text key={`${routine.id}-progression-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-progression-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 • {item}
               </Text>
             ))}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Common Technique Systems</Text>
             {(guidePlaybook?.commonTechniques ?? []).map((item, index) => (
-              <Text key={`${routine.id}-systems-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-systems-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 • {item}
               </Text>
             ))}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>What Goes Wrong If It Breaks Down</Text>
             {(guidePlaybook?.commonIssues ?? []).map((issue, index) => (
-              <View key={`${routine.id}-issue-${index}`} style={[styles.issueRow, { borderColor: colors.border }]}> 
+              <View key={`${routine.id}-issue-${index}`} style={[styles.issueRow, { borderColor: colors.border }]}>
                 <Text style={styles.issueIcon}>⚠️</Text>
                 <Text style={[styles.issueText, { color: colors.textMuted }]}>{issue}</Text>
               </View>
             ))}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Build Your Own Version</Text>
             {(guidePlaybook?.adaptNotes ?? []).map((note, index) => (
-              <Text key={`${routine.id}-adapt-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-adapt-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 • {note}
               </Text>
             ))}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Session Blueprint</Text>
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.setup_instructions}</Text>
             {(guidePlaybook?.sessionPlan ?? []).map((step, index) => (
-              <Text key={`${routine.id}-plan-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-plan-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 {index + 1}. {step}
               </Text>
             ))}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Self-Check Checklist</Text>
             {(guidePlaybook?.checkpoints ?? []).map((point, index) => (
-              <Text key={`${routine.id}-checkpoint-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-checkpoint-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 □ {point}
               </Text>
             ))}
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.success_criteria}</Text>
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>What You'll Build</Text>
             {(routine.improves ?? []).map((tip, index) => (
-              <Text key={`${routine.id}-tip-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-tip-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 {tip}
               </Text>
             ))}
@@ -306,32 +322,38 @@ export const RoutineDetailScreen = () => {
         </>
       ) : (
         <>
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Setup</Text>
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.setup_instructions}</Text>
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>How to Run the Drill</Text>
             {(routine.steps ?? []).map((step, index) => (
-              <Text key={`${routine.id}-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 {index + 1}. {step}
               </Text>
             ))}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Scoring & Success Criteria</Text>
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.success_criteria}</Text>
-            <Text style={[styles.statRow, { color: colors.textMuted }]}>Scoring: {scoringTypeLabel(routine.scoring_type as ScoringType)}</Text>
-            <Text style={[styles.statRow, { color: colors.textMuted }]}>{scoringRecordingHint(routine.scoring_type as ScoringType)}</Text>
-            {routine.max_score ? <Text style={[styles.statRow, { color: colors.textMuted }]}>Session cap: {routine.max_score}</Text> : null}
+            <Text style={[styles.statRow, { color: colors.textMuted }]}>
+              Scoring: {scoringTypeLabel(routine.scoring_type as ScoringType)}
+            </Text>
+            <Text style={[styles.statRow, { color: colors.textMuted }]}>
+              {scoringRecordingHint(routine.scoring_type as ScoringType)}
+            </Text>
+            {routine.max_score ? (
+              <Text style={[styles.statRow, { color: colors.textMuted }]}>Session cap: {routine.max_score}</Text>
+            ) : null}
           </View>
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>What This Improves</Text>
             {(routine.improves ?? []).map((tip, index) => (
-              <Text key={`${routine.id}-tip-${index}`} style={[styles.listItem, { color: colors.textMuted }]}> 
+              <Text key={`${routine.id}-tip-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
                 {tip}
               </Text>
             ))}
@@ -339,20 +361,39 @@ export const RoutineDetailScreen = () => {
 
           <RoutineProgressCard routine={routine} style={styles.progress} />
 
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+          <View style={styles.progress}>
+            <RoutineLeaderboardCard
+              routineKey={routine.id}
+              onSeeAll={() =>
+                (navigation as any).navigate("RoutineLeaderboard", { routineKey: routine.id, name: routine.name })
+              }
+              onOpenPlayer={(userId) =>
+                (navigation as any).navigate("Community", { screen: "PlayerProfile", params: { userId } })
+              }
+            />
+          </View>
+
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Results</Text>
             {entries.length === 0 ? (
               <Text style={styles.empty}>No scores recorded yet. Add your first result below.</Text>
             ) : (
               entries.map((entry) => (
-                  <View key={entry.id} style={[styles.entryCard, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
-                    <View style={styles.entryHeader}>
-                      <Text style={[styles.entryScore, { color: colors.text }]}>{entry.score}</Text>
-                      <Text style={[styles.entryDate, { color: colors.textMuted }]}>{new Date(entry.recorded_at).toLocaleString()}</Text>
-                    </View>
-                    {entry.notes ? <Text style={[styles.entryNotes, { color: colors.textMuted }]}>{entry.notes}</Text> : null}
+                <View
+                  key={entry.id}
+                  style={[styles.entryCard, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+                >
+                  <View style={styles.entryHeader}>
+                    <Text style={[styles.entryScore, { color: colors.text }]}>{entry.score}</Text>
+                    <Text style={[styles.entryDate, { color: colors.textMuted }]}>
+                      {new Date(entry.recorded_at).toLocaleString()}
+                    </Text>
                   </View>
-                ))
+                  {entry.notes ? (
+                    <Text style={[styles.entryNotes, { color: colors.textMuted }]}>{entry.notes}</Text>
+                  ) : null}
+                </View>
+              ))
             )}
           </View>
 

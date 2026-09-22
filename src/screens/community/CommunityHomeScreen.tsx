@@ -227,6 +227,33 @@ export const CommunityHomeScreen = () => {
         </Pressable>
       </Pressable>
 
+      <View style={styles.tiles}>
+        {(
+          [
+            { route: "RoutineLibrary", icon: "table-furniture", title: "Routines", hint: "Top, new, friends'" },
+            { route: "Leaderboards", icon: "podium", title: "Leaderboards", hint: "Level, breaks, routines" },
+          ] as const
+        ).map((tile) => (
+          <Pressable
+            key={tile.route}
+            onPress={() => navigation.navigate(tile.route)}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.tile,
+              { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <View style={[styles.tileIcon, { backgroundColor: colors.board }]}>
+              <MaterialCommunityIcons name={tile.icon} size={22} color={colors.boardRule} />
+            </View>
+            <Text style={[styles.tileTitle, { color: colors.text }]}>{tile.title}</Text>
+            <Text style={[styles.tileHint, { color: colors.textMuted }]} numberOfLines={1}>
+              {tile.hint}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       <View style={[styles.segments, { backgroundColor: colors.surfaceMuted }]} accessibilityRole="tablist">
         {(
           [
@@ -460,6 +487,18 @@ const styles = StyleSheet.create({
   meCountLabel: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 1 },
   gear: { minWidth: 32, minHeight: HIT_TARGET, alignItems: "flex-end", justifyContent: "center" },
   segments: { flexDirection: "row", borderRadius: RADIUS.md, padding: 3, gap: 3 },
+  tiles: { flexDirection: "row", gap: SPACING.sm },
+  tile: { flex: 1, borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: 4 },
+  tileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  tileTitle: { fontSize: 16, fontWeight: "800" },
+  tileHint: { fontSize: 12 },
   segment: {
     flex: 1,
     flexDirection: "row",

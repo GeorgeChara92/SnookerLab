@@ -86,9 +86,7 @@ const pushFixtureSync = async (job: FixtureSync) => {
 
   if (job.reframed.length) {
     const deletions = await Promise.all(
-      job.reframed.map((entry) =>
-        supabase.from("tournament_fixture_frames").delete().eq("fixture_id", entry.fixtureId)
-      )
+      job.reframed.map((entry) => supabase.from("tournament_fixture_frames").delete().eq("fixture_id", entry.fixtureId))
     );
     const failedDelete = deletions.find((item) => item.error);
     if (failedDelete?.error) throw failedDelete.error;
@@ -109,12 +107,7 @@ const pushFixtureSync = async (job: FixtureSync) => {
 
 registerSyncHandler("tournament.fixtures", pushFixtureSync);
 
-const buildLeagueFixtures = (
-  tournamentId: string,
-  participants: string[],
-  bestOfFrames: number,
-  meetings = 1
-) => {
+const buildLeagueFixtures = (tournamentId: string, participants: string[], bestOfFrames: number, meetings = 1) => {
   const list = participants.filter((name) => !isBye(name));
   const indexInRound = new Map<number, number>();
 
@@ -274,7 +267,7 @@ export const useTournamentsStore = create<TournamentsState>()(
 
         const restartPairingMode =
           existing.tournament_type === "knockout"
-            ? options?.pairingMode ?? existing.pairing_mode
+            ? (options?.pairingMode ?? existing.pairing_mode)
             : existing.pairing_mode;
         const preserveManual = options?.preserveManualPairs ?? true;
         const previousChampion = getTournamentChampion(existing);
@@ -286,10 +279,9 @@ export const useTournamentsStore = create<TournamentsState>()(
           pairingMode: restartPairingMode,
           bestOfFrames: existing.best_of_frames,
           participants: existing.participants,
-          notes:
-            previousChampion
-              ? `Previous champion: ${previousChampion}${existing.notes ? ` | ${existing.notes}` : ""}`
-              : existing.notes,
+          notes: previousChampion
+            ? `Previous champion: ${previousChampion}${existing.notes ? ` | ${existing.notes}` : ""}`
+            : existing.notes,
           previousChampion: previousChampion ?? undefined,
           manualFixtures:
             restartPairingMode === "manual" && preserveManual
@@ -498,7 +490,9 @@ export const useTournamentsStore = create<TournamentsState>()(
           fixturesByTournament.set(row.tournament_id, list);
         });
 
-        const tournaments = (tournamentRows ?? []).map((row) => mapTournamentRow(row, fixturesByTournament.get(row.id) ?? []));
+        const tournaments = (tournamentRows ?? []).map((row) =>
+          mapTournamentRow(row, fixturesByTournament.get(row.id) ?? [])
+        );
         set({ tournaments });
       },
     }),

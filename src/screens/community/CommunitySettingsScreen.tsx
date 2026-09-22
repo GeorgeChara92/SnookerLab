@@ -18,7 +18,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { useCommunityStore } from "../../store/communityStore";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
-import { cleanHandle, handleProblem, suggestHandle } from "../../features/community/handle";
+import { cleanHandle, handleAlternatives, handleProblem, suggestHandle } from "../../features/community/handle";
 import { containsBlockedWord } from "../../features/community/wordFilter";
 import { nameOf, type Privacy } from "../../features/community/types";
 import type { CommunityStackParamList } from "../../types";
@@ -44,13 +44,15 @@ export const CommunitySettingsScreen = () => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
-  const { me, blocked, profiles, isAdmin, saveMe, handleIsFree, unblock } = useCommunityStore();
+  const { me, blocked, profiles, isAdmin, saveMe, handleIsFree, freeHandles, unblock } = useCommunityStore();
 
   const [handle, setHandle] = useState(me?.handle ?? suggestHandle(user?.username));
   const [bio, setBio] = useState(me?.bio ?? "");
   const [discoverable, setDiscoverable] = useState(me?.discoverable ?? true);
   const [statsPrivacy, setStatsPrivacy] = useState<Privacy>(me?.statsPrivacy ?? "friends");
   const [messagePrivacy, setMessagePrivacy] = useState<Privacy>(me?.messagePrivacy ?? "everyone");
+  const [leaderboards, setLeaderboards] = useState(me?.leaderboards ?? true);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [handleState, setHandleState] = useState<HandleState>("idle");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,13 +76,28 @@ export const CommunitySettingsScreen = () => {
     timer.current = setTimeout(async () => setHandleState((await handleIsFree(handle)) ? "free" : "taken"), 400);
   }, [handle, handleIsFree, me?.handle, problem]);
 
+  // When it is taken, three free ones close to it.
+  useEffect(() => {
+    if (handleState !== "taken") {
+      setSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    void freeHandles(handleAlternatives(handle, user?.username)).then((free) => {
+      if (!cancelled) setSuggestions(free.slice(0, 3));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [freeHandles, handle, handleState, user?.username]);
+
   const canSave = !problem && !bioProblem && handleState !== "taken" && handleState !== "checking" && !saving;
 
   const save = async () => {
     if (!canSave) return;
     setSaving(true);
     setError(null);
-    const result = await saveMe({ handle, bio, discoverable, statsPrivacy, messagePrivacy });
+    const result = await saveMe({ handle, bio, discoverable, statsPrivacy, messagePrivacy, leaderboards });
     setSaving(false);
     if (!result.ok) {
       setError(result.message);
@@ -179,6 +196,27 @@ export const CommunitySettingsScreen = () => {
           ) : null}
         </View>
         <Text style={[styles.note, { color: handleNote.colour }]}>{handleNote.text}</Text>
+        {suggestions.length ? (
+          <View style={styles.suggestions}>
+            <Text style={[styles.hint, { color: colors.textMuted }]}>Try one of these:</Text>
+            <View style={styles.suggestionRow}>
+              {suggestions.map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => setHandle(option)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Use @${option}`}
+                  style={({ pressed }) => [
+                    styles.suggestion,
+                    { borderColor: colors.primary, backgroundColor: pressed ? colors.primary + "22" : colors.surface },
+                  ]}
+                >
+                  <Text style={[styles.suggestionText, { color: colors.primary }]}>@{option}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
 
         <Text style={[styles.label, { color: colors.textMuted }]}>BIO</Text>
         <TextInput
@@ -209,6 +247,17 @@ export const CommunitySettingsScreen = () => {
               <Text style={[styles.hint, { color: colors.textMuted }]}>Off, and only people you add can find you.</Text>
             </View>
             <Switch value={discoverable} onValueChange={setDiscoverable} trackColor={{ true: colors.primary }} />
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={styles.switchRow}>
+            <View style={styles.flex}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Appear on leaderboards</Text>
+              <Text style={[styles.hint, { color: colors.textMuted }]}>
+                Your level, high break and routine bests, ranked against other players.
+              </Text>
+            </View>
+            <Switch value={leaderboards} onValueChange={setLeaderboards} trackColor={{ true: colors.primary }} />
           </View>
 
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -318,6 +367,17 @@ const styles = StyleSheet.create({
   choiceItem: { flex: 1, minHeight: 38, borderRadius: RADIUS.sm, alignItems: "center", justifyContent: "center" },
   choiceText: { fontSize: 14, fontWeight: "700" },
   error: { fontSize: 14, fontWeight: "600", marginTop: SPACING.sm },
+  suggestions: { gap: 6 },
+  suggestionRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
+  suggestion: {
+    minHeight: 36,
+    paddingHorizontal: SPACING.md,
+    borderWidth: 1,
+    borderRadius: RADIUS.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  suggestionText: { fontSize: 14, fontWeight: "800" },
   save: {
     flexDirection: "row",
     alignItems: "center",

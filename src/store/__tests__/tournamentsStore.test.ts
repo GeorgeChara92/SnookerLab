@@ -94,8 +94,7 @@ const twoNil = [
   { frame_number: 2, score_a: 66, score_b: 40, winner: "a" as const },
 ];
 
-const writes = (table: string, op: Recorded["op"]) =>
-  recorded.filter((item) => item.table === table && item.op === op);
+const writes = (table: string, op: Recorded["op"]) => recorded.filter((item) => item.table === table && item.op === op);
 
 beforeEach(() => {
   recorded.length = 0;
@@ -221,9 +220,7 @@ describe("when Supabase cannot be reached", () => {
   it("keeps the result on screen and parks it in the outbox", async () => {
     failTable = "tournament_fixtures";
 
-    const outcome = await useTournamentsStore
-      .getState()
-      .updateFixtureResult("t1", "f1", { frameScores: twoNil });
+    const outcome = await useTournamentsStore.getState().updateFixtureResult("t1", "f1", { frameScores: twoNil });
 
     expect(outcome).toBe("queued");
 
@@ -284,8 +281,8 @@ describe("when Supabase cannot be reached", () => {
   });
 
   it("reports where the result went", async () => {
-    await expect(
-      useTournamentsStore.getState().updateFixtureResult("t1", "f1", { frameScores: twoNil })
-    ).resolves.toBe("saved");
+    await expect(useTournamentsStore.getState().updateFixtureResult("t1", "f1", { frameScores: twoNil })).resolves.toBe(
+      "saved"
+    );
   });
 });

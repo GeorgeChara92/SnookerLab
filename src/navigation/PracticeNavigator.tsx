@@ -14,6 +14,7 @@ import { GuidedSessionBuilder } from "../screens/sessions/GuidedSessionBuilder";
 import { PracticePlanScreen } from "../screens/sessions/PracticePlanScreen";
 import { NewGoalScreen } from "../screens/sessions/NewGoalScreen";
 import { SessionsHomeScreen } from "../screens/sessions/SessionsHomeScreen";
+import { RoutineLeaderboardScreen } from "../screens/community/RoutineLeaderboardScreen";
 import { PracticeStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 
@@ -55,6 +56,7 @@ export const PracticeNavigator = () => {
       />
       <Stack.Screen name="PracticePlan" component={PracticePlanScreen} options={{ title: "Your plan" }} />
       <Stack.Screen name="NewGoal" component={NewGoalScreen} options={{ title: "New goal" }} />
+      <Stack.Screen name="RoutineLeaderboard" component={RoutineLeaderboardScreen} options={{ title: "Leaderboard" }} />
     </Stack.Navigator>
   );
 };
