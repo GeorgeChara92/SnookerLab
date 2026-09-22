@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en-GB" style="color-scheme: dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Email Confirmed | Snooker Lab</title>
+    <title>Confirm your email | Snooker Lab</title>
+    <meta name="robots" content="noindex" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,26 +17,99 @@
   <body>
     <main class="shell">
       <header class="topbar">
-        <a class="brand" href="/"><img src="/icon-512.jpg" alt="" /><span>Snooker Lab</span></a>
+        <a class="brand" href="/"><img src="/icon-512.jpg" alt="" /><span translate="no">Snooker Lab</span></a>
         <nav class="nav">
           <a href="/">Home</a>
           <a href="/support">Support</a>
         </nav>
       </header>
 
-      <section class="hero">
-        <h1>Email confirmed</h1>
-        <p>Your account is now verified successfully.</p>
+      <section class="hero" aria-live="polite">
+        <h1 id="title">Confirming…</h1>
+        <p id="message">One moment while we confirm your email.</p>
       </section>
 
-      <section class="card">
+      <section class="card" id="next" hidden>
         <h3>Next step</h3>
-        <p>Return to Snooker Lab and sign in with your email and password.</p>
+        <p id="next-text">Go back to Snooker Lab and sign in with your email and password.</p>
         <p>
           <a class="button" href="snookerlab://auth/callback">Open Snooker Lab</a>
         </p>
-        <p class="meta">If the app does not open automatically, launch it manually and sign in.</p>
+        <p class="meta">If the app does not open, open it yourself and sign in.</p>
       </section>
     </main>
+
+    <script src="/auth-config.js"></script>
+    <script>
+      // The email's link comes here with a one-time code; this page confirms it with Supabase
+      // directly, so the player only ever sees this site's address. Older links, which went
+      // through Supabase first, arrive already confirmed (or with an error in the address).
+      (async () => {
+        const title = document.getElementById("title");
+        const message = document.getElementById("message");
+        const next = document.getElementById("next");
+        const nextText = document.getElementById("next-text");
+        const show = (heading, body, after) => {
+          title.textContent = heading;
+          message.textContent = body;
+          if (after) nextText.textContent = after;
+          next.hidden = false;
+        };
+
+        const query = new URLSearchParams(location.search);
+        const hash = new URLSearchParams(location.hash.slice(1));
+        const error = query.get("error_description") || hash.get("error_description");
+        const tokenHash = query.get("token_hash");
+        const type = query.get("type") || "email";
+
+        if (error) {
+          show(
+            "That link did not work",
+            error.includes("expired")
+              ? "The link has expired. Sign in to the app and ask for a new confirmation email."
+              : "The link could not be used. It may have been used already. Try signing in to the app.",
+            "If you still cannot sign in, get in touch from the Support page."
+          );
+          return;
+        }
+
+        if (!tokenHash) {
+          // Already confirmed by the time it got here.
+          show("Email confirmed", "Your account is ready.");
+          return;
+        }
+
+        try {
+          const config = window.SNOOKER_LAB_AUTH || {};
+          const response = await fetch(`${config.url}/auth/v1/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", apikey: config.anonKey },
+            body: JSON.stringify({ type, token_hash: tokenHash }),
+          });
+          if (response.ok) {
+            show(
+              type === "recovery" ? "Link confirmed" : "Email confirmed",
+              type === "recovery" ? "Open the app to choose a new password." : "Your account is ready."
+            );
+          } else {
+            const body = await response.json().catch(() => ({}));
+            const text = String(body.msg || body.error_description || body.message || "");
+            show(
+              "That link did not work",
+              /expired|invalid/i.test(text)
+                ? "The link has expired or has already been used. Try signing in to the app; if your email is not confirmed yet, it can send a new link."
+                : "Something went wrong confirming your email. Try the link again in a moment.",
+              "If you still cannot sign in, get in touch from the Support page."
+            );
+          }
+        } catch {
+          show(
+            "Could not reach Snooker Lab",
+            "Check your connection and open the link again.",
+            "Once you are connected, the link will still work."
+          );
+        }
+      })();
+    </script>
   </body>
 </html>
