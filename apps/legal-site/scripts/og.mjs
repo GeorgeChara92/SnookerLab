@@ -1,5 +1,5 @@
 // Builds the 1200x630 link preview (public/og.jpg) from the site's own colours and a screenshot.
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
