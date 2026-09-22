@@ -71,7 +71,10 @@ interface AuthState {
     username: string,
     skillLevel?: SkillLevel,
     countryCode?: string
-  ) => Promise<void>;
+    // alreadyRegistered: the email has an account. Supabase then sends no email and reports
+    // success anyway (so strangers cannot probe who has an account), which left the player
+    // waiting for a confirmation that was never coming.
+  ) => Promise<{ alreadyRegistered: boolean }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   resendEmailVerification: (email: string) => Promise<void>;
@@ -118,7 +121,7 @@ export const useAuthStore = create<AuthState>()(
       signUp: async (email, password, username, skillLevel, countryCode) => {
         set({ isLoading: true });
         try {
-          const { error } = await supabase.auth.signUp({
+          const { data, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
@@ -131,6 +134,8 @@ export const useAuthStore = create<AuthState>()(
             },
           });
           if (error) throw error;
+          // An existing account comes back as a user with no sign-in identities.
+          return { alreadyRegistered: Boolean(data.user && (data.user.identities ?? []).length === 0) };
         } finally {
           set({ isLoading: false });
         }

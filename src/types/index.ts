@@ -369,6 +369,8 @@ export type CommunityStackParamList = {
   CommunitySettings: { setup?: boolean };
   AdminReports: undefined;
   RoutineLibrary: undefined;
+  /** Every routine leaderboard, searchable. */
+  RoutineBoards: undefined;
   SharedRoutine: { id: string };
   Leaderboards: undefined;
   /** One routine's leaderboard; the key is a library routine's id or "shared:<id>". */

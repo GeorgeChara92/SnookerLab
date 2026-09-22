@@ -6,13 +6,16 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { useCommunityStore } from "../../store/communityStore";
 import { LeaderboardRow } from "../../components/community/LeaderboardRow";
+import { BoardRow } from "../../components/community/BoardRow";
 import { BoardPanel } from "../../components/scoreboard/Scoreboard";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { DEFAULT_ROUTINES } from "../../constants/routines";
 import {
   GLOBAL_METRICS,
+  boardSummaries,
   globalLeaderboard,
   type BoardEntry,
+  type BoardSummary,
   type GlobalMetric,
 } from "../../features/community/sharedRoutines";
 import { nameOf } from "../../features/community/types";
@@ -45,6 +48,11 @@ export const LeaderboardsScreen = () => {
   const [scope, setScope] = useState<Scope>("everyone");
   const [entries, setEntries] = useState<BoardEntry[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [summaries, setSummaries] = useState<Record<string, BoardSummary> | null>(null);
+
+  useEffect(() => {
+    void boardSummaries(me).then(setSummaries);
+  }, [me]);
 
   const load = useCallback(async () => {
     setEntries(await globalLeaderboard(metric, { friends: scope === "friends" ? friends : undefined, limit: 100 }));
@@ -164,29 +172,53 @@ export const LeaderboardsScreen = () => {
     </View>
   );
 
+  // The busiest few routine boards; every board is one tap away, searchable.
+  const busiest = routines
+    .filter((routine) => (summaries?.[routine.id]?.players ?? 0) > 0)
+    .sort((x, y) => (summaries?.[y.id]?.players ?? 0) - (summaries?.[x.id]?.players ?? 0))
+    .slice(0, 4);
+  const placesHeld = routines.filter((routine) => summaries?.[routine.id]?.myRank).length;
+
   const footer = (
     <View style={styles.footer}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Routine leaderboards</Text>
-      <Text style={[styles.noteText, { color: colors.textMuted }]}>
-        Every routine has a board of each player's best. Shared routines have theirs on their page.
-      </Text>
-      {routines.map((routine) => (
-        <Pressable
-          key={routine.id}
-          onPress={() => navigation.navigate("RoutineLeaderboard", { routineKey: routine.id, name: routine.name })}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.routineRow,
-            { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Text style={styles.routineIcon}>{routine.icon ?? "🎱"}</Text>
-          <Text style={[styles.routineName, { color: colors.text }]} numberOfLines={1}>
-            {routine.name}
-          </Text>
-          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+      <View style={styles.footerHead}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Routine leaderboards</Text>
+        <Pressable onPress={() => navigation.navigate("RoutineBoards")} accessibilityRole="button" hitSlop={8}>
+          <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
         </Pressable>
-      ))}
+      </View>
+      {busiest.length ? (
+        <View style={[styles.boardCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.boardCardTitle, { color: colors.textMuted }]}>MOST PLAYED</Text>
+          {busiest.map((routine, index) => (
+            <BoardRow
+              key={routine.id}
+              first={index === 0}
+              icon={routine.icon ?? "🎱"}
+              name={routine.name}
+              summary={summaries?.[routine.id]}
+              onPress={() => navigation.navigate("RoutineLeaderboard", { routineKey: routine.id, name: routine.name })}
+            />
+          ))}
+        </View>
+      ) : null}
+      <Pressable
+        onPress={() => navigation.navigate("RoutineBoards")}
+        accessibilityRole="button"
+        style={({ pressed }) => [
+          styles.browse,
+          { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <MaterialCommunityIcons name="format-list-numbered" size={22} color={colors.primary} />
+        <View style={styles.browseText}>
+          <Text style={[styles.routineName, { color: colors.text }]}>All {routines.length} routine boards</Text>
+          <Text style={[styles.noteText, { color: colors.textMuted }]}>
+            {placesHeld ? `You are on ${placesHeld}. ` : ""}Search, or filter by category.
+          </Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+      </Pressable>
     </View>
   );
 
@@ -265,6 +297,26 @@ const styles = StyleSheet.create({
   },
   plinthText: { fontFamily: FONTS.boardHeavy, fontSize: 14, color: "#1A1405" },
   footer: { gap: SPACING.sm, marginTop: SPACING.xl },
+  footerHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  seeAll: { fontSize: 15, fontWeight: "800" },
+  boardCard: { borderWidth: 1, borderRadius: RADIUS.lg, overflow: "hidden", paddingTop: SPACING.sm },
+  boardCardTitle: {
+    fontFamily: FONTS.boardLabel,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    paddingHorizontal: SPACING.md,
+    marginBottom: 2,
+  },
+  browse: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    minHeight: HIT_TARGET + 12,
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+  },
+  browseText: { flex: 1 },
   sectionTitle: { fontSize: 18, fontWeight: "800" },
   routineRow: {
     flexDirection: "row",

@@ -217,3 +217,43 @@ export const globalLeaderboard = async (
     })
   );
 };
+
+export type BoardSummary = {
+  routineKey: string;
+  players: number;
+  leader: { userId: string; raw: string } | null;
+  /** The player's own place, if they are on the board. */
+  myRank: number | null;
+  myRaw: string | null;
+};
+
+/**
+ * Every routine board at a glance: how many players, who leads, and the player's own place.
+ * One read of the bests the player can see, summed up here.
+ */
+export const boardSummaries = async (me: string | null): Promise<Record<string, BoardSummary>> => {
+  const { data } = await supabase
+    .from("routine_bests")
+    .select("routine_key, user_id, best, best_raw, kind")
+    .limit(5000);
+  const byKey = new Map<string, Array<{ user_id: string; best: number; best_raw: string; kind: string }>>();
+  (data ?? []).forEach((row: any) => {
+    byKey.set(row.routine_key, [...(byKey.get(row.routine_key) ?? []), { ...row, best: Number(row.best) }]);
+  });
+  const summaries: Record<string, BoardSummary> = {};
+  byKey.forEach((rows, key) => {
+    const ranked = rankEntries(
+      rows.map((row) => ({ value: row.best, userId: row.user_id, raw: row.best_raw })),
+      rows[0]?.kind !== "time"
+    );
+    const mine = ranked.find((row) => row.userId === me);
+    summaries[key] = {
+      routineKey: key,
+      players: ranked.length,
+      leader: ranked[0] ? { userId: ranked[0].userId, raw: ranked[0].raw } : null,
+      myRank: mine?.rank ?? null,
+      myRaw: mine?.raw ?? null,
+    };
+  });
+  return summaries;
+};

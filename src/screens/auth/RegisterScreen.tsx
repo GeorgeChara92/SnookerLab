@@ -56,7 +56,21 @@ export const RegisterScreen = ({ navigation }: Props) => {
 
     setProblem(null);
     try {
-      await signUp(cleanEmail, password, cleanUsername, skillLevel || undefined, countryCode || undefined);
+      const { alreadyRegistered } = await signUp(
+        cleanEmail,
+        password,
+        cleanUsername,
+        skillLevel || undefined,
+        countryCode || undefined
+      );
+      if (alreadyRegistered) {
+        // No email is sent for an address that already has an account: send them to log in.
+        navigation.navigate("Login", {
+          prefillEmail: cleanEmail,
+          notice: "That email already has an account. Log in, or use Forgot password if you need a new one.",
+        });
+        return;
+      }
       navigation.navigate("ConfirmEmail", { email: cleanEmail });
     } catch (error: any) {
       setProblem({ message: getAuthErrorMessage(error, "sign-up") });
@@ -161,7 +175,9 @@ export const RegisterScreen = ({ navigation }: Props) => {
         accessibilityLabel={country ? `Country: ${country.name}. Change` : "Choose your country"}
         style={[styles.countryButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
       >
-        {country ? <Text style={styles.flag}>{country.emoji}</Text> : (
+        {country ? (
+          <Text style={styles.flag}>{country.emoji}</Text>
+        ) : (
           <MaterialCommunityIcons name="earth" size={20} color={colors.textMuted} />
         )}
         <Text style={[styles.countryText, { color: country ? colors.text : colors.textMuted }]}>
@@ -224,9 +240,7 @@ const CountrySheet = ({
   const countries = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return COUNTRIES;
-    return COUNTRIES.filter(
-      (item) => item.name.toLowerCase().includes(query) || item.code.toLowerCase() === query
-    );
+    return COUNTRIES.filter((item) => item.name.toLowerCase().includes(query) || item.code.toLowerCase() === query);
   }, [search]);
 
   return (

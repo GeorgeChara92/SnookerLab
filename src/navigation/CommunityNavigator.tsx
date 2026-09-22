@@ -8,6 +8,7 @@ import { RoutineLibraryScreen } from "../screens/community/RoutineLibraryScreen"
 import { SharedRoutineScreen } from "../screens/community/SharedRoutineScreen";
 import { LeaderboardsScreen } from "../screens/community/LeaderboardsScreen";
 import { RoutineLeaderboardScreen } from "../screens/community/RoutineLeaderboardScreen";
+import { RoutineBoardsScreen } from "../screens/community/RoutineBoardsScreen";
 import type { CommunityStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 
@@ -29,6 +30,7 @@ export const CommunityNavigator = () => {
       <Stack.Screen name="RoutineLibrary" component={RoutineLibraryScreen} options={{ title: "Routine library" }} />
       <Stack.Screen name="SharedRoutine" component={SharedRoutineScreen} options={{ title: "Routine" }} />
       <Stack.Screen name="Leaderboards" component={LeaderboardsScreen} options={{ title: "Leaderboards" }} />
+      <Stack.Screen name="RoutineBoards" component={RoutineBoardsScreen} options={{ title: "Routine leaderboards" }} />
       <Stack.Screen name="RoutineLeaderboard" component={RoutineLeaderboardScreen} options={{ title: "Leaderboard" }} />
     </Stack.Navigator>
   );
