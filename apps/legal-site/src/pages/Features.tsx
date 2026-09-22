@@ -1,7 +1,7 @@
 import { Eye, Flag, MessageCircle, Search } from "lucide-react";
 import { Phone } from "../components/Phone";
 import { LiveBoard } from "../components/Scoreboard";
-import { ArRoutineDemo, CoachReport, RoutineBuilderDemo } from "../components/Showcase";
+import { ArRoutineDemo, RoutineBuilderDemo } from "../components/Showcase";
 import { Cta, FeatureStory, PageHero, Reveal, Strip, type Story } from "../components/Blocks";
 
 const Sep = ({ hide }: { hide?: boolean }) => <i className={`strip-sep ${hide ? "hide-sm" : ""}`} aria-hidden="true" />;
@@ -93,7 +93,8 @@ export function Practice() {
         "Share it with a link or a QR code, or pin it to your group",
         "Set it up on the real table with AR",
       ],
-      visual: <RoutineBuilderDemo />,
+      screen: "routine-builder",
+      alt: "The routine builder: balls placed on a table diagram, with the ball palette below",
     },
     {
       id: "routines",
@@ -128,7 +129,8 @@ export function Practice() {
         "Routines chosen for what it found",
         "Reviews on every plan, more on the paid ones",
       ],
-      visual: <CoachReport />,
+      screen: "ai-coach",
+      alt: "An AI coach report: technique, what went well and what to work on",
     },
     {
       id: "plans",
@@ -240,7 +242,7 @@ export function Community() {
         aside={
           <div className="phones-duo">
             <Phone screen="community" alt="Community: friends, groups and the pro tour" sizes="(max-width: 900px) 42vw, 220px" />
-            <Phone screen="group" alt="A group with a feed of results and achievements" sizes="(max-width: 900px) 42vw, 220px" />
+            <Phone screen="chat" alt="A group chat, with the league sorting out fixtures" sizes="(max-width: 900px) 42vw, 220px" />
           </div>
         }
       />

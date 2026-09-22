@@ -5,7 +5,7 @@ import { Bot, ChartNoAxesColumn, Lock, Newspaper, PencilRuler, ScanLine, Trophy,
 import { Phone } from "../components/Phone";
 import { LiveBoard } from "../components/Scoreboard";
 import { Scorer } from "../components/Scorer";
-import { CoachReport, RoutineBuilderDemo, ScanDemo } from "../components/Showcase";
+import { ScanDemo } from "../components/Showcase";
 import { AppleLogo, Arrow, Cta, Reveal } from "../components/Blocks";
 import { PLANS, type Screen } from "../site";
 
@@ -194,7 +194,7 @@ function Community() {
         </Reveal>
         <Reveal delay={0.1} className="feature-visual phones-duo">
           <Phone screen="group" alt="A group with a member playing live and a feed of achievements" sizes="(max-width: 860px) 42vw, 230px" />
-          <Phone screen="live-match" alt="Following a friend's match live" sizes="(max-width: 860px) 42vw, 230px" />
+          <Phone screen="chat" alt="A group chat, with the league sorting out fixtures" sizes="(max-width: 860px) 42vw, 230px" />
         </Reveal>
       </div>
     </section>
@@ -232,6 +232,8 @@ const GALLERY: { screen: Screen; alt: string; caption: string }[] = [
   { screen: "match-overview", alt: "A match overview with the scoreboard, high breaks and match statistics", caption: "Every match, frame by frame." },
   { screen: "routine", alt: "A routine with its progress and leaderboard", caption: "Every routine, with a best to beat." },
   { screen: "share-card", alt: "The share card for a result, leading with a 77 break", caption: "A result card led by the big moment." },
+  { screen: "tournament", alt: "A tournament bracket: quarter-finals and semi-finals", caption: "Club knockouts, drawn for you." },
+  { screen: "live-match", alt: "Following a friend's match live", caption: "Friends' matches, followed live." },
   { screen: "community", alt: "Community: friends, groups and the pro tour", caption: "Friends, groups and the pro tour." },
   { screen: "stats", alt: "The Stats screen: this week, form and practice rhythm", caption: "Your week at a glance." },
 ];
@@ -314,7 +316,7 @@ export default function Home() {
           "A leaderboard on every routine, so your mates can take you on",
           "Browse the routines other players have built",
         ]}
-        visual={<RoutineBuilderDemo />}
+        visual={<Phone screen="routine-builder" alt="The routine builder: balls placed on a table diagram, with the ball palette below" sizes="(max-width: 900px) 70vw, 300px" />}
         link={{ to: "/practice", label: "Explore practice" }}
       />
       <Feature
@@ -344,7 +346,7 @@ export default function Home() {
           "One clear thing to fix first, not a list of twenty",
           "Routines chosen for what it found",
         ]}
-        visual={<CoachReport />}
+        visual={<Phone screen="ai-coach" alt="An AI coach report: technique, what went well and what to work on" sizes="(max-width: 900px) 70vw, 300px" />}
         link={{ to: "/practice#coach", label: "More on the coach" }}
       />
       <Community />

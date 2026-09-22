@@ -64,6 +64,8 @@ export const NAV = [
 ];
 
 export type Screen =
+  | "ai-coach"
+  | "chat"
   | "community"
   | "dashboard"
   | "group"
@@ -71,8 +73,10 @@ export type Screen =
   | "live-scoring"
   | "match-overview"
   | "routine"
+  | "routine-builder"
   | "share-card"
-  | "stats";
+  | "stats"
+  | "tournament";
 
 export const PLANS = [
   {
