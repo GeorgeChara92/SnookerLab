@@ -15,7 +15,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { safeStorage } from "../utils/storage";
 
 /** Which part of the app a job belongs to, so a stale refresh cannot overwrite it. */
-export type SyncScope = "tournaments" | "matches" | "sessions" | "routines" | "ai" | "customRoutines" | "plan" | "scans";
+export type SyncScope = "tournaments" | "matches" | "sessions" | "routines" | "ai" | "customRoutines" | "plan" | "scans" | "community";
 
 export type OutboxJob = {
   id: string;

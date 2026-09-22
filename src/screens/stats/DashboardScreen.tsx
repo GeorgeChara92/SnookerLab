@@ -9,7 +9,13 @@ import { addDays, countStreak, dateKeyFrom, parseDateValue, startOfWeekMonday, t
 import { BoardPanel, ScoreStrip } from "../../components/scoreboard/Scoreboard";
 import { FormStrip } from "../../components/matches/MatchRows";
 import { BreaksPanel } from "../../components/matches/BreaksPanel";
-import { countsAsResult, groupByOpponent, relativeDate, summariseMatches, byNewest } from "../../features/matches/matchSummary";
+import {
+  countsAsResult,
+  groupByOpponent,
+  relativeDate,
+  summariseMatches,
+  byNewest,
+} from "../../features/matches/matchSummary";
 import { calendarWeeks, countByDay, longestStreak, thisWeek } from "../../features/stats/activity";
 
 type SegmentKey = "overview" | "training" | "matches";
@@ -53,7 +59,8 @@ const parseScoreToPercent = (
 
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return null;
-  if (routine?.max_score && routine.max_score > 0) return Math.max(0, Math.min(100, (numeric / routine.max_score) * 100));
+  if (routine?.max_score && routine.max_score > 0)
+    return Math.max(0, Math.min(100, (numeric / routine.max_score) * 100));
   if (routine?.scoring_type === "percentage") return Math.max(0, Math.min(100, numeric));
   return null;
 };
@@ -194,8 +201,18 @@ export const DashboardScreen = () => {
     contentOpacity.setValue(0);
     contentShift.setValue(10);
     Animated.parallel([
-      Animated.timing(contentOpacity, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(contentShift, { toValue: 0, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentShift, {
+        toValue: 0,
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
     ]).start();
   }, [activeSegment, contentOpacity, contentShift]);
 
@@ -222,16 +239,20 @@ export const DashboardScreen = () => {
 
     const scoresFor = (predicate: (value: string) => boolean) => {
       const scores: number[] = [];
-      logs.filter((log) => predicate(log.date)).forEach((log) =>
-        log.results.forEach((result) => {
-          const parsed = parseScoreToPercent(result.score, routineMap.get(result.routine_id));
+      logs
+        .filter((log) => predicate(log.date))
+        .forEach((log) =>
+          log.results.forEach((result) => {
+            const parsed = parseScoreToPercent(result.score, routineMap.get(result.routine_id));
+            if (parsed !== null) scores.push(parsed);
+          })
+        );
+      entries
+        .filter((entry) => predicate(entry.recorded_at))
+        .forEach((entry) => {
+          const parsed = parseScoreToPercent(entry.score, routineMap.get(entry.routine_id));
           if (parsed !== null) scores.push(parsed);
-        })
-      );
-      entries.filter((entry) => predicate(entry.recorded_at)).forEach((entry) => {
-        const parsed = parseScoreToPercent(entry.score, routineMap.get(entry.routine_id));
-        if (parsed !== null) scores.push(parsed);
-      });
+        });
       return scores;
     };
     const average = (values: number[]) => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0);
@@ -249,7 +270,9 @@ export const DashboardScreen = () => {
 
     const routinePlays = new Map<string, number>();
     logs.forEach((log) =>
-      log.results.forEach((result) => routinePlays.set(result.routine_id, (routinePlays.get(result.routine_id) ?? 0) + 1))
+      log.results.forEach((result) =>
+        routinePlays.set(result.routine_id, (routinePlays.get(result.routine_id) ?? 0) + 1)
+      )
     );
     entries.forEach((entry) => routinePlays.set(entry.routine_id, (routinePlays.get(entry.routine_id) ?? 0) + 1));
 
@@ -310,13 +333,24 @@ export const DashboardScreen = () => {
     direction === "up" ? colors.primary : direction === "down" ? colors.danger : colors.textMuted;
 
   const handleInsightAction = (actionType?: Insight["actionType"]) => {
-    if (actionType === "sessions") navigation.navigate("Sessions");
+    if (actionType === "sessions")
+      navigation.navigate("Practice", { screen: "RoutineCategories", params: { tab: "sessions" } });
     else if (actionType) navigation.navigate("Practice");
   };
 
   // ------------------------------------------------------------------ pieces
 
-  const Tile = ({ label, value, note, noteColour }: { label: string; value: string; note?: string; noteColour?: string }) => (
+  const Tile = ({
+    label,
+    value,
+    note,
+    noteColour,
+  }: {
+    label: string;
+    value: string;
+    note?: string;
+    noteColour?: string;
+  }) => (
     <View style={[styles.tile, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <Text style={[styles.tileLabel, { color: colors.textMuted }]}>{label.toUpperCase()}</Text>
       <Text style={[styles.tileValue, { color: colors.text }]}>{value}</Text>
@@ -347,9 +381,7 @@ export const DashboardScreen = () => {
         <View style={styles.weekTop}>
           <View>
             <Text style={[styles.streakValue, { color: colors.boardText }]}>{analytics.currentStreak}</Text>
-            <Text style={[styles.streakLabel, { color: colors.boardMuted }]}>
-              DAY STREAK
-            </Text>
+            <Text style={[styles.streakLabel, { color: colors.boardMuted }]}>DAY STREAK</Text>
           </View>
           <View style={styles.weekCount}>
             <Text style={[styles.weekCountValue, { color: colors.boardText }]}>
@@ -376,12 +408,7 @@ export const DashboardScreen = () => {
                 >
                   {active ? <MaterialCommunityIcons name="check" size={14} color={colors.board} /> : null}
                 </View>
-                <Text
-                  style={[
-                    styles.weekLetter,
-                    { color: day.isToday ? colors.boardText : colors.boardMuted },
-                  ]}
-                >
+                <Text style={[styles.weekLetter, { color: day.isToday ? colors.boardText : colors.boardMuted }]}>
                   {DAY_LETTERS[index]}
                 </Text>
               </View>
@@ -419,7 +446,8 @@ export const DashboardScreen = () => {
         <View style={styles.cardHead}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Last 8 weeks</Text>
           <Text style={[styles.cardAside, { color: colors.textMuted }]}>
-            {analytics.activeDaysLast4Weeks} active {analytics.activeDaysLast4Weeks === 1 ? "day" : "days"} in the last 4
+            {analytics.activeDaysLast4Weeks} active {analytics.activeDaysLast4Weeks === 1 ? "day" : "days"} in the last
+            4
           </Text>
         </View>
 
@@ -427,7 +455,10 @@ export const DashboardScreen = () => {
           <View style={[styles.calendarLabels, { width: labelColumn, gap }]}>
             <View style={{ height: 14 }} />
             {DAY_LETTERS.map((letter, index) => (
-              <Text key={`${letter}-${index}`} style={[styles.calendarLetter, { height: cell, color: colors.textSubtle }]}>
+              <Text
+                key={`${letter}-${index}`}
+                style={[styles.calendarLetter, { height: cell, color: colors.textSubtle }]}
+              >
                 {index % 2 === 0 ? letter : ""}
               </Text>
             ))}
@@ -464,7 +495,10 @@ export const DashboardScreen = () => {
           {[0, 0.2, 0.5, 1].map((level) => (
             <View
               key={level}
-              style={[styles.legendCell, { backgroundColor: level === 0 ? colors.surfaceMuted : shade(Math.ceil(level * busiest)) }]}
+              style={[
+                styles.legendCell,
+                { backgroundColor: level === 0 ? colors.surfaceMuted : shade(Math.ceil(level * busiest)) },
+              ]}
             />
           ))}
           <Text style={[styles.legendText, { color: colors.textSubtle }]}>More</Text>
@@ -498,8 +532,7 @@ export const DashboardScreen = () => {
                       styles.barFill,
                       {
                         height: `${Math.max(value ? 8 : 0, (value / max) * 100)}%`,
-                        backgroundColor:
-                          index === series.values.length - 1 ? colors.primary : `${colors.primary}99`,
+                        backgroundColor: index === series.values.length - 1 ? colors.primary : `${colors.primary}99`,
                       },
                     ]}
                   />
@@ -578,9 +611,7 @@ export const DashboardScreen = () => {
           label="Matches"
           value={`${analytics.record.played}`}
           note={
-            analytics.lastMatch
-              ? `Last one ${relativeDate(analytics.lastMatch).toLowerCase()}`
-              : "None recorded yet"
+            analytics.lastMatch ? `Last one ${relativeDate(analytics.lastMatch).toLowerCase()}` : "None recorded yet"
           }
         />
       </View>
@@ -620,7 +651,11 @@ export const DashboardScreen = () => {
           <Tile label="Active days" value={`${analytics.activeDays}`} note="All time" />
         </View>
         <View style={styles.grid}>
-          <Tile label="Best run" value={`${analytics.bestStreak}`} note={analytics.bestStreak === 1 ? "day" : "days in a row"} />
+          <Tile
+            label="Best run"
+            value={`${analytics.bestStreak}`}
+            note={analytics.bestStreak === 1 ? "day" : "days in a row"}
+          />
           <Tile
             label="Routine average"
             value={analytics.averageNormalizedScore ? `${analytics.averageNormalizedScore.toFixed(0)}%` : "–"}
@@ -630,14 +665,20 @@ export const DashboardScreen = () => {
         </View>
 
         {renderCalendar()}
-        {renderBars("Sessions per week", analytics.weeklySessions, "No sessions in the last 8 weeks. Start one from the Sessions tab.")}
+        {renderBars(
+          "Sessions per week",
+          analytics.weeklySessions,
+          "No sessions in the last 8 weeks. Start one from the Sessions tab."
+        )}
 
         {analytics.topRoutines.length ? (
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Most practised</Text>
             {analytics.topRoutines.map((routine, index) => (
               <View key={routine.routineId} style={styles.rankRow}>
-                <Text style={[styles.rank, { color: index === 0 ? colors.primary : colors.textSubtle }]}>{index + 1}</Text>
+                <Text style={[styles.rank, { color: index === 0 ? colors.primary : colors.textSubtle }]}>
+                  {index + 1}
+                </Text>
                 <View style={styles.rankBody}>
                   <View style={styles.rankLine}>
                     <Text style={[styles.rankName, { color: colors.text }]} numberOfLines={1}>
@@ -780,7 +821,11 @@ export const DashboardScreen = () => {
       </View>
 
       <Animated.View style={[styles.body, { opacity: contentOpacity, transform: [{ translateY: contentShift }] }]}>
-        {activeSegment === "overview" ? renderOverview() : activeSegment === "training" ? renderTraining() : renderMatches()}
+        {activeSegment === "overview"
+          ? renderOverview()
+          : activeSegment === "training"
+            ? renderTraining()
+            : renderMatches()}
       </Animated.View>
     </ScrollView>
   );

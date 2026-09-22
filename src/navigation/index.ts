@@ -3,7 +3,7 @@ export * from "./AuthNavigator";
 export * from "./MainTabNavigator";
 export * from "./DashboardNavigator";
 export * from "./PracticeNavigator";
-export * from "./SessionsNavigator";
+export * from "./CommunityNavigator";
 export * from "./MatchesNavigator";
 export * from "./StatsNavigator";
 export * from "./AICoachNavigator";

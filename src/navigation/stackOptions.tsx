@@ -37,20 +37,15 @@ export const useAppStackScreenOptions = (withProfileShortcut = true): NativeStac
       fontSize: 17,
     },
     headerLeft: withProfileShortcut
-      ? (props) =>
-          props.canGoBack
-            ? <HeaderBackArrow tintColor={props.tintColor} />
-            : null
+      ? (props) => (props.canGoBack ? <HeaderBackArrow tintColor={props.tintColor} /> : null)
       : undefined,
     headerRight: withProfileShortcut
       ? (props) =>
-          props.canGoBack
-            ? null
-            : (
-                <View style={styles.rightSlot}>
-                  <HeaderProfileButton />
-                </View>
-              )
+          props.canGoBack ? null : (
+            <View style={styles.rightSlot}>
+              <HeaderProfileButton />
+            </View>
+          )
       : undefined,
     contentStyle: { backgroundColor: colors.background },
   };

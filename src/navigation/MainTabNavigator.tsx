@@ -5,7 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { DashboardNavigator } from "./DashboardNavigator";
 import { PracticeNavigator } from "./PracticeNavigator";
-import { SessionsNavigator } from "./SessionsNavigator";
+import { CommunityNavigator } from "./CommunityNavigator";
+import { useAuthStore } from "../store";
+import { useCommunityStore } from "../store/communityStore";
 import { MatchesNavigator } from "./MatchesNavigator";
 import { StatsNavigator } from "./StatsNavigator";
 import { AICoachNavigator } from "./AICoachNavigator";
@@ -20,6 +22,11 @@ const FULL_SCREEN_ROUTES = new Set(["ScanSnooker", "RoutineAR"]);
 export const MainTabNavigator = () => {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
+  const userId = useAuthStore((state) => state.user?.id ?? null);
+  // Friend requests waiting for this player, on the Community tab.
+  const waiting = useCommunityStore(
+    (state) => state.friendships.filter((item) => item.status === "pending" && item.addressee === userId).length
+  );
 
   return (
     <Tab.Navigator
@@ -68,12 +75,15 @@ export const MainTabNavigator = () => {
         })}
       />
       <Tab.Screen
-        name="Sessions"
-        component={SessionsNavigator}
+        name="Community"
+        component={CommunityNavigator}
         options={{
-          tabBarLabel: "Sessions",
+          tabBarLabel: "Community",
+          popToTopOnBlur: true,
+          tabBarBadge: waiting > 0 ? waiting : undefined,
+          tabBarBadgeStyle: { backgroundColor: colors.danger, fontSize: 11 },
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="calendar-check-outline" size={size} color={color} />
+            <MaterialCommunityIcons name="account-group-outline" size={size} color={color} />
           ),
         }}
       />

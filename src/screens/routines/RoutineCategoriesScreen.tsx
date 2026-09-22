@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Animated, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, type NavigationProp } from "@react-navigation/native";
+import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
+import { SessionsHomeScreen } from "../sessions/SessionsHomeScreen";
 import { useCustomRoutinesStore, useRoutinesStore } from "../../store";
 import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { summarise } from "../../features/scanSnooker/position";
@@ -17,7 +18,13 @@ export const RoutineCategoriesScreen = () => {
   const { colors } = useAppTheme();
   const customRoutines = useCustomRoutinesStore((state) => state.routines);
   // The built-in library, or the routines the player has built.
-  const [tab, setTab] = useState<"library" | "mine">("library");
+  const route = useRoute<RouteProp<PracticeStackParamList, "RoutineCategories">>();
+  const [tab, setTab] = useState<"library" | "mine" | "sessions">(route.params?.tab ?? "library");
+
+  // Arriving from elsewhere (the dashboard's "start a session") opens the tab asked for.
+  useEffect(() => {
+    if (route.params?.tab) setTab(route.params.tab);
+  }, [route.params?.tab]);
 
   const orderedCategories = useMemo(() => [...categories].sort((a, b) => a.order_index - b.order_index), [categories]);
 
@@ -114,7 +121,7 @@ export const RoutineCategoriesScreen = () => {
 
   const tabs = (
     <View style={[styles.tabs, { backgroundColor: colors.surfaceMuted }]}>
-      {(["library", "mine"] as const).map((item) => {
+      {(["library", "mine", "sessions"] as const).map((item) => {
         const active = tab === item;
         return (
           <Pressable
@@ -127,7 +134,9 @@ export const RoutineCategoriesScreen = () => {
             <Text style={[styles.tabText, { color: active ? colors.text : colors.textMuted }]}>
               {item === "library"
                 ? "Library"
-                : `My routines${customRoutines.length ? ` · ${customRoutines.length}` : ""}`}
+                : item === "sessions"
+                  ? "Sessions"
+                  : `Mine${customRoutines.length ? ` · ${customRoutines.length}` : ""}`}
             </Text>
           </Pressable>
         );
@@ -175,6 +184,15 @@ export const RoutineCategoriesScreen = () => {
       <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
     </Pressable>
   );
+
+  if (tab === "sessions") {
+    return (
+      <View style={[styles.sessions, { backgroundColor: colors.background }]}>
+        <View style={styles.sessionsTabs}>{tabs}</View>
+        <SessionsHomeScreen />
+      </View>
+    );
+  }
 
   if (tab === "mine") {
     return (
@@ -232,6 +250,8 @@ export const RoutineCategoriesScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  sessions: { flex: 1 },
+  sessionsTabs: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md },
   tabs: { flexDirection: "row", borderRadius: RADIUS.md, padding: 3, gap: 3 },
   tab: { flex: 1, minHeight: 38, borderRadius: RADIUS.sm, alignItems: "center", justifyContent: "center" },
   tabText: { fontSize: 14, fontWeight: "700" },

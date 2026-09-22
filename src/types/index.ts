@@ -295,7 +295,7 @@ export type AuthStackParamList = {
 export type MainTabParamList = {
   Dashboard: undefined;
   Practice: undefined;
-  Sessions: undefined;
+  Community: undefined;
   Matches: undefined;
   Stats: undefined;
   AICoach: undefined;
@@ -305,8 +305,10 @@ export type DashboardStackParamList = {
   DashboardHome: undefined;
 };
 
-export type PracticeStackParamList = {
-  RoutineCategories: undefined;
+/** Practice holds the routine library, the player's own routines and their sessions. */
+export type PracticeStackParamList = SessionsStackParamList & {
+  /** Opens on a tab when given one: the library, the player's routines, or sessions. */
+  RoutineCategories: { tab?: "library" | "mine" | "sessions" } | undefined;
   RoutinesList: { categoryId: string };
   RoutineDetail: { routineId: string };
   RecordRoutineScore: { routineId: string };
@@ -357,6 +359,14 @@ export type SessionsStackParamList = {
   /** The week's plan, the weekly target, streaks and goals. */
   PracticePlan: undefined;
   NewGoal: undefined;
+};
+
+export type CommunityStackParamList = {
+  CommunityHome: undefined;
+  PlayerProfile: { userId: string };
+  /** The player's handle, bio and privacy; the first-time setup when `setup` is true. */
+  CommunitySettings: { setup?: boolean };
+  AdminReports: undefined;
 };
 
 export type StatsStackParamList = {

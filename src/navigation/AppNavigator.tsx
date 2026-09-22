@@ -13,6 +13,7 @@ import {
   useTournamentsStore,
 } from "../store";
 import { useScanSnookerStore } from "../store/scanSnookerStore";
+import { useCommunityStore } from "../store/communityStore";
 import { navigationRef } from "./navigationRef";
 import { supabase } from "../api/supabase";
 import { startSync, stopSync } from "../sync";
@@ -81,6 +82,8 @@ export const AppNavigator = () => {
       useCustomRoutinesStore.getState().setOwner(id);
       usePracticePlanStore.getState().setOwner(id);
       useScanSnookerStore.getState().setOwner(id);
+      useCommunityStore.getState().setOwner(id);
+      void useCommunityStore.getState().hydrate(id);
       // Not waited for: positions are only needed once a match is open.
       void useScanSnookerStore.getState().hydrate(id);
       const loaded = Promise.allSettled([
@@ -121,6 +124,7 @@ export const AppNavigator = () => {
     useCustomRoutinesStore.getState().setOwner(null);
     usePracticePlanStore.getState().setOwner(null);
     useScanSnookerStore.getState().setOwner(null);
+    useCommunityStore.getState().setOwner(null);
     setReadyUserId(null);
   }, []);
 
@@ -159,15 +163,15 @@ export const AppNavigator = () => {
     // Check for existing session on app start
     if (session?.user) {
       setUser(session.user);
-        if (isBillingConfigured()) {
-          void initBilling(session.user.id).catch((error) => {
+      if (isBillingConfigured()) {
+        void initBilling(session.user.id).catch((error) => {
           console.warn("Billing init failed:", {
             message: error?.message,
             detail: error?.detail,
             code: error?.code,
           });
-          });
-        }
+        });
+      }
       void loadUser(session.user.id);
       startSync(session.user.id);
     } else {
@@ -262,7 +266,7 @@ export const AppNavigator = () => {
     setUser,
   ]);
 
-return (
+  return (
     <UnlockQueueProvider>
       <AchievementWatcher>
         <NavigationContainer ref={navigationRef} theme={navigationTheme}>
@@ -272,11 +276,7 @@ return (
             ) : isAuthenticated && !requiresPasswordReset ? (
               <>
                 <Stack.Screen name="Main" component={MainTabNavigator} />
-                <Stack.Screen
-                  name="ProfileModal"
-                  component={ProfileNavigator}
-                  options={{ presentation: "modal" }}
-                />
+                <Stack.Screen name="ProfileModal" component={ProfileNavigator} options={{ presentation: "modal" }} />
               </>
             ) : (
               <Stack.Screen name="Auth" component={AuthNavigator} />

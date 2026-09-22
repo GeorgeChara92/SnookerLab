@@ -1,0 +1,356 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppTheme } from "../../hooks/useAppTheme";
+import { useAuthStore } from "../../store";
+import { useCommunityStore } from "../../store/communityStore";
+import { useDialog } from "../../components/ui/DialogProvider";
+import { BoardPanel } from "../../components/scoreboard/Scoreboard";
+import { CommunityAvatar, flagOf } from "../../components/community/CommunityAvatar";
+import { ReportSheet } from "../../components/community/ReportSheet";
+import { nameOf, relationTo, type PublicProfile, type PublicStats } from "../../features/community/types";
+import { LEVELS } from "../../constants/achievements";
+import type { CommunityStackParamList } from "../../types";
+import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
+
+const SKILL: Record<string, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+  expert: "Expert",
+  professional: "Professional",
+};
+
+/** Another player (or the player themselves, as others see them): who they are, their record, and what to do. */
+export const PlayerProfileScreen = () => {
+  const route = useRoute<RouteProp<CommunityStackParamList, "PlayerProfile">>();
+  const navigation = useNavigation<NavigationProp<CommunityStackParamList>>();
+  const { userId: otherId } = route.params;
+  const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const dialog = useDialog();
+  const me = useAuthStore((state) => state.user?.id ?? null);
+  const { friendships, blocked, profiles, loadProfile, sendRequest, accept, removeFriendship, block, unblock } =
+    useCommunityStore();
+  const [profile, setProfile] = useState<PublicProfile | null>(profiles[otherId] ?? null);
+  const [stats, setStats] = useState<PublicStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [reporting, setReporting] = useState(false);
+
+  const relation = relationTo(me, otherId, friendships, blocked);
+  const link = friendships.find(
+    (item) =>
+      (item.requester === me && item.addressee === otherId) || (item.addressee === me && item.requester === otherId)
+  );
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const result = await loadProfile(otherId);
+    if (result.profile) setProfile(result.profile);
+    setStats(result.stats);
+    setLoading(false);
+  }, [loadProfile, otherId]);
+
+  // Again whenever the friendship changes: becoming friends can open up their stats.
+  useEffect(() => {
+    void load();
+  }, [load, relation]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: relation === "self" ? "Your profile" : profile?.handle ? `@${profile.handle}` : "Player",
+    });
+  }, [navigation, profile?.handle, relation]);
+
+  const run = async (task: () => Promise<{ ok: boolean; message?: string }>) => {
+    setBusy(true);
+    const result = await task();
+    setBusy(false);
+    if (!result.ok)
+      dialog.alert({ title: "That did not work", message: result.message ?? "Try again.", tone: "danger" });
+  };
+
+  if (!profile) {
+    return (
+      <View style={[styles.centre, { backgroundColor: colors.background }]}>
+        {loading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <>
+            <MaterialCommunityIcons name="account-off-outline" size={36} color={colors.textMuted} />
+            <Text style={[styles.body, { color: colors.textMuted }]}>This profile is not available.</Text>
+          </>
+        )}
+      </View>
+    );
+  }
+
+  const name = nameOf(profile);
+  const levelTitle = LEVELS[Math.max(0, Math.min(LEVELS.length, profile.level) - 1)]?.title ?? "";
+
+  const confirmUnfriend = () =>
+    link &&
+    dialog.confirm({
+      title: `Remove ${name}?`,
+      message: "You will stop being friends. They are not told, but will see you are no longer on their list.",
+      tone: "danger",
+      icon: "account-remove-outline",
+      confirmLabel: "Remove friend",
+      cancelLabel: "Keep",
+      onConfirm: () => run(() => removeFriendship(link.id)),
+    });
+
+  const confirmBlock = () =>
+    dialog.confirm({
+      title: `Block ${name}?`,
+      message:
+        "They will not be able to find you, see your profile, add you or message you, and you will not see them. Any friendship ends. They are not told.",
+      tone: "danger",
+      icon: "cancel",
+      confirmLabel: "Block",
+      cancelLabel: "Cancel",
+      onConfirm: () => run(() => block(otherId)),
+    });
+
+  const primary = (() => {
+    switch (relation) {
+      case "self":
+        return {
+          label: "Edit profile and privacy",
+          icon: "pencil-outline" as const,
+          onPress: () => navigation.navigate("CommunitySettings", {}),
+        };
+      case "none":
+        return {
+          label: "Add friend",
+          icon: "account-plus-outline" as const,
+          onPress: () => run(() => sendRequest(otherId)),
+        };
+      case "incoming":
+        return link
+          ? {
+              label: "Accept friend request",
+              icon: "account-check-outline" as const,
+              onPress: () => run(() => accept(link.id)),
+            }
+          : null;
+      case "outgoing":
+        return link
+          ? {
+              label: "Cancel request",
+              icon: "clock-outline" as const,
+              onPress: () => run(() => removeFriendship(link.id)),
+              quiet: true,
+            }
+          : null;
+      case "friends":
+        return { label: "Friends", icon: "account-check" as const, onPress: confirmUnfriend, quiet: true };
+      case "blocked":
+        return {
+          label: "Unblock",
+          icon: "lock-open-outline" as const,
+          onPress: () => run(() => unblock(otherId)),
+          quiet: true,
+        };
+      default:
+        return null;
+    }
+  })();
+
+  const statsNote =
+    relation === "self"
+      ? null
+      : profile.statsPrivacy === "nobody"
+        ? `${name} keeps their stats private.`
+        : profile.statsPrivacy === "friends" && relation !== "friends"
+          ? `${name} shares their stats with friends.`
+          : null;
+
+  const tiles: Array<{ label: string; value: string }> = stats
+    ? [
+        { label: "MATCHES", value: `${stats.matchesPlayed}` },
+        { label: "WON", value: stats.matchesPlayed ? `${stats.winRate}%` : "–" },
+        { label: "HIGH BREAK", value: `${stats.bestBreak}` },
+        { label: "CENTURIES", value: `${stats.centuries}` },
+        { label: "50+ BREAKS", value: `${stats.fifties}` },
+        { label: "BEST STREAK", value: `${stats.longestPracticeStreak}d` },
+      ]
+    : [];
+
+  return (
+    <ScrollView
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]}
+      refreshControl={
+        <RefreshControl refreshing={loading && Boolean(profile)} onRefresh={load} tintColor={colors.primary} />
+      }
+    >
+      <View style={styles.hero}>
+        <CommunityAvatar profile={profile} size={104} />
+        <Text style={[styles.name, { color: colors.text }]}>
+          {name} {flagOf(profile.countryCode)}
+        </Text>
+        {profile.handle ? (
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.handle, { color: colors.primary }]}>
+            @{profile.handle}
+          </Text>
+        ) : null}
+        <View style={styles.tags}>
+          <View style={[styles.tag, { backgroundColor: colors.board }]}>
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tagText, { color: colors.boardRule }]}>
+              LEVEL {profile.level} · {levelTitle.toUpperCase()}
+            </Text>
+          </View>
+          {profile.skillLevel && SKILL[profile.skillLevel] ? (
+            <View style={[styles.tag, { backgroundColor: colors.surfaceMuted }]}>
+              <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tagText, { color: colors.textMuted }]}>
+                {SKILL[profile.skillLevel].toUpperCase()}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        {profile.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profile.bio}</Text> : null}
+      </View>
+
+      {primary ? (
+        <Pressable
+          onPress={primary.onPress}
+          disabled={busy}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.primary,
+            "quiet" in primary && primary.quiet
+              ? { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }
+              : { backgroundColor: colors.primary },
+            { opacity: busy ? 0.6 : pressed ? 0.85 : 1 },
+          ]}
+        >
+          {busy ? (
+            <ActivityIndicator color={"quiet" in primary && primary.quiet ? colors.text : colors.onPrimary} />
+          ) : (
+            <MaterialCommunityIcons
+              name={primary.icon}
+              size={20}
+              color={"quiet" in primary && primary.quiet ? colors.text : colors.onPrimary}
+            />
+          )}
+          <Text
+            style={[
+              styles.primaryText,
+              { color: "quiet" in primary && primary.quiet ? colors.text : colors.onPrimary },
+            ]}
+          >
+            {primary.label}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {relation !== "blocked" ? (
+        stats ? (
+          <BoardPanel kicker="RECORD" aside={stats.achievements ? `${stats.achievements} ACHIEVEMENTS` : undefined}>
+            <View style={styles.tiles}>
+              {tiles.map((tile) => (
+                <View key={tile.label} style={styles.tile}>
+                  <Text
+                    maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+                    style={[styles.tileValue, { color: colors.boardText }]}
+                  >
+                    {tile.value}
+                  </Text>
+                  <Text
+                    maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
+                    style={[styles.tileLabel, { color: colors.boardMuted }]}
+                  >
+                    {tile.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </BoardPanel>
+        ) : statsNote ? (
+          <View style={[styles.note, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <MaterialCommunityIcons name="lock-outline" size={18} color={colors.textMuted} />
+            <Text style={[styles.noteText, { color: colors.textMuted }]}>{statsNote}</Text>
+          </View>
+        ) : null
+      ) : (
+        <View style={[styles.note, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <MaterialCommunityIcons name="cancel" size={18} color={colors.textMuted} />
+          <Text style={[styles.noteText, { color: colors.textMuted }]}>
+            You have blocked {name}. They cannot find you, add you or message you.
+          </Text>
+        </View>
+      )}
+
+      {relation !== "self" ? (
+        <View style={styles.safety}>
+          {relation !== "blocked" ? (
+            <Pressable onPress={confirmBlock} accessibilityRole="button" style={styles.safetyButton} hitSlop={6}>
+              <MaterialCommunityIcons name="cancel" size={18} color={colors.textMuted} />
+              <Text style={[styles.safetyText, { color: colors.textMuted }]}>Block</Text>
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => setReporting(true)}
+            accessibilityRole="button"
+            style={styles.safetyButton}
+            hitSlop={6}
+          >
+            <MaterialCommunityIcons name="flag-outline" size={18} color={colors.danger} />
+            <Text style={[styles.safetyText, { color: colors.danger }]}>Report</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <ReportSheet
+        visible={reporting}
+        onClose={() => setReporting(false)}
+        targetType="profile"
+        targetId={otherId}
+        reportedUser={otherId}
+        what={`${name}'s profile`}
+      />
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  centre: { flex: 1, alignItems: "center", justifyContent: "center", gap: SPACING.sm },
+  content: { padding: SPACING.lg, gap: SPACING.md },
+  hero: { alignItems: "center", gap: SPACING.xs, paddingVertical: SPACING.md },
+  name: { fontSize: 26, fontWeight: "800", textAlign: "center", marginTop: SPACING.sm },
+  handle: { fontFamily: FONTS.boardLabel, fontSize: 17, letterSpacing: 0.5 },
+  tags: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: SPACING.xs, marginTop: SPACING.xs },
+  tag: { borderRadius: RADIUS.pill, paddingHorizontal: SPACING.md, paddingVertical: 4 },
+  tagText: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1 },
+  bio: { fontSize: 15, lineHeight: 22, textAlign: "center", marginTop: SPACING.sm, maxWidth: 340 },
+  body: { fontSize: 15 },
+  primary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 6,
+    borderRadius: RADIUS.md,
+  },
+  primaryText: { fontSize: 16, fontWeight: "800" },
+  tiles: { flexDirection: "row", flexWrap: "wrap", rowGap: SPACING.md, marginTop: SPACING.xs },
+  tile: { width: "33.33%", alignItems: "center" },
+  tileValue: { fontFamily: FONTS.boardHeavy, fontSize: 26, lineHeight: 30 },
+  tileLabel: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 1 },
+  note: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+  },
+  noteText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  safety: { flexDirection: "row", justifyContent: "center", gap: SPACING.xl, marginTop: SPACING.md },
+  safetyButton: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: HIT_TARGET },
+  safetyText: { fontSize: 15, fontWeight: "700" },
+});

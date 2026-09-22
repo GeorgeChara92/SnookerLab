@@ -2,13 +2,17 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import {
-  useRoutineScoresStore,
-  useRoutinesStore,
-  useSessionsStore,
-} from "../../store";
+import { useRoutineScoresStore, useRoutinesStore, useSessionsStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { addDays, countStreak, dateKeyFrom, parseDateKey, startOfWeekMonday, toLocalDateKey, todayKey } from "../../utils/date";
+import {
+  addDays,
+  countStreak,
+  dateKeyFrom,
+  parseDateKey,
+  startOfWeekMonday,
+  toLocalDateKey,
+  todayKey,
+} from "../../utils/date";
 
 type RoutineRecommendation = {
   id: string;
@@ -122,32 +126,31 @@ export const DashboardHomeScreen = () => {
       return label.includes("foundation") || label.includes("fundamental");
     });
 
-    const baseRecommendations = consistencyDropping && foundationsCategory
-      ? [
-          ...rankedByRecency.filter((routine) => routine.category_id === foundationsCategory.id),
-          ...rankedByRecency.filter((routine) => routine.category_id !== foundationsCategory.id),
-        ]
-      : rankedByRecency;
+    const baseRecommendations =
+      consistencyDropping && foundationsCategory
+        ? [
+            ...rankedByRecency.filter((routine) => routine.category_id === foundationsCategory.id),
+            ...rankedByRecency.filter((routine) => routine.category_id !== foundationsCategory.id),
+          ]
+        : rankedByRecency;
 
-    const recommendedRoutines: RoutineRecommendation[] = baseRecommendations
-      .slice(0, 3)
-      .map((routine) => {
-        const categoryName = categories.find((category) => category.id === routine.category_id)?.name ?? "Practice";
-        const lastUsed = lastUsedByRoutineId.get(routine.id);
+    const recommendedRoutines: RoutineRecommendation[] = baseRecommendations.slice(0, 3).map((routine) => {
+      const categoryName = categories.find((category) => category.id === routine.category_id)?.name ?? "Practice";
+      const lastUsed = lastUsedByRoutineId.get(routine.id);
 
-        const note = !lastUsed
-          ? "Not logged yet"
-          : getDaysAgo(lastUsed) === 0
-            ? "Played today"
-            : `${getDaysAgo(lastUsed)} day${getDaysAgo(lastUsed) === 1 ? "" : "s"} since last run`;
+      const note = !lastUsed
+        ? "Not logged yet"
+        : getDaysAgo(lastUsed) === 0
+          ? "Played today"
+          : `${getDaysAgo(lastUsed)} day${getDaysAgo(lastUsed) === 1 ? "" : "s"} since last run`;
 
-        return {
-          id: routine.id,
-          name: routine.name,
-          categoryName,
-          note,
-        };
-      });
+      return {
+        id: routine.id,
+        name: routine.name,
+        categoryName,
+        note,
+      };
+    });
 
     const recentActivity = [
       ...logs.flatMap((log) =>
@@ -211,13 +214,13 @@ export const DashboardHomeScreen = () => {
 
   const startPrimarySession = () => {
     if (lastTemplate) {
-      navigation.navigate("Sessions", {
+      navigation.navigate("Practice", {
         screen: "ActiveSession",
         params: { templateId: lastTemplate.id },
       });
       return;
     }
-    navigation.navigate("Sessions");
+    navigation.navigate("Practice", { screen: "RoutineCategories", params: { tab: "sessions" } });
   };
 
   const carouselPages = ["performance", "recommended", "recent"] as const;
@@ -225,23 +228,31 @@ export const DashboardHomeScreen = () => {
   const carouselWidth = Math.max(280, width - 24);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}> 
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
-        <View style={[styles.focusHero, { backgroundColor: colors.primaryStrong }]}> 
+        <View style={[styles.focusHero, { backgroundColor: colors.primaryStrong }]}>
           <View style={styles.focusGlow} />
           <Text style={[styles.focusKicker, { color: colors.onPrimary }]}>TODAY'S FOCUS</Text>
-          <Text style={[styles.focusTitle, { color: colors.onPrimary }]}>{lastTemplate ? "Your Next Session" : "Set Your Next Session"}</Text>
-          <Text style={[styles.focusDescription, { color: colors.onPrimary }]}> 
+          <Text style={[styles.focusTitle, { color: colors.onPrimary }]}>
+            {lastTemplate ? "Your Next Session" : "Set Your Next Session"}
+          </Text>
+          <Text style={[styles.focusDescription, { color: colors.onPrimary }]}>
             {lastTemplate
               ? `${lastTemplate.name} - ${lastTemplate.routine_ids.length} ${lastTemplate.routine_ids.length === 1 ? "routine" : "routines"}`
               : "Pick the routines you want to work on and save them as a session you can repeat."}
           </Text>
           <View style={styles.focusActionsRow}>
-            <Pressable style={[styles.focusPrimaryButton, { backgroundColor: colors.onPrimary }]} onPress={startPrimarySession}>
+            <Pressable
+              style={[styles.focusPrimaryButton, { backgroundColor: colors.onPrimary }]}
+              onPress={startPrimarySession}
+            >
               <Text style={[styles.focusPrimaryText, { color: colors.primaryStrong }]}>Start Session</Text>
               <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primaryStrong} />
             </Pressable>
-            <Pressable style={[styles.focusSecondaryButton, { borderColor: "rgba(255,255,255,0.45)" }]} onPress={() => navigation.navigate("Practice")}>
+            <Pressable
+              style={[styles.focusSecondaryButton, { borderColor: "rgba(255,255,255,0.45)" }]}
+              onPress={() => navigation.navigate("Practice")}
+            >
               <Text style={[styles.focusSecondaryText, { color: colors.onPrimary }]}>View Plan</Text>
             </Pressable>
           </View>
@@ -306,17 +317,23 @@ export const DashboardHomeScreen = () => {
             }}
             scrollEventThrottle={16}
             renderItem={({ item }) => (
-              <View style={[styles.carouselPage, { width: carouselWidth }]}> 
+              <View style={[styles.carouselPage, { width: carouselWidth }]}>
                 {item === "performance" ? (
                   <View style={styles.pageShell}>
-                    <View style={styles.pageDominant}> 
+                    <View style={styles.pageDominant}>
                       <View style={styles.insightHeaderRow}>
                         <Text style={[styles.pageTitle, { color: colors.text }]}>Performance Overview</Text>
-                        <Text style={[styles.weekDeltaTag, { color: weekDelta >= 0 ? colors.primary : colors.textMuted }]}>{weekDeltaLabel}</Text>
+                        <Text
+                          style={[styles.weekDeltaTag, { color: weekDelta >= 0 ? colors.primary : colors.textMuted }]}
+                        >
+                          {weekDeltaLabel}
+                        </Text>
                       </View>
                       {dashboard.weeklyTotal === 0 ? (
                         <View style={styles.chartEmpty}>
-                          <Text style={[styles.chartEmptyTitle, { color: colors.text }]}>No practice logged this week</Text>
+                          <Text style={[styles.chartEmptyTitle, { color: colors.text }]}>
+                            No practice logged this week
+                          </Text>
                           <Text style={[styles.chartEmptyBody, { color: colors.textMuted }]}>
                             Log a routine score or a session and your week fills in here.
                           </Text>
@@ -329,48 +346,63 @@ export const DashboardHomeScreen = () => {
                               { borderColor: colors.primary, opacity: pressed ? 0.7 : 1 },
                             ]}
                           >
-                            <Text style={[styles.chartEmptyActionText, { color: colors.primary }]}>Start a session</Text>
+                            <Text style={[styles.chartEmptyActionText, { color: colors.primary }]}>
+                              Start a session
+                            </Text>
                           </Pressable>
                         </View>
                       ) : (
-                      <View style={styles.chartRow}>
-                        {dashboard.weeklyLoad.map((day, index) => {
-                          const isToday = todayKey() === day.key;
-                          return (
-<View key={day.key} style={styles.chartBarWrap}> 
-                              <View style={[styles.chartTrack, { backgroundColor: colors.surface, borderWidth: 1, borderColor: isToday ? colors.primary : colors.border }]}> 
-                                <Animated.View
+                        <View style={styles.chartRow}>
+                          {dashboard.weeklyLoad.map((day, index) => {
+                            const isToday = todayKey() === day.key;
+                            return (
+                              <View key={day.key} style={styles.chartBarWrap}>
+                                <View
                                   style={[
-                                    styles.chartFill,
+                                    styles.chartTrack,
                                     {
-                                      backgroundColor: day.count > 0 ? colors.primary : colors.border,
-                                      height: barAnims[index].interpolate({
-                                        inputRange: [0, dashboard.maxDailyLoad || 1],
-                                        outputRange: [14, 172],
-                                        extrapolate: "clamp",
-                                      }),
+                                      backgroundColor: colors.surface,
+                                      borderWidth: 1,
+                                      borderColor: isToday ? colors.primary : colors.border,
                                     },
                                   ]}
-                                />
+                                >
+                                  <Animated.View
+                                    style={[
+                                      styles.chartFill,
+                                      {
+                                        backgroundColor: day.count > 0 ? colors.primary : colors.border,
+                                        height: barAnims[index].interpolate({
+                                          inputRange: [0, dashboard.maxDailyLoad || 1],
+                                          outputRange: [14, 172],
+                                          extrapolate: "clamp",
+                                        }),
+                                      },
+                                    ]}
+                                  />
+                                </View>
+                                <Text style={[styles.chartDay, { color: isToday ? colors.primary : colors.textMuted }]}>
+                                  {day.label}
+                                </Text>
                               </View>
-                              <Text style={[styles.chartDay, { color: isToday ? colors.primary : colors.textMuted }]}>{day.label}</Text>
-                            </View>
-                          );
-                        })}
-                      </View>
+                            );
+                          })}
+                        </View>
                       )}
                     </View>
 
                     <View style={styles.statsStrip}>
-                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}> 
+                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}>
                         <Text style={[styles.statValue, { color: colors.text }]}>{dashboard.currentStreak}</Text>
                         <Text style={[styles.statLabel, { color: colors.textMuted }]}>Streak</Text>
                       </View>
-                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}> 
-                        <Text style={[styles.statValue, { color: colors.text }]}>{dashboard.currentWeekActiveDays}</Text>
+                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.statValue, { color: colors.text }]}>
+                          {dashboard.currentWeekActiveDays}
+                        </Text>
                         <Text style={[styles.statLabel, { color: colors.textMuted }]}>Active Days</Text>
                       </View>
-                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}> 
+                      <View style={[styles.statChip, { backgroundColor: colors.surface }]}>
                         <Text style={[styles.statValue, { color: colors.text }]}>{dashboard.completionRate}%</Text>
                         <Text style={[styles.statLabel, { color: colors.textMuted }]}>Completion</Text>
                       </View>
@@ -382,7 +414,9 @@ export const DashboardHomeScreen = () => {
                   <View style={styles.pageShell}>
                     <Text style={[styles.pageTitle, { color: colors.text }]}>Recommended Training</Text>
                     {dashboard.consistencyDropping ? (
-                      <Text style={[styles.recommendationHint, { color: colors.primary }]}>Focus: fundamentals this week.</Text>
+                      <Text style={[styles.recommendationHint, { color: colors.primary }]}>
+                        Focus: fundamentals this week.
+                      </Text>
                     ) : null}
                     {dashboard.recommendedRoutines.slice(0, 4).map((routine, index) => (
                       <Pressable
@@ -439,7 +473,9 @@ export const DashboardHomeScreen = () => {
                               <View style={styles.recentBullet} />
                               <View style={styles.listTextWrap}>
                                 <Text style={[styles.recentTitle, { color: colors.text }]}>{itemEntry.name}</Text>
-                                <Text style={[styles.listMeta, { color: colors.textMuted }]}>{new Date(itemEntry.date).toLocaleDateString()}</Text>
+                                <Text style={[styles.listMeta, { color: colors.textMuted }]}>
+                                  {new Date(itemEntry.date).toLocaleDateString()}
+                                </Text>
                               </View>
                               <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
                             </Pressable>
@@ -448,9 +484,13 @@ export const DashboardHomeScreen = () => {
                       )}
                     </View>
 
-                    <View style={[styles.pageBottomAnchor, styles.recentFooter, { backgroundColor: colors.surfaceMuted }]}> 
+                    <View
+                      style={[styles.pageBottomAnchor, styles.recentFooter, { backgroundColor: colors.surfaceMuted }]}
+                    >
                       <Text style={[styles.recentFooterValue, { color: colors.text }]}>{dashboard.weeklyTotal}</Text>
-                      <Text style={[styles.recentFooterLabel, { color: colors.textMuted }]}>Total sessions this week</Text>
+                      <Text style={[styles.recentFooterLabel, { color: colors.textMuted }]}>
+                        Total sessions this week
+                      </Text>
                     </View>
                   </View>
                 ) : null}
