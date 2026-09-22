@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en-GB" style="color-scheme: dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reset your password | Snooker Lab</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="/"><img src="/icon-512.jpg" alt="" /><span translate="no">Snooker Lab</span></a>
+        <nav class="nav">
+          <a href="/">Home</a>
+          <a href="/support">Support</a>
+        </nav>
+      </header>
+
+      <section class="hero" aria-live="polite">
+        <h1 id="title">Choose a new password</h1>
+        <p id="message">Opening Snooker Lab so you can choose a new password…</p>
+      </section>
+
+      <section class="card" id="card">
+        <h3>Open the app</h3>
+        <p>Open this link on the phone that has Snooker Lab. The app opens on the screen to choose a new password.</p>
+        <p><a class="button" id="open" href="snookerlab://auth/callback">Open Snooker Lab</a></p>
+        <p class="meta">
+          The link works once and expires after an hour. If it has expired, ask for a new one from the sign-in screen
+          with “Forgot password”.
+        </p>
+      </section>
+    </main>
+
+    <script>
+      // The reset code is handed to the app, which spends it itself, so this page never uses it up.
+      (() => {
+        const query = new URLSearchParams(location.search);
+        const hash = new URLSearchParams(location.hash.slice(1));
+        const tokenHash = query.get("token_hash");
+        const error = query.get("error_description") || hash.get("error_description");
+        const title = document.getElementById("title");
+        const message = document.getElementById("message");
+        const open = document.getElementById("open");
+
+        if (error || !tokenHash) {
+          title.textContent = "That link did not work";
+          message.textContent = error
+            ? "The link has expired or has already been used. Ask for a new one from the sign-in screen with “Forgot password”."
+            : "This page needs the link from your password reset email.";
+          open.parentElement.hidden = true;
+          return;
+        }
+
+        const appLink = `snookerlab://auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`;
+        open.href = appLink;
+        // Try the app straight away; the button stays for when the browser asks first.
+        setTimeout(() => {
+          window.location.href = appLink;
+        }, 300);
+        setTimeout(() => {
+          message.textContent = "If Snooker Lab did not open, tap the button below.";
+        }, 2500);
+      })();
+    </script>
+  </body>
+</html>

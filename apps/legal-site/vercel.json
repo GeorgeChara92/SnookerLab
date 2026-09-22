@@ -40,6 +40,14 @@
     {
       "source": "/auth/callback/:path*",
       "destination": "/email-confirmed"
+    },
+    {
+      "source": "/auth/reset",
+      "destination": "/reset"
+    },
+    {
+      "source": "/auth/reset/:path*",
+      "destination": "/reset"
     }
   ]
 }
