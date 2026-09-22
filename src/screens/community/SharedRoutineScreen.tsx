@@ -110,7 +110,7 @@ export const SharedRoutineScreen = () => {
     setRoutine({ ...routine, saves: routine.saves + 1 });
     dialog.confirm({
       title: "Saved to your routines",
-      message: "It is in Practice, under Mine. Scores you record on it count on this routine's leaderboard.",
+      message: "It is in Practice, under Saved. Scores you record on it count on this routine's leaderboard.",
       tone: "success",
       icon: "bookmark-check-outline",
       confirmLabel: "Practise it now",

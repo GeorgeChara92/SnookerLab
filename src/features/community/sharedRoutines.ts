@@ -257,3 +257,26 @@ export const boardSummaries = async (me: string | null): Promise<Record<string, 
   });
   return summaries;
 };
+
+/** Who made each of these shared routines, for routines the player has saved. */
+export const authorsOfShared = async (ids: string[]): Promise<Record<string, PublicProfile>> => {
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (!unique.length) return {};
+  const { data } = await supabase.from("shared_routines").select("id, owner").in("id", unique);
+  const rows = data ?? [];
+  const authors = await profilesById(rows.map((row) => row.owner as string));
+  return Object.fromEntries(
+    rows.filter((row) => authors[row.owner]).map((row) => [row.id as string, authors[row.owner]])
+  ) as Record<string, PublicProfile>;
+};
+
+/** A player's shared routines, for their profile: the public ones, and link-only ones too for themselves. */
+export const routinesBy = async (owner: string, includeLinkOnly: boolean): Promise<SharedRoutine[]> => {
+  let request = supabase.from("shared_routines").select(COLUMNS).eq("owner", owner);
+  if (!includeLinkOnly) request = request.eq("visibility", "public");
+  const { data } = await request
+    .order("likes_count", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(50);
+  return data ? withAuthors(data) : [];
+};

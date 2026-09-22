@@ -10,6 +10,8 @@ import { useDialog } from "../../components/ui/DialogProvider";
 import { BoardPanel } from "../../components/scoreboard/Scoreboard";
 import { CommunityAvatar, flagOf } from "../../components/community/CommunityAvatar";
 import { ReportSheet } from "../../components/community/ReportSheet";
+import { SharedRoutineCard } from "../../components/community/SharedRoutineCard";
+import { routinesBy, type SharedRoutine } from "../../features/community/sharedRoutines";
 import { nameOf, relationTo, type PublicProfile, type PublicStats } from "../../features/community/types";
 import { LEVELS } from "../../constants/achievements";
 import { getCountryByCode, getCuePreferenceLabel } from "../../constants/profileOptions";
@@ -40,6 +42,7 @@ export const PlayerProfileScreen = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [routines, setRoutines] = useState<SharedRoutine[]>([]);
 
   const relation = relationTo(me, otherId, friendships, blocked);
   const link = friendships.find(
@@ -49,11 +52,12 @@ export const PlayerProfileScreen = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const result = await loadProfile(otherId);
+    const [result, shared] = await Promise.all([loadProfile(otherId), routinesBy(otherId, otherId === me)]);
     if (result.profile) setProfile(result.profile);
     setStats(result.stats);
+    setRoutines(shared);
     setLoading(false);
-  }, [loadProfile, otherId]);
+  }, [loadProfile, me, otherId]);
 
   // Again whenever the friendship changes: becoming friends can open up their stats.
   useEffect(() => {
@@ -320,6 +324,21 @@ export const PlayerProfileScreen = () => {
         </View>
       )}
 
+      {relation !== "blocked" && routines.length ? (
+        <View style={styles.routines}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            {relation === "self" ? "Your shared routines" : `Routines by ${name}`}
+          </Text>
+          {routines.map((routine) => (
+            <SharedRoutineCard
+              key={routine.id}
+              routine={routine}
+              onPress={() => navigation.navigate("SharedRoutine", { id: routine.id })}
+            />
+          ))}
+        </View>
+      ) : null}
+
       {relation !== "self" ? (
         <View style={styles.safety}>
           {relation !== "blocked" ? (
@@ -389,6 +408,8 @@ const styles = StyleSheet.create({
   aboutRow: { flexDirection: "row", alignItems: "center", gap: SPACING.sm, minHeight: HIT_TARGET + 4 },
   aboutLabel: { width: 104, fontSize: 14, fontWeight: "600" },
   aboutValue: { flex: 1, fontSize: 15, fontWeight: "700", textAlign: "right" },
+  routines: { gap: SPACING.sm, marginTop: SPACING.sm },
+  sectionTitle: { fontSize: 18, fontWeight: "800" },
   safety: { flexDirection: "row", justifyContent: "center", gap: SPACING.xl, marginTop: SPACING.md },
   safetyButton: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: HIT_TARGET },
   safetyText: { fontSize: 15, fontWeight: "700" },

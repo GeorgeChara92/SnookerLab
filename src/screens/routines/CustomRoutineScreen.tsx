@@ -15,6 +15,9 @@ import { RoutineProgressCard } from "../../components/routines/RoutineProgressCa
 import { RoutineLeaderboardCard } from "../../components/community/RoutineLeaderboardCard";
 import { ShareRoutineSheet } from "../../components/community/ShareRoutineSheet";
 import { leaderboardKeyFor } from "../../features/customRoutines/customRoutine";
+import { authorsOfShared } from "../../features/community/sharedRoutines";
+import { nameOf, type PublicProfile } from "../../features/community/types";
+import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /** One of the player's own routines: the table to set up, what it is, and a score to record. */
@@ -30,6 +33,20 @@ export const CustomRoutineScreen = () => {
   const tableHeight = Math.round(Math.min(height * 0.5, (width - SPACING.lg * 2) * 1.95));
   const asRoutine = useMemo(() => (routine ? toRoutine(routine) : null), [routine]);
   const [sharing, setSharing] = useState(false);
+  const [author, setAuthor] = useState<PublicProfile | null>(null);
+
+  // A routine saved from the community shows who made it, linking to their profile.
+  useEffect(() => {
+    const source = routine?.sourceSharedId;
+    if (!source) return;
+    let cancelled = false;
+    void authorsOfShared([source]).then((found) => {
+      if (!cancelled) setAuthor(found[source] ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [routine?.sourceSharedId]);
 
   useEffect(() => {
     navigation.setOptions({ title: routine?.name ?? "Routine" });
@@ -45,8 +62,10 @@ export const CustomRoutineScreen = () => {
 
   const confirmDelete = () =>
     dialog.confirm({
-      title: `Delete ${routine.name}?`,
-      message: "It goes from all your devices. Scores you have recorded for it are kept.",
+      title: routine.sourceSharedId ? `Remove ${routine.name} from Saved?` : `Delete ${routine.name}?`,
+      message: routine.sourceSharedId
+        ? "Your copy goes from all your devices. The original stays in the community library, and your scores are kept."
+        : "It goes from all your devices. Scores you have recorded for it are kept.",
       icon: "delete-outline",
       tone: "danger",
       confirmLabel: "Delete routine",
@@ -65,6 +84,35 @@ export const CustomRoutineScreen = () => {
       <View style={{ height: tableHeight }}>
         <TableDiagram balls={routine.balls} readOnly />
       </View>
+
+      {routine.sourceSharedId ? (
+        <Pressable
+          onPress={() =>
+            author
+              ? (navigation as any).navigate("Community", { screen: "PlayerProfile", params: { userId: author.id } })
+              : (navigation as any).navigate("Community", {
+                  screen: "SharedRoutine",
+                  params: { id: routine.sourceSharedId },
+                })
+          }
+          accessibilityRole="button"
+          accessibilityLabel={author ? `From ${nameOf(author)}. Open their profile` : "From the community"}
+          style={({ pressed }) => [
+            styles.author,
+            { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+          ]}
+        >
+          {author ? <CommunityAvatar profile={author} size={36} /> : null}
+          <View style={styles.authorText}>
+            <Text style={[styles.authorKicker, { color: colors.textMuted }]}>SAVED FROM</Text>
+            <Text style={[styles.authorName, { color: colors.primary }]} numberOfLines={1}>
+              {author ? (author.handle ? `@${author.handle}` : nameOf(author)) : "The community"}
+            </Text>
+          </View>
+          <Text style={[styles.authorMore, { color: colors.textMuted }]}>{author ? "Their routines" : "View"}</Text>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+        </Pressable>
+      ) : null}
 
       <View style={styles.metaRow}>
         <View style={[styles.chip, { backgroundColor: colors.surfaceMuted }]}>
@@ -183,6 +231,19 @@ const styles = StyleSheet.create({
   content: { padding: SPACING.lg, gap: SPACING.md },
   missing: { flex: 1, alignItems: "center", justifyContent: "center", padding: SPACING.xl },
   missingText: { fontSize: 15 },
+  author: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 12,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.md,
+  },
+  authorText: { flex: 1, minWidth: 0 },
+  authorKicker: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  authorName: { fontSize: 16, fontWeight: "800" },
+  authorMore: { fontSize: 13, fontWeight: "700" },
   metaRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm, justifyContent: "center" },
   chip: { borderRadius: RADIUS.pill, paddingHorizontal: SPACING.md, paddingVertical: 6 },
   chipText: { fontSize: 13, fontWeight: "700" },

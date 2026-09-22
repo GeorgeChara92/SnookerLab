@@ -7,6 +7,8 @@ import { useCustomRoutinesStore, useRoutinesStore } from "../../store";
 import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { summarise } from "../../features/scanSnooker/position";
 import type { CustomRoutine } from "../../features/customRoutines/customRoutine";
+import { authorsOfShared } from "../../features/community/sharedRoutines";
+import { nameOf, type PublicProfile } from "../../features/community/types";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import type { PracticeStackParamList, RoutineCategory } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -19,7 +21,22 @@ export const RoutineCategoriesScreen = () => {
   const customRoutines = useCustomRoutinesStore((state) => state.routines);
   // The built-in library, or the routines the player has built.
   const route = useRoute<RouteProp<PracticeStackParamList, "RoutineCategories">>();
-  const [tab, setTab] = useState<"library" | "mine" | "sessions">(route.params?.tab ?? "library");
+  const [tab, setTab] = useState<"library" | "mine" | "saved" | "sessions">(route.params?.tab ?? "library");
+  // The player's own routines, and the ones they saved from the community, kept apart.
+  const ownRoutines = useMemo(() => customRoutines.filter((item) => !item.sourceSharedId), [customRoutines]);
+  const savedRoutines = useMemo(() => customRoutines.filter((item) => item.sourceSharedId), [customRoutines]);
+  const [authors, setAuthors] = useState<Record<string, PublicProfile>>({});
+
+  useEffect(() => {
+    if (tab !== "saved" || !savedRoutines.length) return;
+    let cancelled = false;
+    void authorsOfShared(savedRoutines.map((item) => item.sourceSharedId!)).then((found) => {
+      if (!cancelled) setAuthors(found);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [savedRoutines, tab]);
 
   // Arriving from elsewhere (the dashboard's "start a session") opens the tab asked for.
   useEffect(() => {
@@ -121,7 +138,7 @@ export const RoutineCategoriesScreen = () => {
 
   const tabs = (
     <View style={[styles.tabs, { backgroundColor: colors.surfaceMuted }]}>
-      {(["library", "mine", "sessions"] as const).map((item) => {
+      {(["library", "mine", "saved", "sessions"] as const).map((item) => {
         const active = tab === item;
         return (
           <Pressable
@@ -132,11 +149,7 @@ export const RoutineCategoriesScreen = () => {
             style={[styles.tab, active && { backgroundColor: colors.surface }]}
           >
             <Text style={[styles.tabText, { color: active ? colors.text : colors.textMuted }]}>
-              {item === "library"
-                ? "Library"
-                : item === "sessions"
-                  ? "Sessions"
-                  : `Mine${customRoutines.length ? ` · ${customRoutines.length}` : ""}`}
+              {item === "library" ? "Library" : item === "sessions" ? "Sessions" : item === "saved" ? "Saved" : "Mine"}
             </Text>
           </Pressable>
         );
@@ -177,6 +190,13 @@ export const RoutineCategoriesScreen = () => {
             {item.description}
           </Text>
         ) : null}
+        {item.sourceSharedId ? (
+          <Text style={[styles.customAuthor, { color: colors.primary }]} numberOfLines={1}>
+            {authors[item.sourceSharedId]
+              ? `From ${authors[item.sourceSharedId].handle ? `@${authors[item.sourceSharedId].handle}` : nameOf(authors[item.sourceSharedId])}`
+              : "From the community"}
+          </Text>
+        ) : null}
         <Text style={[styles.customMeta, { color: colors.textMuted }]} numberOfLines={1}>
           {summarise(item.balls)} · {item.maxScore ? `max ${item.maxScore}` : "counts attempts"}
         </Text>
@@ -194,13 +214,50 @@ export const RoutineCategoriesScreen = () => {
     );
   }
 
+  if (tab === "saved") {
+    return (
+      <FlatList
+        key="saved-routines"
+        data={savedRoutines}
+        keyExtractor={(item) => item.id}
+        renderItem={renderCustom}
+        contentContainerStyle={[styles.container, { backgroundColor: colors.background, flexGrow: 1 }]}
+        ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
+        ListHeaderComponent={<View style={styles.header}>{tabs}</View>}
+        ListEmptyComponent={
+          <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceMuted }]}>
+              <MaterialCommunityIcons name="bookmark-outline" size={28} color={colors.primary} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Routines from other players</Text>
+            <Text style={[styles.emptyBody, { color: colors.textMuted }]}>
+              Save a routine from the community library and it lands here, ready to practise. Your scores go on its
+              leaderboard.
+            </Text>
+            <Pressable
+              onPress={() => (navigation as any).navigate("Community", { screen: "RoutineLibrary" })}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.newButton,
+                { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <MaterialCommunityIcons name="account-group-outline" size={20} color={colors.onPrimary} />
+              <Text style={[styles.newButtonText, { color: colors.onPrimary }]}>Browse the routine library</Text>
+            </Pressable>
+          </View>
+        }
+      />
+    );
+  }
+
   if (tab === "mine") {
     return (
       // Its own key: the library is a two-column list, and a FlatList cannot change its column
       // count in place, so switching tabs must build a fresh list rather than reuse this one.
       <FlatList
         key="my-routines"
-        data={customRoutines}
+        data={ownRoutines}
         keyExtractor={(item) => item.id}
         renderItem={renderCustom}
         contentContainerStyle={[styles.container, { backgroundColor: colors.background, flexGrow: 1 }]}
@@ -208,7 +265,7 @@ export const RoutineCategoriesScreen = () => {
         ListHeaderComponent={
           <View style={styles.header}>
             {tabs}
-            {customRoutines.length ? <View style={{ marginTop: SPACING.md }}>{newRoutine}</View> : null}
+            {ownRoutines.length ? <View style={{ marginTop: SPACING.md }}>{newRoutine}</View> : null}
           </View>
         }
         ListEmptyComponent={
@@ -278,6 +335,7 @@ const styles = StyleSheet.create({
   customBody: { flex: 1, gap: 3 },
   customName: { fontSize: 16, fontWeight: "800" },
   customDescription: { fontSize: 13, lineHeight: 18 },
+  customAuthor: { fontSize: 12, fontWeight: "800", marginTop: 2 },
   customMeta: { fontSize: 12, fontWeight: "600" },
   empty: { alignItems: "center", gap: SPACING.sm, borderWidth: 1, borderRadius: RADIUS.xl, padding: SPACING.xl },
   emptyIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },

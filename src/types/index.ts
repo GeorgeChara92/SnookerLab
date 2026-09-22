@@ -308,7 +308,7 @@ export type DashboardStackParamList = {
 /** Practice holds the routine library, the player's own routines and their sessions. */
 export type PracticeStackParamList = SessionsStackParamList & {
   /** Opens on a tab when given one: the library, the player's routines, or sessions. */
-  RoutineCategories: { tab?: "library" | "mine" | "sessions" } | undefined;
+  RoutineCategories: { tab?: "library" | "mine" | "saved" | "sessions" } | undefined;
   RoutinesList: { categoryId: string };
   RoutineDetail: { routineId: string };
   RecordRoutineScore: { routineId: string };
