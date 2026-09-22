@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Snooker Lab",
+    "name": "Snookered",
     "slug": "SnookerApp",
     "scheme": "snookerlab",
     "version": "1.0.0",
@@ -37,8 +37,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Snooker Lab needs access to your videos so you can choose a clip of your practice for AI coaching analysis.",
-          "cameraPermission": "Snooker Lab uses the camera to record practice clips for AI coaching, and to scan the table so balls can be put back in the right place.",
+          "photosPermission": "Snookered needs access to your videos so you can choose a clip of your practice for AI coaching analysis.",
+          "cameraPermission": "Snookered uses the camera to record practice clips for AI coaching, and to scan the table so balls can be put back in the right place.",
           "microphonePermission": false
         }
       ]

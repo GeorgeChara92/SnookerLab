@@ -31,7 +31,7 @@ export const ProfileScreen = () => {
   const mostPractised = categories.find((category) => category.id === stats.mostTrainedCategory)?.name ?? null;
 
   const openSupport = async () => {
-    const url = `mailto:${SUPPORT_EMAIL}?subject=SnookerLab%20help`;
+    const url = `mailto:${SUPPORT_EMAIL}?subject=Snookered%20help`;
     try {
       if (await Linking.canOpenURL(url)) {
         await Linking.openURL(url);

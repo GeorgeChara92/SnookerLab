@@ -33,7 +33,7 @@ export const LoadingPlayerScreen = () => {
         adjustsFontSizeToFit
         style={[styles.wordmark, { color: colors.boardText }]}
       >
-        SNOOKER LAB
+        SNOOKERED
       </Text>
       <View style={styles.balls}>
         {BALLS.map((colour, index) => (

@@ -1,10 +1,10 @@
-# App Store listing: Snooker Lab
+# App Store listing: Snookered
 
 Copy for App Store Connect, written to Apple's limits. Character counts are in brackets.
 
 ## Name and subtitle
 
-- **Name** (30 max): `Snooker Lab` [11]
+- **Name** (30 max): `Snookered` [11]
 - **Subtitle** (30 max): `Score, practise, play friends` [29]
 
 ## Promotional text (170 max, can change any time without review)
@@ -13,10 +13,10 @@ Copy for App Store Connect, written to Apple's limits. Character counts are in b
 
 ## Description (4,000 max)
 
-> Snooker Lab is the all-in-one app for snooker players. Score your matches, practise with purpose, see how you are really getting on, and play the people at your club.
+> Snookered is the all-in-one app for snooker players. Score your matches, practise with purpose, see how you are really getting on, and play the people at your club.
 >
 > SCORE EVERY FRAME
-> Tap the balls as they go down. Snooker Lab keeps the score, the breaks, the fouls and the points left on the table, knows when snookers are needed, and settles the frame when it is done. Prefer to just enter the result? That works too. Every match gets an overview with the numbers that matter, and a result card to share that leads with the big moment: the century, the maximum, the comeback.
+> Tap the balls as they go down. Snookered keeps the score, the breaks, the fouls and the points left on the table, knows when snookers are needed, and settles the frame when it is done. Prefer to just enter the result? That works too. Every match gets an overview with the numbers that matter, and a result card to share that leads with the big moment: the century, the maximum, the comeback.
 >
 > PRACTISE WITH A PLAN
 > A library of proper routines, from the line-up to the colours, each with its own progress chart and personal best. Build your own routines on a table diagram, plan your week, set goals and keep a streak going.
@@ -43,7 +43,7 @@ Copy for App Store Connect, written to Apple's limits. Character counts are in b
 > Choose who can find you, who sees your stats and who can message you. Block or report anyone. Turn off sharing your results or live matches at any time.
 >
 > PLANS
-> Snooker Lab is free to start. Half-Century and Century plans raise your monthly match, tournament and AI coach limits and unlock the full routine library and analytics. Payment is charged to your Apple account. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel them in your Apple account settings.
+> Snookered is free to start. Half-Century and Century plans raise your monthly match, tournament and AI coach limits and unlock the full routine library and analytics. Payment is charged to your Apple account. Subscriptions renew automatically unless cancelled at least 24 hours before the end of the current period. Manage or cancel them in your Apple account settings.
 >
 > Terms of Use: https://snooker-lab.vercel.app/terms
 > Privacy Policy: https://snooker-lab.vercel.app/privacy
@@ -71,7 +71,7 @@ Avoid player names (for example "Trump" or "O'Sullivan") and "WST" as keywords. 
 
 ## Age rating answers
 
-Apple asks about user-generated content and messaging, and Snooker Lab has both:
+Apple asks about user-generated content and messaging, and Snookered has both:
 - **User-generated content:** Yes. Profiles, chat, groups and shared routines.
 - **Messaging and chat:** Yes.
 - **Unrestricted web access:** No. News stories open in Safari, not in the app.
@@ -81,7 +81,7 @@ Expect a **13+** rating.
 
 ## Notes for App Review
 
-> Snooker Lab needs an account. Sign in with:
+> Snookered needs an account. Sign in with:
 > Email: ____________  Password: ____________ (a demo account with matches, practice and a group already set up)
 >
 > Community features include a word filter on profiles, messages, groups and shared routines. Players can report or block anyone from their profile, a message (long-press), a group or a routine. Content reported by three different players is hidden automatically until it is reviewed, and reports go to an in-app admin queue that we check daily. Users can control who can find and message them in Community > Settings. Account deletion is in Profile > Settings > Data management.

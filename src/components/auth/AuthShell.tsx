@@ -49,7 +49,7 @@ export const AuthShell = ({ strapline, title, subtitle, children }: Props) => {
               adjustsFontSizeToFit
               maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
             >
-              SNOOKER LAB
+              SNOOKERED
             </Text>
             <Text style={[styles.strapline, { color: colors.boardMuted }]} maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}>
               {strapline}

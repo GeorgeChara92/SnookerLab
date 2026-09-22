@@ -106,7 +106,7 @@ export const WelcomeTour = ({ visible, onDone }: { visible: boolean; onDone: (ch
           <View style={styles.centre}>
             <Image source={require("../../../assets/icon.png")} style={styles.icon} accessibilityIgnoresInvertColors />
             <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.kicker, { color: colors.boardRule }]}>
-              WELCOME TO SNOOKER LAB
+              WELCOME TO SNOOKERED
             </Text>
             <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.hero, { color: colors.text }]}>
               Your snooker,{"\n"}on the scoreboard.

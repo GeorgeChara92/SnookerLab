@@ -107,7 +107,7 @@ export const MatchResultCard = forwardRef<View, Props>(
               allowFontScaling={false}
               style={[styles.brand, { fontSize: u(14), letterSpacing: u(3), color: theme.accent }]}
             >
-              SNOOKER LAB
+              SNOOKERED
             </Text>
             <Text
               allowFontScaling={false}

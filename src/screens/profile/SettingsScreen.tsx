@@ -257,7 +257,7 @@ export const SettingsScreen = () => {
   };
 
   const openSupportEmail = async () => {
-    const url = `mailto:${SUPPORT_EMAIL}?subject=SnookerLab%20Account%20Support`;
+    const url = `mailto:${SUPPORT_EMAIL}?subject=Snookered%20account%20support`;
     try {
       const canOpen = await Linking.canOpenURL(url);
       if (!canOpen) throw new Error("Cannot open URL");
@@ -510,7 +510,7 @@ export const SettingsScreen = () => {
           <SettingsRow icon="account-remove" label="Delete Account" onPress={startDeleteFlow} danger colors={colors} />
         </SettingsSection>
 
-        <Text style={[styles.footerText, { color: colors.textMuted }]}>SnookerLab v1.0.0</Text>
+        <Text style={[styles.footerText, { color: colors.textMuted }]}>Snookered v{APP_VERSION}</Text>
 
         <View style={{ height: Math.max(80, insets.bottom + 40) }} />
       </ScrollView>

@@ -81,7 +81,7 @@ export const ShareRoutineSheet = ({
   const shareLink = () => {
     if (!id) return;
     const url = routineLink(id);
-    void Share.share({ message: `Try my snooker routine "${name}" in Snooker Lab: ${url}`, url });
+    void Share.share({ message: `Try my snooker routine "${name}" in Snookered: ${url}`, url });
   };
 
   const edited = own?.sharedId ? true : false;
@@ -189,7 +189,7 @@ export const ShareRoutineSheet = ({
                 <QRCode value={routineLink(id)} size={180} color="#0F2A22" backgroundColor="#FFFFFF" />
               </View>
               <Text style={[styles.text, { color: colors.textMuted, textAlign: "center" }]}>
-                Scan it with an iPhone camera to open the routine in Snooker Lab.
+                Scan it with an iPhone camera to open the routine in Snookered.
               </Text>
               <Pressable
                 onPress={shareLink}

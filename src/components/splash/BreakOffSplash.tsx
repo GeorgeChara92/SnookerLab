@@ -349,7 +349,7 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
           style={StyleSheet.absoluteFill}
           onPress={finish}
           accessibilityRole="button"
-          accessibilityLabel="Snooker Lab. Tap to skip the opening."
+          accessibilityLabel="Snookered. Tap to skip the opening."
         >
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: tableIn }]}>
             {/* ------------------------------------------------ the baize, lit from above */}
@@ -487,7 +487,7 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
               adjustsFontSizeToFit
               accessibilityElementsHidden
             >
-              SNOOKER LAB
+              SNOOKERED
             </Text>
             <View style={styles.rule} />
           </Animated.View>

@@ -128,7 +128,7 @@ export const LoginScreen = ({ navigation, route }: Props) => {
 
       <View style={styles.dividerRow}>
         <View style={[styles.rule, { backgroundColor: colors.border }]} />
-        <Text style={[styles.dividerText, { color: colors.textMuted }]}>New to Snooker Lab?</Text>
+        <Text style={[styles.dividerText, { color: colors.textMuted }]}>New to Snookered?</Text>
         <View style={[styles.rule, { backgroundColor: colors.border }]} />
       </View>
 

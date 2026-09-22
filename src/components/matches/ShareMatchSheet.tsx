@@ -43,7 +43,7 @@ export const resultMessage = (match: Match, highBreak: number, highlights: Highl
     `${verb} ${match.user_score}–${match.opponent_score} against ${match.opponent_name}${bestOf ? ` (best of ${bestOf})` : ""}.`,
     ...highlights.slice(0, 3).map((item) => item.sentence),
     highBreak && !highlights.some((item) => BREAK_KINDS.includes(item.kind)) ? `High break ${highBreak}.` : null,
-    "Scored with Snooker Lab.",
+    "Scored with Snookered.",
   ]
     .filter(Boolean)
     .join(" ");

@@ -53,7 +53,7 @@ export const getAuthErrorMessage = (error: any, action: "sign-in" | "sign-up") =
     return "Too many attempts in a short time. Wait a few minutes, then try again.";
   }
   if (msg.includes("network") || msg.includes("fetch") || msg.includes("timed out") || msg.includes("offline")) {
-    return "Could not reach Snooker Lab. Check your connection and try again.";
+    return "Could not reach Snookered. Check your connection and try again.";
   }
   if (msg.includes("invalid email") || (msg.includes("email address") && msg.includes("invalid"))) {
     return "That email address does not look right. Check it and try again.";
