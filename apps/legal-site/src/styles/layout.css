@@ -174,7 +174,7 @@
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 1080px) {
   .header-cta {
     display: none;
   }
@@ -694,9 +694,13 @@
   overflow: clip;
 }
 
+.hero .display-xl {
+  font-size: clamp(40px, 5.4vw, 76px);
+}
+
 .hero-grid {
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
+  grid-template-columns: 1.15fr 0.85fr;
   gap: clamp(40px, 6vw, 80px);
   align-items: center;
 }

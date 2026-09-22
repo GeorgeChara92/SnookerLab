@@ -23,6 +23,12 @@ export const ROUTES: RouteMeta[] = [
       "Snooker practice that counts: build your own routines, run the line-up and more with a personal best on each, keep a weekly plan and streak, and get AI coaching from a clip.",
   },
   {
+    path: "/coach",
+    title: "Coach: AI snooker coaching from a clip of your game · Snookered",
+    description:
+      "Record a clip at the table and get coaching feedback on your technique: what went well, the one thing to fix first, and the routines that train it.",
+  },
+  {
     path: "/scan-snooker",
     title: "Scan Snooker: replace the balls after a miss in AR · Snookered",
     description:
@@ -58,9 +64,15 @@ export const metaFor = (path: string) => ROUTES.find((route) => route.path === p
 export const NAV = [
   { to: "/scoring", label: "Scoring" },
   { to: "/practice", label: "Practice" },
-  { to: "/scan-snooker", label: "Scan Snooker" },
+  { to: "/coach", label: "Coach" },
   { to: "/community", label: "Community" },
   { to: "/plans", label: "Plans" },
+];
+
+/** In the menu and the footer, not the top bar: it is a feature, not a section of the site. */
+export const MORE_NAV = [
+  { to: "/scan-snooker", label: "Scan Snooker" },
+  { to: "/support", label: "Support" },
 ];
 
 export type Screen =
@@ -81,13 +93,15 @@ export type Screen =
 export const PLANS = [
   {
     name: "Free",
-    line: "Track your practice and see where you stand.",
+    line: "Start your game.",
+    who: "For players trying it out.",
     items: ["12 matches a month", "1 tournament a month", "1 AI coach review a month", "Practice routines and sessions"],
   },
   {
     name: "Half-Century",
-    line: "For players practising every week.",
-    tag: "For weekly players",
+    line: "For regular players.",
+    who: "For players at the table every week.",
+    tag: "Most popular with weekly players",
     items: [
       "40 matches a month",
       "4 tournaments a month",
@@ -97,7 +111,8 @@ export const PLANS = [
   },
   {
     name: "Century",
-    line: "Everything, for players chasing centuries.",
+    line: "The full Snookered experience.",
+    who: "For players chasing centuries and running club nights.",
     items: [
       "Unlimited matches",
       "Unlimited tournaments",

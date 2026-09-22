@@ -94,6 +94,13 @@ const SCAN_FAQ: [string, string][] = [
   ["When will it be ready?", "Scan Snooker is in testing now and will arrive in an update."],
 ];
 
+const COACH_FAQ: [string, string][] = [
+  ["How long should the clip be?", "A few shots or a short break. Longer clips take longer to come back and rarely tell you more."],
+  ["Where should I put the phone?", "Anywhere it can see you and the table. The report says which angle it had, and what that angle stopped it seeing."],
+  ["How many reviews do I get?", "One a month on the free plan, eight on Half-Century and twenty on Century."],
+  ["Who can see my clips?", "Only you. Clips are tied to your account and are not shared with other players."],
+];
+
 /** The JSON-LD graph for a page, or null where there is nothing worth describing. */
 export function structuredData(path: string) {
   const graph: Record<string, unknown>[] = [];
@@ -110,6 +117,7 @@ export function structuredData(path: string) {
     const names: Record<string, string> = {
       "/scoring": "Scoring",
       "/practice": "Practice",
+      "/coach": "Coach",
       "/scan-snooker": "Scan Snooker",
       "/community": "Community",
       "/plans": "Plans",
@@ -123,6 +131,7 @@ export function structuredData(path: string) {
     if (path === "/plans") graph.push(faq(PLAN_FAQ));
     if (path === "/support") graph.push(faq(SUPPORT_FAQ));
     if (path === "/scan-snooker") graph.push(faq(SCAN_FAQ));
+    if (path === "/coach") graph.push(faq(COACH_FAQ));
   }
   return { "@context": "https://schema.org", "@graph": graph };
 }

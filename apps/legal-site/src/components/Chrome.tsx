@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { NAV, SUPPORT_EMAIL } from "../site";
+import { MORE_NAV, NAV, SUPPORT_EMAIL } from "../site";
 
 function Brand() {
   return (
@@ -45,8 +45,8 @@ export function Header() {
           ))}
         </nav>
         <div className="header-end">
-          <Link className="btn btn-primary header-cta" to="/support">
-            Get in touch
+          <Link className="btn btn-primary header-cta" to="/#launch">
+            Join the launch list
           </Link>
           <button
             type="button"
@@ -73,7 +73,7 @@ export function Header() {
             transition={{ type: "spring", duration: 0.3, bounce: 0 }}
           >
             <div className="wrap">
-              {[...NAV, { to: "/support", label: "Support" }].map((item, index) => (
+              {[...NAV, ...MORE_NAV].map((item, index) => (
                 <motion.div
                   key={item.to}
                   initial={{ opacity: 0, y: 6 }}
@@ -106,7 +106,9 @@ export function Footer() {
             <h2>The app</h2>
             <Link to="/scoring">Scoring</Link>
             <Link to="/practice">Practice</Link>
+            <Link to="/coach">Coach</Link>
             <Link to="/community">Community</Link>
+            <Link to="/scan-snooker">Scan Snooker</Link>
             <Link to="/plans">Plans</Link>
           </div>
           <div>
@@ -129,7 +131,17 @@ export function Footer() {
 export function ScrollToTop() {
   const { pathname, hash } = useLocation();
   useEffect(() => {
-    if (!hash) window.scrollTo(0, 0);
+    if (!hash) {
+      window.scrollTo(0, 0);
+      return;
+    }
+    // Give the new page a frame to render before looking for the section.
+    const timer = setTimeout(() => {
+      const target = document.querySelector(hash);
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      else window.scrollTo(0, 0);
+    }, 60);
+    return () => clearTimeout(timer);
   }, [pathname, hash]);
   return null;
 }

@@ -5,6 +5,7 @@ import { Footer, Header, ScrollToTop } from "./components/Chrome";
 import { TableSprite } from "./components/Table";
 import Home from "./pages/Home";
 import { Community, Practice, Scoring } from "./pages/Features";
+import Coach from "./pages/Coach";
 import ScanSnooker from "./pages/ScanSnooker";
 import { NotFound, Plans, Privacy, Support, Terms } from "./pages/Info";
 import { metaFor } from "./site";
@@ -44,6 +45,7 @@ export function App() {
           <Route path="/" element={<Home />} />
           <Route path="/scoring" element={<Scoring />} />
           <Route path="/practice" element={<Practice />} />
+          <Route path="/coach" element={<Coach />} />
           <Route path="/scan-snooker" element={<ScanSnooker />} />
           <Route path="/community" element={<Community />} />
           <Route path="/plans" element={<Plans />} />

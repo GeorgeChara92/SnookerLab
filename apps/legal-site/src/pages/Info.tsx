@@ -29,6 +29,7 @@ export function Plans() {
                 {plan.tag && <p className="plan-tag">{plan.tag}</p>}
                 <h2>{plan.name}</h2>
                 <p className="plan-line">{plan.line}</p>
+                <p className="plan-who">{plan.who}</p>
                 <ul>
                   {plan.items.map((item) => (
                     <li key={item}>
