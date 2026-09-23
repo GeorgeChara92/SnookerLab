@@ -530,14 +530,24 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, model: result.report_json.model, analysis_id: analysis.id });
   } catch (error) {
-    // The player sees a plain reason; the detail stays in the function logs.
+    // The player sees a plain reason. The real one is logged and kept on the row, because
+    // function logs age out long before anyone asks why a clip failed last month.
     const friendly = error instanceof CoachError ? error.message : FRIENDLY.generic;
     if (!(error instanceof CoachError)) console.error("ai-analyze-clip failed:", error);
+    const cause = error as { name?: string; message?: string };
+    const detail = `${error instanceof CoachError ? "CoachError" : (cause?.name ?? "Error")}: ${
+      cause?.message ?? String(error)
+    }`.slice(0, 600);
 
     if (analysisId && userClient) {
       await userClient
         .from("ai_analyses")
-        .update({ status: "failed", error_message: friendly, updated_at: new Date().toISOString() })
+        .update({
+          status: "failed",
+          error_message: friendly,
+          failure_detail: detail,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", analysisId)
         .then(
           () => undefined,
