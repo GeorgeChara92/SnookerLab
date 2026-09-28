@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import type { Screen } from "../site";
 
-const WIDTHS = [360, 560, 820];
+const WIDTHS = [360, 560, 820, 1206];
 
 type Props = {
   screen: Screen;

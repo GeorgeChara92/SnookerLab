@@ -8,7 +8,7 @@ const out = path.join(dir, "sized");
 await mkdir(out, { recursive: true });
 for (const file of (await readdir(dir)).filter((name) => name.endsWith(".png"))) {
   const name = file.replace(/\.png$/, "");
-  for (const width of [360, 560, 820]) {
+  for (const width of [360, 560, 820, 1206]) {
     await sharp(path.join(dir, file))
       .resize({ width, kernel: "lanczos3" })
       .sharpen({ sigma: 0.5 })

@@ -221,7 +221,7 @@ export function Community() {
         "Leaderboards and pinned routines for the whole group",
       ],
       screen: "group",
-      alt: "A group with a member playing live and a feed of achievements",
+      alt: "A club group's feed, with a personal best and a win",
     },
   ];
   return (
@@ -241,8 +241,8 @@ export function Community() {
         }
         aside={
           <div className="phones-duo">
-            <Phone screen="community" alt="Community: friends, groups and the pro tour" sizes="(max-width: 900px) 42vw, 220px" />
-            <Phone screen="chat" alt="A group chat, with the league sorting out fixtures" sizes="(max-width: 900px) 42vw, 220px" />
+            <Phone screen="community" alt="Community: friends, groups and the pro tour" sizes="(max-width: 900px) 42vw, 250px" />
+            <Phone screen="chat" alt="A group chat, sorting out who's playing when" sizes="(max-width: 900px) 42vw, 250px" />
           </div>
         }
       />

@@ -233,7 +233,7 @@ const GALLERY: { screen: Screen; alt: string; caption: string }[] = [
   { screen: "routine-builder", alt: "The routine builder, with balls placed on a table diagram", caption: "Build the routine you need." },
   { screen: "share-card", alt: "The share card for a result, leading with a 77 break", caption: "A result card led by the big moment." },
   { screen: "tournament", alt: "A tournament bracket: quarter-finals and semi-finals", caption: "Club knockouts, drawn for you." },
-  { screen: "chat", alt: "A group chat, with the league sorting out fixtures", caption: "Your league, in one thread." },
+  { screen: "chat", alt: "A group chat, sorting out who's playing when", caption: "Your club, in one thread." },
   { screen: "live-match", alt: "Following a friend's match live", caption: "Friends' matches, followed live." },
 ];
 
@@ -334,8 +334,8 @@ export default function Home() {
         ]}
         visual={
           <div className="phones-duo">
-            <Phone screen="group" alt="A group with a member playing live and a feed of achievements" sizes="(max-width: 860px) 42vw, 230px" />
-            <Phone screen="chat" alt="A group chat, with the league sorting out fixtures" sizes="(max-width: 860px) 42vw, 230px" />
+            <Phone screen="community" alt="The Community tab, with a friend's match live and the latest pro tour news" sizes="(max-width: 860px) 42vw, 250px" />
+            <Phone screen="group" alt="A club group's feed, with a personal best and a win" sizes="(max-width: 860px) 42vw, 250px" />
           </div>
         }
         link={{ to: "/community", label: "Explore community" }}
