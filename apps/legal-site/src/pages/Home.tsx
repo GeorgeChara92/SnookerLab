@@ -289,7 +289,7 @@ export default function Home() {
       />
       <Feature
         id="coach"
-        eyebrow="Coach"
+        eyebrow="AI Coach"
         title="Turn your game into feedback."
         body="Film a few shots, upload the clip, and get a report on your technique: what is working, the one thing to fix first, and the routines that train it."
         points={[

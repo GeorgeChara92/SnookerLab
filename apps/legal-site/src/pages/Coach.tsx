@@ -33,7 +33,7 @@ export default function Coach() {
   return (
     <>
       <PageHero
-        eyebrow="Coach"
+        eyebrow="AI Coach"
         title="A coach that watches you play."
         lead="Record a clip of your game and get AI-powered feedback on your technique, the moments that matter, and what to work on next."
         strip={
@@ -146,6 +146,9 @@ export default function Coach() {
               { q: "Who can see my clips?", a: <p>Only you. Clips are tied to your account and are not shared with other players.</p> },
             ]}
           />
+          <p className="note">
+            Looking for a real person instead? See <Link to="/find-a-coach">Find a Coach</Link>.
+          </p>
         </div>
       </section>
 

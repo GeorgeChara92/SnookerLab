@@ -140,7 +140,7 @@ export default function FindACoach() {
             ]}
           />
           <p className="note">
-            Looking for AI feedback on your own game instead? See <Link to="/coach">Coach</Link>.
+            Looking for AI feedback on your own game instead? See <Link to="/coach">AI Coach</Link>.
           </p>
         </div>
       </section>
