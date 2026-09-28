@@ -1,8 +1,11 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore, useRoutinesStore } from "../../store";
+import { useCommunityStore } from "../../store/communityStore";
+import { useUiModeStore } from "../../store/uiModeStore";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useDialog } from "../../components/ui/DialogProvider";
@@ -21,6 +24,8 @@ const MIN_FOR_WIN_RATE = 3;
 export const ProfileScreen = () => {
   const navigation = useNavigation<any>();
   const { user, signOut } = useAuthStore();
+  const isCoach = useCommunityStore((state) => state.me?.isCoach ?? false);
+  const setViewMode = useUiModeStore((state) => state.setViewMode);
   const categories = useRoutinesStore((state) => state.categories);
   const { colors } = useAppTheme();
   const dialog = useDialog();
@@ -123,7 +128,13 @@ export const ProfileScreen = () => {
           >
             {user?.profile_image_url ? (
               <View style={[styles.avatar, { borderColor: colors.boardRule, backgroundColor: colors.boardRaised }]}>
-                <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
+                <Image
+                  source={{ uri: user.profile_image_url }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={0}
+                />
               </View>
             ) : (
               <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={level.level} size={80} />
@@ -288,6 +299,25 @@ export const ProfileScreen = () => {
           </View>
         ))}
       </Pressable>
+
+      {/* ---------------------------------------------------------------- coach */}
+      {isCoach ? (
+        <>
+          <Text style={[styles.groupLabel, { color: colors.textMuted }]}>COACH</Text>
+          <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Row
+              icon="whistle-outline"
+              label="Switch to coach view"
+              onPress={() => {
+                setViewMode("coach");
+                navigation.getParent()?.goBack();
+              }}
+            />
+            <Divider />
+            <Row icon="certificate-outline" label="Coach settings" onPress={() => navigation.navigate("CoachSettings")} />
+          </View>
+        </>
+      ) : null}
 
       {/* ---------------------------------------------------------------- account */}
       <Text style={[styles.groupLabel, { color: colors.textMuted }]}>ACCOUNT</Text>

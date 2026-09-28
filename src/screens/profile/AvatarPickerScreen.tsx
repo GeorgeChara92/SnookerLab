@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Image } from "expo-image";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import * as ImagePicker from "expo-image-picker";
 import { useAuthStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
@@ -37,7 +39,7 @@ const FACE_GAP = 8;
 
 export const AvatarPickerScreen = () => {
   const navigation = useNavigation();
-  const { user, updateAvatarPreset } = useAuthStore();
+  const { user, updateAvatarPreset, uploadProfilePhoto, removeProfilePhoto } = useAuthStore();
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const { width } = useWindowDimensions();
@@ -60,6 +62,46 @@ export const AvatarPickerScreen = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [colourOpen, setColourOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  const pickPhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permission.status !== "granted") {
+      dialog.alert({ title: "Library access needed", message: "Allow access to your photo library in Settings, then choose a photo." });
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1] });
+    if (result.canceled || !result.assets?.length) return;
+    setPhotoBusy(true);
+    try {
+      await uploadProfilePhoto(result.assets[0].uri);
+    } catch (error) {
+      dialog.alert({
+        title: "Could not upload that photo",
+        message: error instanceof Error ? error.message : "Check your connection and try again.",
+        tone: "danger",
+      });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const confirmRemovePhoto = () =>
+    dialog.confirm({
+      title: "Remove your photo?",
+      message: "Your generated avatar below shows in its place everywhere.",
+      tone: "danger",
+      confirmLabel: "Remove",
+      cancelLabel: "Keep",
+      onConfirm: async () => {
+        setPhotoBusy(true);
+        try {
+          await removeProfilePhoto();
+        } finally {
+          setPhotoBusy(false);
+        }
+      },
+    });
 
   // A short row to pick from here, always led by the face in use; the sheet has the rest.
   const seeds = useMemo(
@@ -107,6 +149,58 @@ export const AvatarPickerScreen = () => {
             LEVEL {level.level} · {ringLabel(draft.ball).toUpperCase()} RING
           </Text>
         </View>
+
+        {/* ---------------------------------------------------------------- photo */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Photo</Text>
+        <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+          Use a real photo instead of your avatar - it shows in its place everywhere, including here.
+        </Text>
+        {user?.profile_image_url ? (
+          <View style={styles.photoRow}>
+            <Image
+              source={{ uri: user.profile_image_url }}
+              style={styles.photoPreview}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={0}
+            />
+            <View style={styles.photoActions}>
+              <Pressable
+                onPress={() => void pickPhoto()}
+                disabled={photoBusy}
+                accessibilityRole="button"
+                style={[styles.photoButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              >
+                <Text style={[styles.photoButtonText, { color: colors.text }]}>Change photo</Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmRemovePhoto}
+                disabled={photoBusy}
+                accessibilityRole="button"
+                style={[styles.photoButton, { borderColor: colors.danger }]}
+              >
+                <Text style={[styles.photoButtonText, { color: colors.danger }]}>Remove</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => void pickPhoto()}
+            disabled={photoBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Add a photo instead of an avatar"
+            style={[styles.addPhotoButton, { borderColor: colors.border, backgroundColor: colors.surface, opacity: photoBusy ? 0.6 : 1 }]}
+          >
+            {photoBusy ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="camera-plus-outline" size={20} color={colors.primary} />
+                <Text style={[styles.moreText, { color: colors.primary }]}>Add a photo instead</Text>
+              </>
+            )}
+          </Pressable>
+        )}
 
         {/* ---------------------------------------------------------------- face */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Face</Text>
@@ -333,6 +427,21 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontSize: 18, fontWeight: "800", marginTop: SPACING.lg },
   sectionHint: { fontSize: 13, marginTop: 2, marginBottom: SPACING.md },
+  photoRow: { flexDirection: "row", alignItems: "center", gap: SPACING.md },
+  photoPreview: { width: 72, height: 72, borderRadius: 36 },
+  photoActions: { flex: 1, gap: SPACING.sm },
+  photoButton: { minHeight: HIT_TARGET - 8, borderWidth: 1, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
+  photoButtonText: { fontSize: 14, fontWeight: "700" },
+  addPhotoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: RADIUS.md,
+  },
   moreButton: {
     flexDirection: "row",
     alignItems: "center",

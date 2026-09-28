@@ -1,5 +1,6 @@
 import React from "react";
-import { Image, View } from "react-native";
+import { View } from "react-native";
+import { Image } from "expo-image";
 import { PlayerAvatar } from "../profile/PlayerAvatar";
 import type { PublicProfile } from "../../features/community/types";
 
@@ -14,7 +15,13 @@ export const CommunityAvatar = ({
   if (profile?.avatarUrl) {
     return (
       <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden" }}>
-        <Image source={{ uri: profile.avatarUrl }} style={{ width: size, height: size }} resizeMode="cover" />
+        <Image
+          source={{ uri: profile.avatarUrl }}
+          style={{ width: size, height: size }}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={0}
+        />
       </View>
     );
   }

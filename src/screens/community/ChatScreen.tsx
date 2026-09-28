@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   KeyboardAvoidingView,
+  Linking,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -14,18 +17,25 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { HeaderIconButton } from "../../navigation/stackOptions";
 import { supabase } from "../../api/supabase";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { useChatStore } from "../../store/chatStore";
 import { useCommunityStore } from "../../store/communityStore";
+import { useUiModeStore } from "../../store/uiModeStore";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { GroupBadge } from "../../components/community/GroupBadge";
 import { ReportSheet } from "../../components/community/ReportSheet";
 import { ChatShareCard } from "../../components/community/ChatShareCard";
-import { shareFromMessage, type RoutineShare } from "../../features/community/chatShare";
+import { ChatMediaBubble } from "../../components/community/ChatMediaBubble";
+import { shareBody, sharePayload, shareFromMessage, type MediaShare, type RoutineShare } from "../../features/community/chatShare";
+import { uploadChatMedia, chatMediaUrl, type ChatMediaType } from "../../features/community/chatMedia";
+import { linkify, linkUrlFor } from "../../features/community/linkify";
 import { containsBlockedWord } from "../../features/community/wordFilter";
 import { nameOf, type PublicProfile } from "../../features/community/types";
 import {
@@ -43,6 +53,30 @@ import {
   type Message,
 } from "../../features/community/chat";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+
+const LightboxVideo = ({ url }: { url: string }) => {
+  const player = useVideoPlayer({ uri: url }, (instance) => {
+    instance.loop = false;
+    instance.play();
+  });
+  return <VideoView player={player} style={styles.lightboxVideo} nativeControls contentFit="contain" />;
+};
+
+/** A phone number, email or postcode in a message becomes a tappable link (call, email, or open
+ * in Maps); everything else stays plain. */
+const LinkifiedBody = ({ text, linkColor }: { text: string; linkColor: string }) => (
+  <>
+    {linkify(text).map((segment, index) => {
+      const url = linkUrlFor(segment);
+      if (!url) return <Text key={index}>{segment.text}</Text>;
+      return (
+        <Text key={index} style={{ color: linkColor, textDecorationLine: "underline" }} onPress={() => Linking.openURL(url)}>
+          {segment.text}
+        </Text>
+      );
+    })}
+  </>
+);
 
 const dayLabel = (iso: string) => {
   const date = new Date(iso);
@@ -71,6 +105,9 @@ export const ChatScreen = () => {
   const refreshInbox = useChatStore((state) => state.refresh);
   const markSeen = useChatStore((state) => state.markSeen);
   const block = useCommunityStore((state) => state.block);
+  // Sending a photo, video or PDF is a coaching feature - a player messaging a friend should not
+  // see it, only a coach messaging a client.
+  const canAttachMedia = useUiModeStore((state) => state.viewMode) === "coach";
 
   const [kind, setKind] = useState<"direct" | "group" | null>(null);
   const [other, setOther] = useState<PublicProfile | null>(null);
@@ -84,7 +121,12 @@ export const ChatScreen = () => {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reporting, setReporting] = useState<Message | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attaching, setAttaching] = useState(false);
+  const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
+  const [lightbox, setLightbox] = useState<{ url: string; type: "image" | "video" } | null>(null);
   const focused = useRef(false);
+  const resolvedMedia = useRef(new Set<string>());
 
   const isRequest = inboxRow?.status === "request";
 
@@ -149,6 +191,22 @@ export const ChatScreen = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, markSeen]);
+
+  // A signed URL for each media message as it appears - once per message, tracked by a ref rather
+  // than by mediaUrls itself so resolving one does not re-trigger this for every other.
+  useEffect(() => {
+    const pending = messages.filter((item) => item.kind === "media" && !resolvedMedia.current.has(item.id));
+    if (!pending.length) return;
+    pending.forEach((item) => resolvedMedia.current.add(item.id));
+    void Promise.all(
+      pending.map(async (item) => {
+        const share = shareFromMessage(item.kind, item.payload);
+        if (share?.kind !== "media") return;
+        const url = await chatMediaUrl(share.path);
+        if (url) setMediaUrls((prev) => ({ ...prev, [item.id]: url }));
+      })
+    );
+  }, [messages]);
 
   // Reading it clears the unread count.
   useFocusEffect(
@@ -232,6 +290,48 @@ export const ChatScreen = () => {
       return;
     }
     setDraft("");
+    setMessages((prev) => (prev.some((item) => item.id === result.value.id) ? prev : [result.value, ...prev]));
+    void refreshInbox();
+  };
+
+  const pickAndSendMedia = async (mediaType: ChatMediaType) => {
+    setAttachOpen(false);
+    let file: { uri: string; fileName?: string | null; mimeType?: string | null } | null = null;
+    if (mediaType === "pdf") {
+      const result = await DocumentPicker.getDocumentAsync({ type: "application/pdf" });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      file = { uri: asset.uri, fileName: asset.name, mimeType: asset.mimeType };
+    } else {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== "granted") {
+        dialog.alert({ title: "Library access needed", message: "Allow access to your photo library in Settings, then try again." });
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: mediaType === "video" ? ["videos"] : ["images"],
+        allowsEditing: false,
+        videoMaxDuration: mediaType === "video" ? 60 : undefined,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      file = { uri: asset.uri, fileName: asset.fileName, mimeType: asset.mimeType };
+    }
+
+    setAttaching(true);
+    const uploaded = await uploadChatMedia(conversationId, file, mediaType);
+    if (!uploaded.ok) {
+      setAttaching(false);
+      dialog.alert({ title: "Could not send that", message: uploaded.message, tone: "danger" });
+      return;
+    }
+    const share: MediaShare = { kind: "media", mediaType, path: uploaded.path, fileName: file.fileName ?? null };
+    const result = await sendMessage(conversationId, shareBody(share), "media", sharePayload(share));
+    setAttaching(false);
+    if (!result.ok) {
+      dialog.alert({ title: "Could not send that", message: result.message, tone: "danger" });
+      return;
+    }
     setMessages((prev) => (prev.some((item) => item.id === result.value.id) ? prev : [result.value, ...prev]));
     void refreshInbox();
   };
@@ -361,12 +461,23 @@ export const ChatScreen = () => {
                         {nameOf(sender)}
                       </Text>
                     ) : null}
-                    <ChatShareCard
-                      share={share}
-                      senderName={mine ? "You" : nameOf(sender)}
-                      width={cardWidth}
-                      onPress={share.kind === "routine" ? () => openRoutine(share) : undefined}
-                    />
+                    {share.kind === "media" ? (
+                      <ChatMediaBubble
+                        share={share}
+                        url={mediaUrls[message.id] ?? null}
+                        onExpand={() => {
+                          const url = mediaUrls[message.id];
+                          if (url) setLightbox({ url, type: share.mediaType === "video" ? "video" : "image" });
+                        }}
+                      />
+                    ) : (
+                      <ChatShareCard
+                        share={share}
+                        senderName={mine ? "You" : nameOf(sender)}
+                        width={cardWidth}
+                        onPress={share.kind === "routine" ? () => openRoutine(share) : undefined}
+                      />
+                    )}
                     <Text style={[styles.time, styles.shareTime, { color: colors.textMuted }]}>
                       {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </Text>
@@ -408,7 +519,11 @@ export const ChatScreen = () => {
                       message.hidden ? styles.hiddenBody : null,
                     ]}
                   >
-                    {message.hidden ? "Hidden after reports" : message.body}
+                    {message.hidden ? (
+                      "Hidden after reports"
+                    ) : (
+                      <LinkifiedBody text={message.body} linkColor={mine ? colors.onPrimary : colors.primary} />
+                    )}
                   </Text>
                   <Text style={[styles.time, { color: mine ? colors.onPrimary : colors.textMuted }]}>
                     {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -470,7 +585,45 @@ export const ChatScreen = () => {
           ]}
         >
           {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
+          {canAttachMedia && attachOpen ? (
+            <View style={styles.attachRow}>
+              {(
+                [
+                  { type: "image" as const, icon: "image-outline" as const, label: "Photo" },
+                  { type: "video" as const, icon: "video-outline" as const, label: "Video" },
+                  { type: "pdf" as const, icon: "file-pdf-box" as const, label: "PDF" },
+                ]
+              ).map((option) => (
+                <Pressable
+                  key={option.type}
+                  onPress={() => void pickAndSendMedia(option.type)}
+                  disabled={attaching}
+                  accessibilityRole="button"
+                  style={[styles.attachOption, { backgroundColor: colors.surfaceMuted }]}
+                >
+                  <MaterialCommunityIcons name={option.icon} size={20} color={colors.primary} />
+                  <Text style={[styles.attachOptionText, { color: colors.text }]}>{option.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           <View style={styles.composerRow}>
+            {canAttachMedia ? (
+              <Pressable
+                onPress={() => setAttachOpen((prev) => !prev)}
+                disabled={attaching}
+                accessibilityRole="button"
+                accessibilityLabel="Attach a photo, video or PDF"
+                hitSlop={8}
+                style={styles.attachButton}
+              >
+                {attaching ? (
+                  <ActivityIndicator size="small" color={colors.textMuted} />
+                ) : (
+                  <MaterialCommunityIcons name="paperclip" size={22} color={colors.textMuted} />
+                )}
+              </Pressable>
+            ) : null}
             <TextInput
               value={draft}
               onChangeText={(text) => {
@@ -516,6 +669,34 @@ export const ChatScreen = () => {
         reportedUser={reporting?.sender}
         what="this message"
       />
+
+      <Modal visible={Boolean(lightbox)} transparent animationType="fade" onRequestClose={() => setLightbox(null)}>
+        <View style={[StyleSheet.absoluteFill, styles.lightbox]}>
+          {lightbox?.type === "image" ? (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setLightbox(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+            >
+              <Image source={{ uri: lightbox.url }} style={styles.lightboxImage} resizeMode="contain" />
+            </Pressable>
+          ) : lightbox?.type === "video" ? (
+            <>
+              <LightboxVideo url={lightbox.url} />
+              <Pressable
+                onPress={() => setLightbox(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={10}
+                style={styles.lightboxClose}
+              >
+                <MaterialCommunityIcons name="close" size={26} color="#FFFFFF" />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -557,6 +738,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendIcon: { marginLeft: 2 },
+  attachButton: { width: HIT_TARGET - 2, height: HIT_TARGET - 2, alignItems: "center", justifyContent: "center" },
+  attachRow: { flexDirection: "row", gap: SPACING.sm, paddingBottom: SPACING.sm },
+  attachOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: HIT_TARGET - 6,
+    borderRadius: RADIUS.md,
+  },
+  attachOptionText: { fontSize: 13, fontWeight: "700" },
+  lightbox: { backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" },
+  lightboxImage: { width: "100%", height: "80%" },
+  lightboxVideo: { width: "100%", height: "80%" },
+  lightboxClose: { position: "absolute", top: 56, right: 24, width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   shareWrap: { maxWidth: "80%", gap: 4 },
   shareTime: { alignSelf: "flex-end" },
   error: { fontSize: 12, fontWeight: "600" },

@@ -24,6 +24,8 @@ import {
 import { useScanSnookerStore } from "../store/scanSnookerStore";
 import { useCommunityStore } from "../store/communityStore";
 import { useChatStore } from "../store/chatStore";
+import { useCoachStore } from "../store/coachStore";
+import { notifyBookingUpdate } from "../features/coach/sessionReminders";
 import { hasPendingWrites, type SyncScope } from "./outbox";
 
 /**
@@ -51,6 +53,10 @@ const TABLE_SCOPES: Record<string, SyncScope> = {
   conversation_members: "chat",
   group_members: "chat",
   group_invites: "chat",
+  coach_bookings: "coach",
+  coach_availability: "coach",
+  coach_session_notes: "coach",
+  coach_session_routines: "coach",
 };
 
 const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
@@ -64,6 +70,7 @@ const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
   scans: (userId) => useScanSnookerStore.getState().hydrate(userId),
   community: (userId) => useCommunityStore.getState().hydrate(userId),
   chat: () => useChatStore.getState().refresh(),
+  coach: (userId) => useCoachStore.getState().hydrate(userId),
 };
 
 /** A burst of changes (a fixture, its frames, the tournament row) should cause one refresh. */
@@ -134,6 +141,20 @@ export const startRealtime = (userId: string) => {
   Object.entries(TABLE_SCOPES).forEach(([table, scope]) => {
     next.on("postgres_changes", { event: "*", schema: "public", table }, () => scheduleRefresh(scope));
   });
+
+  // Not in TABLE_SCOPES/refreshers above because nothing here needs re-fetching for this - just a
+  // local notification when a coach this player is in a group with posts something new.
+  next.on(
+    "postgres_changes",
+    { event: "INSERT", schema: "public", table: "coach_group_posts" },
+    (payload) => {
+      const row = payload.new as { group_id?: string; coach_id?: string };
+      if (!row.group_id || row.coach_id === userId) return;
+      const group = useCoachStore.getState().memberCoachGroups.find((item) => item.id === row.group_id);
+      if (!group) return;
+      void notifyBookingUpdate("New post", `${group.name} has something new for you.`);
+    }
+  );
 
   next.subscribe((status) => {
     if (status === "SUBSCRIBED") {

@@ -11,11 +11,10 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { PracticeStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { useDialog } from "../../components/ui/DialogProvider";
+import { DialogProvider, useDialog } from "../../components/ui/DialogProvider";
 import { useCustomRoutinesStore } from "../../store";
 import { BALL_LOOK, TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { BallTray } from "../../components/scanSnooker/BallTray";
@@ -41,11 +40,22 @@ import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
  *   2. the details - a name, what the routine is, and a score to aim for
  * Every change to the table can be undone, one step at a time. Going back from the details
  * returns to the table rather than leaving, and nothing entered is lost.
+ *
+ * Wrapped in its own DialogProvider: reached as a root-level modal from coach mode, where iOS
+ * will not show a dialog from the app's own root DialogProvider while a modal sits on top of it.
+ * Harmless when reached the normal way, nested in the Practice tab - it just shadows the outer one.
  */
-export const CustomRoutineBuilderScreen = () => {
-  const navigation = useNavigation<NavigationProp<PracticeStackParamList>>();
-  const route = useRoute<RouteProp<PracticeStackParamList, "CustomRoutineBuilder">>();
-  const editingId = route.params?.routineId;
+export const CustomRoutineBuilderScreen = () => (
+  <DialogProvider>
+    <CustomRoutineBuilderScreenContent />
+  </DialogProvider>
+);
+
+const CustomRoutineBuilderScreenContent = () => {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const editingId: string | undefined = route.params?.routineId;
+  const returnToCaller: boolean = Boolean(route.params?.returnToCaller);
   const existing = useCustomRoutinesStore((state) => (editingId ? state.getById(editingId) : undefined));
   const save = useCustomRoutinesStore((state) => state.save);
   const { colors } = useAppTheme();
@@ -92,7 +102,7 @@ export const CustomRoutineBuilderScreen = () => {
   // Back from the details goes to the table; leaving with unsaved work asks first.
   useEffect(
     () =>
-      navigation.addListener("beforeRemove", (event) => {
+      navigation.addListener("beforeRemove", (event: any) => {
         if (saved.current) return;
         if (step === 2) {
           event.preventDefault();
@@ -214,7 +224,7 @@ export const CustomRoutineBuilderScreen = () => {
     if (Object.keys(problems).length) return;
     const routine = save({ id: editingId, ...cleanDraft({ name, description, maxScore, balls }) });
     saved.current = true;
-    if (editingId) navigation.goBack();
+    if (editingId || returnToCaller) navigation.goBack();
     else navigation.navigate("CustomRoutine", { routineId: routine.id });
   };
 

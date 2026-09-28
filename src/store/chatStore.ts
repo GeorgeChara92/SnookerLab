@@ -55,12 +55,15 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     })),
 }));
 
-/** Unread chats (muted ones left out) and waiting requests, for badges. */
+/** Unread direct chats (muted ones left out) and waiting requests, for badges. Groups are left out
+ * of the count the same way ChatsScreen leaves them out of the list - a badge for something that
+ * would not actually be there when you tap it is worse than no badge. */
 export const useChatBadges = () =>
   useChatStore((state) => {
     let unread = 0;
     let requests = 0;
     state.inbox.forEach((row) => {
+      if (row.kind !== "direct") return;
       if (row.status === "request") requests += 1;
       else if (!row.muted && row.unread > 0) unread += 1;
     });

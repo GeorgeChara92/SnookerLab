@@ -15,6 +15,7 @@ import {
 import { useScanSnookerStore } from "../store/scanSnookerStore";
 import { useCommunityStore } from "../store/communityStore";
 import { useChatStore } from "../store/chatStore";
+import { useCoachStore } from "../store/coachStore";
 import { navigationRef } from "./navigationRef";
 import { routineIdFromLink } from "../features/community/links";
 
@@ -32,9 +33,15 @@ const openRoutine = (id: string) => {
 import { supabase } from "../api/supabase";
 import { startSync, stopSync } from "../sync";
 import { MainTabNavigator } from "./MainTabNavigator";
+import { CoachModeNavigator } from "./CoachModeNavigator";
+import { useUiModeStore } from "../store/uiModeStore";
 import { AuthNavigator } from "./AuthNavigator";
 import { ProfileNavigator } from "./ProfileNavigator";
 import { LoadingPlayerScreen } from "../screens/auth/LoadingPlayerScreen";
+import { ChooseViewScreen } from "../screens/auth/ChooseViewScreen";
+import { LiveSessionScreen } from "../screens/coach/LiveSessionScreen";
+import { PdfViewerScreen } from "../screens/shared/PdfViewerScreen";
+import { CustomRoutineBuilderScreen } from "../screens/routines/CustomRoutineBuilderScreen";
 import { RootStackParamList } from "../types";
 import { useAppTheme } from "../hooks/useAppTheme";
 import { initBilling, isBillingConfigured } from "../services/billing";
@@ -61,6 +68,18 @@ export const AppNavigator = () => {
   const setAIOwner = useAIAnalysesStore((state) => state.setOwnerUserId);
   const hydrateAIForUser = useAIAnalysesStore((state) => state.hydrateAnalysesForUser);
   const { isDark, colors } = useAppTheme();
+  const isCoach = useCommunityStore((state) => state.me?.isCoach ?? false);
+  // Only a genuinely dual account needs asking which view to open in - a "coach" or "player" only
+  // signup already answered that at registration (see RegisterScreen and uiModeStore's seeded
+  // default), so re-asking every session would just contradict what they already told us. An
+  // account from before this wizard existed has no account_type at all - treated as dual so it
+  // keeps the behaviour it already had rather than losing the prompt it relied on.
+  const isDualAccount = useAuthStore((state) => {
+    const type = state.user?.account_type;
+    return type === "both" || type === undefined;
+  });
+  const viewMode = useUiModeStore((state) => state.viewMode);
+  const MainScreen = isCoach && viewMode === "coach" ? CoachModeNavigator : MainTabNavigator;
 
   const navigationTheme = {
     ...(isDark ? DarkTheme : DefaultTheme),
@@ -83,6 +102,9 @@ export const AppNavigator = () => {
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const [readyUserId, setReadyUserId] = useState<string | null>(null);
   const loadingFor = useRef<string | null>(null);
+  // A coach picks player or coach view once per app open, rather than always landing on player
+  // with the coach view buried in Profile settings. Not shown again until the app is reopened.
+  const [viewChosen, setViewChosen] = useState(false);
 
   const loadUser = useCallback(
     async (id: string) => {
@@ -100,10 +122,16 @@ export const AppNavigator = () => {
       useScanSnookerStore.getState().setOwner(id);
       useCommunityStore.getState().setOwner(id);
       void useCommunityStore.getState().hydrate(id);
+      // A photo picked during registration, before email confirmation, uploads itself the moment a
+      // session exists - not waited for, so it never delays getting into the app.
+      void useAuthStore.getState().uploadPendingAvatar();
       useChatStore.getState().setOwner(id);
       void useChatStore.getState().refresh();
       // Not waited for: positions are only needed once a match is open.
       void useScanSnookerStore.getState().hydrate(id);
+      // Not waited for: coach availability and bookings are only needed once that tab is open.
+      useCoachStore.getState().setOwner(id);
+      void useCoachStore.getState().hydrate(id);
       const loaded = Promise.allSettled([
         usePracticePlanStore.getState().hydrate(id),
         useCustomRoutinesStore.getState().hydrate(id),
@@ -151,7 +179,10 @@ export const AppNavigator = () => {
     useScanSnookerStore.getState().setOwner(null);
     useCommunityStore.getState().setOwner(null);
     useChatStore.getState().setOwner(null);
+    useCoachStore.getState().setOwner(null);
+    useUiModeStore.getState().setViewMode("player");
     setReadyUserId(null);
+    setViewChosen(false);
   }, []);
 
   const extractAuthParams = (url: string) => {
@@ -315,17 +346,51 @@ export const AppNavigator = () => {
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             {isAuthenticated && !requiresPasswordReset && readyUserId !== userId ? (
               <Stack.Screen name="Loading" component={LoadingPlayerScreen} />
+            ) : isAuthenticated && !requiresPasswordReset && isCoach && isDualAccount && !viewChosen ? (
+              <Stack.Screen name="ChooseView">
+                {() => <ChooseViewScreen onChoose={() => setViewChosen(true)} />}
+              </Stack.Screen>
             ) : isAuthenticated && !requiresPasswordReset ? (
               <>
-                <Stack.Screen name="Main" component={MainTabNavigator} />
+                <Stack.Screen name="Main" component={MainScreen} />
                 <Stack.Screen name="ProfileModal" component={ProfileNavigator} options={{ presentation: "modal" }} />
                 <Stack.Screen name="SendToChat" component={SendToChatScreen} options={{ presentation: "modal" }} />
+                <Stack.Screen name="LiveSession" component={LiveSessionScreen} options={{ presentation: "modal" }} />
+                <Stack.Screen
+                  name="PdfViewer"
+                  component={PdfViewerScreen}
+                  options={({ route }) => ({
+                    presentation: "modal",
+                    headerShown: true,
+                    title: route.params.title || "Document",
+                    headerStyle: { backgroundColor: colors.surface },
+                    headerTintColor: colors.text,
+                    headerShadowVisible: false,
+                  })}
+                />
+                <Stack.Screen
+                  name="CustomRoutineBuilder"
+                  component={CustomRoutineBuilderScreen}
+                  options={{
+                    presentation: "modal",
+                    headerShown: true,
+                    title: "New routine",
+                    headerStyle: { backgroundColor: colors.surface },
+                    headerTintColor: colors.text,
+                    headerShadowVisible: false,
+                  }}
+                />
               </>
             ) : (
               <Stack.Screen name="Auth" component={AuthNavigator} />
             )}
           </Stack.Navigator>
-          {isAuthenticated && !requiresPasswordReset && readyUserId === userId ? <OnboardingHost /> : null}
+          {isAuthenticated &&
+          !requiresPasswordReset &&
+          readyUserId === userId &&
+          !(isCoach && isDualAccount && !viewChosen) ? (
+            <OnboardingHost />
+          ) : null}
         </NavigationContainer>
       </AchievementWatcher>
     </UnlockQueueProvider>

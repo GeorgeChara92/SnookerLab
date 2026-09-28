@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { supabase } from "../api/supabase";
 import { safeStorage } from "../utils/storage";
+import { useAuthStore } from "./authStore";
 import { setBlockedWords } from "../features/community/wordFilter";
 import { loadShareActivity, saveShareActivity } from "../features/community/groupFeed";
 import {
@@ -39,7 +40,20 @@ type CommunityState = {
   hydrate: (userId: string) => Promise<void>;
   saveMe: (
     patch: Partial<
-      Pick<PublicProfile, "handle" | "bio" | "discoverable" | "messagePrivacy" | "statsPrivacy" | "leaderboards">
+      Pick<
+        PublicProfile,
+        | "handle"
+        | "bio"
+        | "discoverable"
+        | "messagePrivacy"
+        | "statsPrivacy"
+        | "leaderboards"
+        | "coachQualifications"
+        | "wpbsaAccredited"
+        | "coachLocation"
+        | "coachLat"
+        | "coachLng"
+      >
     >
   ) => Promise<Result>;
   handleIsFree: (handle: string) => Promise<boolean>;
@@ -123,10 +137,64 @@ export const useCommunityStore = create<CommunityState>()(
             return;
           }
           if (wordsResult.data) setBlockedWords(wordsResult.data.map((row) => row.word));
+
+          // A brand new account has no profiles row yet - seed it with everything the registration
+          // wizard collected, so a coach or player starts with a real name, handle and (for a
+          // coach or both) a filled-in coach profile from the start, rather than an empty listing
+          // nobody ever gets prompted to fill in. is_coach can only ever be set this way: this
+          // upsert is a genuine insert (the row does not exist yet), so it never touches
+          // trg_freeze_is_coach, which only fires on update. Older accounts, with nothing in these
+          // fields on their auth metadata, are left exactly as they are - this never runs again
+          // once the row exists.
+          let meRow = meResult.data;
+          const authUser = useAuthStore.getState().user;
+          const fullName = authUser?.full_name?.trim();
+          const isCoachSignup = authUser?.account_type === "coach" || authUser?.account_type === "both";
+          if (!meRow && (fullName || isCoachSignup)) {
+            const seed: Record<string, unknown> = { id: userId };
+            if (fullName) seed.display_name = fullName;
+            if (isCoachSignup) seed.is_coach = true;
+            if (authUser?.handle) seed.handle = authUser.handle;
+            if (authUser?.bio) seed.bio = authUser.bio;
+            if (authUser?.cue_preference) seed.cue_preference = authUser.cue_preference;
+            if (isCoachSignup) {
+              if (authUser?.coach_location) seed.coach_location = authUser.coach_location;
+              if (authUser?.coach_lat != null) seed.coach_lat = authUser.coach_lat;
+              if (authUser?.coach_lng != null) seed.coach_lng = authUser.coach_lng;
+              if (authUser?.wpbsa_accredited) seed.wpbsa_accredited = authUser.wpbsa_accredited;
+              if (authUser?.coach_qualifications?.length) seed.coach_qualifications = authUser.coach_qualifications;
+            }
+            const { data: seeded, error: seedError } = await supabase
+              .from("profiles")
+              .upsert(seed, { onConflict: "id" })
+              .select(PROFILE_COLUMNS)
+              .single();
+            if (seeded) {
+              meRow = seeded;
+            } else if (seedError?.code === "23505" && seed.handle) {
+              // Someone else claimed that handle between registration and this first login - the
+              // rest of the seed still matters, so retry once without it rather than losing it all.
+              const { handle: _handle, ...withoutHandle } = seed;
+              const { data: retried } = await supabase
+                .from("profiles")
+                .upsert(withoutHandle, { onConflict: "id" })
+                .select(PROFILE_COLUMNS)
+                .single();
+              if (retried) meRow = retried;
+            }
+          } else if (fullName && !meRow?.display_name) {
+            const { data: seeded } = await supabase
+              .from("profiles")
+              .upsert({ id: userId, display_name: fullName }, { onConflict: "id" })
+              .select(PROFILE_COLUMNS)
+              .single();
+            if (seeded) meRow = seeded;
+          }
+
           const friendships = (friendsResult.data ?? []).map(friendshipFromRow);
           const blocked = (blocksResult.data ?? []).map((row) => row.blocked as string);
           set({
-            me: meResult.data ? profileFromRow(meResult.data) : null,
+            me: meRow ? profileFromRow(meRow) : null,
             friendships,
             blocked,
             isAdmin: Boolean(adminResult.data),
@@ -151,6 +219,11 @@ export const useCommunityStore = create<CommunityState>()(
           if (patch.messagePrivacy !== undefined) row.message_privacy = patch.messagePrivacy;
           if (patch.statsPrivacy !== undefined) row.stats_privacy = patch.statsPrivacy;
           if (patch.leaderboards !== undefined) row.leaderboards = patch.leaderboards;
+          if (patch.coachQualifications !== undefined) row.coach_qualifications = patch.coachQualifications;
+          if (patch.wpbsaAccredited !== undefined) row.wpbsa_accredited = patch.wpbsaAccredited;
+          if (patch.coachLocation !== undefined) row.coach_location = patch.coachLocation?.trim() || null;
+          if (patch.coachLat !== undefined) row.coach_lat = patch.coachLat;
+          if (patch.coachLng !== undefined) row.coach_lng = patch.coachLng;
           const { data, error } = await supabase
             .from("profiles")
             .upsert(row, { onConflict: "id" })

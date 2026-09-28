@@ -4,6 +4,9 @@ import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMatchesStore, useRoutineScoresStore, useRoutinesStore, useSessionsStore } from "../../store";
 import { useTourNewsStore } from "../../store/tourNewsStore";
+import { useCoachStore } from "../../store/coachStore";
+import { useCommunityStore } from "../../store/communityStore";
+import { nameOf } from "../../features/community/types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import {
   addDays,
@@ -43,6 +46,15 @@ const RHYTHM_FROM = 360;
 const daysAgo = (key: string) =>
   Math.max(0, Math.round((parseDateKey(todayKey()).getTime() - parseDateKey(key).getTime()) / DAY_MS));
 
+/** How long until a coaching session starts, in the roughest useful unit. */
+const sessionCountdown = (iso: string) => {
+  const ms = new Date(iso).getTime() - Date.now();
+  const hours = ms / 3_600_000;
+  if (hours < 1) return `Starts in ${Math.max(1, Math.round(ms / 60_000))} min`;
+  if (hours < 24) return `Starts in ${Math.round(hours)}h`;
+  return `Starts in ${Math.round(hours / 24)}d`;
+};
+
 /**
  * Home, on one screen: what to practise next, the numbers that matter at a glance (streak, this
  * week, recent form), and four pages to swipe between - the week on the rail with the last
@@ -58,6 +70,15 @@ export const DashboardHomeScreen = () => {
   const matches = useMatchesStore((state) => state.matches);
   const news = useTourNewsStore((state) => state.items);
   const refreshNews = useTourNewsStore((state) => state.refresh);
+  const bookingsAsPlayer = useCoachStore((state) => state.bookingsAsPlayer);
+  const coachProfiles = useCommunityStore((state) => state.profiles);
+  const nextSession = useMemo(
+    () =>
+      bookingsAsPlayer
+        .filter((booking) => booking.status === "accepted" && new Date(booking.endsAt) > new Date())
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] ?? null,
+    [bookingsAsPlayer]
+  );
 
   const [pager, setPager] = useState({ width: 0, height: 0 });
   const [page, setPage] = useState(0);
@@ -455,6 +476,34 @@ export const DashboardHomeScreen = () => {
         </Pressable>
       </View>
 
+      {/* Coaching: the next confirmed session if there is one, otherwise a nudge to find a coach */}
+      {nextSession ? (
+        <Pressable
+          onPress={() => navigation.navigate("Coaching")}
+          accessibilityRole="button"
+          style={[styles.prompt, { borderColor: colors.border }]}
+        >
+          <MaterialCommunityIcons name="whistle-outline" size={20} color={colors.primary} />
+          <View style={styles.promptTextWrap}>
+            <Text style={[styles.promptText, { color: colors.text }]} numberOfLines={1}>
+              Session with {nameOf(coachProfiles[nextSession.coachId])}
+            </Text>
+            <Text style={[styles.promptSubtext, { color: colors.primary }]}>{sessionCountdown(nextSession.startsAt)}</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+        </Pressable>
+      ) : (
+        <Pressable
+          onPress={() => navigation.navigate("Community", { screen: "FindCoach", initial: false })}
+          accessibilityRole="button"
+          style={[styles.prompt, { borderColor: colors.border }]}
+        >
+          <MaterialCommunityIcons name="whistle-outline" size={20} color={colors.primary} />
+          <Text style={[styles.promptText, { color: colors.text, flex: 1 }]}>Looking for a coach?</Text>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+        </Pressable>
+      )}
+
       {/* Pages */}
       <View style={styles.tabs} accessibilityRole="tablist">
         {PAGES.map((item, index) => {
@@ -555,7 +604,12 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
     paddingHorizontal: SPACING.md,
   },
-  promptText: { flex: 1, fontSize: 15, fontWeight: "700" },
+  // No flex:1 here - it's shared by a standalone row usage (where flex:1 correctly claims the
+  // row's spare width) and one nested in promptTextWrap's column (where flex:1 on the main
+  // column axis stretched it to fill the whole card's height, shoving the line below it down).
+  promptText: { fontSize: 15, fontWeight: "700" },
+  promptTextWrap: { flex: 1, gap: 1 },
+  promptSubtext: { fontSize: 12, fontWeight: "700" },
   row: {
     flexDirection: "row",
     alignItems: "center",

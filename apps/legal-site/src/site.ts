@@ -29,6 +29,12 @@ export const ROUTES: RouteMeta[] = [
       "Record a clip at the table and get coaching feedback on your technique: what went well, the one thing to fix first, and the routines that train it.",
   },
   {
+    path: "/find-a-coach",
+    title: "Find a snooker coach, or run your own diary · Snookered",
+    description:
+      "Book a real coach near you, or list yourself as one: take bookings, message your clients, run a broadcast group, and keep your own diary - even clients with no Snookered account.",
+  },
+  {
     path: "/scan-snooker",
     title: "Scan a Snooker: replace the balls after a miss in AR · Snookered",
     description:
@@ -65,6 +71,7 @@ export const NAV = [
   { to: "/scoring", label: "Scoring" },
   { to: "/practice", label: "Practice" },
   { to: "/coach", label: "Coach" },
+  { to: "/find-a-coach", label: "Find a Coach" },
   { to: "/community", label: "Community" },
   { to: "/plans", label: "Plans" },
 ];
@@ -88,7 +95,16 @@ export type Screen =
   | "routine-builder"
   | "share-card"
   | "stats"
-  | "tournament";
+  | "tournament"
+  | "find-coach"
+  | "coach-profile"
+  | "my-coaching"
+  | "coach-calendar"
+  | "coach-clients"
+  | "coach-group"
+  | "coach-message"
+  | "coach-dashboard"
+  | "session-notes";
 
 export const PLANS = [
   {

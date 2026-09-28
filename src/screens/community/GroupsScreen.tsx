@@ -39,7 +39,7 @@ export const GroupsScreen = () => {
   const refreshInbox = useChatStore((state) => state.refresh);
   const [mine, setMine] = useState<Array<Group & { role: GroupRole }> | null>(null);
   const [invites, setInvites] = useState<Array<{ group: Group; invitedBy: PublicProfile | null }>>([]);
-  const [found, setFound] = useState<Group[]>([]);
+  const [found, setFound] = useState<Group[] | null>(null);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,6 +54,9 @@ export const GroupsScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
+      // "Find groups" already holds every public group regardless of membership - leaving one
+      // reappears there the moment `mine` drops it, purely from the client-side filter below, with
+      // no need to refetch `found` itself on every visit.
       void loadMine();
     }, [loadMine])
   );
@@ -88,7 +91,7 @@ export const GroupsScreen = () => {
   };
 
   const memberIds = new Set((mine ?? []).map((group) => group.id));
-  const discover = found.filter((group) => !memberIds.has(group.id));
+  const discover = (found ?? []).filter((group) => !memberIds.has(group.id));
 
   const GroupRow = ({ group, right, sub }: { group: Group; right?: React.ReactNode; sub?: string }) => (
     <Pressable
@@ -212,7 +215,9 @@ export const GroupsScreen = () => {
           style={[styles.searchInput, { color: colors.text }]}
         />
       </View>
-      {discover.length ? (
+      {found === null ? (
+        <ActivityIndicator color={colors.primary} />
+      ) : discover.length ? (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {discover.map((group) => (
             <GroupRow

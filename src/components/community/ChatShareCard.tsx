@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import type { ChatShare } from "../../features/community/chatShare";
+import type { MatchShare, RoutineShare } from "../../features/community/chatShare";
 import { DISPLAY_TEXT_SCALE, FONTS, RADIUS, SPACING } from "../../constants";
 
 /**
@@ -15,7 +15,7 @@ export const ChatShareCard = ({
   onPress,
   width = 248,
 }: {
-  share: ChatShare;
+  share: RoutineShare | MatchShare;
   /** Whose result it is, for a match: "You" or their name. */
   senderName: string;
   onPress?: () => void;

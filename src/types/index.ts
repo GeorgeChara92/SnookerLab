@@ -1,4 +1,4 @@
-import type { ChatShare } from "../features/community/chatShare";
+import type { MatchShare, RoutineShare } from "../features/community/chatShare";
 
 export type SkillLevel = "beginner" | "intermediate" | "advanced" | "professional";
 export type DifficultyLevel = "beginner" | "intermediate" | "advanced";
@@ -26,12 +26,25 @@ export interface User {
   id: string;
   email: string;
   username?: string;
+  /** Collected at registration so a coach they book with sees a real name, not just a handle. */
+  full_name?: string;
+  /** Chosen at registration - "coach" or "both" seed is_coach once, the only time it can ever be
+   * set from the client (see trg_freeze_is_coach). */
+  account_type?: "player" | "coach" | "both";
   profile_image_url?: string;
   avatar_preset?: string;
   country_code?: string;
   bio?: string;
   cue_preference?: string;
   skill_level?: SkillLevel;
+  /** Chosen during the registration wizard, seeded onto the public profile on first login - see
+   * communityStore.hydrate. Never checked for uniqueness before then, since that needs a session. */
+  handle?: string;
+  coach_location?: string;
+  coach_lat?: number;
+  coach_lng?: number;
+  wpbsa_accredited?: boolean;
+  coach_qualifications?: string[];
   subscription_tier?: SubscriptionTier;
   subscription_anchor_date?: string;
   created_at: string;
@@ -289,10 +302,19 @@ export interface SessionLog {
 export type RootStackParamList = {
   Auth: undefined;
   Loading: undefined;
+  /** Player or coach view, shown once per app open to a coach-flagged account. */
+  ChooseView: undefined;
   Main: undefined;
   ProfileModal: undefined;
   /** Sending a routine or match result to a chat; a custom routine is shared by link first. */
-  SendToChat: { share: ChatShare; customRoutineId?: string };
+  SendToChat: { share: RoutineShare | MatchShare; customRoutineId?: string };
+  /** A coach's session in progress: a countdown and notes as it happens. */
+  LiveSession: { bookingId: string };
+  /** A PDF opened in-app rather than in the system browser, so its storage URL is never shown. */
+  PdfViewer: { url: string; title?: string };
+  /** Building a custom routine from outside the Practice tab (coach mode has no Practice tab of
+   * its own). `returnToCaller` skips the player flow's "open the new routine" hop and just closes. */
+  CustomRoutineBuilder: { routineId?: string; returnToCaller?: boolean } | undefined;
 };
 
 export type AuthStackParamList = {
@@ -310,6 +332,58 @@ export type MainTabParamList = {
   Matches: undefined;
   Stats: undefined;
   AICoach: undefined;
+  Coaching: undefined;
+};
+
+/** A player's own view of their coaching: sessions requested and booked, reminders as they come
+ * up, and the groups a coach has added them to - the mirror of the coach's Today tab, but for the
+ * person being coached. */
+export type CoachingStackParamList = {
+  CoachingHome: undefined;
+  CoachGroup: { groupId: string; groupName: string };
+};
+
+/**
+ * A coach's own side, shown instead of MainTabParamList while useUiModeStore is "coach" - a
+ * separate experience, not one more tab on the player's, with room for what a coach actually
+ * needs: today's sessions, a calendar instead of a flat list, and their clients.
+ */
+export type CoachModeTabParamList = {
+  CoachDashboard: undefined;
+  CoachToday: undefined;
+  CoachCalendar: undefined;
+  CoachClients: undefined;
+  CoachGroups: undefined;
+  CoachChats: undefined;
+};
+
+/** The coach's own inbox - separate from Groups, so a coach juggling a lot of clients is not
+ * scrolling past group posts to find a direct message, or the other way round. */
+export type CoachChatsStackParamList = {
+  ChatsList: undefined;
+  Chat: { conversationId: string };
+  NewChat: undefined;
+  PlayerProfile: { userId: string };
+  Group: { groupId: string };
+  SharedRoutine: { id: string };
+};
+
+/** The coach's client list, and one client's history with them. */
+export type CoachClientsStackParamList = {
+  ClientsList: undefined;
+  ClientDetail: { clientId: string; clientName: string };
+  Chat: { conversationId: string };
+  /** ChatScreen's header links here on a direct chat; registered so that still works in coach mode. */
+  PlayerProfile: { userId: string };
+};
+
+/** The coach's own client groups: broadcasting practice content to several clients at once. */
+export type CoachGroupsStackParamList = {
+  GroupsList: undefined;
+  /** Creating a group, picking which clients are in it. */
+  CoachGroupForm: undefined;
+  CoachGroup: { groupId: string; groupName: string };
+  CoachGroupPostForm: { groupId: string };
 };
 
 export type DashboardStackParamList = {
@@ -376,6 +450,9 @@ export type SessionsStackParamList = {
 export type CommunityStackParamList = {
   CommunityHome: undefined;
   PlayerProfile: { userId: string };
+  /** A coach's profile, reached from Find a Coach - bio, qualifications and booking, not the
+   * general player profile's friends/stats/routines. */
+  CoachProfile: { userId: string };
   /** The player's handle, bio and privacy; the first-time setup when `setup` is true. */
   CommunitySettings: { setup?: boolean };
   AdminReports: undefined;
@@ -397,6 +474,10 @@ export type CommunityStackParamList = {
   LiveMatch: { matchId: string };
   /** One routine's leaderboard; the key is a library routine's id or "shared:<id>". */
   RoutineLeaderboard: { routineKey: string; name: string; group?: { name: string; memberIds: string[] } };
+  /** Booking a session with a coach, from their profile. */
+  BookCoach: { coachId: string; coachName: string };
+  /** Browsing and searching coaches who have an account. */
+  FindCoach: undefined;
 };
 
 export type StatsStackParamList = {
@@ -417,4 +498,6 @@ export type ProfileStackParamList = {
   Achievements: undefined;
   AvatarPicker: undefined;
   EditProfileField: { field: "skill_level" | "country_code" | "cue_preference" };
+  /** Editing what a coach shows on their listing, and switching to the coach view. */
+  CoachSettings: undefined;
 };

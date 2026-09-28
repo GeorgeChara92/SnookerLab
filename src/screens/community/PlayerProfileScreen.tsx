@@ -233,7 +233,47 @@ export const PlayerProfileScreen = () => {
           </View>
         </View>
         {profile.bio ? <Text style={[styles.bio, { color: colors.text }]}>{profile.bio}</Text> : null}
+        {profile.isCoach ? (
+          <View style={styles.coachBlock}>
+            {profile.coachLocation ? (
+              <Text style={[styles.coachLocation, { color: colors.textMuted }]}>
+                <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textMuted} /> {profile.coachLocation}
+              </Text>
+            ) : null}
+            <View style={styles.tags}>
+              {profile.wpbsaAccredited ? (
+                <View style={[styles.tag, styles.coachTagRow, { backgroundColor: colors.primary }]}>
+                  <MaterialCommunityIcons name="whistle-outline" size={13} color={colors.onPrimary} />
+                  <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tagText, { color: colors.onPrimary }]}>
+                    WPBSA ACCREDITED
+                  </Text>
+                </View>
+              ) : null}
+              {profile.coachQualifications.map((qualification) => (
+                <View key={qualification} style={[styles.tag, { backgroundColor: colors.board }]}>
+                  <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.tagText, { color: colors.boardRule }]}>
+                    {qualification.toUpperCase()}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            {profile.wpbsaAccredited || profile.coachQualifications.length ? (
+              <Text style={[styles.coachDisclaimer, { color: colors.textSubtle }]}>Self-declared by the coach.</Text>
+            ) : null}
+          </View>
+        ) : null}
       </View>
+
+      {profile.isCoach && relation !== "self" && relation !== "blocked" ? (
+        <Pressable
+          onPress={() => navigation.navigate("BookCoach", { coachId: otherId, coachName: name })}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.primary, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+        >
+          <MaterialCommunityIcons name="calendar-plus" size={20} color={colors.onPrimary} />
+          <Text style={[styles.primaryText, { color: colors.onPrimary }]}>Book a session</Text>
+        </Pressable>
+      ) : null}
 
       {relation !== "self" &&
       relation !== "blocked" &&
@@ -417,6 +457,10 @@ const styles = StyleSheet.create({
   tags: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: SPACING.xs, marginTop: SPACING.xs },
   tag: { borderRadius: RADIUS.pill, paddingHorizontal: SPACING.md, paddingVertical: 4 },
   tagText: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1 },
+  coachBlock: { alignItems: "center", gap: SPACING.xs, marginTop: SPACING.sm },
+  coachLocation: { fontSize: 13 },
+  coachTagRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  coachDisclaimer: { fontSize: 11 },
   bio: { fontSize: 15, lineHeight: 22, textAlign: "center", marginTop: SPACING.sm, maxWidth: 340 },
   body: { fontSize: 15 },
   primary: {

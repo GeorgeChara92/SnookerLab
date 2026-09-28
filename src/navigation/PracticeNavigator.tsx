@@ -17,6 +17,7 @@ import { SessionsHomeScreen } from "../screens/sessions/SessionsHomeScreen";
 import { RoutineLeaderboardScreen } from "../screens/community/RoutineLeaderboardScreen";
 import { PracticeStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
+import { PlayerRootHeader } from "./PlayerRootHeader";
 
 const Stack = createNativeStackNavigator<PracticeStackParamList>();
 
@@ -25,7 +26,11 @@ export const PracticeNavigator = () => {
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="RoutineCategories" component={RoutineCategoriesScreen} options={{ title: "Practice" }} />
+      <Stack.Screen
+        name="RoutineCategories"
+        component={RoutineCategoriesScreen}
+        options={{ title: "Practice", header: PlayerRootHeader }}
+      />
       <Stack.Screen name="RoutinesList" component={RoutinesListScreen} options={{ title: "Routines" }} />
       <Stack.Screen name="RoutineDetail" component={RoutineDetailScreen} options={{ title: "Routine Details" }} />
       <Stack.Screen

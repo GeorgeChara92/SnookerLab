@@ -20,6 +20,7 @@ const app = {
     "AI coaching from a video clip",
     "Friend matches, groups and live scores",
     "Club tournaments",
+    "Book a real coach, or run your own coaching diary",
   ],
   offers: {
     "@type": "Offer",
@@ -101,6 +102,14 @@ const COACH_FAQ: [string, string][] = [
   ["Who can see my clips?", "Only you. Clips are tied to your account and are not shared with other players."],
 ];
 
+const FIND_A_COACH_FAQ: [string, string][] = [
+  ["How do I become a coach in the app?", "Choose Coach (or Both) when you register, or switch on coaching from Profile later. Add your bio, location and qualifications, then open your calendar."],
+  ["Can a coach book someone who does not use Snookered?", "Yes. A coach can book a slot for a walk-in or phone booking by name alone - it goes straight on the calendar and the client list, no account needed."],
+  ["Does a player have to accept a proposed time?", "Yes, unless they have no account - a booking made for someone with no Snookered account is confirmed straight away, since there is no one else to ask."],
+  ["Can a coach message a client?", "Yes, from their client list, for anyone with a real account. There is no messaging for a client with no account - message them the normal way instead."],
+  ["What is a coach group for?", "A coach can post drills, videos and PDFs to their clients at once, instead of sending the same thing one by one in chat."],
+];
+
 /** The JSON-LD graph for a page, or null where there is nothing worth describing. */
 export function structuredData(path: string) {
   const graph: Record<string, unknown>[] = [];
@@ -118,6 +127,7 @@ export function structuredData(path: string) {
       "/scoring": "Scoring",
       "/practice": "Practice",
       "/coach": "Coach",
+      "/find-a-coach": "Find a Coach",
       "/scan-snooker": "Scan a Snooker",
       "/community": "Community",
       "/plans": "Plans",
@@ -132,6 +142,7 @@ export function structuredData(path: string) {
     if (path === "/support") graph.push(faq(SUPPORT_FAQ));
     if (path === "/scan-snooker") graph.push(faq(SCAN_FAQ));
     if (path === "/coach") graph.push(faq(COACH_FAQ));
+    if (path === "/find-a-coach") graph.push(faq(FIND_A_COACH_FAQ));
   }
   return { "@context": "https://schema.org", "@graph": graph };
 }

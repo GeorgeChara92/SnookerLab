@@ -3,6 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useDialog } from "../../components/ui/DialogProvider";
+import { SwipeToDelete } from "../../components/ui/SwipeToDelete";
 import { useAIAnalysesStore } from "../../store";
 import type { AICoachStackParamList, AnalysisType } from "../../types";
 import { AnalysisRow } from "../../components/ai/AnalysisRow";
@@ -21,7 +23,8 @@ const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
 export const AnalysisHistoryScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AICoachStackParamList>>();
   const { colors } = useAppTheme();
-  const { analyses } = useAIAnalysesStore();
+  const dialog = useDialog();
+  const { analyses, deleteAnalysis } = useAIAnalysesStore();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [typeFilter, setTypeFilter] = useState<AnalysisType | "all">("all");
 
@@ -53,6 +56,17 @@ export const AnalysisHistoryScreen = () => {
     const typeOk = typeFilter === "all" || item.analysis_type === typeFilter;
     return statusOk && typeOk;
   });
+
+  const confirmDelete = (id: string) =>
+    dialog.confirm({
+      tone: "danger",
+      icon: "trash-can-outline",
+      title: "Delete this report?",
+      message: "The report and its clip go too, and this cannot be undone.",
+      confirmLabel: "Delete report",
+      cancelLabel: "Keep it",
+      onConfirm: () => void deleteAnalysis(id),
+    });
 
   const Chip = ({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) => (
     <Pressable
@@ -110,11 +124,9 @@ export const AnalysisHistoryScreen = () => {
 
       {filtered.length ? (
         filtered.map((item) => (
-          <AnalysisRow
-            key={item.id}
-            analysis={item}
-            onPress={() => navigation.navigate("AnalysisDetail", { analysisId: item.id })}
-          />
+          <SwipeToDelete key={item.id} onDelete={() => confirmDelete(item.id)} deleteLabel="Delete this report" gapBelow={SPACING.sm}>
+            <AnalysisRow analysis={item} onPress={() => navigation.navigate("AnalysisDetail", { analysisId: item.id })} />
+          </SwipeToDelete>
         ))
       ) : (
         <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>

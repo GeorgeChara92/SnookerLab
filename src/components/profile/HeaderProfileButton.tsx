@@ -1,5 +1,6 @@
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Image } from "expo-image";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store";
@@ -46,7 +47,9 @@ export const HeaderProfileButton = () => {
         <Image
           source={{ uri: user.profile_image_url }}
           style={[styles.photo, { borderColor: colors.primary }]}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={0}
         />
       ) : (
         <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={level.level} size={AVATAR} />

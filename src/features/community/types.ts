@@ -20,6 +20,18 @@ export type PublicProfile = {
   centuries: number | null;
   matchesWon: number | null;
   joinedAt: string | null;
+  /** A coach, granted by the project owner - never by the player themselves. */
+  isCoach: boolean;
+  /** What a coach says they are qualified in, e.g. "WPBSA Level 2". Self-declared, not verified. */
+  coachQualifications: string[];
+  /** Whether a coach says they hold WPBSA accreditation. Self-declared, not checked against the WPBSA's own records. */
+  wpbsaAccredited: boolean;
+  /** Where a coach takes sessions, e.g. a club or town. Set by the coach themselves. */
+  coachLocation: string | null;
+  /** Real coordinates behind coachLocation, from the coach's own "Use my current location" - null
+   * if they typed a place name by hand instead. */
+  coachLat: number | null;
+  coachLng: number | null;
 };
 
 export type Privacy = "everyone" | "friends" | "nobody";
@@ -80,10 +92,16 @@ export const profileFromRow = (row: any): PublicProfile => ({
   centuries: row.centuries ?? null,
   matchesWon: row.matches_won ?? null,
   joinedAt: row.joined_at ?? null,
+  isCoach: row.is_coach ?? false,
+  coachQualifications: row.coach_qualifications ?? [],
+  wpbsaAccredited: row.wpbsa_accredited ?? false,
+  coachLocation: row.coach_location ?? null,
+  coachLat: row.coach_lat ?? null,
+  coachLng: row.coach_lng ?? null,
 });
 
 export const PROFILE_COLUMNS =
-  "id, handle, display_name, avatar_preset, avatar_url, country_code, skill_level, bio, level, xp, discoverable, message_privacy, stats_privacy, cue_preference, leaderboards, best_break, centuries, matches_won, joined_at";
+  "id, handle, display_name, avatar_preset, avatar_url, country_code, skill_level, bio, level, xp, discoverable, message_privacy, stats_privacy, cue_preference, leaderboards, best_break, centuries, matches_won, joined_at, is_coach, coach_qualifications, wpbsa_accredited, coach_location, coach_lat, coach_lng";
 
 export const friendshipFromRow = (row: any): Friendship => ({
   id: row.id,

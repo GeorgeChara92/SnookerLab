@@ -4,6 +4,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { SessionsHomeScreen } from "../sessions/SessionsHomeScreen";
 import { useCustomRoutinesStore, useRoutinesStore } from "../../store";
+import { SwipeToDelete } from "../../components/ui/SwipeToDelete";
+import { useDialog } from "../../components/ui/DialogProvider";
 import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { summarise } from "../../features/scanSnooker/position";
 import type { CustomRoutine } from "../../features/customRoutines/customRoutine";
@@ -18,7 +20,9 @@ export const RoutineCategoriesScreen = () => {
   const navigation = useNavigation<NavigationProp<PracticeStackParamList>>();
   const { categories, routines, getRoutinesByCategory, loadRoutines } = useRoutinesStore();
   const { colors } = useAppTheme();
+  const dialog = useDialog();
   const customRoutines = useCustomRoutinesStore((state) => state.routines);
+  const removeCustomRoutine = useCustomRoutinesStore((state) => state.remove);
   // The built-in library, or the routines the player has built.
   const route = useRoute<RouteProp<PracticeStackParamList, "RoutineCategories">>();
   const [tab, setTab] = useState<"library" | "mine" | "saved" | "sessions">(route.params?.tab ?? "library");
@@ -168,16 +172,34 @@ export const RoutineCategoriesScreen = () => {
     </Pressable>
   );
 
+  const confirmDeleteCustom = (item: CustomRoutine) =>
+    dialog.confirm({
+      title: item.sourceSharedId ? `Remove ${item.name} from Saved?` : `Delete ${item.name}?`,
+      message: item.sourceSharedId
+        ? "You can save it again from the community if you change your mind."
+        : "This cannot be undone.",
+      tone: "danger",
+      icon: "delete-outline",
+      confirmLabel: item.sourceSharedId ? "Remove" : "Delete routine",
+      cancelLabel: "Cancel",
+      onConfirm: () => removeCustomRoutine(item.id),
+    });
+
   const renderCustom = ({ item }: { item: CustomRoutine }) => (
-    <Pressable
-      onPress={() => navigation.navigate("CustomRoutine", { routineId: item.id })}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.name}. ${summarise(item.balls)}`}
-      style={({ pressed }) => [
-        styles.customCard,
-        { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
-      ]}
+    <SwipeToDelete
+      onDelete={() => confirmDeleteCustom(item)}
+      deleteLabel={item.sourceSharedId ? `Remove ${item.name} from saved` : `Delete ${item.name}`}
+      radius={RADIUS.lg}
     >
+      <Pressable
+        onPress={() => navigation.navigate("CustomRoutine", { routineId: item.id })}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.name}. ${summarise(item.balls)}`}
+        style={({ pressed }) => [
+          styles.customCard,
+          { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+        ]}
+      >
       <View style={styles.customThumb}>
         <TableDiagram balls={item.balls} readOnly />
       </View>
@@ -201,8 +223,9 @@ export const RoutineCategoriesScreen = () => {
           {summarise(item.balls)} · {item.maxScore ? `max ${item.maxScore}` : "counts attempts"}
         </Text>
       </View>
-      <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-    </Pressable>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+      </Pressable>
+    </SwipeToDelete>
   );
 
   if (tab === "sessions") {

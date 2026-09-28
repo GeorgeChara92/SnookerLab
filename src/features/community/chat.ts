@@ -42,7 +42,7 @@ export type Message = {
   id: string;
   conversationId: string;
   sender: string;
-  kind: "text" | "routine" | "match";
+  kind: "text" | "routine" | "match" | "media";
   body: string;
   payload: Record<string, unknown> | null;
   hidden: boolean;

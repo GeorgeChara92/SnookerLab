@@ -2,22 +2,34 @@
 -- Set the demo account's handle below (and the friends', if different), then run it all.
 do $$
 declare
-  demo uuid := (select id from public.profiles where handle = 'georgechara_test');
-  pal uuid := (select id from public.profiles where handle = 'georgechara');
+  -- Looks up by the real handle or the screenshot one, so this still finds the account on a
+  -- rerun even if restore_names.sql has not put the handle back yet.
+  demo uuid := (select id from public.profiles where handle in ('georgechara_test', 'alexmarsh'));
+  pal uuid := (select id from public.profiles where handle in ('georgechara', 'dannyhale'));
   pal2 uuid := (select id from public.profiles where handle = '__no_second_friend__');
   m uuid;
   g uuid;
   c uuid;
   l uuid;
+  t uuid;
+  fx uuid;
+  bk uuid;
 begin
-  if demo is null then raise exception 'No profile with the handle georgechara_test. Create the account in the app and pick that handle first.'; end if;
+  if demo is null then raise exception 'No profile with the handle georgechara_test or alexmarsh. Create the account in the app and pick that handle first.'; end if;
 
-  -- Screenshot names.
-  update public.profiles set display_name = 'You' where id = demo;
-  if pal is not null then update public.profiles set display_name = 'Danny Hale' where id = pal; end if;
+  -- Screenshot names. Both handles are changed too - georgechara_test showing up in its own
+  -- Find a Coach search looked like a test artifact, and 'Danny Hale' next to handle
+  -- @georgechara on Community looked like two different things happened to line up.
+  update public.profiles set display_name = 'You', handle = 'alexmarsh' where id = demo;
+  if pal is not null then update public.profiles set display_name = 'Danny Hale', handle = 'dannyhale' where id = pal; end if;
 
   -- A clean slate for the demo account only.
-  delete from public.live_scores where user_id = demo;
+  delete from public.live_scores where user_id in (demo, pal);
+  delete from public.matches where notes = 'seed:live';
+  delete from public.tournament_fixture_frames where fixture_id in (
+    select id from public.tournament_fixtures where tournament_id in (select id from public.tournaments where user_id = demo));
+  delete from public.tournament_fixtures where tournament_id in (select id from public.tournaments where user_id = demo);
+  delete from public.tournaments where user_id = demo;
   delete from public.activity where user_id = demo or dedupe_key like 'seed:%';
   delete from public.groups where owner = demo;
   delete from public.conversations where kind = 'direct' and (pair_low = demo or pair_high = demo);
@@ -822,6 +834,30 @@ begin
   insert into public.group_routines (group_id, routine_key, name, added_by) values (g, 'routine-black-off-spot', 'Potting The Black Ball', demo);
   insert into public.group_routines (group_id, routine_key, name, added_by) values (g, 'routine-long-potting-classic', 'Potting Long Reds', demo);
 
+  insert into public.groups (owner, name, description, emoji, colour, visibility, who_can_post, who_can_invite, created_at)
+    values (demo, 'Cue Club Socials', 'Whoever''s about on a Friday. No table booking needed, just turn up.', '🍻',
+      '#B5762A', 'public', 'everyone', 'everyone', now() - interval '30 days') returning id into g;
+  insert into public.group_members (group_id, user_id, role, joined_at) values (g, demo, 'owner', now() - interval '30 days');
+  if pal is not null then insert into public.group_members (group_id, user_id, role, joined_at) values (g, pal, 'member', now() - interval '29 days'); end if;
+  insert into public.conversations (kind, group_id, created_at) values ('group', g, now() - interval '30 days') returning id into c;
+  insert into public.messages (conversation_id, sender, body, created_at) values (c, demo, 'Table''s free from 8 if anyone fancies it.', now() - interval '72 hours');
+  if pal is not null then insert into public.messages (conversation_id, sender, body, created_at) values (c, pal, 'In. Bringing Jamie too if that''s alright.', now() - interval '70 hours'); end if;
+  insert into public.messages (conversation_id, sender, body, created_at) values (c, demo, 'Good session last week, same again Friday?', now() - interval '20 hours');
+
+  insert into public.groups (owner, name, description, emoji, colour, visibility, who_can_post, who_can_invite, created_at)
+    values (demo, 'Break-Building Crew', 'Sharing what''s working on the long game - drills, not just scores.', '🎯',
+      '#2C6E8C', 'public', 'everyone', 'everyone', now() - interval '18 days') returning id into g;
+  insert into public.group_members (group_id, user_id, role, joined_at) values (g, demo, 'owner', now() - interval '18 days');
+  if pal is not null then insert into public.group_members (group_id, user_id, role, joined_at) values (g, pal, 'member', now() - interval '17 days'); end if;
+  insert into public.conversations (kind, group_id, created_at) values ('group', g, now() - interval '18 days') returning id into c;
+  if pal is not null then insert into public.messages (conversation_id, sender, body, created_at) values (c, pal, 'That colours drill you posted is brutal.', now() - interval '40 hours'); end if;
+  insert into public.messages (conversation_id, sender, body, created_at) values (c, demo, 'Right? Stick with it, it''s worth it.', now() - interval '39 hours');
+
+  insert into public.groups (owner, name, description, emoji, colour, visibility, who_can_post, who_can_invite, created_at)
+    values (demo, 'Solo Practice Log', 'Just for me - somewhere to pin routines I''m focusing on this month.', '📋',
+      '#5B4B8A', 'public', 'everyone', 'everyone', now() - interval '10 days') returning id into g;
+  insert into public.group_members (group_id, user_id, role, joined_at) values (g, demo, 'owner', now() - interval '10 days');
+
   -- A chat with the friend.
   if pal is not null then
     insert into public.conversations (kind, pair_low, pair_high, created_at)
@@ -843,5 +879,187 @@ begin
   if pal is not null then insert into public.activity (user_id, kind, title, detail, dedupe_key, created_at) values (pal, 'match', 'Beat Tom Price 3–1', null, 'seed:5', now() - interval '28 hours'); end if;
   if pal is not null then insert into public.activity (user_id, kind, title, detail, dedupe_key, created_at) values (pal, 'personal_best', 'New best on Potting The Black Ball', '21', 'seed:6', now() - interval '50 hours'); end if;
   if pal2 is not null then insert into public.activity (user_id, kind, title, detail, dedupe_key, created_at) values (pal2, 'achievement', 'Unlocked Dedicated Player', 'Practise on 20 different days', 'seed:7', now() - interval '70 hours'); end if;
+
+  -- Coach mode. The friend becomes a bookable coach; the demo becomes one too, so flipping to
+  -- coach view on the same login shows a populated diary. restore_names.sql undoes all of it.
+  delete from public.coach_bookings where coach_id in (demo, pal) or player_id in (demo, pal);
+  delete from public.coach_availability where coach_id in (demo, pal);
+  delete from public.coach_group_members where group_id in (select id from public.coach_groups where coach_id = demo);
+  delete from public.coach_groups where coach_id = demo;
+
+  if pal is not null then
+    update public.profiles set is_coach = true,
+        bio = coalesce(nullif(bio, ''), 'WPBSA-accredited coach, 12 years at The Cue Club. I focus on cue action and safety play.'),
+        coach_location = coalesce(coach_location, 'The Cue Club, Manchester'),
+        coach_lat = coalesce(coach_lat, 53.4808), coach_lng = coalesce(coach_lng, -2.2426),
+        wpbsa_accredited = true,
+        coach_qualifications = case when array_length(coach_qualifications, 1) is null then array['WPBSA Level 3', 'Safeguarding certified', 'Break-building specialist'] else coach_qualifications end
+      where id = pal;
+
+    -- The demo books the friend - shows on My Coaching (demo) and Clients (the friend).
+    insert into public.coach_availability (coach_id, starts_at, ends_at)
+      values (pal, (current_date + 3) + time '17:00', (current_date + 3) + time '18:00') returning id into c;
+    insert into public.coach_bookings (coach_id, player_id, availability_id, starts_at, ends_at, status, note)
+      values (pal, demo, c, (current_date + 3) + time '17:00', (current_date + 3) + time '18:00', 'accepted', 'Working on the cue action, per last session.');
+    -- A couple more open slots on the friend's side, for the booking screen to show choice.
+    insert into public.coach_availability (coach_id, starts_at, ends_at) values
+      (pal, (current_date + 6) + time '19:00', (current_date + 6) + time '20:00'),
+      (pal, (current_date + 9) + time '10:00', (current_date + 9) + time '11:00');
+  end if;
+
+  -- The demo's own diary: the friend as a returning real client, and a walk-in with no account.
+  update public.profiles set is_coach = true, bio = coalesce(nullif(bio, ''), 'Club coach at The Cue Club. Cue action, safety and match temperament.'),
+      coach_location = coalesce(coach_location, 'The Cue Club, Manchester'), coach_lat = coalesce(coach_lat, 53.4808), coach_lng = coalesce(coach_lng, -2.2426)
+    where id = demo;
+  if pal is not null then
+    insert into public.coach_availability (coach_id, starts_at, ends_at)
+      values (demo, current_date - 6 + time '18:00', current_date - 6 + time '19:00') returning id into c;
+    insert into public.coach_bookings (coach_id, player_id, availability_id, starts_at, ends_at, status)
+      values (demo, pal, c, current_date - 6 + time '18:00', current_date - 6 + time '19:00', 'accepted') returning id into bk;
+    -- Notes and routines on that past session, so a coach opening it sees what tracking one looks like.
+    insert into public.coach_session_notes (booking_id, coach_id, notes) values (bk, demo, 'Good tempo through the line-up drill, breaking down consistently to the pink. Worked on cue action - keeping the elbow still through the strike. Ready to bring this into safety play next session.');
+    insert into public.coach_session_routines (booking_id, coach_id, routine_id, routine_name, score, notes)
+      values (bk, demo, 'routine-line-up', 'The Snooker Line Up', 41, 'Best of the night - clean through reds and colours.');
+    insert into public.coach_session_routines (booking_id, coach_id, routine_id, routine_name, score, notes)
+      values (bk, demo, 'routine-black-off-spot', 'Potting The Black Ball', 14, 'Still rushing the pot slightly, worth revisiting.');
+    insert into public.coach_availability (coach_id, starts_at, ends_at)
+      values (demo, (current_date + 1) + time '18:30', (current_date + 1) + time '19:30') returning id into c;
+    insert into public.coach_bookings (coach_id, player_id, availability_id, starts_at, ends_at, status, note)
+      values (demo, pal, c, (current_date + 1) + time '18:30', (current_date + 1) + time '19:30', 'accepted', 'Same time as last week.');
+  end if;
+
+  -- A working diary: several walk-ins with no account, spread across the last few weeks and
+  -- the next couple - not just one isolated guest.
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date - 9) + time '09:00', (current_date - 9) + time '10:00') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status) values (demo, 'Steve Carter', c, (current_date - 9) + time '09:00', (current_date - 9) + time '10:00', 'accepted');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date - 2) + time '10:30', (current_date - 2) + time '11:30') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status, note) values (demo, 'Steve Carter', c, (current_date - 2) + time '10:30', (current_date - 2) + time '11:30', 'accepted', 'Working on safety play.');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date + 5) + time '14:00', (current_date + 5) + time '15:00') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status, note) values (demo, 'Steve Carter', c, (current_date + 5) + time '14:00', (current_date + 5) + time '15:00', 'accepted', 'Cue action tune-up.');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date + 12) + time '16:00', (current_date + 12) + time '17:00') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status) values (demo, 'Steve Carter', c, (current_date + 12) + time '16:00', (current_date + 12) + time '17:00', 'accepted');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date - 13) + time '17:30', (current_date - 13) + time '18:30') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status, note) values (demo, 'Dave Wilson', c, (current_date - 13) + time '17:30', (current_date - 13) + time '18:30', 'accepted', 'First session in a while.');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date - 6) + time '18:30', (current_date - 6) + time '19:30') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status) values (demo, 'Dave Wilson', c, (current_date - 6) + time '18:30', (current_date - 6) + time '19:30', 'accepted');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date + 3) + time '19:30', (current_date + 3) + time '20:30') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status) values (demo, 'Dave Wilson', c, (current_date + 3) + time '19:30', (current_date + 3) + time '20:30', 'accepted');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date + 10) + time '09:00', (current_date + 10) + time '10:00') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status, note) values (demo, 'Dave Wilson', c, (current_date + 10) + time '09:00', (current_date + 10) + time '10:00', 'accepted', 'Working on safety play.');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date - 11) + time '10:30', (current_date - 11) + time '11:30') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status, note) values (demo, 'Mark Ellis', c, (current_date - 11) + time '10:30', (current_date - 11) + time '11:30', 'accepted', 'Cue action tune-up.');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date + 4) + time '14:00', (current_date + 4) + time '15:00') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status) values (demo, 'Mark Ellis', c, (current_date + 4) + time '14:00', (current_date + 4) + time '15:00', 'accepted');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date + 14) + time '16:00', (current_date + 14) + time '17:00') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status, note) values (demo, 'Mark Ellis', c, (current_date + 14) + time '16:00', (current_date + 14) + time '17:00', 'accepted', 'First session in a while.');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date - 16) + time '17:30', (current_date - 16) + time '18:30') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status) values (demo, 'Ryan Cole', c, (current_date - 16) + time '17:30', (current_date - 16) + time '18:30', 'accepted');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date - 4) + time '18:30', (current_date - 4) + time '19:30') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status) values (demo, 'Ryan Cole', c, (current_date - 4) + time '18:30', (current_date - 4) + time '19:30', 'accepted');
+  insert into public.coach_availability (coach_id, starts_at, ends_at)
+    values (demo, (current_date + 8) + time '19:30', (current_date + 8) + time '20:30') returning id into c;
+  insert into public.coach_bookings (coach_id, guest_name, availability_id, starts_at, ends_at, status, note) values (demo, 'Ryan Cole', c, (current_date + 8) + time '19:30', (current_date + 8) + time '20:30', 'accepted', 'Working on safety play.');
+
+  -- Open slots still waiting to be booked, so the calendar shows both kinds of day too.
+  insert into public.coach_availability (coach_id, starts_at, ends_at) values (demo, (current_date + 1) + time '09:00', (current_date + 1) + time '10:00'), (demo, (current_date + 2) + time '10:30', (current_date + 2) + time '11:30'), (demo, (current_date + 6) + time '14:00', (current_date + 6) + time '15:00'), (demo, (current_date + 7) + time '16:00', (current_date + 7) + time '17:00'), (demo, (current_date + 9) + time '17:30', (current_date + 9) + time '18:30'), (demo, (current_date + 15) + time '18:30', (current_date + 15) + time '19:30'), (demo, (current_date + 18) + time '19:30', (current_date + 18) + time '20:30');
+
+  -- A broadcast group with the friend in it - add one real post from the app before that screenshot.
+  insert into public.coach_groups (coach_id, name) values (demo, 'Saturday Regulars') returning id into g;
+  if pal is not null then insert into public.coach_group_members (group_id, player_id) values (g, pal); end if;
+
+  -- A friend's match live right now, for the 'follow a friend live' screenshot.
+  if pal is not null then
+    insert into public.matches (user_id, opponent_name, opponent_id, date, location, match_type, format,
+        target_frames, frames_played, recording_mode, user_score, opponent_score, result, notes, created_at, updated_at)
+    -- result is not nullable even mid-match - the app itself keeps it as a running 'so far'
+    -- standing computed from frames won, recomputed every save; 1-1 is a draw so far.
+      values (pal, 'Ryan Cole', null, current_date, 'The Cue Club', 'league', 'best_of', 7, 2, 'live', 1, 1, 'draw', 'seed:live', now() - interval '18 minutes', now() - interval '18 minutes')
+      returning id into m;
+    insert into public.match_frames (user_id, match_id, frame_number, user_score, opponent_score, winner,
+        highest_break_user, highest_break_opponent, breaks, events, created_at, updated_at) values
+      (pal, m, 1, 68, 22, 'user', 68, 22, '[]'::jsonb, '[]'::jsonb, now() - interval '17 minutes', now() - interval '17 minutes'),
+      (pal, m, 2, 19, 64, 'opponent', 19, 41, '[]'::jsonb, '[]'::jsonb, now() - interval '9 minutes', now() - interval '9 minutes');
+    insert into public.live_scores (match_id, user_id, opponent_id, opponent_name, best_of, frames_user, frames_opponent,
+        frame_number, points_user, points_opponent, current_break, at_table, remaining, high_break_user, high_break_opponent,
+        frames, status, started_at, updated_at)
+      values (m, pal, null, 'Ryan Cole', 7, 1, 1, 3, 45, 28, 18, 'user', 59, 68, 41,
+        '[{"n":1,"u":68,"o":22,"w":"user"},{"n":2,"u":19,"o":64,"w":"opponent"}]'::jsonb,
+        'live', now() - interval '18 minutes', now() - interval '20 seconds');
+  end if;
+
+  -- A knockout tournament: quarter-finals played, semi-finals drawn, for the bracket screenshot.
+  insert into public.tournaments (user_id, name, tournament_type, entry_mode, pairing_mode, best_of_frames,
+      participants, status, created_at, updated_at)
+    values (demo, 'The Cue Club Knockout', 'knockout', 'singles', 'manual', 5,
+      array['You', 'Danny Hale', 'Dave Wilson', 'Mark Ellis', 'Ryan Cole', 'Jamie Barker', 'Chris Hale', 'Tom Price'], 'active', now() - interval '5 days', now() - interval '2 hours') returning id into t;
+  insert into public.tournament_fixtures (tournament_id, round_number, fixture_index, participant_a, participant_b,
+      best_of_frames, score_a, score_b, winner, status)
+    values (t, 1, 0, 'You', 'Dave Wilson', 5, 3, 1, 'You', 'completed') returning id into fx;
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 1, 68, 45, 'a');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 2, 30, 72, 'b');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 3, 81, 19, 'a');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 4, 55, 38, 'a');
+  insert into public.tournament_fixtures (tournament_id, round_number, fixture_index, participant_a, participant_b,
+      best_of_frames, score_a, score_b, winner, status)
+    values (t, 1, 1, 'Danny Hale', 'Mark Ellis', 5, 3, 2, 'Danny Hale', 'completed') returning id into fx;
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 1, 70, 12, 'a');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 2, 28, 66, 'b');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 3, 64, 51, 'a');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 4, 19, 77, 'b');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 5, 73, 40, 'a');
+  insert into public.tournament_fixtures (tournament_id, round_number, fixture_index, participant_a, participant_b,
+      best_of_frames, score_a, score_b, winner, status)
+    values (t, 1, 2, 'Ryan Cole', 'Jamie Barker', 5, 3, 0, 'Ryan Cole', 'completed') returning id into fx;
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 1, 66, 20, 'a');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 2, 58, 44, 'a');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 3, 71, 15, 'a');
+  insert into public.tournament_fixtures (tournament_id, round_number, fixture_index, participant_a, participant_b,
+      best_of_frames, score_a, score_b, winner, status)
+    values (t, 1, 3, 'Chris Hale', 'Tom Price', 5, 3, 2, 'Chris Hale', 'completed') returning id into fx;
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 1, 52, 61, 'b');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 2, 74, 22, 'a');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 3, 33, 69, 'b');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 4, 60, 48, 'a');
+  insert into public.tournament_fixture_frames (fixture_id, frame_number, score_a, score_b, winner)
+    values (fx, 5, 77, 31, 'a');
+  insert into public.tournament_fixtures (tournament_id, round_number, fixture_index, participant_a, participant_b,
+      best_of_frames, status)
+    values (t, 2, 0, 'You', 'Danny Hale', 5, 'pending');
+  insert into public.tournament_fixtures (tournament_id, round_number, fixture_index, participant_a, participant_b,
+      best_of_frames, status)
+    values (t, 2, 1, 'Ryan Cole', 'Chris Hale', 5, 'pending');
+  insert into public.tournament_fixtures (tournament_id, round_number, fixture_index, participant_a, participant_b,
+      best_of_frames, status)
+    values (t, 3, 0, 'TBD', 'TBD', 5, 'pending');
+
 end
 $$;

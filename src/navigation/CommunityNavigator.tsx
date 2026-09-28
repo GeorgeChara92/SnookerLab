@@ -2,6 +2,8 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { CommunityHomeScreen } from "../screens/community/CommunityHomeScreen";
 import { PlayerProfileScreen } from "../screens/community/PlayerProfileScreen";
+import { CoachProfileScreen } from "../screens/community/CoachProfileScreen";
+import { PlayerRootHeader } from "./PlayerRootHeader";
 import { CommunitySettingsScreen } from "../screens/community/CommunitySettingsScreen";
 import { AdminReportsScreen } from "../screens/community/AdminReportsScreen";
 import { RoutineLibraryScreen } from "../screens/community/RoutineLibraryScreen";
@@ -17,6 +19,8 @@ import { NewChatScreen } from "../screens/community/NewChatScreen";
 import { GroupsScreen } from "../screens/community/GroupsScreen";
 import { GroupScreen } from "../screens/community/GroupScreen";
 import { GroupFormScreen } from "../screens/community/GroupFormScreen";
+import { BookCoachScreen } from "../screens/community/BookCoachScreen";
+import { FindCoachScreen } from "../screens/community/FindCoachScreen";
 import type { CommunityStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 
@@ -27,8 +31,13 @@ export const CommunityNavigator = () => {
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="CommunityHome" component={CommunityHomeScreen} options={{ title: "Community" }} />
+      <Stack.Screen
+        name="CommunityHome"
+        component={CommunityHomeScreen}
+        options={{ title: "Community", header: PlayerRootHeader }}
+      />
       <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} options={{ title: "Player" }} />
+      <Stack.Screen name="CoachProfile" component={CoachProfileScreen} options={{ title: "Coach" }} />
       <Stack.Screen
         name="CommunitySettings"
         component={CommunitySettingsScreen}
@@ -48,6 +57,8 @@ export const CommunityNavigator = () => {
       <Stack.Screen name="Group" component={GroupScreen} options={{ title: "Group" }} />
       <Stack.Screen name="GroupForm" component={GroupFormScreen} options={{ title: "New group" }} />
       <Stack.Screen name="RoutineLeaderboard" component={RoutineLeaderboardScreen} options={{ title: "Leaderboard" }} />
+      <Stack.Screen name="BookCoach" component={BookCoachScreen} options={{ title: "Book a session" }} />
+      <Stack.Screen name="FindCoach" component={FindCoachScreen} options={{ title: "Find a coach" }} />
     </Stack.Navigator>
   );
 };

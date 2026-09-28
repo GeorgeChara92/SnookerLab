@@ -6,6 +6,7 @@ import { SubscriptionPlansScreen } from "../screens/profile/SubscriptionPlansScr
 import { AchievementsScreen } from "../screens/profile/AchievementsScreen";
 import { EditProfileFieldScreen } from "../screens/profile/EditProfileFieldScreen";
 import { AvatarPickerScreen } from "../screens/profile/AvatarPickerScreen";
+import { CoachSettingsScreen } from "../screens/profile/CoachSettingsScreen";
 import { ProfileStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 import { DialogProvider } from "../components/ui/DialogProvider";
@@ -29,6 +30,7 @@ export const ProfileNavigator = () => {
           <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} options={{ title: "Plans" }} />
           <Stack.Screen name="Achievements" component={AchievementsScreen} options={{ title: "Achievements" }} />
           <Stack.Screen name="AvatarPicker" component={AvatarPickerScreen} options={{ title: "Choose an avatar" }} />
+          <Stack.Screen name="CoachSettings" component={CoachSettingsScreen} options={{ title: "Coach settings" }} />
           <Stack.Screen
             name="EditProfileField"
             component={EditProfileFieldScreen}

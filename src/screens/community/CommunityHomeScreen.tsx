@@ -238,6 +238,23 @@ export const CommunityHomeScreen = () => {
         </Pressable>
       </View>
 
+      {/* Find a coach - a full-width banner, not just one tile among many, since a coach search
+          is a bigger decision than checking chats or boards. */}
+      <Pressable
+        onPress={() => navigation.navigate("FindCoach")}
+        accessibilityRole="button"
+        style={[styles.coachBanner, { backgroundColor: colors.primary }]}
+      >
+        <MaterialCommunityIcons name="whistle-outline" size={26} color={colors.onPrimary} />
+        <View style={styles.rowText}>
+          <Text style={[styles.coachBannerTitle, { color: colors.onPrimary }]}>Find a coach</Text>
+          <Text style={[styles.coachBannerSubtitle, { color: colors.onPrimary }]} numberOfLines={1}>
+            Search WPBSA-qualified coaches near you
+          </Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={22} color={colors.onPrimary} />
+      </Pressable>
+
       {/* Where to go */}
       <View style={[styles.hub, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         {hub.map((item, index) => (
@@ -514,6 +531,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  coachBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    minHeight: HIT_TARGET + 16,
+  },
+  coachBannerTitle: { fontSize: 16, fontWeight: "800" },
+  coachBannerSubtitle: { fontSize: 13, marginTop: 2, opacity: 0.9 },
   hub: { flexDirection: "row", borderWidth: 1, borderRadius: RADIUS.lg, overflow: "hidden" },
   hubItem: {
     flex: 1,

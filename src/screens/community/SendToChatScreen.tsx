@@ -22,7 +22,9 @@ import { ChatShareCard } from "../../components/community/ChatShareCard";
 import { nameOf, type PublicProfile } from "../../features/community/types";
 import { sendMessage, startDirect, type Group } from "../../features/community/chat";
 import { publishRoutine } from "../../features/community/sharedRoutines";
-import { shareBody, sharePayload, type ChatShare } from "../../features/community/chatShare";
+import { shareBody, sharePayload, type MatchShare, type RoutineShare } from "../../features/community/chatShare";
+
+type ChatShare = RoutineShare | MatchShare;
 import type { RootStackParamList } from "../../types";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 

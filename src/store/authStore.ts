@@ -1,20 +1,32 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import * as FileSystemLegacy from "expo-file-system/legacy";
 import { safeStorage } from "../utils/storage";
 import { supabase } from "../api/supabase";
 import { User, SkillLevel } from "../types";
 import { logoutBilling } from "../services/billing";
 
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
 const mapAuthUser = (authUser: any): User => ({
   id: authUser.id,
   email: authUser.email ?? "",
   username: authUser.user_metadata?.username,
+  full_name: authUser.user_metadata?.full_name,
+  account_type: authUser.user_metadata?.account_type,
   profile_image_url: authUser.user_metadata?.profile_image_url,
   avatar_preset: authUser.user_metadata?.avatar_preset,
   country_code: authUser.user_metadata?.country_code,
   bio: authUser.user_metadata?.bio,
   cue_preference: authUser.user_metadata?.cue_preference,
   skill_level: authUser.user_metadata?.skill_level,
+  handle: authUser.user_metadata?.handle,
+  coach_location: authUser.user_metadata?.coach_location,
+  coach_lat: authUser.user_metadata?.coach_lat,
+  coach_lng: authUser.user_metadata?.coach_lng,
+  wpbsa_accredited: authUser.user_metadata?.wpbsa_accredited,
+  coach_qualifications: authUser.user_metadata?.coach_qualifications,
   tour_seen: authUser.user_metadata?.tour_seen === true,
   // app_metadata is written only by the service role (the RevenueCat webhook and the
   // sync-subscription function), so the tier cannot be forged from the client.
@@ -65,17 +77,35 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   requiresPasswordReset: boolean;
+  /** A real photo picked during registration, before there was a session to upload it with. Copied
+   * to a stable local path so it survives leaving the app to confirm the email; uploaded the moment
+   * a session exists (see uploadPendingAvatar), so the photo appears to have "just been there". */
+  pendingAvatarPath: string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (
-    email: string,
-    password: string,
-    username: string,
-    skillLevel?: SkillLevel,
-    countryCode?: string
-    // alreadyRegistered: the email has an account. Supabase then sends no email and reports
-    // success anyway (so strangers cannot probe who has an account), which left the player
-    // waiting for a confirmation that was never coming.
-  ) => Promise<{ alreadyRegistered: boolean }>;
+  /** Everything the registration wizard collected, stashed in user_metadata until the account is
+   * confirmed and signed in - communityStore.hydrate seeds the real profile from it on first login,
+   * since a handle/coach profile cannot be written to a row that does not exist yet.
+   * alreadyRegistered: the email has an account. Supabase then sends no email and reports success
+   * anyway (so strangers cannot probe who has an account), which left the player waiting for a
+   * confirmation that was never coming. */
+  signUp: (input: {
+    email: string;
+    password: string;
+    username: string;
+    fullName: string;
+    accountType: "player" | "coach" | "both";
+    skillLevel?: SkillLevel;
+    countryCode?: string;
+    cuePreference?: string;
+    avatarPreset?: string;
+    handle?: string;
+    bio?: string;
+    coachLocation?: string;
+    coachLat?: number;
+    coachLng?: number;
+    wpbsaAccredited?: boolean;
+    coachQualifications?: string[];
+  }) => Promise<{ alreadyRegistered: boolean }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   resendEmailVerification: (email: string) => Promise<void>;
@@ -85,6 +115,14 @@ interface AuthState {
   setRequiresPasswordReset: (value: boolean) => void;
   updateAvatarPreset: (presetId: string) => Promise<void>;
   uploadProfilePhoto: (photoUri: string) => Promise<void>;
+  /** Back to the generated avatar - clears the photo rather than the other way around. */
+  removeProfilePhoto: () => Promise<void>;
+  /** Stashes a photo picked pre-signup somewhere that survives the trip to Mail and back. */
+  stagePendingAvatar: (photoUri: string) => Promise<void>;
+  /** Uploads a staged pre-signup photo now that a session exists, then clears it either way - a
+   * corrupt or now-missing local file should not keep retrying forever. Safe to call whenever the
+   * user becomes authenticated; a no-op when nothing is staged. */
+  uploadPendingAvatar: () => Promise<void>;
   updateProfile: (updates: {
     skill_level?: SkillLevel;
     country_code?: string;
@@ -95,12 +133,13 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       session: null,
       isLoading: false,
       isAuthenticated: false,
       requiresPasswordReset: false,
+      pendingAvatarPath: null,
       signIn: async (email, password) => {
         set({ isLoading: true });
         try {
@@ -119,7 +158,24 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
         }
       },
-      signUp: async (email, password, username, skillLevel, countryCode) => {
+      signUp: async ({
+        email,
+        password,
+        username,
+        fullName,
+        accountType,
+        skillLevel,
+        countryCode,
+        cuePreference,
+        avatarPreset,
+        handle,
+        bio,
+        coachLocation,
+        coachLat,
+        coachLng,
+        wpbsaAccredited,
+        coachQualifications,
+      }) => {
         set({ isLoading: true });
         try {
           const { data, error } = await supabase.auth.signUp({
@@ -129,8 +185,19 @@ export const useAuthStore = create<AuthState>()(
               emailRedirectTo: AUTH_CONFIRM_REDIRECT_URL,
               data: {
                 username,
+                full_name: fullName,
+                account_type: accountType,
                 ...(skillLevel && { skill_level: skillLevel }),
                 ...(countryCode && { country_code: countryCode }),
+                ...(cuePreference && { cue_preference: cuePreference }),
+                ...(avatarPreset && { avatar_preset: avatarPreset }),
+                ...(handle && { handle }),
+                ...(bio && { bio }),
+                ...(coachLocation && { coach_location: coachLocation }),
+                ...(coachLat != null && { coach_lat: coachLat }),
+                ...(coachLng != null && { coach_lng: coachLng }),
+                ...(wpbsaAccredited && { wpbsa_accredited: wpbsaAccredited }),
+                ...(coachQualifications?.length && { coach_qualifications: coachQualifications }),
               },
             },
           });
@@ -308,17 +375,29 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
 
         try {
-          const extension = photoUri.split(".").pop()?.toLowerCase() || "jpg";
+          if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error("Upload service is not fully configured.");
+          const session = (await supabase.auth.getSession()).data.session;
+          if (!session?.access_token) throw new Error("You need to be signed in to upload a profile photo.");
+
+          // fetch(uri).blob() silently produces a truncated or empty file for a local photo library
+          // URI on React Native - the same reason coach group media uploads through FileSystem's
+          // own uploadAsync instead. This is that same direct-to-storage approach.
+          const extension = (photoUri.split(".").pop() || "jpg").toLowerCase();
           const path = `${authUser.id}/avatar-${Date.now()}.${extension}`;
-          const fileResponse = await fetch(photoUri);
-          const fileBlob = await fileResponse.blob();
+          const contentType = extension === "png" ? "image/png" : extension === "heic" ? "image/heic" : "image/jpeg";
+          const uploadUrl = `${SUPABASE_URL}/storage/v1/object/profile-images/${encodeURIComponent(path)}`;
 
-          const { error: uploadError } = await supabase.storage.from("profile-images").upload(path, fileBlob, {
-            contentType: fileBlob.type || "image/jpeg",
-            upsert: true,
+          const result = await FileSystemLegacy.uploadAsync(uploadUrl, photoUri, {
+            httpMethod: "POST",
+            uploadType: FileSystemLegacy.FileSystemUploadType.BINARY_CONTENT,
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              apikey: SUPABASE_ANON_KEY,
+              "Content-Type": contentType,
+              "x-upsert": "true",
+            },
           });
-
-          if (uploadError) throw uploadError;
+          if (result.status < 200 || result.status >= 300) throw new Error(`Upload failed (status ${result.status}).`);
 
           const { data: publicData } = supabase.storage.from("profile-images").getPublicUrl(path);
           const photoUrl = publicData.publicUrl;
@@ -347,6 +426,50 @@ export const useAuthStore = create<AuthState>()(
           }));
         } finally {
           set({ isLoading: false });
+        }
+      },
+      removeProfilePhoto: async () => {
+        set({ isLoading: true });
+        try {
+          const { data, error } = await supabase.auth.updateUser({ data: { profile_image_url: null } });
+          if (error) throw error;
+
+          if (data.user) {
+            set({ user: mapAuthUser(data.user), isAuthenticated: true });
+            return;
+          }
+
+          set((state) => ({
+            user: state.user ? { ...state.user, profile_image_url: undefined, updated_at: new Date().toISOString() } : null,
+          }));
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      stagePendingAvatar: async (photoUri) => {
+        // documentDirectory (unlike the picker's own cache/tmp URI) is never cleared by iOS just for
+        // backgrounding or relaunching the app, so the file is still there when the user comes back
+        // from confirming their email.
+        const extension = (photoUri.split(".").pop() || "jpg").toLowerCase();
+        const path = `${FileSystemLegacy.documentDirectory}pending-avatar-${Date.now()}.${extension}`;
+        await FileSystemLegacy.copyAsync({ from: photoUri, to: path });
+        set({ pendingAvatarPath: path });
+      },
+      uploadPendingAvatar: async () => {
+        const path = get().pendingAvatarPath;
+        if (!path) return;
+        try {
+          const info = await FileSystemLegacy.getInfoAsync(path);
+          if (info.exists) await get().uploadProfilePhoto(path);
+        } catch (error) {
+          console.warn("Pending avatar upload failed:", error);
+          return; // leave it staged - the next launch will retry
+        }
+        set({ pendingAvatarPath: null });
+        try {
+          await FileSystemLegacy.deleteAsync(path, { idempotent: true });
+        } catch {
+          // The file sticking around costs nothing now that it is no longer referenced.
         }
       },
       updateProfile: async (updates) => {

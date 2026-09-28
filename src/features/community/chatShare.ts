@@ -28,13 +28,26 @@ export type MatchShare = {
   highlights?: string[];
 };
 
-export type ChatShare = RoutineShare | MatchShare;
+/** An image, video or PDF sent in a chat - path is where it sits in the private chat-media bucket
+ * (folder "<conversationId>/..."), read back with a signed URL since the bucket is not public. */
+export type MediaShare = {
+  kind: "media";
+  mediaType: "image" | "video" | "pdf";
+  path: string;
+  fileName?: string | null;
+};
+
+export type ChatShare = RoutineShare | MatchShare | MediaShare;
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
 /** The message's text: what the inbox shows, and all an app without cards would see. */
 export const shareBody = (share: ChatShare): string => {
   if (share.kind === "routine") return clip(`Routine: ${share.name}`, 200);
+  if (share.kind === "media") {
+    const label = share.mediaType === "image" ? "Photo" : share.mediaType === "video" ? "Video" : share.fileName || "Document";
+    return clip(`📎 ${label}`, 200);
+  }
   const score = `${share.userScore}–${share.opponentScore}`;
   const line =
     share.result === "win"
@@ -54,6 +67,9 @@ export const sharePayload = (share: ChatShare): Record<string, unknown> => {
       libraryId: share.libraryId ?? null,
       sharedId: share.sharedId ?? null,
     };
+  }
+  if (share.kind === "media") {
+    return { mediaType: share.mediaType, path: share.path, fileName: share.fileName ? clip(share.fileName, 120) : null };
   }
   return {
     opponent: clip(share.opponent, 60),
@@ -83,6 +99,12 @@ export const shareFromMessage = (kind: string, payload: Record<string, unknown> 
     if (!name || (!libraryId && !sharedId)) return null;
     if (sharedId && !/^[0-9a-f-]{36}$/i.test(sharedId)) return null;
     return { kind: "routine", name, subtitle: text(payload.subtitle), libraryId, sharedId };
+  }
+  if (kind === "media") {
+    const path = text(payload.path);
+    const mediaType = payload.mediaType;
+    if (!path || (mediaType !== "image" && mediaType !== "video" && mediaType !== "pdf")) return null;
+    return { kind: "media", mediaType, path, fileName: text(payload.fileName) };
   }
   if (kind === "match") {
     const opponent = text(payload.opponent);

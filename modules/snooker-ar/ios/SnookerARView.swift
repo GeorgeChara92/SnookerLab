@@ -19,6 +19,13 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
   private let coaching = ARCoachingOverlayView()
   private let linesNode = SCNNode()
   private var ballNodes: [String: SCNNode] = [:]
+  /// A real ARAnchor per calibration marker, keyed by its ball id, so ARKit keeps correcting its
+  /// position as tracking improves - a plain node placed once would stay behind and appear to
+  /// drift as the phone moves, which is exactly what happened when walking round the table.
+  private var landmarkAnchors: [String: ARAnchor] = [:]
+  /// The marker waiting for its ARAnchor to come back from the session, keyed by the anchor's own
+  /// id, so `renderer(_:didAdd:for:)` knows what to build once ARKit has a node for it.
+  private var pendingAnchorBalls: [UUID: ARBall] = [:]
   private var planeCount = 0
   private var lastAimTime: TimeInterval = 0
   private var isPaused = false
@@ -86,6 +93,12 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
       }
     }
     planeCount = 0
+    // Anchors and their nodes do not survive a tracking reset; forget them so a marker tapped
+    // before a pause is recreated rather than assumed still in place.
+    landmarkAnchors.removeAll()
+    pendingAnchorBalls.removeAll()
+    ballNodes.values.forEach { $0.removeFromParentNode() }
+    ballNodes.removeAll()
     sceneView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
     isRunning = true
   }
@@ -130,8 +143,21 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
   }
 
   func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
-    guard anchor is ARPlaneAnchor else { return }
+    // `setBalls` runs on the main thread (an Expo view prop); this delegate call is not
+    // guaranteed to be, so the dictionaries it shares with `setBalls` are only touched here
+    // after hopping to main, to avoid the two racing on the same anchor.
     DispatchQueue.main.async {
+      if let ball = self.pendingAnchorBalls.removeValue(forKey: anchor.identifier) {
+        // `node` is the anchor's own node: ARSCNView moves it to match `anchor.transform` every
+        // frame, so a marker added as its child stays put on the real spot as tracking is
+        // refined, instead of a static position that falls behind.
+        let content = self.makeNode(for: ball)
+        content.name = "\(ball.kind)|\(ball.colour)|\(ball.highlighted)"
+        node.addChildNode(content)
+        self.ballNodes[ball.id] = node
+        return
+      }
+      guard anchor is ARPlaneAnchor else { return }
       self.planeCount += 1
       self.onPlane(["count": self.planeCount])
     }
@@ -183,10 +209,26 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
   // MARK: - Drawing
 
   /// Balls, ghosts and markers, matched by id so only what changed is rebuilt.
+  ///
+  /// A "marker" - a calibration landmark - gets a real ARAnchor at the tapped position instead of
+  /// a plain node, because it is placed once and then relied on while the phone keeps moving
+  /// (walking to the next landmark, or away from the table). ARKit corrects an anchor's transform
+  /// every frame as its map of the room improves; a plain node has no such correction, and visibly
+  /// drifts or sinks into the table over that same time. Balls and ghosts are placed and read back
+  /// within a single frame of aiming, so they do not need this.
   func setBalls(_ balls: [ARBall]) {
     var seen = Set<String>()
     for ball in balls {
       seen.insert(ball.id)
+      if ball.kind == "marker" {
+        if landmarkAnchors[ball.id] == nil {
+          let anchor = ARAnchor(transform: pointTransform(x: ball.x, y: ball.y, z: ball.z))
+          pendingAnchorBalls[anchor.identifier] = ball
+          landmarkAnchors[ball.id] = anchor
+          sceneView.session.add(anchor: anchor)
+        }
+        continue
+      }
       let key = "\(ball.kind)|\(ball.colour)|\(ball.highlighted)"
       var node = ballNodes[ball.id]
       if node == nil || node?.name != key {
@@ -203,6 +245,17 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
       node.removeFromParentNode()
       ballNodes.removeValue(forKey: id)
     }
+    for (id, anchor) in landmarkAnchors where !seen.contains(id) {
+      sceneView.session.remove(anchor: anchor)
+      landmarkAnchors.removeValue(forKey: id)
+      ballNodes.removeValue(forKey: id)
+    }
+  }
+
+  private func pointTransform(x: Double, y: Double, z: Double) -> simd_float4x4 {
+    var transform = matrix_identity_float4x4
+    transform.columns.3 = simd_float4(Float(x), Float(y), Float(z), 1)
+    return transform
   }
 
   /// - "ghost": a see-through ball where a ball should go back to. Positioned at the ball's centre.

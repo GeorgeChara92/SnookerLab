@@ -54,8 +54,11 @@ export const ChatsScreen = () => {
     });
   }, [colors.primary, navigation]);
 
-  const chats = inbox.filter((row) => row.status === "active");
-  const requests = inbox.filter((row) => row.status === "request");
+  // A group already has its own screen (with its own way into its chat), so this list stays
+  // direct messages only rather than mixing the two kinds of conversation together.
+  const direct = inbox.filter((row) => row.kind === "direct");
+  const chats = direct.filter((row) => row.status === "active");
+  const requests = direct.filter((row) => row.status === "request");
   const data = view === "chats" ? chats : requests;
 
   const Row = ({ row }: { row: InboxRow }) => {

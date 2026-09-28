@@ -6,6 +6,7 @@ import { AnalysisHistoryScreen } from "../screens/ai-coach/AnalysisHistoryScreen
 import { VideoUploadScreen } from "../screens/ai-coach/VideoUploadScreen";
 import { AICoachStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
+import { PlayerRootHeader } from "./PlayerRootHeader";
 
 const Stack = createNativeStackNavigator<AICoachStackParamList>();
 
@@ -14,7 +15,11 @@ export const AICoachNavigator = () => {
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="AIDashboard" component={AIDashboardScreen} options={{ title: "AI Coach" }} />
+      <Stack.Screen
+        name="AIDashboard"
+        component={AIDashboardScreen}
+        options={{ title: "AI Coach", header: PlayerRootHeader }}
+      />
       <Stack.Screen name="VideoUpload" component={VideoUploadScreen} options={{ title: "Upload a clip" }} />
       <Stack.Screen name="AnalysisHistory" component={AnalysisHistoryScreen} options={{ title: "All reports" }} />
       <Stack.Screen name="AnalysisDetail" component={AnalysisDetailScreen} options={{ title: "Coaching report" }} />

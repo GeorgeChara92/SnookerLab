@@ -11,6 +11,7 @@ import { MatchCompleteScreen } from "../screens/matches/MatchCompleteScreen";
 import { ScanSnookerScreen } from "../screens/matches/ScanSnookerScreen";
 import { MatchesStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
+import { PlayerRootHeader } from "./PlayerRootHeader";
 
 const Stack = createNativeStackNavigator<MatchesStackParamList>();
 
@@ -19,7 +20,11 @@ export const MatchesNavigator = () => {
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="MatchesList" component={MatchesListScreen} options={{ title: "Matches" }} />
+      <Stack.Screen
+        name="MatchesList"
+        component={MatchesListScreen}
+        options={{ title: "Matches", header: PlayerRootHeader }}
+      />
       <Stack.Screen name="OpponentMatches" component={OpponentMatchesScreen} options={{ title: "Opponent History" }} />
       <Stack.Screen name="MatchDetail" component={MatchDetailScreen} options={{ title: "Match Details" }} />
       <Stack.Screen name="LiveFrameScoring" component={LiveFrameScoringScreen} options={{ title: "Live Frame" }} />

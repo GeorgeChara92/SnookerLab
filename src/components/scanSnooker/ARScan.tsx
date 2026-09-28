@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,18 +8,21 @@ import { useDialog } from "../ui/DialogProvider";
 import { BALL_LOOK, TableDiagram } from "./TableDiagram";
 import {
   BALL_LIMIT,
+  BALL_RADIUS,
   LANDMARKS,
   calibrationQuality,
   describeCorrection,
   distance,
   frameFromLandmarks,
   tableToWorld,
+  worldToTable,
   type BallColour,
   type Point,
   type TableFrame,
   type WorldPoint,
 } from "../../features/scanSnooker/table";
-import { ballFromRay, clothFromAim, onTable, tableLines } from "../../features/scanSnooker/ar";
+import { ballFromRay, clothFromAim, onTable, rayAtHeight, tableLines } from "../../features/scanSnooker/ar";
+import { AimStabiliser, type Stability } from "../../features/scanSnooker/stabilize";
 import {
   countOf,
   placeBall,
@@ -105,6 +108,10 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
   const [notice, setNotice] = useState<string | null>(null);
   // The tip under each step's title shows at first, and a tap on the title hides or brings it back.
   const [showTip, setShowTip] = useState(true);
+  // Holding the crosshair still for a moment steadies out hand tremor before a tap is set or a
+  // ball is added; see features/scanSnooker/stabilize.
+  const stabiliser = useRef(new AimStabiliser()).current;
+  const [stability, setStability] = useState<Stability>({ progress: 0, locked: null });
 
   const landmark = (id: string) => LANDMARKS.find((item) => item.id === id)!;
   const current = taps.length < 2 ? landmark(landmarks[taps.length]) : null;
@@ -112,8 +119,34 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
 
   // ---------------------------------------------------------------- what the crosshair is on
   const ray = aim?.ok && aim.origin && aim.direction ? { origin: aim.origin, direction: aim.direction } : null;
-  const aimedBall: Point | null = frame && ray ? ballFromRay(frame, ray) : null;
+  const aimedBall: Point | null = frame
+    ? stability.locked
+      ? worldToTable(frame, stability.locked)
+      : ray
+        ? ballFromRay(frame, ray)
+        : null
+    : null;
   const aimedOnTable = aimedBall ? onTable(aimedBall) : false;
+
+  /** Where the crosshair sits right now, before steadying: at cloth height while calibrating, or
+   * a ball's centre height once there is a table to place one on. Fed to the stabiliser on every
+   * aim reading from the camera - but only while ARKit itself calls tracking "normal". Averaging
+   * readings from a still-settling tracking state (limited, initialising, relocalising) does not
+   * cancel hand tremor, it confidently locks onto whatever the still-moving estimate happens to
+   * read for that moment, which is indistinguishable from drift until it moves again. */
+  const onAim = (event: { nativeEvent: ARAim }) => {
+    const next = event.nativeEvent;
+    setAim(next);
+    const world =
+      tracking.state !== "normal"
+        ? null
+        : phase === "calibrate"
+          ? clothFromAim(next, taps[0]?.world.y)
+          : frame && next.ok && next.origin && next.direction
+            ? rayAtHeight({ origin: next.origin, direction: next.direction }, frame.height + BALL_RADIUS / 1000)
+            : null;
+    setStability(stabiliser.update(world, Date.now()));
+  };
 
   // In replace, the ball being checked is the recorded one of that colour nearest the crosshair.
   const checkTarget = useMemo(() => {
@@ -125,12 +158,18 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
   // ---------------------------------------------------------------- calibrating
   const setLandmark = () => {
     if (!current) return;
-    const world = aim ? clothFromAim(aim, taps[0]?.world.y) : null;
+    if (tracking.state !== "normal") {
+      setNotice("Wait for tracking to settle, then aim and try again.");
+      return;
+    }
+    const world = stability.locked ?? (aim ? clothFromAim(aim, taps[0]?.world.y) : null);
     if (!world) {
       setNotice("Aim the cross at the table itself, then tap Set.");
       return;
     }
     setNotice(null);
+    stabiliser.reset();
+    setStability({ progress: 0, locked: null });
     const next = [...taps, { landmarkId: current.id, world }];
     setTaps(next);
     if (next.length === 2) {
@@ -144,6 +183,8 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
   };
 
   const redoCalibration = () => {
+    stabiliser.reset();
+    setStability({ progress: 0, locked: null });
     setTaps([]);
     setFrame(null);
     setPhase("calibrate");
@@ -151,6 +192,10 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
 
   // ---------------------------------------------------------------- scanning
   const addAimedBall = (point: Point | null) => {
+    if (tracking.state !== "normal") {
+      setNotice("Wait for tracking to settle, then aim and try again.");
+      return;
+    }
     if (!point || !onTable(point)) {
       setNotice("Aim the cross at the middle of a ball on the table.");
       return;
@@ -161,6 +206,8 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
       return;
     }
     setNotice(null);
+    stabiliser.reset();
+    setStability({ progress: 0, locked: null });
     setBalls(result.balls);
     if (colour === "cue") setColour("red");
   };
@@ -301,7 +348,7 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
         lines={lines}
         onTracking={(event) => setTracking(event.nativeEvent)}
         onPlane={() => setPhase((value) => (value === "find" ? "calibrate" : value))}
-        onAim={(event) => setAim(event.nativeEvent)}
+        onAim={onAim}
         onTapPoint={onTapPoint}
       />
 
@@ -311,6 +358,18 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
           <View
             style={[styles.crosshair, { borderColor: aim?.hit || aimedOnTable ? "#FFFFFF" : "rgba(255,255,255,0.45)" }]}
           />
+          {stability.progress > 0 ? (
+            <View
+              style={[
+                styles.crosshairFill,
+                {
+                  opacity: stability.progress,
+                  transform: [{ scale: stability.progress }],
+                  backgroundColor: stability.locked ? QUALITY_COLOUR.good : "#FFFFFF",
+                },
+              ]}
+            />
+          ) : null}
           <View style={styles.crossH} />
           <View style={styles.crossV} />
         </View>
@@ -614,6 +673,9 @@ const styles = StyleSheet.create({
 
   crosshairWrap: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   crosshair: { width: CROSS, height: CROSS, borderRadius: CROSS / 2, borderWidth: 2 },
+  // Fills in as the aim holds steady, the way Apple's Measure app fills its dot; turns the
+  // "good fit" green once the hold is long enough that the point is ready to use.
+  crosshairFill: { position: "absolute", width: CROSS - 14, height: CROSS - 14, borderRadius: (CROSS - 14) / 2 },
   crossH: { position: "absolute", width: 14, height: 2, backgroundColor: "#FFFFFF" },
   crossV: { position: "absolute", width: 2, height: 14, backgroundColor: "#FFFFFF" },
 

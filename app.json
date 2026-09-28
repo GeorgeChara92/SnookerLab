@@ -41,6 +41,25 @@
           "cameraPermission": "Snookered uses the camera to record practice clips for the coach, and to scan the table so the balls can be put back where they were.",
           "microphonePermission": "Snookered uses the microphone only while you record a practice clip with the camera, because a video recording includes its sound."
         }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Snookered uses your location only when you tap \"Use my current location\" while setting where you coach, to fill in the club or town for you."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Snookered adds a session to your calendar only when you tap \"Add to calendar\" on a confirmed booking."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png"
+        }
       ]
     ],
     "extra": {
