@@ -36,7 +36,7 @@ const STOPS: Stop[] = [
   {
     screen: "coach-profile",
     label: "Find a Coach",
-    caption: "Or book a real one, WPBSA qualified and near you.",
+    caption: "Or book a real coach near you - or list yourself as one.",
     alt: "A coach's profile, with bio, gallery and a Book a session button",
   },
   {

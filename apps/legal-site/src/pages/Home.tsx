@@ -29,7 +29,7 @@ function Hero() {
           </Reveal>
           <Reveal delay={0.08}>
             <p className="lead">
-              Practise with a point to it, get coaching from your own game or a real WPBSA coach, score the matches once
+              Practise with a point to it, get coaching from your own game or book a real coach, score the matches once
               you're playing them, and play the people you know. Wherever you are with the game, Snookered is built to help
               you get better at it.
             </p>
@@ -312,10 +312,10 @@ export default function Home() {
         flip
         eyebrow="Find a Coach"
         title="Or learn from someone who's been there."
-        body="Search WPBSA coaches near you and book a session in a couple of taps. Coaching yourself? List your own hours and run your own diary - even a client with no account goes straight on the calendar."
+        body="Search for a coach near you and book a session in a couple of taps. Ready to start coaching yourself? List your own hours and run your own diary - even a client with no account goes straight on the calendar."
         points={[
-          "A coach's bio, gallery and qualifications, before you book",
-          "Session notes and routines kept per client",
+          "A coach's bio, gallery and qualifications, shown before you book",
+          "WPBSA accreditation shown too, for coaches who have it",
           "Walk-ins welcome: no account needed for a one-off booking",
         ]}
         visual={
