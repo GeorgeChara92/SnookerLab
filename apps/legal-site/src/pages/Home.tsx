@@ -24,12 +24,14 @@ function Hero() {
           <Reveal>
             <p className="eyebrow">The snooker app</p>
             <h1 className="display-xl">
-              Your snooker, <span className="hero-accent">on the scoreboard.</span>
+              Your snooker, <span className="hero-accent">from your first cue to your best break.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.08}>
             <p className="lead">
-              Score matches. Practise with purpose. Track your progress, get coaching from your own game and play your mates.
+              Practise with a point to it, get coaching from your own game or a real WPBSA coach, score the matches once
+              you're playing them, and play the people you know. Wherever you are with the game, Snookered is built to help
+              you get better at it.
             </p>
           </Reveal>
           <Reveal delay={0.16} className="hero-actions">
@@ -264,7 +266,6 @@ export default function Home() {
       <Hero />
       <AppTour />
       <CoreLoop />
-      <Scoring />
       <Feature
         id="practice"
         tone="alt"
@@ -287,23 +288,7 @@ export default function Home() {
         link={{ to: "/practice", label: "Explore practice" }}
       />
       <Feature
-        id="scan"
-        tone="dark"
-        eyebrow="Scan a Snooker · AR"
-        soon
-        title="Put the balls back, like the referees on TV."
-        body="Scan the table before you play the snooker. If the escape misses, a ghost of every ball appears on the real table, so everything goes back exactly where it was."
-        points={[
-          "Calibrates from any two spots or pockets",
-          "A table diagram to check and tweak the scan",
-          "The same camera sets a routine up, ball by ball",
-        ]}
-        visual={<ScanDemo />}
-        link={{ to: "/scan-snooker", label: "How it works" }}
-      />
-      <Feature
         id="coach"
-        flip
         eyebrow="Coach"
         title="Turn your game into feedback."
         body="Film a few shots, upload the clip, and get a report on your technique: what is working, the one thing to fix first, and the routines that train it."
@@ -321,6 +306,28 @@ export default function Home() {
         }
         link={{ to: "/coach", label: "See how the coach works" }}
       />
+      <Feature
+        id="find-a-coach"
+        tone="dark"
+        flip
+        eyebrow="Find a Coach"
+        title="Or learn from someone who's been there."
+        body="Search WPBSA coaches near you and book a session in a couple of taps. Coaching yourself? List your own hours and run your own diary - even a client with no account goes straight on the calendar."
+        points={[
+          "A coach's bio, gallery and qualifications, before you book",
+          "Session notes and routines kept per client",
+          "Walk-ins welcome: no account needed for a one-off booking",
+        ]}
+        visual={
+          <Phone
+            screen="coach-profile"
+            alt="A coach's profile, with bio, gallery and a Book a session button"
+            sizes="(max-width: 900px) 74vw, 300px"
+          />
+        }
+        link={{ to: "/find-a-coach", label: "Find a coach" }}
+      />
+      <Scoring />
       <Feature
         id="community"
         tone="alt"
@@ -350,6 +357,21 @@ export default function Home() {
           <Phone screen="stats" alt="The stats screen: this week, form and practice rhythm" sizes="(max-width: 900px) 74vw, 300px" />
         }
         link={{ to: "/scoring", label: "More on matches and stats" }}
+      />
+      <Feature
+        id="scan"
+        tone="dark"
+        eyebrow="Scan a Snooker · AR"
+        soon
+        title="Put the balls back, like the referees on TV."
+        body="Scan the table before you play the snooker. If the escape misses, a ghost of every ball appears on the real table, so everything goes back exactly where it was."
+        points={[
+          "Calibrates from any two spots or pockets",
+          "A table diagram to check and tweak the scan",
+          "The same camera sets a routine up, ball by ball",
+        ]}
+        visual={<ScanDemo />}
+        link={{ to: "/scan-snooker", label: "How it works" }}
       />
       <Gallery />
       <Secondary />

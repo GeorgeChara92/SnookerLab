@@ -68,10 +68,10 @@ export const ROUTES: RouteMeta[] = [
 export const metaFor = (path: string) => ROUTES.find((route) => route.path === path) ?? ROUTES[ROUTES.length - 1];
 
 export const NAV = [
-  { to: "/scoring", label: "Scoring" },
   { to: "/practice", label: "Practice" },
   { to: "/coach", label: "Coach" },
   { to: "/find-a-coach", label: "Find a Coach" },
+  { to: "/scoring", label: "Scoring" },
   { to: "/community", label: "Community" },
   { to: "/plans", label: "Plans" },
 ];

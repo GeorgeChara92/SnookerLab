@@ -34,6 +34,12 @@ const STOPS: Stop[] = [
     alt: "A coaching report: technique, what went well and what to work on",
   },
   {
+    screen: "coach-profile",
+    label: "Find a Coach",
+    caption: "Or book a real one, WPBSA qualified and near you.",
+    alt: "A coach's profile, with bio, gallery and a Book a session button",
+  },
+  {
     screen: "stats",
     label: "Stats",
     caption: "The numbers that actually matter.",
