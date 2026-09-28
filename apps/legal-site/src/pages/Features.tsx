@@ -120,7 +120,7 @@ export function Practice() {
     },
     {
       id: "coach",
-      kicker: "AI Coach",
+      kicker: "Snookered Coach",
       title: "A coach that watches you play.",
       body: "Film a few shots or a short break and upload it. The coach watches the clip, points to the moments that matter, tells you what to work on first, and picks the routines that train it. There is a whole page on how it works.",
       points: [

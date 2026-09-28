@@ -105,7 +105,7 @@ export function Footer() {
           <div>
             <h2>The app</h2>
             <Link to="/practice">Practice</Link>
-            <Link to="/coach">AI Coach</Link>
+            <Link to="/coach">Snookered Coach</Link>
             <Link to="/find-a-coach">Find a Coach</Link>
             <Link to="/scoring">Scoring</Link>
             <Link to="/community">Community</Link>

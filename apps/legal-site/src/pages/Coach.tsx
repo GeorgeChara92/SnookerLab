@@ -33,7 +33,7 @@ export default function Coach() {
   return (
     <>
       <PageHero
-        eyebrow="AI Coach"
+        eyebrow="Snookered Coach"
         title="A coach that watches you play."
         lead="Record a clip of your game and get AI-powered feedback on your technique, the moments that matter, and what to work on next."
         strip={

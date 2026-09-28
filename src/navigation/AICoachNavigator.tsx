@@ -18,7 +18,7 @@ export const AICoachNavigator = () => {
       <Stack.Screen
         name="AIDashboard"
         component={AIDashboardScreen}
-        options={{ title: "AI Coach", header: PlayerRootHeader }}
+        options={{ title: "Snookered Coach", header: PlayerRootHeader }}
       />
       <Stack.Screen name="VideoUpload" component={VideoUploadScreen} options={{ title: "Upload a clip" }} />
       <Stack.Screen name="AnalysisHistory" component={AnalysisHistoryScreen} options={{ title: "All reports" }} />

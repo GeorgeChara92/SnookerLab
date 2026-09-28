@@ -24,7 +24,7 @@ export const ROUTES: RouteMeta[] = [
   },
   {
     path: "/coach",
-    title: "AI Coach: snooker coaching from a clip of your game · Snookered",
+    title: "Snookered Coach: coaching from a clip of your own game",
     description:
       "Record a clip at the table and get coaching feedback on your technique: what went well, the one thing to fix first, and the routines that train it.",
   },
@@ -69,7 +69,7 @@ export const metaFor = (path: string) => ROUTES.find((route) => route.path === p
 
 export const NAV = [
   { to: "/practice", label: "Practice" },
-  { to: "/coach", label: "AI Coach" },
+  { to: "/coach", label: "Snookered Coach" },
   { to: "/find-a-coach", label: "Find a Coach" },
   { to: "/scoring", label: "Scoring" },
   { to: "/community", label: "Community" },
@@ -111,7 +111,7 @@ export const PLANS = [
     name: "Free",
     line: "Start your game.",
     who: "For players trying it out.",
-    items: ["12 matches a month", "1 tournament a month", "1 AI Coach review a month", "Practice routines and sessions"],
+    items: ["12 matches a month", "1 tournament a month", "1 Snookered Coach review a month", "Practice routines and sessions"],
   },
   {
     name: "Half-Century",
@@ -121,7 +121,7 @@ export const PLANS = [
     items: [
       "40 matches a month",
       "4 tournaments a month",
-      "8 AI Coach reviews a month",
+      "8 Snookered Coach reviews a month",
       "The full routine library and advanced tracking",
     ],
   },
@@ -132,7 +132,7 @@ export const PLANS = [
     items: [
       "Unlimited matches",
       "Unlimited tournaments",
-      "20 AI Coach reviews a month",
+      "20 Snookered Coach reviews a month",
       "The full analytics suite and early access to new features",
     ],
   },
@@ -141,7 +141,7 @@ export const PLANS = [
 export const COMPARE: [string, string, string, string][] = [
   ["Matches a month", "12", "40", "Unlimited"],
   ["Tournaments a month", "1", "4", "Unlimited"],
-  ["AI Coach reviews a month", "1", "8", "20"],
+  ["Snookered Coach reviews a month", "1", "8", "20"],
   ["Practice routines and sessions", "yes", "yes", "yes"],
   ["Playing friends and groups", "yes", "yes", "yes"],
   ["The full routine library", "no", "yes", "yes"],

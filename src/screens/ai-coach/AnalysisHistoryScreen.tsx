@@ -131,7 +131,7 @@ export const AnalysisHistoryScreen = () => {
       ) : (
         <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-            {sorted.length ? "Nothing matches those filters." : "No reports yet. Upload a clip from the AI Coach tab."}
+            {sorted.length ? "Nothing matches those filters." : "No reports yet. Upload a clip from the Snookered Coach tab."}
           </Text>
         </View>
       )}

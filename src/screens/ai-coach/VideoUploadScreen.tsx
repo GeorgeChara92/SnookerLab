@@ -537,7 +537,7 @@ export const VideoUploadScreen = () => {
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
         currentTier={subscription.tier}
-        featureLabel="AI Coach Monthly Limit"
+        featureLabel="Snookered Coach Monthly Limit"
       />
     </ScrollView>
   );

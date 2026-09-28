@@ -29,7 +29,7 @@ const STOPS: Stop[] = [
   },
   {
     screen: "ai-coach",
-    label: "AI Coach",
+    label: "Snookered Coach",
     caption: "Your game, turned into feedback you can act on.",
     alt: "A coaching report: technique, what went well and what to work on",
   },

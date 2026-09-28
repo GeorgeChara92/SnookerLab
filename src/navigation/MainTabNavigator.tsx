@@ -142,7 +142,7 @@ export const MainTabNavigator = () => {
         name="AICoach"
         component={AICoachNavigator}
         options={{
-          tabBarLabel: activeLabel("AI Coach"),
+          tabBarLabel: activeLabel("Snookered Coach"),
           tabBarIcon: tabIcon("robot-outline", "robot"),
         }}
       />

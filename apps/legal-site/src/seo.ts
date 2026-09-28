@@ -26,7 +26,7 @@ const app = {
     "@type": "Offer",
     price: "0",
     priceCurrency: "GBP",
-    description: "Free plan with 12 matches, 1 tournament and 1 AI Coach review a month.",
+    description: "Free plan with 12 matches, 1 tournament and 1 Snookered Coach review a month.",
   },
 };
 
@@ -126,7 +126,7 @@ export function structuredData(path: string) {
     const names: Record<string, string> = {
       "/scoring": "Scoring",
       "/practice": "Practice",
-      "/coach": "AI Coach",
+      "/coach": "Snookered Coach",
       "/find-a-coach": "Find a Coach",
       "/scan-snooker": "Scan a Snooker",
       "/community": "Community",
