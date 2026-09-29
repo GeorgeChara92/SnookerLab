@@ -126,6 +126,7 @@ export const PLANS = [
       "4 tournaments a month",
       "8 Snookered Coach reviews a month",
       "The full routine library and advanced tracking",
+      "A subscriber badge in chat and community",
     ],
   },
   {
@@ -136,7 +137,9 @@ export const PLANS = [
       "Unlimited matches",
       "Unlimited tournaments",
       "20 Snookered Coach reviews a month",
-      "The full analytics suite and early access to new features",
+      "The full analytics suite",
+      "A subscriber badge, plus an exclusive app icon",
+      "Early access to new features before they're released",
     ],
   },
 ];
@@ -150,5 +153,7 @@ export const COMPARE: [string, string, string, string][] = [
   ["The full routine library", "no", "yes", "yes"],
   ["Advanced tracking", "no", "yes", "yes"],
   ["Full analytics suite", "no", "no", "yes"],
+  ["Subscriber badge in chat and community", "no", "yes", "yes"],
+  ["Exclusive app icon", "no", "no", "yes"],
   ["Early access to new features", "no", "no", "yes"],
 ];

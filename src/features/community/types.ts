@@ -1,3 +1,5 @@
+import type { SubscriptionTier } from "../../types";
+
 /** A player as other players see them. */
 export type PublicProfile = {
   id: string;
@@ -37,6 +39,9 @@ export type PublicProfile = {
   /** A coach's own account of their coaching background, from their application - shown to players
    * alongside their bio and qualifications. */
   coachExperience: string | null;
+  /** Synced from billing, read-only from the client - a public copy for the subscriber badge other
+   * players see. See 20261019_0001_public_subscription_badge.sql. */
+  subscriptionTier: SubscriptionTier;
 };
 
 export type Privacy = "everyone" | "friends" | "nobody";
@@ -104,10 +109,11 @@ export const profileFromRow = (row: any): PublicProfile => ({
   coachLat: row.coach_lat ?? null,
   coachLng: row.coach_lng ?? null,
   coachExperience: row.coach_experience ?? null,
+  subscriptionTier: (row.subscription_tier as SubscriptionTier) ?? "free",
 });
 
 export const PROFILE_COLUMNS =
-  "id, handle, display_name, avatar_preset, avatar_url, country_code, skill_level, bio, level, xp, discoverable, message_privacy, stats_privacy, cue_preference, leaderboards, best_break, centuries, matches_won, joined_at, is_coach, coach_qualifications, wpbsa_accredited, coach_location, coach_lat, coach_lng, coach_experience";
+  "id, handle, display_name, avatar_preset, avatar_url, country_code, skill_level, bio, level, xp, discoverable, message_privacy, stats_privacy, cue_preference, leaderboards, best_break, centuries, matches_won, joined_at, is_coach, coach_qualifications, wpbsa_accredited, coach_location, coach_lat, coach_lng, coach_experience, subscription_tier";
 
 export const friendshipFromRow = (row: any): Friendship => ({
   id: row.id,

@@ -159,6 +159,13 @@ const applyTier = async (admin, userId, tier, anchor) => {
 
   const { error: updateError } = await admin.auth.admin.updateUserById(userId, { app_metadata: appMetadata });
   if (updateError) throw updateError;
+
+  // A synced, public-readable copy for the subscriber badge other players see (Community, chat,
+  // leaderboards) - the row this writes to is frozen against every other write (see
+  // 20261019_0001_public_subscription_badge.sql). Best-effort: a badge lagging behind is a cosmetic
+  // problem, not a reason to fail the whole sync.
+  const { error: profileError } = await admin.from("profiles").update({ subscription_tier: tier }).eq("id", userId);
+  if (profileError) console.warn("subscription badge sync failed", { message: profileError.message });
 };
 
 Deno.serve(async (request) => {

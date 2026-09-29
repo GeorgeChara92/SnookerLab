@@ -10,6 +10,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { PlayerAvatar } from "../../components/profile/PlayerAvatar";
+import { SubscriberBadge } from "../../components/community/SubscriberBadge";
 import { BoardPanel } from "../../components/scoreboard/Scoreboard";
 import { ACHIEVEMENTS } from "../../constants/achievements";
 import { getSkillLabel, getCuePreferenceLabel, getCountryByCode } from "../../constants/profileOptions";
@@ -152,6 +153,7 @@ export const ProfileScreen = () => {
             <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.board }]}>
               <MaterialCommunityIcons name="pencil" size={12} color={colors.onPrimary} />
             </View>
+            <SubscriberBadge tier={subscription.tier} size={80} corner="bottom-left" borderColour={colors.board} />
           </Pressable>
 
           <View style={styles.identityText}>

@@ -159,7 +159,7 @@ export default function FindACoach() {
               },
               {
                 q: "Is there a fee to become a coach?",
-                a: <p>Applying is free. Once approved, a coach pays a small monthly or annual subscription to list themselves and take bookings - the annual rate works out cheaper than paying month to month.</p>,
+                a: <p>Applying is free. Once approved, listing yourself is £4.99 a month, or £39.99 a year - to take bookings through Snookered.</p>,
               },
               {
                 q: "Can a coach book someone who does not use Snookered?",

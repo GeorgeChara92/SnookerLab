@@ -184,6 +184,11 @@ Deno.serve(async (request) => {
     const { error: updateError } = await admin.auth.admin.updateUserById(appUserId, { app_metadata: appMetadata });
     if (updateError) return json({ error: "update_failed" }, 500);
 
+    // Synced, public-readable copy for the subscriber badge (see 20261019_0001) - best-effort,
+    // same reasoning as sync-subscription.
+    const { error: profileError } = await admin.from("profiles").update({ subscription_tier: tier }).eq("id", appUserId);
+    if (profileError) console.warn("subscription badge sync failed", { message: profileError.message });
+
     console.log("revenuecat-webhook applied", { type: event?.type, tokens, tier });
     return json({ ok: true, tier });
   } catch (error) {

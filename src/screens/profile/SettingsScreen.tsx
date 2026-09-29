@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { getAppIconName, setAlternateAppIcon, supportsAlternateIcons } from "expo-alternate-app-icons";
 import { useNavigation, useNavigationState, type NavigationProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -139,6 +140,18 @@ export const SettingsScreen = () => {
   };
   const subscription = useSubscriptionAccess();
   const { user, resetPassword, resendEmailVerification, deleteAccount, resetProfile, isLoading } = useAuthStore();
+
+  // Reflects the actual OS-level icon rather than assuming - a reinstall or a restored backup can
+  // leave this out of step with what the picker last set.
+  const [appIcon, setAppIcon] = useState<string | null>(null);
+  useEffect(() => {
+    if (supportsAlternateIcons) setAppIcon(getAppIconName());
+  }, []);
+  const togglePremiumIcon = async () => {
+    const next = appIcon === "Premium" ? null : "Premium";
+    await setAlternateAppIcon(next);
+    setAppIcon(next);
+  };
 
   const [showResetModal, setShowResetModal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -433,6 +446,19 @@ export const SettingsScreen = () => {
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
           <SettingsRow icon="lock" label="Reset Password" onPress={handlePasswordReset} colors={colors} />
         </SettingsSection>
+
+        {subscription.tier !== "free" && supportsAlternateIcons ? (
+          <SettingsSection title="APP ICON" colors={colors}>
+            <SettingsRow
+              icon="star-four-points-outline"
+              label="Premium icon"
+              value={appIcon === "Premium" ? "On" : "Off"}
+              onPress={() => void togglePremiumIcon()}
+              chevron={false}
+              colors={colors}
+            />
+          </SettingsSection>
+        ) : null}
 
         {/* Sync Section */}
         <SettingsSection title="SYNC" colors={colors}>

@@ -60,6 +60,19 @@
         {
           "icon": "./assets/icon.png"
         }
+      ],
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "Premium",
+            "ios": "./assets/icon-premium.png",
+            "android": {
+              "foregroundImage": "./assets/adaptive-icon.png",
+              "backgroundColor": "#ffffff"
+            }
+          }
+        ]
       ]
     ],
     "extra": {

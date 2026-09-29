@@ -88,8 +88,8 @@ export function Plans() {
             <h2 className="display-l">A different plan for coaching.</h2>
             <p className="lead">
               Applying to coach is free - every application is reviewed by hand before you can list yourself or take a
-              booking. Once approved, listing yourself costs a small subscription, monthly or a discounted annual rate,
-              separate from the plans above.
+              booking. Once approved, listing yourself is £4.99 a month, or £39.99 a year - separate from the plans above,
+              and worth it the moment it brings you one new client.
             </p>
             <Link className="btn btn-primary" to="/find-a-coach">
               Apply to coach <Arrow />

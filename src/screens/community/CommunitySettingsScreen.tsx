@@ -160,6 +160,7 @@ export const CommunitySettingsScreen = () => {
               displayName: user?.username ?? null,
               handle,
               level: me?.level ?? 1,
+              subscriptionTier: me?.subscriptionTier ?? "free",
             }}
             size={64}
           />
