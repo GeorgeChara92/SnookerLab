@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Linking, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
@@ -28,6 +28,7 @@ export const AdminCoachApplicationsScreen = () => {
   const [applications, setApplications] = useState<CoachApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [reasons, setReasons] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,14 +63,17 @@ export const AdminCoachApplicationsScreen = () => {
       });
       return;
     }
+    const reason = reasons[application.id]?.trim();
     dialog.confirm({
       title: `Turn down ${application.fullName}?`,
-      message: "They can apply again later.",
+      message: reason
+        ? `They will see: "${reason}". They can apply again later.`
+        : "They will see a generic message, with no reason given. They can apply again later.",
       tone: "danger",
       icon: "close-circle-outline",
       confirmLabel: "Turn down",
       cancelLabel: "Cancel",
-      onConfirm: () => void goAhead(),
+      onConfirm: () => void goAhead(reason || undefined),
     });
   };
 
@@ -119,6 +123,19 @@ export const AdminCoachApplicationsScreen = () => {
           ) : null}
           {item.bio ? <Field label="Bio" value={item.bio} /> : null}
 
+          <View style={styles.field}>
+            <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>If turning down: reason (shown to them)</Text>
+            <TextInput
+              value={reasons[item.id] ?? ""}
+              onChangeText={(text) => setReasons((prev) => ({ ...prev, [item.id]: text }))}
+              placeholder="Optional, but helps them apply again properly"
+              placeholderTextColor={colors.textMuted}
+              multiline
+              textAlignVertical="top"
+              style={[styles.reasonInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+            />
+          </View>
+
           {busy === item.id ? (
             <ActivityIndicator color={colors.primary} />
           ) : (
@@ -157,6 +174,7 @@ const styles = StyleSheet.create({
   field: { gap: 2 },
   fieldLabel: { fontFamily: FONTS.boardLabel, fontSize: 11, letterSpacing: 1, textTransform: "uppercase" },
   fieldValue: { fontSize: 14, lineHeight: 20 },
+  reasonInput: { minHeight: 60, borderWidth: 1, borderRadius: RADIUS.md, padding: SPACING.sm, fontSize: 14, lineHeight: 19 },
   link: { fontSize: 14, fontWeight: "700", textDecorationLine: "underline" },
   actions: { flexDirection: "row", gap: SPACING.sm, marginTop: SPACING.xs },
   action: {

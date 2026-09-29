@@ -34,6 +34,10 @@ type FeedbackRow = { id: string; user_id: string | null; message: string; create
 type Status = "checking" | "signed-out" | "not-admin" | "admin";
 type Tab = "applications" | "reports" | "feedback";
 
+type ConfirmRequest = { title: string; message: string; confirmLabel: string; tone?: "danger"; onConfirm: () => void };
+type AlertRequest = { title: string; message: string };
+export type DialogApi = { confirm: (request: ConfirmRequest) => void; alert: (request: AlertRequest) => void };
+
 const box: React.CSSProperties = { border: "1px solid var(--line)", borderRadius: 16, background: "var(--card)", padding: 24 };
 const field: React.CSSProperties = {
   width: "100%",
@@ -76,6 +80,9 @@ export default function AdminDashboard() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [tab, setTab] = useState<Tab>("applications");
+  const [confirmReq, setConfirmReq] = useState<ConfirmRequest | null>(null);
+  const [alertReq, setAlertReq] = useState<AlertRequest | null>(null);
+  const dialog: DialogApi = { confirm: setConfirmReq, alert: setAlertReq };
 
   useEffect(() => {
     document.title = "Admin dashboard";
@@ -200,15 +207,75 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {tab === "applications" ? <ApplicationsPanel /> : tab === "reports" ? <ReportsPanel /> : <FeedbackPanel />}
+      {tab === "applications" ? (
+        <ApplicationsPanel dialog={dialog} />
+      ) : tab === "reports" ? (
+        <ReportsPanel dialog={dialog} />
+      ) : (
+        <FeedbackPanel />
+      )}
+
+      {confirmReq ? (
+        <DialogOverlay>
+          <h2 style={{ marginTop: 0 }}>{confirmReq.title}</h2>
+          <p style={{ color: "var(--ink-2)" }}>{confirmReq.message}</p>
+          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+            <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setConfirmReq(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ flex: 1, ...(confirmReq.tone === "danger" ? { backgroundColor: "var(--red)", borderColor: "var(--red)" } : {}) }}
+              onClick={() => {
+                confirmReq.onConfirm();
+                setConfirmReq(null);
+              }}
+            >
+              {confirmReq.confirmLabel}
+            </button>
+          </div>
+        </DialogOverlay>
+      ) : null}
+
+      {alertReq ? (
+        <DialogOverlay>
+          <h2 style={{ marginTop: 0 }}>{alertReq.title}</h2>
+          <p style={{ color: "var(--ink-2)" }}>{alertReq.message}</p>
+          <button type="button" className="btn btn-primary" style={{ width: "100%", marginTop: 20 }} onClick={() => setAlertReq(null)}>
+            OK
+          </button>
+        </DialogOverlay>
+      ) : null}
     </div>
   );
 }
 
-function ApplicationsPanel() {
+/** The site's own look for a confirm/alert, instead of the browser's native dialog. */
+function DialogOverlay({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(12, 23, 19, 0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        zIndex: 100,
+      }}
+    >
+      <div style={{ ...box, maxWidth: 420, width: "100%" }}>{children}</div>
+    </div>
+  );
+}
+
+function ApplicationsPanel({ dialog }: { dialog: DialogApi }) {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [reasons, setReasons] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
@@ -225,19 +292,40 @@ function ApplicationsPanel() {
     void load();
   }, []);
 
-  const decide = async (application: Application, action: "approve" | "reject") => {
-    if (action === "reject" && !window.confirm(`Turn down ${application.full_name}? They can apply again later.`)) return;
-    if (action === "approve" && !window.confirm(`Approve ${application.full_name}? This creates or updates their account right away.`)) return;
-    setBusyId(application.id);
-    const { data, error } = await supabase.functions.invoke("approve-coach-application", {
-      body: { applicationId: application.id, action },
-    });
-    setBusyId(null);
-    if (error || data?.error) {
-      window.alert(data?.message ?? data?.error ?? "That did not work. Try again.");
+  const decide = (application: Application, action: "approve" | "reject") => {
+    const reason = reasons[application.id]?.trim();
+
+    const proceed = async () => {
+      setBusyId(application.id);
+      const { data, error } = await supabase.functions.invoke("approve-coach-application", {
+        body: { applicationId: application.id, action, reviewerNote: action === "reject" ? reason || undefined : undefined },
+      });
+      setBusyId(null);
+      if (error || data?.error) {
+        dialog.alert({ title: "That did not work", message: data?.message ?? data?.error ?? "Try again." });
+        return;
+      }
+      setApplications((prev) => prev.filter((item) => item.id !== application.id));
+    };
+
+    if (action === "approve") {
+      dialog.confirm({
+        title: `Approve ${application.full_name}?`,
+        message: "This creates or updates their account and grants coach status right away.",
+        confirmLabel: "Approve",
+        onConfirm: () => void proceed(),
+      });
       return;
     }
-    setApplications((prev) => prev.filter((item) => item.id !== application.id));
+    dialog.confirm({
+      title: `Turn down ${application.full_name}?`,
+      message: reason
+        ? `They will see: "${reason}". They can apply again later.`
+        : "They will see a generic message - no reason was given. They can apply again later.",
+      confirmLabel: "Turn down",
+      tone: "danger",
+      onConfirm: () => void proceed(),
+    });
   };
 
   return (
@@ -282,6 +370,16 @@ function ApplicationsPanel() {
                 <strong>Bio:</strong> {application.bio}
               </p>
             ) : null}
+            <label style={{ display: "block", marginTop: 10 }}>
+              <span style={{ fontSize: 13, color: "var(--ink-3)" }}>If turning down: reason (shown to them)</span>
+              <textarea
+                value={reasons[application.id] ?? ""}
+                onChange={(event) => setReasons((prev) => ({ ...prev, [application.id]: event.target.value }))}
+                placeholder="Optional, but helps them apply again properly"
+                rows={2}
+                style={{ ...field, minHeight: 60, resize: "vertical", fontFamily: "var(--body)" }}
+              />
+            </label>
             <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
               <button
                 type="button"
@@ -309,7 +407,7 @@ function ApplicationsPanel() {
   );
 }
 
-function ReportsPanel() {
+function ReportsPanel({ dialog }: { dialog: DialogApi }) {
   const [cases, setCases] = useState<ReportCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -373,7 +471,7 @@ function ReportsPanel() {
       const { error } = await supabase.from(table).update({ hidden_at: hide ? new Date().toISOString() : null }).eq("id", item.targetId);
       if (error) {
         setBusyKey(null);
-        window.alert(`Could not change the ${item.targetType}: ${error.message}`);
+        dialog.alert({ title: `Could not change the ${item.targetType}`, message: error.message });
         return;
       }
     }
@@ -386,7 +484,7 @@ function ReportsPanel() {
       );
     setBusyKey(null);
     if (error) {
-      window.alert(`Could not update the reports: ${error.message}`);
+      dialog.alert({ title: "Could not update the reports", message: error.message });
       return;
     }
     setCases((prev) => prev.filter((entry) => entry.key !== item.key));

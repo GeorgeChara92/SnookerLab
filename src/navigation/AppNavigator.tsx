@@ -281,7 +281,10 @@ export const AppNavigator = () => {
       const { error } = await supabase.auth.setSession({ access_token, refresh_token });
       if (error) return;
 
-      setRequiresPasswordReset(type === "recovery");
+      // "invite" is how an admin-invited coach's link arrives (see approve-coach-application) -
+      // they have no password yet, so this has to be treated the same as a recovery link or they
+      // would be silently signed in with no way to ever sign back in on another device.
+      setRequiresPasswordReset(type === "recovery" || type === "invite");
     };
 
     void Linking.getInitialURL().then((url) => {

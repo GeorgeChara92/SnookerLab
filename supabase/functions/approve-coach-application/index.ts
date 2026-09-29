@@ -98,8 +98,14 @@ Deno.serve(async (request) => {
       if (existing) {
         userId = existing.id;
       } else {
+        // account_type: "coach" matters beyond labelling - AppNavigator treats an account with no
+        // account_type at all as a dual player/coach account (a rule meant for accounts that
+        // predate the registration wizard) and sends it through the "choose your view" prompt,
+        // which also blocks the welcome tour from ever mounting until it's dismissed. An invited
+        // coach never goes through that wizard, so without this they'd hit an unexpected prompt
+        // and skip straight past the tour a brand new player would normally see.
         const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-          data: { full_name: application.full_name },
+          data: { full_name: application.full_name, account_type: "coach" },
         });
         if (inviteError) throw inviteError;
         userId = invited.user.id;

@@ -48,8 +48,8 @@ export const UpdatePasswordScreen = ({ navigation }: Props) => {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}> 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.container}>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-          <Text style={[styles.title, { color: colors.text }]}>Set new password</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Create a new password to complete your account recovery.</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Set your password</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Choose a password for your account to continue.</Text>
 
           {errorMessage ? <Text style={[styles.errorText, { color: colors.danger }]}>{errorMessage}</Text> : null}
 

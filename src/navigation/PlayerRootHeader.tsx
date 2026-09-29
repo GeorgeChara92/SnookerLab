@@ -7,23 +7,29 @@ import { useAppTheme } from "../hooks/useAppTheme";
 import { useUiModeStore } from "../store/uiModeStore";
 import { useCommunityStore } from "../store/communityStore";
 import { useCoachStore } from "../store/coachStore";
+import { useMyCoachApplicationStore } from "../store/myCoachApplicationStore";
 import { HeaderProfileButton } from "../components/profile/HeaderProfileButton";
 
 /**
  * The header for a player tab's root screen: a title, and - for a coach - the exact same
  * always-visible "Coach view" pill coach mode uses for its own "Player view" switch (see
- * MaterialTopHeader), rather than a bare icon tucked in a corner. Only used on each tab's own
- * landing screen; a pushed screen (RoutineDetail, MatchDetail, ...) keeps the normal back-arrow
- * header from useAppStackScreenOptions.
+ * MaterialTopHeader), rather than a bare icon tucked in a corner. For a non-coach with a coach
+ * application on file, the same spot shows its status instead, so it is visible wherever they are
+ * in the app, not just buried in Profile. Only used on each tab's own landing screen; a pushed
+ * screen (RoutineDetail, MatchDetail, ...) keeps the normal back-arrow header from
+ * useAppStackScreenOptions.
  */
-export const PlayerRootHeader = ({ options }: NativeStackHeaderProps) => {
+export const PlayerRootHeader = ({ options, navigation }: NativeStackHeaderProps) => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const isCoach = useCommunityStore((state) => state.me?.isCoach ?? false);
   const pendingRequests = useCoachStore(
     (state) => state.bookingsAsCoach.filter((booking) => booking.status === "pending").length
   );
+  const applicationStatus = useMyCoachApplicationStore((state) => state.application?.status ?? null);
   const setViewMode = useUiModeStore((state) => state.setViewMode);
+
+  const openApplication = () => navigation.getParent()?.navigate("ProfileModal", { screen: "ApplyToCoach" } as never);
 
   return (
     <View
@@ -44,6 +50,22 @@ export const PlayerRootHeader = ({ options }: NativeStackHeaderProps) => {
             <MaterialCommunityIcons name="swap-horizontal" size={14} color={colors.primary} />
             <Text style={[styles.switchText, { color: colors.primary }]}>Coach view</Text>
             {pendingRequests > 0 ? <View style={[styles.dot, { backgroundColor: colors.danger }]} /> : null}
+          </Pressable>
+        ) : applicationStatus === "pending" || applicationStatus === "rejected" ? (
+          <Pressable
+            onPress={openApplication}
+            accessibilityRole="button"
+            accessibilityLabel={applicationStatus === "pending" ? "Coach application pending review" : "Coach application not approved"}
+            style={({ pressed }) => [styles.switchPill, { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <MaterialCommunityIcons
+              name={applicationStatus === "pending" ? "clock-outline" : "close-circle-outline"}
+              size={14}
+              color={applicationStatus === "pending" ? colors.primary : colors.danger}
+            />
+            <Text style={[styles.switchText, { color: applicationStatus === "pending" ? colors.primary : colors.danger }]}>
+              {applicationStatus === "pending" ? "Coach application pending" : "Coach application not approved"}
+            </Text>
           </Pressable>
         ) : null}
       </View>

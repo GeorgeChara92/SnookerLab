@@ -14,8 +14,7 @@ import { BoardPanel } from "../../components/scoreboard/Scoreboard";
 import { ACHIEVEMENTS } from "../../constants/achievements";
 import { getSkillLabel, getCuePreferenceLabel, getCountryByCode } from "../../constants/profileOptions";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
-import { fetchMyCoachApplication } from "../../features/coach/applications";
-import type { CoachApplicationStatus } from "../../features/coach/types";
+import { useMyCoachApplicationStore } from "../../store/myCoachApplicationStore";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookeredapp.com";
@@ -33,19 +32,14 @@ export const ProfileScreen = () => {
   const dialog = useDialog();
   const subscription = useSubscriptionAccess();
   const { stats, unlocked, level, nextGoal } = usePlayerProgress();
-  const [applicationStatus, setApplicationStatus] = useState<CoachApplicationStatus | null>(null);
+  const applicationStatus = useMyCoachApplicationStore((state) => state.application?.status ?? null);
+  const refreshApplication = useMyCoachApplicationStore((state) => state.refresh);
 
   useFocusEffect(
     useCallback(() => {
       if (isCoach || !user?.id || !user.email) return;
-      let cancelled = false;
-      void fetchMyCoachApplication(user.id, user.email).then((application) => {
-        if (!cancelled) setApplicationStatus(application?.status ?? null);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }, [isCoach, user?.id, user?.email])
+      void refreshApplication(user.id, user.email);
+    }, [isCoach, user?.id, user?.email, refreshApplication])
   );
 
   const country = user?.country_code ? getCountryByCode(user.country_code) : null;
