@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { Check, Mail, Minus } from "lucide-react";
 import { Arrow, Cta, Faq, PageHero, Reveal, Strip } from "../components/Blocks";
-import { COMPARE, PLANS, SUPPORT_EMAIL } from "../site";
+import { COACH_PLAN, COMPARE, PLANS, SUPPORT_EMAIL } from "../site";
 import privacyHtml from "../content/privacy.html?raw";
 import termsHtml from "../content/terms.html?raw";
 
@@ -13,7 +14,56 @@ function Cell({ value }: { value: string }) {
   return <span className="num">{value}</span>;
 }
 
+type Billing = "monthly" | "annual";
+const gbp = (value: number) => `£${value.toFixed(2)}`;
+/** How much cheaper the annual price works out per year, vs paying monthly for 12 months. */
+const annualSaving = (monthly: number, annual: number) => Math.round((1 - annual / (monthly * 12)) * 100);
+
+function PlanCard({
+  plan,
+  billing,
+  delay,
+  cta,
+}: {
+  plan: { name: string; tag?: string; who: string; monthly: number | null; annual: number | null; items: string[] };
+  billing: Billing;
+  delay: number;
+  cta?: { to: string; label: string };
+}) {
+  const isFree = plan.monthly == null;
+  const price = isFree ? null : billing === "monthly" ? plan.monthly! : plan.annual!;
+  const saving = !isFree && billing === "annual" ? annualSaving(plan.monthly!, plan.annual!) : null;
+
+  return (
+    <Reveal delay={delay} className={`plan ${plan.tag ? "featured" : ""}`}>
+      {plan.tag && <p className="plan-tag">{plan.tag}</p>}
+      <h2>{plan.name}</h2>
+      <div className="plan-price">
+        <span className="plan-price-amount">{isFree ? "Free" : gbp(price!)}</span>
+        {!isFree && <span className="plan-price-period">/ {billing === "monthly" ? "month" : "year"}</span>}
+      </div>
+      {saving ? <p className="plan-saving">Save {saving}% vs paying monthly</p> : <p className="plan-saving placeholder" aria-hidden="true" />}
+      <p className="plan-who">{plan.who}</p>
+      <ul>
+        {plan.items.map((item) => (
+          <li key={item}>
+            <Check aria-hidden="true" strokeWidth={2.25} />
+            {item}
+          </li>
+        ))}
+      </ul>
+      {cta ? (
+        <Link className="btn btn-primary plan-cta" to={cta.to}>
+          {cta.label} <Arrow />
+        </Link>
+      ) : null}
+    </Reveal>
+  );
+}
+
 export function Plans() {
+  const [billing, setBilling] = useState<Billing>("monthly");
+
   return (
     <>
       <PageHero
@@ -23,25 +73,32 @@ export function Plans() {
       />
       <section className="section tight plans-section">
         <div className="wrap">
+          <div className="billing-toggle" role="tablist" aria-label="Billed monthly or annually">
+            <button type="button" role="tab" aria-selected={billing === "monthly"} className={billing === "monthly" ? "on" : ""} onClick={() => setBilling("monthly")}>
+              Monthly
+            </button>
+            <button type="button" role="tab" aria-selected={billing === "annual"} className={billing === "annual" ? "on" : ""} onClick={() => setBilling("annual")}>
+              Annual <span className="billing-save">Save ~35%</span>
+            </button>
+          </div>
+
           <div className="plans">
             {PLANS.map((plan, index) => (
-              <Reveal key={plan.name} delay={index * 0.07} className={`plan ${plan.tag ? "featured" : ""}`}>
-                {plan.tag && <p className="plan-tag">{plan.tag}</p>}
-                <h2>{plan.name}</h2>
-                <p className="plan-line">{plan.line}</p>
-                <p className="plan-who">{plan.who}</p>
-                <ul>
-                  {plan.items.map((item) => (
-                    <li key={item}>
-                      <Check aria-hidden="true" strokeWidth={2.25} />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
+              <PlanCard key={plan.name} plan={plan} billing={billing} delay={index * 0.07} />
             ))}
           </div>
-          <p className="note">Prices are shown in the App Store in your currency. Subscriptions are billed through your Apple account.</p>
+
+          <div className="coach-plan-row">
+            <p className="eyebrow">For coaches</p>
+            <div className="plans plans-single">
+              <PlanCard plan={COACH_PLAN} billing={billing} delay={0.21} cta={{ to: "/find-a-coach", label: "Apply to coach" }} />
+            </div>
+          </div>
+
+          <p className="note">
+            Shown in GBP. Player plans are billed through your Apple account in your own currency, so the amount charged may
+            vary slightly - the coach subscription is billed separately, once your application is approved.
+          </p>
         </div>
       </section>
 
@@ -81,23 +138,6 @@ export function Plans() {
         </div>
       </section>
 
-      <section className="section alt">
-        <div className="wrap feature-grid">
-          <Reveal className="feature-copy">
-            <p className="eyebrow">For coaches</p>
-            <h2 className="display-l">A different plan for coaching.</h2>
-            <p className="lead">
-              Applying to coach is free - every application is reviewed by hand before you can list yourself or take a
-              booking. Once approved, listing yourself is £4.99 a month, or £39.99 a year - separate from the plans above,
-              and worth it the moment it brings you one new client.
-            </p>
-            <Link className="btn btn-primary" to="/find-a-coach">
-              Apply to coach <Arrow />
-            </Link>
-          </Reveal>
-        </div>
-      </section>
-
       <section className="section">
         <div className="wrap narrow-grid">
           <Reveal className="section-head">
@@ -123,8 +163,8 @@ export function Plans() {
                 q: "Is there a plan for coaches?",
                 a: (
                   <p>
-                    Yes - separate from these. See <Link to="/find-a-coach">Find a Coach</Link> for how to apply and what it
-                    costs once you're approved.
+                    Yes, shown above - separate from the player plans. See <Link to="/find-a-coach">Find a Coach</Link> for how
+                    to apply.
                   </p>
                 ),
               },

@@ -109,11 +109,22 @@ export type Screen =
   | "coach-dashboard"
   | "session-notes";
 
-export const PLANS = [
+/** monthly/annual are null for Free - there is nothing to charge, so no price to show. */
+export const PLANS: Array<{
+  name: string;
+  line: string;
+  who: string;
+  tag?: string;
+  monthly: number | null;
+  annual: number | null;
+  items: string[];
+}> = [
   {
     name: "Free",
     line: "Start your game.",
     who: "For players trying it out.",
+    monthly: null,
+    annual: null,
     items: ["12 matches a month", "1 tournament a month", "1 Snookered Coach review a month", "Practice routines and sessions"],
   },
   {
@@ -121,6 +132,8 @@ export const PLANS = [
     line: "For regular players.",
     who: "For players at the table every week.",
     tag: "Most popular with weekly players",
+    monthly: 3.99,
+    annual: 29.99,
     items: [
       "40 matches a month",
       "4 tournaments a month",
@@ -133,6 +146,8 @@ export const PLANS = [
     name: "Century",
     line: "The full Snookered experience.",
     who: "For players chasing centuries and running club nights.",
+    monthly: 7.99,
+    annual: 59.99,
     items: [
       "Unlimited matches",
       "Unlimited tournaments",
@@ -143,6 +158,22 @@ export const PLANS = [
     ],
   },
 ];
+
+/** Kept apart from PLANS: a coach's subscription isn't a step up from Century, it's a different
+ * thing entirely, and COMPARE (player-only metrics like matches/month) does not apply to it. */
+export const COACH_PLAN = {
+  name: "Coach",
+  line: "Run your own coaching diary.",
+  who: "For an approved coach ready to take bookings.",
+  monthly: 4.99,
+  annual: 39.99,
+  items: [
+    "Your own booking calendar and diary",
+    "A client list, including walk-ins with no account",
+    "Broadcast groups for drills, videos and PDFs",
+    "Private session notes and routine scores",
+  ],
+};
 
 export const COMPARE: [string, string, string, string][] = [
   ["Matches a month", "12", "40", "Unlimited"],
