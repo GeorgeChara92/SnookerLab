@@ -344,6 +344,21 @@ export const CommunitySettingsScreen = () => {
             <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
           </Pressable>
         ) : null}
+
+        {!setup && isAdmin ? (
+          <Pressable
+            onPress={() => navigation.navigate("AdminCoachApplications")}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.admin,
+              { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : colors.surface },
+            ]}
+          >
+            <MaterialCommunityIcons name="whistle-outline" size={22} color={colors.text} />
+            <Text style={[styles.flex, styles.rowTitle, { color: colors.text }]}>Coach applications</Text>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

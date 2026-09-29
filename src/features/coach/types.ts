@@ -56,6 +56,47 @@ export const bookingFromRow = (row: any): CoachBooking => ({
 export const BOOKING_COLUMNS =
   "id, coach_id, player_id, guest_name, availability_id, starts_at, ends_at, status, note, reschedule_reason, awaiting_response_from, created_at";
 
+export type CoachApplicationStatus = "pending" | "approved" | "rejected";
+
+/** A request to become a coach, reviewed by hand before is_coach is ever granted - see
+ * 20261016_0001_coach_applications.sql. */
+export type CoachApplication = {
+  id: string;
+  status: CoachApplicationStatus;
+  fullName: string;
+  email: string;
+  bio: string | null;
+  location: string | null;
+  experience: string;
+  qualifications: string[];
+  wpbsaAccredited: boolean;
+  wpbsaNumber: string | null;
+  socialLinks: string | null;
+  reviewerNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+};
+
+export const coachApplicationFromRow = (row: any): CoachApplication => ({
+  id: row.id,
+  status: row.status,
+  fullName: row.full_name,
+  email: row.email,
+  bio: row.bio ?? null,
+  location: row.location ?? null,
+  experience: row.experience,
+  qualifications: row.qualifications ?? [],
+  wpbsaAccredited: row.wpbsa_accredited ?? false,
+  wpbsaNumber: row.wpbsa_number ?? null,
+  socialLinks: row.social_links ?? null,
+  reviewerNote: row.reviewer_note ?? null,
+  createdAt: row.created_at,
+  reviewedAt: row.reviewed_at ?? null,
+});
+
+export const COACH_APPLICATION_COLUMNS =
+  "id, status, full_name, email, bio, location, experience, qualifications, wpbsa_accredited, wpbsa_number, social_links, reviewer_note, created_at, reviewed_at";
+
 /** Great-circle distance between two points, in kilometres. */
 export const distanceKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }): number => {
   const earthRadiusKm = 6371;

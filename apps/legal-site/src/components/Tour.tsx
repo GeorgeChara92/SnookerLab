@@ -7,17 +7,11 @@ import { SUPPORT_EMAIL, type Screen } from "../site";
 
 type Stop = { screen: Screen; label: string; caption: string; alt: string };
 
-/** The five screens that explain the app, in the order a player meets them. */
+/** The four pillars of the core player experience, in the order they build on each other. */
 const STOPS: Stop[] = [
   {
-    screen: "dashboard",
-    label: "Dashboard",
-    caption: "Know where your game stands, and what to do tonight.",
-    alt: "The Snookered dashboard: the next session, a day streak, this week's practice and your last match",
-  },
-  {
     screen: "live-scoring",
-    label: "Live scoring",
+    label: "Score",
     caption: "Fast scoring built for the table.",
     alt: "Live scoring mid-frame: the break, points on the table and the ball on",
   },
@@ -28,22 +22,16 @@ const STOPS: Stop[] = [
     alt: "A routine with its progress chart, personal best and leaderboard",
   },
   {
-    screen: "ai-coach",
-    label: "Snookered Coach",
-    caption: "Your game, turned into feedback you can act on.",
-    alt: "A coaching report: technique, what went well and what to work on",
-  },
-  {
-    screen: "coach-profile",
-    label: "Find a Coach",
-    caption: "Or book a real coach near you - or list yourself as one.",
-    alt: "A coach's profile, with bio, gallery and a Book a session button",
-  },
-  {
     screen: "stats",
     label: "Stats",
     caption: "The numbers that actually matter.",
     alt: "The stats screen: this week, form and practice rhythm",
+  },
+  {
+    screen: "ai-coach",
+    label: "Snookered Coach",
+    caption: "Your game, turned into feedback you can act on.",
+    alt: "A coaching report: technique, what went well and what to work on",
   },
 ];
 
@@ -57,7 +45,7 @@ export function AppTour() {
       <div className="wrap">
         <Reveal className="section-head split">
           <div>
-            <p className="eyebrow">Inside the app</p>
+            <p className="eyebrow">Core player experience</p>
             <h2 className="display-l">Built for the table, not a spreadsheet.</h2>
           </div>
           <p className="lead">Every screen is one-handed, dark, and quick enough to use between shots.</p>
@@ -114,9 +102,9 @@ export function AppTour() {
 
 const LOOP = [
   { step: "Play", body: "Score your matches and track every frame." },
-  { step: "Analyse", body: "See the numbers behind your game." },
+  { step: "Analyse", body: "See what the numbers say about your game." },
   { step: "Practise", body: "Build routines around what you need to improve." },
-  { step: "Improve", body: "Use Coach to turn your own game into feedback you can act on." },
+  { step: "Improve", body: "Get feedback from your own game with Snookered Coach." },
   { step: "Play again", body: "See whether the work is actually paying off." },
 ];
 
@@ -127,10 +115,10 @@ export function CoreLoop() {
       <div className="wrap">
         <Reveal className="section-head split">
           <div>
-            <p className="eyebrow">How it works</p>
-            <h2 className="display-l">Play. Practise. Improve. Repeat.</h2>
+            <p className="eyebrow">The Snookered approach</p>
+            <h2 className="display-l">Play. Analyse. Practise. Improve.</h2>
           </div>
-          <p className="lead">Snookered joins up what happens in your matches with what you do in practice.</p>
+          <p className="lead">Everything in Snookered feeds the same loop: what happens in your matches shapes your practice, and practice changes your next match.</p>
         </Reveal>
         <ol className="loop">
           {LOOP.map((item, index) => (
@@ -165,10 +153,10 @@ export function LaunchList() {
         <Reveal className="launch dark">
           <div className="launch-copy">
             <p className="eyebrow">Coming soon to iPhone</p>
-            <h2 className="display-l">See you at the table.</h2>
+            <h2 className="display-l">Your next session starts here.</h2>
             <p className="lead">
-              Snookered is finishing up for the App Store. Be first on the table: ask for a nudge and we will tell you the day
-              it lands.
+              Matches, practice, coaching, your club - Snookered brings it all together. Be first on the table: ask for a
+              nudge and we will tell you the day it lands.
             </p>
           </div>
           <form className="launch-form" onSubmit={send}>

@@ -317,7 +317,14 @@ export const ProfileScreen = () => {
             <Row icon="certificate-outline" label="Coach settings" onPress={() => navigation.navigate("CoachSettings")} />
           </View>
         </>
-      ) : null}
+      ) : (
+        <>
+          <Text style={[styles.groupLabel, { color: colors.textMuted }]}>COACHING</Text>
+          <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Row icon="whistle-outline" label="Apply to coach" onPress={() => navigation.navigate("ApplyToCoach")} />
+          </View>
+        </>
+      )}
 
       {/* ---------------------------------------------------------------- account */}
       <Text style={[styles.groupLabel, { color: colors.textMuted }]}>ACCOUNT</Text>

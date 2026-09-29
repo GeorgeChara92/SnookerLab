@@ -84,7 +84,9 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<void>;
   /** Everything the registration wizard collected, stashed in user_metadata until the account is
    * confirmed and signed in - communityStore.hydrate seeds the real profile from it on first login,
-   * since a handle/coach profile cannot be written to a row that does not exist yet.
+   * since a handle cannot be written to a row that does not exist yet. Coach status is never seeded
+   * this way any more: a "Coach"/"Both" signup instead submits a coach_applications row (see
+   * RegisterScreen), reviewed by hand before is_coach is ever granted.
    * alreadyRegistered: the email has an account. Supabase then sends no email and reports success
    * anyway (so strangers cannot probe who has an account), which left the player waiting for a
    * confirmation that was never coming. */
@@ -100,11 +102,6 @@ interface AuthState {
     avatarPreset?: string;
     handle?: string;
     bio?: string;
-    coachLocation?: string;
-    coachLat?: number;
-    coachLng?: number;
-    wpbsaAccredited?: boolean;
-    coachQualifications?: string[];
   }) => Promise<{ alreadyRegistered: boolean }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -170,11 +167,6 @@ export const useAuthStore = create<AuthState>()(
         avatarPreset,
         handle,
         bio,
-        coachLocation,
-        coachLat,
-        coachLng,
-        wpbsaAccredited,
-        coachQualifications,
       }) => {
         set({ isLoading: true });
         try {
@@ -193,11 +185,6 @@ export const useAuthStore = create<AuthState>()(
                 ...(avatarPreset && { avatar_preset: avatarPreset }),
                 ...(handle && { handle }),
                 ...(bio && { bio }),
-                ...(coachLocation && { coach_location: coachLocation }),
-                ...(coachLat != null && { coach_lat: coachLat }),
-                ...(coachLng != null && { coach_lng: coachLng }),
-                ...(wpbsaAccredited && { wpbsa_accredited: wpbsaAccredited }),
-                ...(coachQualifications?.length && { coach_qualifications: coachQualifications }),
               },
             },
           });

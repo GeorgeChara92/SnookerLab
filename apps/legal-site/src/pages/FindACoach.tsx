@@ -1,15 +1,27 @@
 import { Link } from "react-router";
 import { Phone } from "../components/Phone";
-import { FeatureStory, Faq, PageHero, Reveal, Strip, type Story } from "../components/Blocks";
+import { Arrow, FeatureStory, Faq, PageHero, Reveal, Strip, type Story } from "../components/Blocks";
 import { LaunchList } from "../components/Tour";
+import { SUPPORT_EMAIL } from "../site";
+
+const APPLY_TEMPLATE = [
+  "Name: ",
+  "Email: ",
+  "Where you coach: ",
+  "Coaching experience: ",
+  "Qualifications / WPBSA number: ",
+  "Social media or links (for us to check you by): ",
+].join("\n");
+
+const APPLY_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Coach application")}&body=${encodeURIComponent(APPLY_TEMPLATE)}`;
 
 const PLAYER_STORY: Story[] = [
   {
     id: "find",
     kicker: "As a player",
-    title: "Find a coach near you.",
-    body: "Search by name or location and see their bio, gallery and qualifications before you book - or message them if you want to ask something first.",
-    points: ["Bio, location and self-declared qualifications", "A gallery of their coaching photos", "WPBSA accreditation shown, if they have it"],
+    title: "Find a verified coach near you.",
+    body: "Every coach is reviewed by hand before they can list themselves. See their bio, experience and qualifications before you book - or message them if you want to ask something first.",
+    points: ["Reviewed before they can take a booking", "A gallery of their coaching photos", "WPBSA accreditation shown, if they have it"],
     screen: "find-coach",
     alt: "Browsing coaches in Snookered, by name or location",
   },
@@ -96,7 +108,7 @@ export default function FindACoach() {
       <PageHero
         eyebrow="Find a Coach"
         title="Book a real coach. Or run your own diary."
-        lead="Search coaches near you and book a session in a couple of taps - or list yourself as a coach and take bookings, even from someone who has never opened the app."
+        lead="Search coaches near you and book a session in a couple of taps - or apply to coach yourself and take bookings, even from someone who has never opened the app."
         strip={
           <Strip label="Coach calendar: Tuesday, 6pm, confirmed" tag="Diary">
             <span className="strip-name">Tuesday · 6:00pm</span>
@@ -110,6 +122,24 @@ export default function FindACoach() {
       <FeatureStory stories={PLAYER_STORY} />
       <FeatureStory stories={COACH_STORY} />
 
+      <section className="section tight alt">
+        <div className="wrap narrow-grid">
+          <Reveal className="section-head">
+            <p className="eyebrow">Want to coach?</p>
+            <h2 className="display-l">Apply to coach.</h2>
+            <p className="lead">
+              We check every coach by hand - your experience, qualifications and who you say you are - before you can list
+              yourself or take a booking. It's free to apply. An approved coach pays a small subscription, monthly or a
+              discounted annual rate, to take bookings through Snookered.
+            </p>
+          </Reveal>
+          <a className="btn btn-primary" href={APPLY_MAILTO}>
+            Apply to coach <Arrow />
+          </a>
+          <p className="note">Already have the app? Apply from Profile instead - it's quicker, and you can track your application there.</p>
+        </div>
+      </section>
+
       <section className="section tight">
         <div className="wrap narrow-grid">
           <Reveal className="section-head">
@@ -119,7 +149,17 @@ export default function FindACoach() {
             items={[
               {
                 q: "How do I become a coach in the app?",
-                a: <p>Choose Coach (or Both) when you register, or switch on coaching from Profile later. Add your bio, location and qualifications, then open your calendar.</p>,
+                a: (
+                  <p>
+                    Choose Coach (or Both) when you register, or apply from Profile if you already play. Tell us about your
+                    experience and give us a way to check you - socials, a WPBSA number, whatever you have. We review every
+                    application by hand before approving it.
+                  </p>
+                ),
+              },
+              {
+                q: "Is there a fee to become a coach?",
+                a: <p>Applying is free. Once approved, a coach pays a small monthly or annual subscription to list themselves and take bookings - the annual rate works out cheaper than paying month to month.</p>,
               },
               {
                 q: "Can a coach book someone who does not use Snookered?",

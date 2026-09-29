@@ -20,9 +20,11 @@ export type PublicProfile = {
   centuries: number | null;
   matchesWon: number | null;
   joinedAt: string | null;
-  /** A coach, granted by the project owner - never by the player themselves. */
+  /** A coach, only ever set by an admin approving a coach_applications row - never by the player
+   * themselves, and never instantly at registration. See 20261016_0001_coach_applications.sql. */
   isCoach: boolean;
-  /** What a coach says they are qualified in, e.g. "WPBSA Level 2". Self-declared, not verified. */
+  /** What a coach says they are qualified in, e.g. "WPBSA Level 2" - reviewed at application time,
+   * then editable by the coach the same as their bio. */
   coachQualifications: string[];
   /** Whether a coach says they hold WPBSA accreditation. Self-declared, not checked against the WPBSA's own records. */
   wpbsaAccredited: boolean;
@@ -32,6 +34,9 @@ export type PublicProfile = {
    * if they typed a place name by hand instead. */
   coachLat: number | null;
   coachLng: number | null;
+  /** A coach's own account of their coaching background, from their application - shown to players
+   * alongside their bio and qualifications. */
+  coachExperience: string | null;
 };
 
 export type Privacy = "everyone" | "friends" | "nobody";
@@ -98,10 +103,11 @@ export const profileFromRow = (row: any): PublicProfile => ({
   coachLocation: row.coach_location ?? null,
   coachLat: row.coach_lat ?? null,
   coachLng: row.coach_lng ?? null,
+  coachExperience: row.coach_experience ?? null,
 });
 
 export const PROFILE_COLUMNS =
-  "id, handle, display_name, avatar_preset, avatar_url, country_code, skill_level, bio, level, xp, discoverable, message_privacy, stats_privacy, cue_preference, leaderboards, best_break, centuries, matches_won, joined_at, is_coach, coach_qualifications, wpbsa_accredited, coach_location, coach_lat, coach_lng";
+  "id, handle, display_name, avatar_preset, avatar_url, country_code, skill_level, bio, level, xp, discoverable, message_privacy, stats_privacy, cue_preference, leaderboards, best_break, centuries, matches_won, joined_at, is_coach, coach_qualifications, wpbsa_accredited, coach_location, coach_lat, coach_lng, coach_experience";
 
 export const friendshipFromRow = (row: any): Friendship => ({
   id: row.id,

@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import { useAuthStore } from "../../store";
-import { useUiModeStore } from "../../store/uiModeStore";
 import type { AuthStackParamList, SkillLevel } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppButton } from "../../components/ui/AppButton";
@@ -27,6 +26,7 @@ import {
   type CueSetupSelection,
 } from "../../constants/profileOptions";
 import { cleanHandle, handleProblem, suggestHandle } from "../../features/community/handle";
+import { submitCoachApplication } from "../../features/coach/applications";
 import { getAuthErrorMessage } from "../../utils/authErrors";
 import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
@@ -51,6 +51,9 @@ const BIO_LIMIT = 160;
 const LOCATION_LIMIT = 120;
 const QUALIFICATION_LIMIT = 40;
 const MAX_QUALIFICATIONS = 6;
+const EXPERIENCE_LIMIT = 1000;
+const SOCIAL_LIMIT = 500;
+const MIN_EXPERIENCE_LENGTH = 20;
 
 const looksLikeEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
 
@@ -77,8 +80,8 @@ const stepMeta = (key: StepKey, accountType: AccountType): { title: string; subt
       return { title: "About your game", subtitle: "Helps us pitch practice routines at your level. Change this anytime." };
     case "coach":
       return {
-        title: "Your coaching profile",
-        subtitle: "What a player sees before booking you. Change any of this anytime from Coach Settings.",
+        title: "Apply to coach",
+        subtitle: "We check every coach by hand before they can list themselves. Tell us about your coaching, and we'll be in touch.",
       };
     case "identity":
       return {
@@ -114,8 +117,11 @@ export const RegisterScreen = ({ navigation }: Props) => {
   const [coachCoords, setCoachCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [wpbsa, setWpbsa] = useState(false);
+  const [wpbsaNumber, setWpbsaNumber] = useState("");
   const [qualifications, setQualifications] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
+  const [experience, setExperience] = useState("");
+  const [socialLinks, setSocialLinks] = useState("");
 
   const [handle, setHandle] = useState("");
   const [playerBio, setPlayerBio] = useState("");
@@ -200,6 +206,10 @@ export const RegisterScreen = ({ navigation }: Props) => {
         return false;
       }
     }
+    if (key === "coach" && experience.trim().length < MIN_EXPERIENCE_LENGTH) {
+      setProblem({ message: "Tell us a bit more about your coaching experience - this is what we check you against." });
+      return false;
+    }
     if (key === "identity" && handle) {
       const issue = handleProblem(handle);
       if (issue) {
@@ -226,11 +236,6 @@ export const RegisterScreen = ({ navigation }: Props) => {
         avatarPreset: encodeAvatar({ seed: selectedSeed, outfit: "casual", ball: topBallFor(1) }),
         handle: handle || undefined,
         bio: bio || undefined,
-        coachLocation: accountType !== "player" ? coachLocation || undefined : undefined,
-        coachLat: accountType !== "player" ? coachCoords?.lat : undefined,
-        coachLng: accountType !== "player" ? coachCoords?.lng : undefined,
-        wpbsaAccredited: accountType !== "player" ? wpbsa : undefined,
-        coachQualifications: accountType !== "player" ? qualifications : undefined,
       });
       if (alreadyRegistered) {
         // No email is sent for an address that already has an account: send them to log in.
@@ -240,9 +245,28 @@ export const RegisterScreen = ({ navigation }: Props) => {
         });
         return;
       }
-      // "Coach" said this is their only reason for being here - open straight into coach view
-      // rather than asking again what a "both" account genuinely needs asked (see ChooseViewScreen).
-      if (accountType === "coach") useUiModeStore.getState().setViewMode("coach");
+      // "Coach" or "Both" is an application, not an instant grant - no session exists yet to attach
+      // it to, so it goes in with user_id left null and gets matched back to this account by email
+      // once it is reviewed (see 20261016_0001_coach_applications.sql).
+      if (accountType !== "player") {
+        try {
+          await submitCoachApplication({
+            email: email.trim(),
+            fullName: fullName.trim(),
+            bio: coachBio.trim() || undefined,
+            location: coachLocation || undefined,
+            lat: coachCoords?.lat,
+            lng: coachCoords?.lng,
+            experience: experience.trim(),
+            qualifications,
+            wpbsaAccredited: wpbsa,
+            wpbsaNumber: wpbsaNumber.trim() || undefined,
+            socialLinks: socialLinks.trim() || undefined,
+          });
+        } catch (error) {
+          console.warn("Could not submit the coach application:", error);
+        }
+      }
       // Staged now, uploaded the moment a session exists (AppNavigator, on first login) - so the
       // photo they picked here just seems to already be on their profile.
       if (photoUri) {
@@ -295,8 +319,8 @@ export const RegisterScreen = ({ navigation }: Props) => {
           {(
             [
               { value: "player" as const, label: "Player", icon: "bullseye-arrow" as const, hint: "Log matches, practise, join the community." },
-              { value: "coach" as const, label: "Coach", icon: "whistle-outline" as const, hint: "Take bookings and run your own coaching profile." },
-              { value: "both" as const, label: "Both", icon: "account-multiple-outline" as const, hint: "Play and coach from the same account." },
+              { value: "coach" as const, label: "Coach", icon: "whistle-outline" as const, hint: "Apply to take bookings - we check every coach by hand." },
+              { value: "both" as const, label: "Both", icon: "account-multiple-outline" as const, hint: "Play, and apply to coach from the same account." },
             ]
           ).map((option) => {
             const selected = accountType === option.value;
@@ -513,10 +537,19 @@ export const RegisterScreen = ({ navigation }: Props) => {
           <View style={[styles.switchRow, { borderColor: colors.border, backgroundColor: colors.surface }]}>
             <View style={styles.switchText}>
               <Text style={[styles.switchLabel, { color: colors.text }]}>WPBSA accredited</Text>
-              <Text style={[styles.hint, { color: colors.textSubtle }]}>Self-declared - not checked against the WPBSA's own records.</Text>
+              <Text style={[styles.hint, { color: colors.textSubtle }]}>We ask for your number below to check it.</Text>
             </View>
             <Switch value={wpbsa} onValueChange={setWpbsa} trackColor={{ true: colors.primary }} />
           </View>
+          {wpbsa ? (
+            <AuthField
+              label="WPBSA number"
+              icon="certificate-outline"
+              value={wpbsaNumber}
+              onChangeText={setWpbsaNumber}
+              placeholder="Your WPBSA number"
+            />
+          ) : null}
 
           {qualifications.length ? (
             <View style={styles.tags}>
@@ -556,7 +589,31 @@ export const RegisterScreen = ({ navigation }: Props) => {
               </Pressable>
             </View>
           ) : null}
-          <Text style={[styles.hint, { color: colors.textSubtle }]}>All optional - fill in as much or as little as you like now.</Text>
+
+          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: SPACING.md }]}>Your coaching experience</Text>
+          <TextInput
+            value={experience}
+            onChangeText={(text) => setExperience(text.slice(0, EXPERIENCE_LIMIT))}
+            placeholder="How long you've coached, who you've coached, where you've worked..."
+            placeholderTextColor={colors.textMuted}
+            multiline
+            textAlignVertical="top"
+            style={[styles.bioInput, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border }]}
+          />
+          <Text style={[styles.hint, { color: colors.textSubtle }]}>{experience.length}/{EXPERIENCE_LIMIT} · this is what we check you against</Text>
+
+          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: SPACING.md }]}>Social media or links</Text>
+          <TextInput
+            value={socialLinks}
+            onChangeText={(text) => setSocialLinks(text.slice(0, SOCIAL_LIMIT))}
+            placeholder="Instagram, a club page, a coaching website - one per line"
+            placeholderTextColor={colors.textMuted}
+            multiline
+            textAlignVertical="top"
+            autoCapitalize="none"
+            style={[styles.bioInput, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border }]}
+          />
+          <Text style={[styles.hint, { color: colors.textSubtle }]}>Never shown to players - for us to verify you by.</Text>
         </>
       ) : null}
 

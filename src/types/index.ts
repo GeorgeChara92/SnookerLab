@@ -28,8 +28,10 @@ export interface User {
   username?: string;
   /** Collected at registration so a coach they book with sees a real name, not just a handle. */
   full_name?: string;
-  /** Chosen at registration - "coach" or "both" seed is_coach once, the only time it can ever be
-   * set from the client (see trg_freeze_is_coach). */
+  /** Chosen at registration - "coach" or "both" submits a coach_applications row rather than
+   * granting anything itself; is_coach is only ever set by an admin approving one (see
+   * 20261016_0001_coach_applications.sql). Still used to decide whether the dual-account
+   * ChooseView wizard applies, once is_coach is actually true. */
   account_type?: "player" | "coach" | "both";
   profile_image_url?: string;
   avatar_preset?: string;
@@ -456,6 +458,7 @@ export type CommunityStackParamList = {
   /** The player's handle, bio and privacy; the first-time setup when `setup` is true. */
   CommunitySettings: { setup?: boolean };
   AdminReports: undefined;
+  AdminCoachApplications: undefined;
   RoutineLibrary: undefined;
   /** Every routine leaderboard, searchable. */
   RoutineBoards: undefined;
@@ -500,4 +503,6 @@ export type ProfileStackParamList = {
   EditProfileField: { field: "skill_level" | "country_code" | "cue_preference" };
   /** Editing what a coach shows on their listing, and switching to the coach view. */
   CoachSettings: undefined;
+  /** A player asking to become a coach - reviewed by hand, see 20261016_0001_coach_applications.sql. */
+  ApplyToCoach: undefined;
 };

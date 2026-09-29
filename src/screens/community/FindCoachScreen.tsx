@@ -143,7 +143,10 @@ export const FindCoachScreen = () => {
           >
             <CommunityAvatar profile={item} size={48} />
             <View style={styles.rowText}>
-              <Text style={[styles.rowName, { color: colors.text }]}>{nameOf(item)}</Text>
+              <View style={styles.rowNameLine}>
+                <Text style={[styles.rowName, { color: colors.text }]}>{nameOf(item)}</Text>
+                <MaterialCommunityIcons name="shield-check-outline" size={15} color={colors.primary} />
+              </View>
               {item.coachLocation ? (
                 <Text style={[styles.rowLocation, { color: colors.textMuted }]} numberOfLines={1}>
                   <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textMuted} /> {item.coachLocation}
@@ -217,6 +220,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
   },
   rowText: { flex: 1, gap: 4 },
+  rowNameLine: { flexDirection: "row", alignItems: "center", gap: 4 },
   rowName: { fontSize: 16, fontWeight: "700" },
   rowLocation: { fontSize: 13 },
   rowBio: { fontSize: 13, lineHeight: 18, marginTop: 4 },

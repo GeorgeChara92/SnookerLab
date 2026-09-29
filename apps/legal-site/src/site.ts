@@ -32,7 +32,7 @@ export const ROUTES: RouteMeta[] = [
     path: "/find-a-coach",
     title: "Find a snooker coach, or run your own diary · Snookered",
     description:
-      "Book a real coach near you, or list yourself as one: take bookings, message your clients, run a broadcast group, and keep your own diary - even clients with no Snookered account.",
+      "Book a verified coach near you, or apply to coach yourself: take bookings, message your clients, run a broadcast group, and keep your own diary - even clients with no Snookered account.",
   },
   {
     path: "/scan-snooker",
@@ -62,6 +62,9 @@ export const ROUTES: RouteMeta[] = [
     description: "What data Snookered collects, why it is collected, who processes it, and the controls you have over your account and your data.",
   },
   { path: "/terms", title: "Terms of Use · Snookered", description: "The terms for using the Snookered snooker app: your account, subscriptions, acceptable use, AI coaching guidance and content ownership." },
+  // Not linked anywhere and excluded from the sitemap (see prerender.mjs) - login-gated, not
+  // secret-URL-gated, but no reason to advertise it either.
+  { path: "/admin/coach-applications", title: "Coach applications · Snookered", description: "Coach applications." },
   { path: "/404", title: "Page not found · Snookered", description: "That page could not be found. Head back to the Snookered home page." },
 ];
 

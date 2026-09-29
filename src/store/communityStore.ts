@@ -138,32 +138,23 @@ export const useCommunityStore = create<CommunityState>()(
           }
           if (wordsResult.data) setBlockedWords(wordsResult.data.map((row) => row.word));
 
-          // A brand new account has no profiles row yet - seed it with everything the registration
-          // wizard collected, so a coach or player starts with a real name, handle and (for a
-          // coach or both) a filled-in coach profile from the start, rather than an empty listing
-          // nobody ever gets prompted to fill in. is_coach can only ever be set this way: this
-          // upsert is a genuine insert (the row does not exist yet), so it never touches
-          // trg_freeze_is_coach, which only fires on update. Older accounts, with nothing in these
-          // fields on their auth metadata, are left exactly as they are - this never runs again
-          // once the row exists.
+          // A brand new account has no profiles row yet - seed it with what the registration wizard
+          // collected, so it starts with a real name rather than an empty one nobody ever gets
+          // prompted to fill in. is_coach is never seeded here: a "Coach" or "Both" signup instead
+          // submits a coach_applications row (see RegisterScreen and 20261016_0001), and is_coach is
+          // only ever granted by an admin approving one - trg_freeze_is_coach now zeroes it back to
+          // false on this very insert if anything ever tried to set it from an ordinary client.
+          // Older accounts, with nothing in these fields on their auth metadata, are left exactly as
+          // they are - this never runs again once the row exists.
           let meRow = meResult.data;
           const authUser = useAuthStore.getState().user;
           const fullName = authUser?.full_name?.trim();
-          const isCoachSignup = authUser?.account_type === "coach" || authUser?.account_type === "both";
-          if (!meRow && (fullName || isCoachSignup)) {
+          if (!meRow && fullName) {
             const seed: Record<string, unknown> = { id: userId };
-            if (fullName) seed.display_name = fullName;
-            if (isCoachSignup) seed.is_coach = true;
+            seed.display_name = fullName;
             if (authUser?.handle) seed.handle = authUser.handle;
             if (authUser?.bio) seed.bio = authUser.bio;
             if (authUser?.cue_preference) seed.cue_preference = authUser.cue_preference;
-            if (isCoachSignup) {
-              if (authUser?.coach_location) seed.coach_location = authUser.coach_location;
-              if (authUser?.coach_lat != null) seed.coach_lat = authUser.coach_lat;
-              if (authUser?.coach_lng != null) seed.coach_lng = authUser.coach_lng;
-              if (authUser?.wpbsa_accredited) seed.wpbsa_accredited = authUser.wpbsa_accredited;
-              if (authUser?.coach_qualifications?.length) seed.coach_qualifications = authUser.coach_qualifications;
-            }
             const { data: seeded, error: seedError } = await supabase
               .from("profiles")
               .upsert(seed, { onConflict: "id" })

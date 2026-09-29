@@ -8,6 +8,7 @@ import { Community, Practice, Scoring } from "./pages/Features";
 import Coach from "./pages/Coach";
 import FindACoach from "./pages/FindACoach";
 import ScanSnooker from "./pages/ScanSnooker";
+import AdminCoachApplications from "./pages/AdminCoachApplications";
 import { NotFound, Plans, Privacy, Support, Terms } from "./pages/Info";
 import { metaFor } from "./site";
 import "@fontsource-variable/bricolage-grotesque";
@@ -94,6 +95,7 @@ export function App() {
           <Route path="/community" element={<Community />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/support" element={<Support />} />
+          <Route path="/admin/coach-applications" element={<AdminCoachApplications />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="*" element={<NotFound />} />

@@ -123,6 +123,12 @@ export const CoachProfileScreen = () => {
             <MaterialCommunityIcons name="map-marker-outline" size={14} color={colors.textMuted} /> {profile.coachLocation}
           </Text>
         ) : null}
+        <View style={[styles.verifiedRow, { backgroundColor: colors.surfaceMuted }]}>
+          <MaterialCommunityIcons name="shield-check-outline" size={14} color={colors.primary} />
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.verifiedText, { color: colors.text }]}>
+            Verified coach
+          </Text>
+        </View>
         <View style={styles.tags}>
           {profile.wpbsaAccredited ? (
             <View style={[styles.tag, styles.tagRow, { backgroundColor: colors.primary }]}>
@@ -141,13 +147,22 @@ export const CoachProfileScreen = () => {
           ))}
         </View>
         {profile.wpbsaAccredited || profile.coachQualifications.length ? (
-          <Text style={[styles.disclaimer, { color: colors.textSubtle }]}>Self-declared by the coach.</Text>
+          <Text style={[styles.disclaimer, { color: colors.textSubtle }]}>
+            Qualifications as given by the coach - checked at application, not verified against the awarding body's own records.
+          </Text>
         ) : null}
       </View>
 
       {profile.bio ? (
         <View style={[styles.bioCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.bio, { color: colors.text }]}>{profile.bio}</Text>
+        </View>
+      ) : null}
+
+      {profile.coachExperience ? (
+        <View style={[styles.bioCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Experience</Text>
+          <Text style={[styles.bio, { color: colors.text }]}>{profile.coachExperience}</Text>
         </View>
       ) : null}
 
@@ -310,6 +325,16 @@ const styles = StyleSheet.create({
   name: { fontSize: 26, fontWeight: "800", textAlign: "center", marginTop: SPACING.sm },
   handle: { fontFamily: FONTS.boardLabel, fontSize: 17, letterSpacing: 0.5 },
   location: { fontSize: 14, marginTop: 2 },
+  verifiedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: RADIUS.pill,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    marginTop: SPACING.xs,
+  },
+  verifiedText: { fontSize: 12, fontWeight: "700" },
   tags: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: SPACING.xs, marginTop: SPACING.sm },
   tag: { borderRadius: RADIUS.pill, paddingHorizontal: SPACING.md, paddingVertical: 4 },
   tagRow: { flexDirection: "row", alignItems: "center", gap: 4 },

@@ -6,6 +6,7 @@ import { CoachProfileScreen } from "../screens/community/CoachProfileScreen";
 import { PlayerRootHeader } from "./PlayerRootHeader";
 import { CommunitySettingsScreen } from "../screens/community/CommunitySettingsScreen";
 import { AdminReportsScreen } from "../screens/community/AdminReportsScreen";
+import { AdminCoachApplicationsScreen } from "../screens/community/AdminCoachApplicationsScreen";
 import { RoutineLibraryScreen } from "../screens/community/RoutineLibraryScreen";
 import { SharedRoutineScreen } from "../screens/community/SharedRoutineScreen";
 import { LeaderboardsScreen } from "../screens/community/LeaderboardsScreen";
@@ -44,6 +45,11 @@ export const CommunityNavigator = () => {
         options={{ title: "Community settings" }}
       />
       <Stack.Screen name="AdminReports" component={AdminReportsScreen} options={{ title: "Reports" }} />
+      <Stack.Screen
+        name="AdminCoachApplications"
+        component={AdminCoachApplicationsScreen}
+        options={{ title: "Coach applications" }}
+      />
       <Stack.Screen name="RoutineLibrary" component={RoutineLibraryScreen} options={{ title: "Routine library" }} />
       <Stack.Screen name="SharedRoutine" component={SharedRoutineScreen} options={{ title: "Routine" }} />
       <Stack.Screen name="Leaderboards" component={LeaderboardsScreen} options={{ title: "Leaderboards" }} />

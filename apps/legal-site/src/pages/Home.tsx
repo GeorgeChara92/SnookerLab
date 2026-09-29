@@ -5,7 +5,6 @@ import { Medal, Newspaper, ScanLine, Trophy, Users, WifiOff } from "lucide-react
 import { Phone } from "../components/Phone";
 import { LiveBoard } from "../components/Scoreboard";
 import { Scorer } from "../components/Scorer";
-import { ScanDemo } from "../components/Showcase";
 import { AppTour, CoreLoop, LaunchList } from "../components/Tour";
 import { AppleLogo, Arrow, Reveal } from "../components/Blocks";
 import { PLANS, type Screen } from "../site";
@@ -22,16 +21,15 @@ function Hero() {
       <div className="wrap hero-grid">
         <div className="hero-copy">
           <Reveal>
-            <p className="eyebrow">The snooker app</p>
+            <p className="eyebrow">Your whole snooker game</p>
             <h1 className="display-xl">
-              Your snooker, <span className="hero-accent">from your first cue to your best break.</span>
+              Your game. <span className="hero-accent">All in one place.</span>
             </h1>
           </Reveal>
           <Reveal delay={0.08}>
             <p className="lead">
-              Practise with a point to it, get coaching from your own game or book a real coach, score the matches once
-              you're playing them, and play the people you know. Wherever you are with the game, Snookered is built to help
-              you get better at it.
+              Score your matches. Practise with a plan. Track how you're improving. When you want more, get feedback from
+              your own game, book a coach, or take on your mates.
             </p>
           </Reveal>
           <Reveal delay={0.16} className="hero-actions">
@@ -264,8 +262,33 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <AppTour />
       <CoreLoop />
+      <AppTour />
+      <Feature
+        id="coach"
+        tone="dark"
+        eyebrow="Snookered Coach"
+        title="Turn your game into feedback."
+        body="Film a few shots, upload the clip, and get a report on your technique: what is working, the one thing to fix first, and the routines that train it."
+        points={[
+          "Feedback on your own clip, not a chat about snooker in general",
+          "One clear thing to work on, not a list of twenty",
+          "Reports kept, so you can watch the fix stick",
+        ]}
+        visual={
+          <Phone
+            screen="ai-coach"
+            alt="A coaching report: technique, what went well and what to work on"
+            sizes="(max-width: 900px) 74vw, 300px"
+          />
+        }
+        link={{ to: "/coach", label: "See how the coach works" }}
+        extra={
+          <p className="note">
+            Prefer a real person? <Link to="/find-a-coach">Find a coach</Link> near you.
+          </p>
+        }
+      />
       <Feature
         id="practice"
         tone="alt"
@@ -287,66 +310,7 @@ export default function Home() {
         }
         link={{ to: "/practice", label: "Explore practice" }}
       />
-      <Feature
-        id="coach"
-        eyebrow="Snookered Coach"
-        title="Turn your game into feedback."
-        body="Film a few shots, upload the clip, and get a report on your technique: what is working, the one thing to fix first, and the routines that train it."
-        points={[
-          "Feedback on your own clip, with the moments it means",
-          "One clear thing to work on, not a list of twenty",
-          "Reports kept, so you can watch the fix stick",
-        ]}
-        visual={
-          <Phone
-            screen="ai-coach"
-            alt="A coaching report: technique, what went well and what to work on"
-            sizes="(max-width: 900px) 74vw, 300px"
-          />
-        }
-        link={{ to: "/coach", label: "See how the coach works" }}
-      />
-      <Feature
-        id="find-a-coach"
-        tone="dark"
-        flip
-        eyebrow="Find a Coach"
-        title="Or learn from someone who's been there."
-        body="Search for a coach near you and book a session in a couple of taps. Ready to start coaching yourself? List your own hours and run your own diary - even a client with no account goes straight on the calendar."
-        points={[
-          "A coach's bio, gallery and qualifications, shown before you book",
-          "WPBSA accreditation shown too, for coaches who have it",
-          "Walk-ins welcome: no account needed for a one-off booking",
-        ]}
-        visual={
-          <Phone
-            screen="coach-profile"
-            alt="A coach's profile, with bio, gallery and a Book a session button"
-            sizes="(max-width: 900px) 74vw, 300px"
-          />
-        }
-        link={{ to: "/find-a-coach", label: "Find a coach" }}
-      />
       <Scoring />
-      <Feature
-        id="community"
-        tone="alt"
-        eyebrow="Community"
-        title="Play the people you know."
-        body="Add the friend you played and the match counts for both of you once they confirm it. Follow their frames live, and run a group for your league with its own chat, feed and leaderboards."
-        points={[
-          "Matches that count for both players",
-          "Live scores from friends and your groups",
-          "Messages and group feeds stay inside that chat or group",
-        ]}
-        visual={
-          <div className="phones-duo">
-            <Phone screen="community" alt="The Community tab, with a friend's match live and the latest pro tour news" sizes="(max-width: 860px) 42vw, 250px" />
-            <Phone screen="group" alt="A club group's feed, with a personal best and a win" sizes="(max-width: 860px) 42vw, 250px" />
-          </div>
-        }
-        link={{ to: "/community", label: "Explore community" }}
-      />
       <Feature
         id="stats"
         flip
@@ -359,19 +323,43 @@ export default function Home() {
         link={{ to: "/scoring", label: "More on matches and stats" }}
       />
       <Feature
-        id="scan"
-        tone="dark"
-        eyebrow="Scan a Snooker · AR"
-        soon
-        title="Put the balls back, like the referees on TV."
-        body="Scan the table before you play the snooker. If the escape misses, a ghost of every ball appears on the real table, so everything goes back exactly where it was."
+        id="community"
+        tone="alt"
+        eyebrow="Community & Competition"
+        title="Play the people you know."
+        body="Add the friend you played and the match counts for both of you once they confirm it. Follow their frames live, enter a knockout, or run a group for your league with its own chat, feed and leaderboards."
         points={[
-          "Calibrates from any two spots or pockets",
-          "A table diagram to check and tweak the scan",
-          "The same camera sets a routine up, ball by ball",
+          "Matches that count for both players",
+          "Live scores from friends and your groups",
+          "Tournaments and leagues, drawn and run for you",
         ]}
-        visual={<ScanDemo />}
-        link={{ to: "/scan-snooker", label: "How it works" }}
+        visual={
+          <div className="phones-duo">
+            <Phone screen="community" alt="The Community tab, with a friend's match live and the latest pro tour news" sizes="(max-width: 860px) 42vw, 250px" />
+            <Phone screen="group" alt="A club group's feed, with a personal best and a win" sizes="(max-width: 860px) 42vw, 250px" />
+          </div>
+        }
+        link={{ to: "/community", label: "Explore community" }}
+      />
+      <Feature
+        id="for-coaches"
+        flip
+        eyebrow="For coaches"
+        title="A better way to coach."
+        body="Run your coaching like a proper diary, not just a booking inbox: manage every client, keep private notes on each session, and post drills to everyone at once."
+        points={[
+          "Every coach reviewed by hand before they can take a booking",
+          "Book a slot for a walk-in - no account needed",
+          "One post reaches the whole group, not one at a time",
+        ]}
+        visual={
+          <Phone
+            screen="coach-dashboard"
+            alt="A coach's dashboard in Snookered, showing the next session and sessions this month"
+            sizes="(max-width: 900px) 74vw, 300px"
+          />
+        }
+        link={{ to: "/find-a-coach", label: "See the coaching tools" }}
       />
       <Gallery />
       <Secondary />
