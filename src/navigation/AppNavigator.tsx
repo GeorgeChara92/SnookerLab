@@ -49,6 +49,7 @@ import { UnlockQueueProvider } from "../components/achievements/UnlockQueueProvi
 import { AchievementWatcher } from "../components/achievements/AchievementWatcher";
 import { SendToChatScreen } from "../screens/community/SendToChatScreen";
 import { OnboardingHost } from "../components/onboarding/OnboardingHost";
+import { CoachApplicationStatusHost } from "../components/onboarding/CoachApplicationStatusHost";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -389,7 +390,10 @@ export const AppNavigator = () => {
           !requiresPasswordReset &&
           readyUserId === userId &&
           !(isCoach && isDualAccount && !viewChosen) ? (
-            <OnboardingHost />
+            <>
+              <OnboardingHost />
+              <CoachApplicationStatusHost />
+            </>
           ) : null}
         </NavigationContainer>
       </AchievementWatcher>

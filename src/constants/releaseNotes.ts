@@ -15,6 +15,33 @@ export type ReleaseNote = {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.1.0",
+    date: "October 2026",
+    headline: "Coaching, verified",
+    added: [
+      {
+        icon: "shield-check-outline",
+        title: "Coaches are checked by hand",
+        body: "Every coach applies first and is reviewed before they can list themselves or take a booking. Look for the verified badge on Find a Coach.",
+      },
+      {
+        icon: "whistle-outline",
+        title: "Apply to coach",
+        body: "Think you should be coaching? Apply from Profile with your experience and qualifications - we review every application.",
+      },
+      {
+        icon: "star-outline",
+        title: "Reviews on coach profiles",
+        body: "Had a session? Rate and review your coach - it shows on their profile for the next player deciding whether to book.",
+      },
+      {
+        icon: "message-star-outline",
+        title: "Send us feedback",
+        body: "A new spot in Profile to tell us what's working and what isn't, separate from a support request.",
+      },
+    ],
+  },
+  {
     version: "1.0.0",
     date: "September 2026",
     headline: "The community is here",

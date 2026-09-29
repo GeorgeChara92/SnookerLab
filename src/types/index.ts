@@ -505,4 +505,6 @@ export type ProfileStackParamList = {
   CoachSettings: undefined;
   /** A player asking to become a coach - reviewed by hand, see 20261016_0001_coach_applications.sql. */
   ApplyToCoach: undefined;
+  /** A note about the app itself, read by an admin - not a coach review, not a support request. */
+  Feedback: undefined;
 };

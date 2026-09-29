@@ -8,6 +8,7 @@ import { EditProfileFieldScreen } from "../screens/profile/EditProfileFieldScree
 import { AvatarPickerScreen } from "../screens/profile/AvatarPickerScreen";
 import { CoachSettingsScreen } from "../screens/profile/CoachSettingsScreen";
 import { ApplyToCoachScreen } from "../screens/profile/ApplyToCoachScreen";
+import { FeedbackScreen } from "../screens/profile/FeedbackScreen";
 import { ProfileStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 import { DialogProvider } from "../components/ui/DialogProvider";
@@ -33,6 +34,7 @@ export const ProfileNavigator = () => {
           <Stack.Screen name="AvatarPicker" component={AvatarPickerScreen} options={{ title: "Choose an avatar" }} />
           <Stack.Screen name="CoachSettings" component={CoachSettingsScreen} options={{ title: "Coach settings" }} />
           <Stack.Screen name="ApplyToCoach" component={ApplyToCoachScreen} options={{ title: "Apply to coach" }} />
+          <Stack.Screen name="Feedback" component={FeedbackScreen} options={{ title: "Send feedback" }} />
           <Stack.Screen
             name="EditProfileField"
             component={EditProfileFieldScreen}

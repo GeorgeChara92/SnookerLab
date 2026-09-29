@@ -45,6 +45,13 @@ const PAGES: Page[] = [
   },
   {
     kind: "feature",
+    kicker: "IMPROVE",
+    title: "A coach that watches you play",
+    body: "Film a few shots and get feedback on your technique - what's working, what to fix first, and the routines that train it.",
+    image: require("../../../assets/tour/ai-coach.jpg"),
+  },
+  {
+    kind: "feature",
     kicker: "PLAY",
     title: "Your club, in your pocket",
     body: "Add friends, start a group for your league, chat, and follow each other's matches live.",

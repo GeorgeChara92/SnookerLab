@@ -81,6 +81,23 @@ export function Plans() {
         </div>
       </section>
 
+      <section className="section alt">
+        <div className="wrap feature-grid">
+          <Reveal className="feature-copy">
+            <p className="eyebrow">For coaches</p>
+            <h2 className="display-l">A different plan for coaching.</h2>
+            <p className="lead">
+              Applying to coach is free - every application is reviewed by hand before you can list yourself or take a
+              booking. Once approved, listing yourself costs a small subscription, monthly or a discounted annual rate,
+              separate from the plans above.
+            </p>
+            <Link className="btn btn-primary" to="/find-a-coach">
+              Apply to coach <Arrow />
+            </Link>
+          </Reveal>
+        </div>
+      </section>
+
       <section className="section">
         <div className="wrap narrow-grid">
           <Reveal className="section-head">
@@ -99,6 +116,15 @@ export function Plans() {
                 a: (
                   <p>
                     Apple handles billing and refunds. For anything else, email <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+                  </p>
+                ),
+              },
+              {
+                q: "Is there a plan for coaches?",
+                a: (
+                  <p>
+                    Yes - separate from these. See <Link to="/find-a-coach">Find a Coach</Link> for how to apply and what it
+                    costs once you're approved.
                   </p>
                 ),
               },

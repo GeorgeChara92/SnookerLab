@@ -3,7 +3,7 @@
     "name": "Snookered",
     "slug": "SnookerApp",
     "scheme": "snookerlab",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/icon.png",

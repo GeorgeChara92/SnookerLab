@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuthStore, useRoutinesStore } from "../../store";
 import { useCommunityStore } from "../../store/communityStore";
@@ -14,6 +14,8 @@ import { BoardPanel } from "../../components/scoreboard/Scoreboard";
 import { ACHIEVEMENTS } from "../../constants/achievements";
 import { getSkillLabel, getCuePreferenceLabel, getCountryByCode } from "../../constants/profileOptions";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
+import { fetchMyCoachApplication } from "../../features/coach/applications";
+import type { CoachApplicationStatus } from "../../features/coach/types";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookeredapp.com";
@@ -31,6 +33,20 @@ export const ProfileScreen = () => {
   const dialog = useDialog();
   const subscription = useSubscriptionAccess();
   const { stats, unlocked, level, nextGoal } = usePlayerProgress();
+  const [applicationStatus, setApplicationStatus] = useState<CoachApplicationStatus | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (isCoach || !user?.id || !user.email) return;
+      let cancelled = false;
+      void fetchMyCoachApplication(user.id, user.email).then((application) => {
+        if (!cancelled) setApplicationStatus(application?.status ?? null);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [isCoach, user?.id, user?.email])
+  );
 
   const country = user?.country_code ? getCountryByCode(user.country_code) : null;
   const mostPractised = categories.find((category) => category.id === stats.mostTrainedCategory)?.name ?? null;
@@ -321,7 +337,18 @@ export const ProfileScreen = () => {
         <>
           <Text style={[styles.groupLabel, { color: colors.textMuted }]}>COACHING</Text>
           <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Row icon="whistle-outline" label="Apply to coach" onPress={() => navigation.navigate("ApplyToCoach")} />
+            <Row
+              icon="whistle-outline"
+              label={applicationStatus ? "Coach application" : "Apply to coach"}
+              value={
+                applicationStatus === "pending"
+                  ? "Pending review"
+                  : applicationStatus === "rejected"
+                    ? "Not approved"
+                    : undefined
+              }
+              onPress={() => navigation.navigate("ApplyToCoach")}
+            />
           </View>
         </>
       )}
@@ -330,6 +357,8 @@ export const ProfileScreen = () => {
       <Text style={[styles.groupLabel, { color: colors.textMuted }]}>ACCOUNT</Text>
       <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Row icon="cog-outline" label="Account settings" onPress={() => navigation.navigate("Settings")} />
+        <Divider />
+        <Row icon="message-star-outline" label="Send feedback" onPress={() => navigation.navigate("Feedback")} />
         <Divider />
         <Row icon="help-circle-outline" label="Help and support" onPress={() => void openSupport()} />
       </View>

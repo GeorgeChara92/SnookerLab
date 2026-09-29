@@ -9,9 +9,12 @@ import { useCommunityStore } from "../../store/communityStore";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { CommunityAvatar, flagOf } from "../../components/community/CommunityAvatar";
 import { ReportSheet } from "../../components/community/ReportSheet";
-import { startDirect } from "../../features/community/chat";
+import { ReviewModal } from "../../components/coach/ReviewModal";
+import { startDirect, profilesFor } from "../../features/community/chat";
 import { nameOf, relationTo, type PublicProfile } from "../../features/community/types";
 import { galleryPhotoUrl, listGalleryPhotos, type CoachGalleryPhoto } from "../../features/coach/gallery";
+import { fetchCoachReviews, fetchMyCoachReview, hasFinishedSessionWith } from "../../features/coach/reviews";
+import type { CoachReview } from "../../features/coach/types";
 import { getCountryByCode } from "../../constants/profileOptions";
 import type { CommunityStackParamList } from "../../types";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
@@ -46,6 +49,11 @@ export const CoachProfileScreen = () => {
   const [reporting, setReporting] = useState(false);
   const [photos, setPhotos] = useState<CoachGalleryPhoto[]>([]);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<CoachReview[]>([]);
+  const [reviewers, setReviewers] = useState<Record<string, PublicProfile>>({});
+  const [myReview, setMyReview] = useState<CoachReview | null>(null);
+  const [canReview, setCanReview] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
 
   const relation = relationTo(me, coachId, friendships, blocked);
   const isSelf = relation === "self";
@@ -53,11 +61,21 @@ export const CoachProfileScreen = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [result, gallery] = await Promise.all([loadProfile(coachId), listGalleryPhotos(coachId)]);
+    const [result, gallery, coachReviews] = await Promise.all([
+      loadProfile(coachId),
+      listGalleryPhotos(coachId),
+      fetchCoachReviews(coachId),
+    ]);
     if (result.profile) setProfile(result.profile);
     setPhotos(gallery);
+    setReviews(coachReviews);
+    setReviewers(await profilesFor(coachReviews.map((review) => review.playerId)));
+    if (me && !isSelf) {
+      setMyReview(await fetchMyCoachReview(coachId, me));
+      setCanReview(await hasFinishedSessionWith(coachId, me));
+    }
     setLoading(false);
-  }, [loadProfile, coachId]);
+  }, [loadProfile, coachId, me, isSelf]);
 
   useEffect(() => {
     void load();
@@ -183,6 +201,67 @@ export const CoachProfileScreen = () => {
           </ScrollView>
         </View>
       ) : null}
+
+      <View style={styles.reviewsSection}>
+        <View style={styles.reviewsHead}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Reviews</Text>
+          {reviews.length ? (
+            <View style={styles.reviewsAvg}>
+              <MaterialCommunityIcons name="star" size={16} color={colors.primary} />
+              <Text style={[styles.reviewsAvgText, { color: colors.text }]}>
+                {(reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)} · {reviews.length}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {canReview ? (
+          <Pressable
+            onPress={() => setReviewing(true)}
+            accessibilityRole="button"
+            style={[styles.reviewCta, { borderColor: colors.border, backgroundColor: colors.surface }]}
+          >
+            <MaterialCommunityIcons name={myReview ? "pencil-outline" : "star-outline"} size={18} color={colors.primary} />
+            <Text style={[styles.reviewCtaText, { color: colors.primary }]}>{myReview ? "Edit your review" : "Leave a review"}</Text>
+          </Pressable>
+        ) : null}
+
+        {reviews.length ? (
+          reviews.map((review) => (
+            <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={styles.reviewCardHead}>
+                <Text style={[styles.reviewAuthor, { color: colors.text }]}>{nameOf(reviewers[review.playerId])}</Text>
+                <View style={styles.reviewStars}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <MaterialCommunityIcons
+                      key={star}
+                      name={star <= review.rating ? "star" : "star-outline"}
+                      size={14}
+                      color={colors.primary}
+                    />
+                  ))}
+                </View>
+              </View>
+              {review.body ? <Text style={[styles.reviewBody, { color: colors.textMuted }]}>{review.body}</Text> : null}
+            </View>
+          ))
+        ) : (
+          <Text style={[styles.reviewsEmpty, { color: colors.textMuted }]}>No reviews yet.</Text>
+        )}
+      </View>
+
+      <ReviewModal
+        visible={reviewing}
+        coachId={coachId}
+        playerId={me}
+        existing={myReview}
+        onClose={() => setReviewing(false)}
+        onSaved={(review) => {
+          setMyReview(review);
+          setReviews((prev) => [review, ...prev.filter((item) => item.id !== review.id)]);
+          setReviewing(false);
+        }}
+      />
 
       {!isSelf && !isBlocked ? (
         <Pressable
@@ -366,4 +445,24 @@ const styles = StyleSheet.create({
   safety: { flexDirection: "row", justifyContent: "center", gap: SPACING.xl, marginTop: SPACING.md },
   safetyButton: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: HIT_TARGET },
   safetyText: { fontSize: 15, fontWeight: "700" },
+  reviewsSection: { gap: SPACING.sm },
+  reviewsHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  reviewsAvg: { flexDirection: "row", alignItems: "center", gap: 4 },
+  reviewsAvgText: { fontSize: 14, fontWeight: "700" },
+  reviewCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: HIT_TARGET,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+  },
+  reviewCtaText: { fontSize: 15, fontWeight: "700" },
+  reviewCard: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, gap: 4 },
+  reviewCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  reviewAuthor: { fontSize: 14, fontWeight: "700" },
+  reviewStars: { flexDirection: "row", gap: 1 },
+  reviewBody: { fontSize: 14, lineHeight: 20 },
+  reviewsEmpty: { fontSize: 14 },
 });

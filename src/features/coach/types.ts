@@ -97,6 +97,31 @@ export const coachApplicationFromRow = (row: any): CoachApplication => ({
 export const COACH_APPLICATION_COLUMNS =
   "id, status, full_name, email, bio, location, experience, qualifications, wpbsa_accredited, wpbsa_number, social_links, reviewer_note, created_at, reviewed_at";
 
+/** A player's rating and review of a coach they have actually had a session with - one per pair,
+ * editable rather than one per session. See coach_reviews_insert: only allowed once a completed
+ * (accepted, already finished) booking exists between them. */
+export type CoachReview = {
+  id: string;
+  coachId: string;
+  playerId: string;
+  rating: number;
+  body: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const coachReviewFromRow = (row: any): CoachReview => ({
+  id: row.id,
+  coachId: row.coach_id,
+  playerId: row.player_id,
+  rating: row.rating,
+  body: row.body ?? null,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
+export const COACH_REVIEW_COLUMNS = "id, coach_id, player_id, rating, body, created_at, updated_at";
+
 /** Great-circle distance between two points, in kilometres. */
 export const distanceKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }): number => {
   const earthRadiusKm = 6371;
