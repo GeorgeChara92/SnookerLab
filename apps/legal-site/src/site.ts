@@ -35,6 +35,12 @@ export const ROUTES: RouteMeta[] = [
       "Book a verified coach near you, or apply to coach yourself: take bookings, message your clients, run a broadcast group, and keep your own diary - even clients with no Snookered account.",
   },
   {
+    path: "/coach-diary",
+    title: "Coach Diary: booking calendar, clients and session notes · Snookered",
+    description:
+      "Run your coaching business from Snookered: a booking calendar, a client list including walk-ins with no account, broadcast groups for drills, and private session notes. £4.99 a month.",
+  },
+  {
     path: "/scan-snooker",
     title: "Scan a Snooker: replace the balls after a miss in AR · Snookered",
     description:
@@ -81,6 +87,7 @@ export const NAV = [
 
 /** In the menu and the footer, not the top bar: it is a feature, not a section of the site. */
 export const MORE_NAV = [
+  { to: "/coach-diary", label: "Coach Diary" },
   { to: "/scan-snooker", label: "Scan a Snooker" },
   { to: "/support", label: "Support" },
 ];

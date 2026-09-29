@@ -24,25 +24,29 @@ function PlanCard({
   billing,
   delay,
   cta,
+  tag,
+  variant,
 }: {
-  plan: { name: string; tag?: string; who: string; monthly: number | null; annual: number | null; items: string[] };
+  plan: { name: string; who: string; monthly: number | null; annual: number | null; items: string[] };
   billing: Billing;
   delay: number;
   cta?: { to: string; label: string };
+  tag?: string;
+  variant?: "featured" | "coach";
 }) {
   const isFree = plan.monthly == null;
   const price = isFree ? null : billing === "monthly" ? plan.monthly! : plan.annual!;
   const saving = !isFree && billing === "annual" ? annualSaving(plan.monthly!, plan.annual!) : null;
 
   return (
-    <Reveal delay={delay} className={`plan ${plan.tag ? "featured" : ""}`}>
-      {plan.tag && <p className="plan-tag">{plan.tag}</p>}
+    <Reveal delay={delay} className={`plan ${variant === "featured" ? "featured" : ""} ${variant === "coach" ? "plan-coach" : ""}`}>
+      {tag && <p className="plan-tag">{tag}</p>}
       <h2>{plan.name}</h2>
       <div className="plan-price">
         <span className="plan-price-amount">{isFree ? "Free" : gbp(price!)}</span>
         {!isFree && <span className="plan-price-period">/ {billing === "monthly" ? "month" : "year"}</span>}
       </div>
-      {saving ? <p className="plan-saving">Save {saving}% vs paying monthly</p> : <p className="plan-saving placeholder" aria-hidden="true" />}
+      {saving ? <p className="plan-saving">Save {saving}% vs paying monthly</p> : <p className="plan-saving plan-saving-empty" aria-hidden="true" />}
       <p className="plan-who">{plan.who}</p>
       <ul>
         {plan.items.map((item) => (
@@ -84,15 +88,16 @@ export function Plans() {
 
           <div className="plans">
             {PLANS.map((plan, index) => (
-              <PlanCard key={plan.name} plan={plan} billing={billing} delay={index * 0.07} />
+              <PlanCard key={plan.name} plan={plan} tag={plan.tag} variant={plan.tag ? "featured" : undefined} billing={billing} delay={index * 0.07} />
             ))}
-          </div>
-
-          <div className="coach-plan-row">
-            <p className="eyebrow">For coaches</p>
-            <div className="plans plans-single">
-              <PlanCard plan={COACH_PLAN} billing={billing} delay={0.21} cta={{ to: "/find-a-coach", label: "Apply to coach" }} />
-            </div>
+            <PlanCard
+              plan={COACH_PLAN}
+              tag="For coaches"
+              variant="coach"
+              billing={billing}
+              delay={PLANS.length * 0.07}
+              cta={{ to: "/coach-diary", label: "See the coach tools" }}
+            />
           </div>
 
           <p className="note">
@@ -163,8 +168,8 @@ export function Plans() {
                 q: "Is there a plan for coaches?",
                 a: (
                   <p>
-                    Yes, shown above - separate from the player plans. See <Link to="/find-a-coach">Find a Coach</Link> for how
-                    to apply.
+                    Yes, shown above - separate from the player plans. See <Link to="/coach-diary">Coach Diary</Link> for what
+                    you get and how to apply.
                   </p>
                 ),
               },

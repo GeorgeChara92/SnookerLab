@@ -107,6 +107,7 @@ export function Footer() {
             <Link to="/practice">Practice</Link>
             <Link to="/coach">Snookered Coach</Link>
             <Link to="/find-a-coach">Find a Coach</Link>
+            <Link to="/coach-diary">Coach Diary</Link>
             <Link to="/scoring">Scoring</Link>
             <Link to="/community">Community</Link>
             <Link to="/scan-snooker">Scan a Snooker</Link>

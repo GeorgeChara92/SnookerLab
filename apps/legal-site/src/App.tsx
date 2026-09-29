@@ -7,6 +7,7 @@ import Home from "./pages/Home";
 import { Community, Practice, Scoring } from "./pages/Features";
 import Coach from "./pages/Coach";
 import FindACoach from "./pages/FindACoach";
+import CoachDiary from "./pages/CoachDiary";
 import ScanSnooker from "./pages/ScanSnooker";
 import AdminDashboard from "./pages/AdminDashboard";
 import { NotFound, Plans, Privacy, Support, Terms } from "./pages/Info";
@@ -91,6 +92,7 @@ export function App() {
           <Route path="/practice" element={<Practice />} />
           <Route path="/coach" element={<Coach />} />
           <Route path="/find-a-coach" element={<FindACoach />} />
+          <Route path="/coach-diary" element={<CoachDiary />} />
           <Route path="/scan-snooker" element={<ScanSnooker />} />
           <Route path="/community" element={<Community />} />
           <Route path="/plans" element={<Plans />} />

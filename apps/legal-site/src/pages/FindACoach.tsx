@@ -13,7 +13,7 @@ const APPLY_TEMPLATE = [
   "Social media or links (for us to check you by): ",
 ].join("\n");
 
-const APPLY_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Coach application")}&body=${encodeURIComponent(APPLY_TEMPLATE)}`;
+export const APPLY_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Coach application")}&body=${encodeURIComponent(APPLY_TEMPLATE)}`;
 
 const PLAYER_STORY: Story[] = [
   {
@@ -54,7 +54,7 @@ const PLAYER_STORY: Story[] = [
   },
 ];
 
-const COACH_STORY: Story[] = [
+export const COACH_STORY: Story[] = [
   {
     id: "dashboard",
     kicker: "As a coach",
@@ -136,7 +136,10 @@ export default function FindACoach() {
           <a className="btn btn-primary" href={APPLY_MAILTO}>
             Apply to coach <Arrow />
           </a>
-          <p className="note">Already have the app? Apply from Profile instead - it's quicker, and you can track your application there.</p>
+          <p className="note">
+            Already have the app? Apply from Profile instead - it's quicker, and you can track your application there. Want
+            the full pitch first? See <Link to="/coach-diary">Coach Diary</Link>.
+          </p>
         </div>
       </section>
 
