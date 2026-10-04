@@ -284,10 +284,26 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
           ...tableToWorld(frame, ball),
           kind: "tag" as const,
         })),
+        // A translucent preview of the ball about to be placed, tracking the crosshair live - the
+        // same idea as the hover preview in the standalone routine builder. Without this the only
+        // feedback was the flat 2D crosshair, which always sits dead centre of the screen and says
+        // nothing about where the ray actually lands in 3D - the real landing point only appeared
+        // after committing the tap, which is exactly what looked like "going somewhere else"
+        // (confirmed by the user, 2026-10-04).
+        ...(aimedBall && aimedOnTable
+          ? [
+              {
+                id: "aim-preview",
+                colour: BALL_LOOK[colour].fill,
+                ...tableToWorld(frame, aimedBall),
+                kind: "ghost" as const,
+              },
+            ]
+          : []),
       ];
     }
     return markers;
-  }, [balls, checkTarget?.id, frame, phase, saved, taps]);
+  }, [aimedBall, aimedOnTable, balls, checkTarget?.id, colour, frame, phase, saved, taps]);
 
   // ---------------------------------------------------------------- the words at the top
   const quality = frame ? calibrationQuality(frame.scale) : null;

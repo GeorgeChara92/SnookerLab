@@ -106,6 +106,13 @@ export const AppNavigator = () => {
   // A coach picks player or coach view once per app open, rather than always landing on player
   // with the coach view buried in Profile settings. Not shown again until the app is reopened.
   const [viewChosen, setViewChosen] = useState(false);
+  // `isCoach` comes from the community store, which (unlike the stores in `loaded` below) is
+  // deliberately not waited for - so on a fresh sign in it is still false, its unhydrated default,
+  // at the moment `readyUserId` is set. Falling through to Main on that stale false used to show
+  // the dashboard for a frame before the coach flag arrived and the navigator swapped in
+  // ChooseView - a real flash of the wrong screen, not just a loading flicker. This tracks whether
+  // the coach flag specifically has settled, so a dual account's view choice waits for it too.
+  const [coachFlagReady, setCoachFlagReady] = useState(false);
 
   const loadUser = useCallback(
     async (id: string) => {
@@ -122,7 +129,13 @@ export const AppNavigator = () => {
       usePracticePlanStore.getState().setOwner(id);
       useScanSnookerStore.getState().setOwner(id);
       useCommunityStore.getState().setOwner(id);
-      void useCommunityStore.getState().hydrate(id);
+      setCoachFlagReady(false);
+      void useCommunityStore
+        .getState()
+        .hydrate(id)
+        .finally(() => {
+          if (loadingFor.current === id) setCoachFlagReady(true);
+        });
       // A photo picked during registration, before email confirmation, uploads itself the moment a
       // session exists - not waited for, so it never delays getting into the app.
       void useAuthStore.getState().uploadPendingAvatar();
@@ -184,6 +197,7 @@ export const AppNavigator = () => {
     useUiModeStore.getState().setViewMode("player");
     setReadyUserId(null);
     setViewChosen(false);
+    setCoachFlagReady(false);
   }, []);
 
   const extractAuthParams = (url: string) => {
@@ -348,7 +362,9 @@ export const AppNavigator = () => {
       <AchievementWatcher>
         <NavigationContainer ref={navigationRef} theme={navigationTheme}>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {isAuthenticated && !requiresPasswordReset && readyUserId !== userId ? (
+            {isAuthenticated &&
+            !requiresPasswordReset &&
+            (readyUserId !== userId || (isDualAccount && !viewChosen && !coachFlagReady)) ? (
               <Stack.Screen name="Loading" component={LoadingPlayerScreen} />
             ) : isAuthenticated && !requiresPasswordReset && isCoach && isDualAccount && !viewChosen ? (
               <Stack.Screen name="ChooseView">
