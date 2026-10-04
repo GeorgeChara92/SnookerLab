@@ -2,7 +2,14 @@ import React, { useMemo, useRef, useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { SnookerARView, arSupport, type ARAim, type ARBallProp, type ARTracking } from "../../../modules/snooker-ar";
+import {
+  SnookerARView,
+  arSupport,
+  type ARAim,
+  type ARBallProp,
+  type ARMarkerMoved,
+  type ARTracking,
+} from "../../../modules/snooker-ar";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../ui/DialogProvider";
 import { BALL_LOOK, TableDiagram } from "./TableDiagram";
@@ -12,6 +19,7 @@ import {
   LANDMARKS,
   calibrationQuality,
   describeCorrection,
+  describeScale,
   distance,
   frameFromLandmarks,
   tableToWorld,
@@ -37,7 +45,7 @@ import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../co
  * Scan Snooker through the camera.
  *
  *   find      - the camera finds the cloth (Apple's own guidance shows until it does)
- *   calibrate - aim at two landmarks the player can see, one after the other
+ *   calibrate - aim at two spots the player can see, one after the other
  *   check     - the table is drawn over the real one; if it lines up, carry on
  *   scan      - aim at each ball and add it; a diagram of what has been scanned builds alongside
  *   replace   - ghosts show where each ball was; aim at a real ball to see which way to move it
@@ -97,9 +105,8 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
   const [phase, setPhase] = useState<Phase>("find");
   const [tracking, setTracking] = useState<ARTracking>({ state: "limited", reason: "initializing" });
   const [aim, setAim] = useState<ARAim | null>(null);
-  const [landmarks, setLandmarks] = useState<[string, string]>(["black-spot", "brown-spot"]);
+  const [landmarks, setLandmarks] = useState<[string, string]>(["black-spot", "pink-spot"]);
   const [taps, setTaps] = useState<Tap[]>([]);
-  const [frame, setFrame] = useState<TableFrame | null>(null);
   const [balls, setBalls] = useState<PlacedBall[]>(intent === "record" && saved ? saved.balls : []);
   const [colour, setColour] = useState<BallColour>("cue");
   const [checking, setChecking] = useState<BallColour>("cue");
@@ -116,6 +123,26 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
   const landmark = (id: string) => LANDMARKS.find((item) => item.id === id)!;
   const current = taps.length < 2 ? landmark(landmarks[taps.length]) : null;
   const target = phase === "replace" ? (saved?.balls ?? []) : balls;
+
+  /**
+   * The table frame, rebuilt from the two tapped landmarks every time either one's position
+   * changes - not computed once and cached. Their `ARAnchor`s keep tracking correctly for the
+   * whole session (see `SnookerARView.swift`), but a frame computed once from their positions at
+   * tap time and never revisited would still drift away from the real table as ARKit refines its
+   * map: the dots would stay glued while the maths built from them quietly went stale. `taps[i]`
+   * is kept current by `onMarkerMoved` below, so this recomputes whenever ARKit corrects either
+   * one, the same way it was computed the moment both taps were first in.
+   */
+  const frame = useMemo<TableFrame | null>(
+    () =>
+      taps.length === 2
+        ? frameFromLandmarks(
+            { table: landmark(taps[0].landmarkId).point, world: taps[0].world },
+            { table: landmark(taps[1].landmarkId).point, world: taps[1].world }
+          )
+        : null,
+    [taps]
+  );
 
   // ---------------------------------------------------------------- what the crosshair is on
   const ray = aim?.ok && aim.origin && aim.direction ? { origin: aim.origin, direction: aim.direction } : null;
@@ -173,20 +200,23 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
     const next = [...taps, { landmarkId: current.id, world }];
     setTaps(next);
     if (next.length === 2) {
-      const built = frameFromLandmarks(
-        { table: landmark(next[0].landmarkId).point, world: next[0].world },
-        { table: landmark(next[1].landmarkId).point, world: next[1].world }
-      );
-      setFrame(built);
       setPhase("check");
     }
+  };
+
+  /** ARKit has corrected one of the two calibration markers; `frame` above recomputes from it. */
+  const onMarkerMoved = (event: { nativeEvent: ARMarkerMoved }) => {
+    const { id, x, y, z } = event.nativeEvent;
+    const match = /^landmark-(\d)$/.exec(id);
+    if (!match) return;
+    const index = Number(match[1]);
+    setTaps((prev) => (index < prev.length ? prev.map((tap, i) => (i === index ? { ...tap, world: { x, y, z } } : tap)) : prev));
   };
 
   const redoCalibration = () => {
     stabiliser.reset();
     setStability({ progress: 0, locked: null });
     setTaps([]);
-    setFrame(null);
     setPhase("calibrate");
   };
 
@@ -230,29 +260,37 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
       ...tap.world,
       kind: "marker",
     }));
+    // The two calibration markers keep drawing (and so keep their ARAnchor alive) for the rest of
+    // the session, not just while calibrating - see the comment on `frame` above for why.
     if (!frame) return markers;
     if (phase === "replace") {
-      return (saved?.balls ?? []).map((ball) => ({
-        id: ball.id,
-        colour: BALL_LOOK[ball.colour].fill,
-        ...tableToWorld(frame, ball),
-        kind: "ghost",
-        highlighted: ball.id === checkTarget?.id,
-      }));
+      return [
+        ...markers,
+        ...(saved?.balls ?? []).map((ball) => ({
+          id: ball.id,
+          colour: BALL_LOOK[ball.colour].fill,
+          ...tableToWorld(frame, ball),
+          kind: "ghost" as const,
+          highlighted: ball.id === checkTarget?.id,
+        })),
+      ];
     }
     if (phase === "scan") {
-      return balls.map((ball) => ({
-        id: ball.id,
-        colour: BALL_LOOK[ball.colour].fill,
-        ...tableToWorld(frame, ball),
-        kind: "tag",
-      }));
+      return [
+        ...markers,
+        ...balls.map((ball) => ({
+          id: ball.id,
+          colour: BALL_LOOK[ball.colour].fill,
+          ...tableToWorld(frame, ball),
+          kind: "tag" as const,
+        })),
+      ];
     }
     return markers;
   }, [balls, checkTarget?.id, frame, phase, saved, taps]);
 
   // ---------------------------------------------------------------- the words at the top
-  const quality = frame ? calibrationQuality(frame.errorMm) : null;
+  const quality = frame ? calibrationQuality(frame.scale) : null;
   const step = (() => {
     switch (phase) {
       case "find":
@@ -260,7 +298,7 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
       case "calibrate":
         return {
           title: `Aim at the ${current?.label.toLowerCase()}`,
-          tip: `Point ${taps.length + 1} of 2. Put the cross on its centre and tap the button. Any landmark you can see will do.`,
+          tip: `Point ${taps.length + 1} of 2. Put the cross on its centre and tap the button. Any spot you can see will do.`,
         };
       case "check":
         return {
@@ -297,7 +335,7 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
     notice ??
     trackingProblem ??
     (phase === "check" && quality
-      ? `${QUALITY_TEXT[quality]} · ${Math.round(frame!.errorMm / 10)} cm out${lidar ? "" : " · no LiDAR"}`
+      ? `${QUALITY_TEXT[quality]} · ${describeScale(frame!.scale)}${lidar ? "" : " · no LiDAR"}`
       : showTip
         ? step.tip
         : null);
@@ -350,6 +388,7 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
         onPlane={() => setPhase((value) => (value === "find" ? "calibrate" : value))}
         onAim={onAim}
         onTapPoint={onTapPoint}
+        onMarkerMoved={onMarkerMoved}
       />
 
       {/* ------------------------------------------------ the crosshair */}
@@ -420,7 +459,7 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
           <Pressable
             onPress={() => setPickingLandmark(taps.length as 0 | 1)}
             accessibilityRole="button"
-            accessibilityLabel={`Landmark: ${current.label}. Change`}
+            accessibilityLabel={`Spot: ${current.label}. Change`}
             style={styles.chip}
           >
             <Text style={styles.chipText}>{current.label}</Text>
@@ -593,7 +632,7 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
       >
         <View style={[styles.sheet, { backgroundColor: colors.background }]}>
           <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>Which landmark?</Text>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>Which spot?</Text>
             <Pressable
               onPress={() => setPickingLandmark(null)}
               accessibilityRole="button"

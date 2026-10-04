@@ -44,7 +44,7 @@ public class SnookerARModule: Module {
     }
 
     View(SnookerARView.self) {
-      Events("onTracking", "onPlane", "onAim", "onTapPoint")
+      Events("onTracking", "onPlane", "onAim", "onTapPoint", "onMarkerMoved")
 
       Prop("balls") { (view: SnookerARView, balls: [ARBall]) in
         view.setBalls(balls)

@@ -38,6 +38,9 @@ export type ARBallProp = {
 
 export type ARLineProp = { points: ARVec3[]; colour: string };
 
+/** A calibration marker's corrected position, reported whenever ARKit refines its anchor. */
+export type ARMarkerMoved = ARVec3 & { id: string };
+
 export type SnookerARViewProps = ViewProps & {
   balls?: ARBallProp[];
   lines?: ARLineProp[];
@@ -46,6 +49,8 @@ export type SnookerARViewProps = ViewProps & {
   onPlane?: (event: { nativeEvent: { count: number } }) => void;
   onAim?: (event: { nativeEvent: ARAim }) => void;
   onTapPoint?: (event: { nativeEvent: ARAim }) => void;
+  /** A calibration marker ARKit has just corrected - see `SnookerARView.swift`'s `setBalls`. */
+  onMarkerMoved?: (event: { nativeEvent: ARMarkerMoved }) => void;
 };
 
 type NativeModule = { isSupported(): boolean; hasLiDAR(): boolean };

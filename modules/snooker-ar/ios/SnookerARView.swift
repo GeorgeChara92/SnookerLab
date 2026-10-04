@@ -14,6 +14,7 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
   let onPlane = EventDispatcher()
   let onAim = EventDispatcher()
   let onTapPoint = EventDispatcher()
+  let onMarkerMoved = EventDispatcher()
 
   private let sceneView = ARSCNView(frame: .zero)
   private let coaching = ARCoachingOverlayView()
@@ -26,6 +27,12 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
   /// The marker waiting for its ARAnchor to come back from the session, keyed by the anchor's own
   /// id, so `renderer(_:didAdd:for:)` knows what to build once ARKit has a node for it.
   private var pendingAnchorBalls: [UUID: ARBall] = [:]
+  /// Reverse of `landmarkAnchors`, so `renderer(_:didUpdate:for:)` can tell JavaScript which ball
+  /// moved when ARKit corrects an anchor it has already added.
+  private var anchorBallIds: [UUID: String] = [:]
+  /// The position last reported for each marker, so a correction under half a millimetre - noise,
+  /// not a real refinement - does not spam the bridge on every single frame.
+  private var lastReportedMarkerPosition: [String: simd_float3] = [:]
   private var planeCount = 0
   private var lastAimTime: TimeInterval = 0
   private var isPaused = false
@@ -97,6 +104,8 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
     // before a pause is recreated rather than assumed still in place.
     landmarkAnchors.removeAll()
     pendingAnchorBalls.removeAll()
+    anchorBallIds.removeAll()
+    lastReportedMarkerPosition.removeAll()
     ballNodes.values.forEach { $0.removeFromParentNode() }
     ballNodes.removeAll()
     sceneView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
@@ -163,6 +172,24 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
     }
   }
 
+  /// ARKit calls this whenever it corrects an anchor's transform as its map of the room improves -
+  /// which is the whole reason a calibration marker gets a real ARAnchor rather than a plain node.
+  /// Reporting the correction to JavaScript, not just moving the marker's own mesh, is what lets
+  /// the table frame it is built from stay current instead of being frozen at the moment of the
+  /// tap: a fix computed once from two taps and never revisited is exactly what let the on-screen
+  /// dots keep tracking correctly while the invisible maths they fed drifted away underneath them.
+  func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
+    let identifier = anchor.identifier
+    let position = anchor.transform.columns.3
+    let current = simd_float3(position.x, position.y, position.z)
+    DispatchQueue.main.async {
+      guard let ballId = self.anchorBallIds[identifier] else { return }
+      if let last = self.lastReportedMarkerPosition[ballId], simd_distance(last, current) < 0.0005 { return }
+      self.lastReportedMarkerPosition[ballId] = current
+      self.onMarkerMoved(["id": ballId, "x": Double(current.x), "y": Double(current.y), "z": Double(current.z)])
+    }
+  }
+
   /// Where the middle of the screen is pointing, ten times a second, for the crosshair.
   func session(_ session: ARSession, didUpdate frame: ARFrame) {
     let now = frame.timestamp
@@ -211,11 +238,16 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
   /// Balls, ghosts and markers, matched by id so only what changed is rebuilt.
   ///
   /// A "marker" - a calibration landmark - gets a real ARAnchor at the tapped position instead of
-  /// a plain node, because it is placed once and then relied on while the phone keeps moving
-  /// (walking to the next landmark, or away from the table). ARKit corrects an anchor's transform
-  /// every frame as its map of the room improves; a plain node has no such correction, and visibly
-  /// drifts or sinks into the table over that same time. Balls and ghosts are placed and read back
-  /// within a single frame of aiming, so they do not need this.
+  /// a plain node, because it is placed once and then relied on for the rest of the session, while
+  /// the phone keeps moving (walking to the next landmark, round the table, and back). ARKit
+  /// corrects an anchor's transform as its map of the room improves; a plain node has no such
+  /// correction, and visibly drifts or sinks into the table over that same time. Balls and ghosts
+  /// are placed and read back within a single frame of aiming, so they do not need this.
+  ///
+  /// JavaScript keeps sending both markers for the rest of the session (not only during
+  /// calibration), so their anchors are never torn down: `renderer(_:didUpdate:for:)` reports each
+  /// correction back via `onMarkerMoved`, and the table frame those two points define is rebuilt
+  /// from the corrected positions rather than staying frozen at the moment of the tap.
   func setBalls(_ balls: [ARBall]) {
     var seen = Set<String>()
     for ball in balls {
@@ -225,6 +257,7 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
           let anchor = ARAnchor(transform: pointTransform(x: ball.x, y: ball.y, z: ball.z))
           pendingAnchorBalls[anchor.identifier] = ball
           landmarkAnchors[ball.id] = anchor
+          anchorBallIds[anchor.identifier] = ball.id
           sceneView.session.add(anchor: anchor)
         }
         continue
@@ -249,6 +282,8 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
       sceneView.session.remove(anchor: anchor)
       landmarkAnchors.removeValue(forKey: id)
       ballNodes.removeValue(forKey: id)
+      anchorBallIds.removeValue(forKey: anchor.identifier)
+      lastReportedMarkerPosition.removeValue(forKey: id)
     }
   }
 

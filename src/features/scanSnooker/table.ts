@@ -80,6 +80,11 @@ export const POCKETS: Record<string, Point> = {
 /**
  * Points a player can find on any table and tap to calibrate. Any two will do, so whichever are
  * in view - and not hidden under a ball - can be used.
+ *
+ * Spots only, not pockets: a spot is a small, precisely regulated mark in a fixed position
+ * relative to the cushions on every table, but a pocket's "centre" is genuinely fuzzy - jaw shape,
+ * liner wear and manufacturer all vary it by more than the spots ever vary, making it a much
+ * noisier thing to tap accurately.
  */
 export const LANDMARKS: Array<{ id: string; label: string; point: Point }> = [
   { id: "black-spot", label: "Black spot", point: SPOTS.black },
@@ -88,12 +93,6 @@ export const LANDMARKS: Array<{ id: string; label: string; point: Point }> = [
   { id: "brown-spot", label: "Brown spot", point: SPOTS.brown },
   { id: "yellow-spot", label: "Yellow spot", point: SPOTS.yellow },
   { id: "green-spot", label: "Green spot", point: SPOTS.green },
-  { id: "top-left-pocket", label: "Top left pocket", point: POCKETS.topLeft },
-  { id: "top-right-pocket", label: "Top right pocket", point: POCKETS.topRight },
-  { id: "middle-left-pocket", label: "Left middle pocket", point: POCKETS.middleLeft },
-  { id: "middle-right-pocket", label: "Right middle pocket", point: POCKETS.middleRight },
-  { id: "bottom-left-pocket", label: "Bottom left pocket", point: POCKETS.bottomLeft },
-  { id: "bottom-right-pocket", label: "Bottom right pocket", point: POCKETS.bottomRight },
 ];
 
 // ---------------------------------------------------------------------------- measuring
@@ -146,19 +145,21 @@ export const describeCorrection = (from: Point, to: Point) => {
 export type WorldPoint = { x: number; y: number; z: number };
 
 /**
- * How the real table sits in the camera's world, worked out from two landmarks.
+ * How the real table sits in the camera's world, worked out from two spots.
  *
  * The bed is flat, so once the camera has found its plane, two known points fix everything else:
- * where the table is, and which way it faces. Seen from above, table x runs along world x and
- * table y along world z (towards the camera when standing at baulk), turned by `angle`.
+ * where the table is, which way it faces, and - see `scale` - how big it really is. Seen from
+ * above, table x runs along world x and table y along world z (towards the camera when standing at
+ * baulk), turned by `angle`.
  */
 export type TableFrame = {
   origin: { x: number; z: number };
   angle: number;
   /** Height of the bed in the world, in metres. */
   height: number;
-  /** How far the two tapped points were from where the table says they should be, in mm. */
-  errorMm: number;
+  /** How much bigger (or smaller) this real table is than a regulation one - 1 means exactly
+   * regulation size. See `frameFromLandmarks`. */
+  scale: number;
 };
 
 const MM_PER_METRE = 1000;
@@ -171,20 +172,26 @@ export const frameFromLandmarks = (
   const worldAngle = Math.atan2(second.world.z - first.world.z, second.world.x - first.world.x);
   const angle = worldAngle - tableAngle;
 
-  // Place the table so the first landmark lands where it was tapped.
+  const measured = Math.hypot(second.world.x - first.world.x, second.world.z - first.world.z) * MM_PER_METRE;
+  const expected = distance(first.table, second.table);
+  // The two tapped spots are trusted over the regulation distance between them - a real table's
+  // cloth can be a little bigger or smaller than spec (stretch, wear, a non-standard table), and
+  // forcing every other position to regulation spacing regardless just because the taps disagree
+  // with it compounds into a table drawn a few cm short (or long) of the real cushions the further
+  // a point is from the spot that was tapped.
+  const scale = measured / expected;
+
+  // Place the table so the first spot lands where it was tapped.
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
-  const tx = first.table.x / MM_PER_METRE;
-  const ty = first.table.y / MM_PER_METRE;
+  const tx = (first.table.x / MM_PER_METRE) * scale;
+  const ty = (first.table.y / MM_PER_METRE) * scale;
   const origin = {
     x: first.world.x - (tx * cos - ty * sin),
     z: first.world.z - (tx * sin + ty * cos),
   };
 
-  const measured = Math.hypot(second.world.x - first.world.x, second.world.z - first.world.z) * MM_PER_METRE;
-  const expected = distance(first.table, second.table);
-
-  return { origin, angle, height: (first.world.y + second.world.y) / 2, errorMm: Math.abs(measured - expected) };
+  return { origin, angle, height: (first.world.y + second.world.y) / 2, scale };
 };
 
 /**
@@ -194,8 +201,8 @@ export const frameFromLandmarks = (
 export const tableToWorld = (frame: TableFrame, point: Point, raiseMm: number = BALL_RADIUS): WorldPoint => {
   const cos = Math.cos(frame.angle);
   const sin = Math.sin(frame.angle);
-  const tx = point.x / MM_PER_METRE;
-  const ty = point.y / MM_PER_METRE;
+  const tx = (point.x / MM_PER_METRE) * frame.scale;
+  const ty = (point.y / MM_PER_METRE) * frame.scale;
   return {
     x: frame.origin.x + tx * cos - ty * sin,
     y: frame.height + raiseMm / MM_PER_METRE,
@@ -210,14 +217,24 @@ export const worldToTable = (frame: TableFrame, point: WorldPoint): Point => {
   const dx = point.x - frame.origin.x;
   const dz = point.z - frame.origin.z;
   return {
-    x: (dx * cos + dz * sin) * MM_PER_METRE,
-    y: (-dx * sin + dz * cos) * MM_PER_METRE,
+    x: ((dx * cos + dz * sin) / frame.scale) * MM_PER_METRE,
+    y: ((-dx * sin + dz * cos) / frame.scale) * MM_PER_METRE,
   };
 };
 
-/** How far to trust a calibration, from how well the two landmarks matched the table. */
-export const calibrationQuality = (errorMm: number): "good" | "fair" | "poor" => {
-  if (errorMm <= 20) return "good";
-  if (errorMm <= 50) return "fair";
+/** "Matches a regulation table", "6% bigger than standard", or "6% smaller than standard" - for
+ * the calibration check screen. */
+export const describeScale = (scale: number) => {
+  const percent = Math.round(Math.abs(scale - 1) * 100);
+  return percent === 0 ? "Matches a regulation table" : `${percent}% ${scale > 1 ? "bigger" : "smaller"} than standard`;
+};
+
+/** How far to trust a calibration, from how much bigger or smaller the tapped spots came out than
+ * a regulation table - a little either way is just that table's own cloth; a lot suggests a
+ * mis-tap (the wrong spot, or tracking that had not settled yet). */
+export const calibrationQuality = (scale: number): "good" | "fair" | "poor" => {
+  const off = Math.abs(scale - 1);
+  if (off <= 0.05) return "good";
+  if (off <= 0.15) return "fair";
   return "poor";
 };
