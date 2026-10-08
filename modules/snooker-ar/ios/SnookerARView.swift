@@ -30,9 +30,18 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
   /// Reverse of `landmarkAnchors`, so `renderer(_:didUpdate:for:)` can tell JavaScript which ball
   /// moved when ARKit corrects an anchor it has already added.
   private var anchorBallIds: [UUID: String] = [:]
-  /// The position last reported for each marker, so a correction under half a millimetre - noise,
-  /// not a real refinement - does not spam the bridge on every single frame.
+  /// The position last reported for each marker, so a correction under `markerCorrectionThreshold`
+  /// - noise, not a real refinement - does not spam the bridge on every single frame.
   private var lastReportedMarkerPosition: [String: simd_float3] = [:]
+  /// Below this, a correction is ARKit's frame-to-frame tracking noise, not a real refinement -
+  /// seen on a real table as the marker trembling in place even though nothing had actually
+  /// changed, because the marker's mesh used to be a direct child of the anchor's own node, which
+  /// ARSCNView re-syncs to the anchor's live transform every single frame with no filtering at
+  /// all (confirmed 2026-10-08). The marker is now a free node that `didUpdate` repositions
+  /// itself, gated by this same threshold, so the dot only visibly moves for a correction large
+  /// enough to matter - the same one JavaScript is told about, so the two can never disagree about
+  /// what counts as "moved".
+  private let markerCorrectionThreshold: Float = 0.003
   private var planeCount = 0
   private var lastAimTime: TimeInterval = 0
   private var isPaused = false
@@ -157,13 +166,14 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
     // after hopping to main, to avoid the two racing on the same anchor.
     DispatchQueue.main.async {
       if let ball = self.pendingAnchorBalls.removeValue(forKey: anchor.identifier) {
-        // `node` is the anchor's own node: ARSCNView moves it to match `anchor.transform` every
-        // frame, so a marker added as its child stays put on the real spot as tracking is
-        // refined, instead of a static position that falls behind.
+        // Not a child of `node` (the anchor's own node) - see `markerCorrectionThreshold` above
+        // for why. This free node starts at the anchor's position and `didUpdate` moves it from
+        // here on, only when a correction clears the noise threshold.
         let content = self.makeNode(for: ball)
         content.name = "\(ball.kind)|\(ball.colour)|\(ball.highlighted)"
-        node.addChildNode(content)
-        self.ballNodes[ball.id] = node
+        content.simdPosition = simd_make_float3(anchor.transform.columns.3)
+        self.sceneView.scene.rootNode.addChildNode(content)
+        self.ballNodes[ball.id] = content
         return
       }
       guard anchor is ARPlaneAnchor else { return }
@@ -184,8 +194,11 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
     let current = simd_float3(position.x, position.y, position.z)
     DispatchQueue.main.async {
       guard let ballId = self.anchorBallIds[identifier] else { return }
-      if let last = self.lastReportedMarkerPosition[ballId], simd_distance(last, current) < 0.0005 { return }
+      if let last = self.lastReportedMarkerPosition[ballId], simd_distance(last, current) < self.markerCorrectionThreshold {
+        return
+      }
       self.lastReportedMarkerPosition[ballId] = current
+      self.ballNodes[ballId]?.simdPosition = current
       self.onMarkerMoved(["id": ballId, "x": Double(current.x), "y": Double(current.y), "z": Double(current.z)])
     }
   }
