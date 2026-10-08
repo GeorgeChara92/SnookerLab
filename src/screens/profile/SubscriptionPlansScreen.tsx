@@ -240,7 +240,17 @@ export const SubscriptionPlansScreen = () => {
       setBusyTier(tier);
       await initBilling(user.id);
       await purchaseTierMonthly(tier, offerings);
-      await refresh({ force: true, announce: false });
+      // The purchase has already gone through on-device, but `refresh` ultimately trusts the
+      // server's own read of RevenueCat (see `syncSubscriptionWithServer`), which can lag a
+      // purchase that just succeeded locally by a few seconds. A single refresh right after can
+      // land before the server has caught up and set the store back to the stale tier - with
+      // nothing to correct it until the next refocus clears the 15s auto-refresh throttle. Keep
+      // refreshing a few times, a short beat apart, until the store actually agrees.
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await refresh({ force: true, announce: false });
+        if (useAuthStore.getState().user?.subscription_tier === tier) break;
+        if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
       dialog.alert({
         title: "You are on " + TIER_LABELS[tier],
         message: "Your new limits apply straight away.",
@@ -364,78 +374,82 @@ export const SubscriptionPlansScreen = () => {
         </View>
       ) : null}
 
-      <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ALL PLANS</Text>
+      {status === "loading" ? null : (
+        <>
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ALL PLANS</Text>
 
-      {PLANS.map((plan) => {
-        const isCurrent = plan.tier === currentTier;
-        const offer = plan.tier === "free" ? null : getTierOffer(plan.tier as PaidTier, offerings);
-        const isUpgrade = TIER_RANK[plan.tier] > TIER_RANK[currentTier];
-        const priceUnavailable = plan.tier !== "free" && billingEnabled && status === "ready" && !offer;
+          {PLANS.map((plan) => {
+            const isCurrent = plan.tier === currentTier;
+            const offer = plan.tier === "free" ? null : getTierOffer(plan.tier as PaidTier, offerings);
+            const isUpgrade = TIER_RANK[plan.tier] > TIER_RANK[currentTier];
+            const priceUnavailable = plan.tier !== "free" && billingEnabled && status === "ready" && !offer;
 
-        return (
-          <View
-            key={plan.tier}
-            style={[
-              styles.planCard,
-              { backgroundColor: colors.surface, borderColor: isCurrent ? colors.primary : colors.border },
-              isCurrent && styles.planCardCurrent,
-            ]}
-          >
-            <View style={styles.planHeader}>
-              <View style={styles.planHeaderText}>
-                <Text style={[styles.planName, { color: colors.text }]}>{TIER_LABELS[plan.tier]}</Text>
-                <Text style={[styles.planTagline, { color: colors.textMuted }]}>{plan.tagline}</Text>
-              </View>
-              <View style={styles.planPriceBlock}>
-                <Text style={[styles.planPrice, { color: colors.text }]}>
-                  {plan.tier === "free" ? "Free" : offer?.priceText ?? "—"}
-                </Text>
-                {plan.tier !== "free" && offer ? (
-                  <Text style={[styles.planPeriod, { color: colors.textMuted }]}>
-                    {offer.periodLabel === "monthly" ? "per month" : offer.periodLabel ?? "per month"}
+            return (
+              <View
+                key={plan.tier}
+                style={[
+                  styles.planCard,
+                  { backgroundColor: colors.surface, borderColor: isCurrent ? colors.primary : colors.border },
+                  isCurrent && styles.planCardCurrent,
+                ]}
+              >
+                <View style={styles.planHeader}>
+                  <View style={styles.planHeaderText}>
+                    <Text style={[styles.planName, { color: colors.text }]}>{TIER_LABELS[plan.tier]}</Text>
+                    <Text style={[styles.planTagline, { color: colors.textMuted }]}>{plan.tagline}</Text>
+                  </View>
+                  <View style={styles.planPriceBlock}>
+                    <Text style={[styles.planPrice, { color: colors.text }]}>
+                      {plan.tier === "free" ? "Free" : offer?.priceText ?? "—"}
+                    </Text>
+                    {plan.tier !== "free" && offer ? (
+                      <Text style={[styles.planPeriod, { color: colors.textMuted }]}>
+                        {offer.periodLabel === "monthly" ? "per month" : offer.periodLabel ?? "per month"}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+
+                {isCurrent ? (
+                  <View style={[styles.currentBadge, { backgroundColor: colors.primary }]}>
+                    <Text style={[styles.currentBadgeText, { color: colors.onPrimary }]}>CURRENT PLAN</Text>
+                  </View>
+                ) : null}
+
+                <View style={styles.featureList}>
+                  {planFeatures(plan.tier, plan.extras).map((feature) => (
+                    <View key={feature} style={styles.featureRow}>
+                      <MaterialCommunityIcons name="check" size={16} color={colors.primary} />
+                      <Text style={[styles.featureText, { color: colors.text }]}>{feature}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {priceUnavailable ? (
+                  <Text style={[styles.planNote, { color: colors.textMuted }]}>
+                    Price unavailable right now. Pull down to refresh.
                   </Text>
                 ) : null}
+
+                {!isCurrent ? (
+                  <View style={styles.planAction}>
+                    <AppButton
+                      label={isUpgrade ? `Choose ${TIER_LABELS[plan.tier]}` : `Switch to ${TIER_LABELS[plan.tier]}`}
+                      variant={isUpgrade ? "primary" : "secondary"}
+                      loading={busyTier === plan.tier}
+                      disabled={!billingEnabled || (isUpgrade && (!offer || busyTier !== null))}
+                      onPress={() => {
+                        if (isUpgrade) void purchase(plan.tier as PaidTier);
+                        else confirmStoreChange(TIER_LABELS[plan.tier]);
+                      }}
+                    />
+                  </View>
+                ) : null}
               </View>
-            </View>
-
-            {isCurrent ? (
-              <View style={[styles.currentBadge, { backgroundColor: colors.primary }]}>
-                <Text style={[styles.currentBadgeText, { color: colors.onPrimary }]}>CURRENT PLAN</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.featureList}>
-              {planFeatures(plan.tier, plan.extras).map((feature) => (
-                <View key={feature} style={styles.featureRow}>
-                  <MaterialCommunityIcons name="check" size={16} color={colors.primary} />
-                  <Text style={[styles.featureText, { color: colors.text }]}>{feature}</Text>
-                </View>
-              ))}
-            </View>
-
-            {priceUnavailable ? (
-              <Text style={[styles.planNote, { color: colors.textMuted }]}>
-                Price unavailable right now. Pull down to refresh.
-              </Text>
-            ) : null}
-
-            {!isCurrent ? (
-              <View style={styles.planAction}>
-                <AppButton
-                  label={isUpgrade ? `Choose ${TIER_LABELS[plan.tier]}` : `Switch to ${TIER_LABELS[plan.tier]}`}
-                  variant={isUpgrade ? "primary" : "secondary"}
-                  loading={busyTier === plan.tier}
-                  disabled={!billingEnabled || (isUpgrade && (!offer || busyTier !== null))}
-                  onPress={() => {
-                    if (isUpgrade) void purchase(plan.tier as PaidTier);
-                    else confirmStoreChange(TIER_LABELS[plan.tier]);
-                  }}
-                />
-              </View>
-            ) : null}
-          </View>
-        );
-      })}
+            );
+          })}
+        </>
+      )}
 
       <View style={styles.footer}>
         <View style={styles.footerAction}>
