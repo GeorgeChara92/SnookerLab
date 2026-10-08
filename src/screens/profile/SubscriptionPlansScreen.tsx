@@ -26,10 +26,11 @@ import {
   initBilling,
   isBillingConfigured,
   openNativeSubscriptionSettings,
-  purchaseTierMonthly,
+  purchaseTier,
   restoreBillingPurchases,
   subscriptionStateFromCustomerInfo,
   syncSubscriptionWithServer,
+  type BillingPeriod,
   type BillingSubscriptionState,
   type BillingOfferings,
 } from "../../services/billing";
@@ -44,6 +45,9 @@ const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snookeredapp.com
 const AUTO_REFRESH_INTERVAL_MS = 15000;
 
 const TIER_RANK: Record<SubscriptionTier, number> = { free: 0, half_century: 1, century: 2 };
+
+/** How much cheaper the annual price works out per year, vs paying monthly for 12 months. */
+const annualSaving = (monthlyPrice: number, annualPrice: number) => Math.round((1 - annualPrice / (monthlyPrice * 12)) * 100);
 
 const limitText = (value: number | null, noun: string) =>
   value === null ? `Unlimited ${noun}` : `${value} ${noun} a month`;
@@ -92,6 +96,7 @@ export const SubscriptionPlansScreen = () => {
   const [offerings, setOfferings] = useState<BillingOfferings | null>(null);
   const [billingState, setBillingState] = useState<BillingSubscriptionState | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [period, setPeriod] = useState<BillingPeriod>("monthly");
   const [busyTier, setBusyTier] = useState<PaidTier | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -236,10 +241,12 @@ export const SubscriptionPlansScreen = () => {
       return;
     }
 
+    const isPeriodSwitch = tier === currentTier;
+
     try {
       setBusyTier(tier);
       await initBilling(user.id);
-      await purchaseTierMonthly(tier, offerings);
+      await purchaseTier(tier, period, offerings);
       // The purchase has already gone through on-device, but `refresh` ultimately trusts the
       // server's own read of RevenueCat (see `syncSubscriptionWithServer`), which can lag a
       // purchase that just succeeded locally by a few seconds. A single refresh right after can
@@ -251,12 +258,24 @@ export const SubscriptionPlansScreen = () => {
         if (useAuthStore.getState().user?.subscription_tier === tier) break;
         if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 1500));
       }
-      dialog.alert({
-        title: "You are on " + TIER_LABELS[tier],
-        message: "Your new limits apply straight away.",
-        tone: "success",
-        icon: "check-circle-outline",
-      });
+      if (isPeriodSwitch) {
+        // Same tier, same subscription group level: Apple treats this as a crossgrade, so it
+        // takes effect at the next renewal rather than immediately - the entitlement (and so the
+        // limits) are unchanged in the meantime.
+        dialog.alert({
+          title: "Billing period updated",
+          message: `You'll move to ${period === "annual" ? "annual" : "monthly"} billing at your next renewal. Your plan and limits stay the same until then.`,
+          tone: "success",
+          icon: "calendar-sync",
+        });
+      } else {
+        dialog.alert({
+          title: "You are on " + TIER_LABELS[tier],
+          message: "Your new limits apply straight away.",
+          tone: "success",
+          icon: "check-circle-outline",
+        });
+      }
     } catch (error: any) {
       if (!error?.userCancelled) {
         dialog.alert({
@@ -300,8 +319,6 @@ export const SubscriptionPlansScreen = () => {
     }
   };
 
-  const currentOffer = currentTier === "free" ? null : getTierOffer(currentTier as PaidTier, offerings);
-
   const statusLine = useMemo(() => {
     if (currentTier === "free") return "You're on the Free plan.";
 
@@ -310,9 +327,9 @@ export const SubscriptionPlansScreen = () => {
       return endsOn ? `Cancelled. Active until ${endsOn}.` : "Cancelled. Active until the end of this period.";
     }
 
-    const cadence = currentOffer?.periodLabel ?? "monthly";
+    const cadence = billingState?.period === "annual" ? "yearly" : "monthly";
     return endsOn ? `Billed ${cadence}. Renews on ${endsOn}.` : `Billed ${cadence}.`;
-  }, [billingState, currentOffer, currentTier]);
+  }, [billingState, currentTier]);
 
   const usageRows = useMemo(
     () => [
@@ -378,9 +395,41 @@ export const SubscriptionPlansScreen = () => {
         <>
           <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>ALL PLANS</Text>
 
+          <View style={[styles.periodToggle, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+            {(["monthly", "annual"] as const).map((option) => {
+              const selected = period === option;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => setPeriod(option)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Billed ${option}`}
+                  style={[styles.periodOption, selected ? { backgroundColor: colors.surface, borderColor: colors.primary } : null]}
+                >
+                  <Text style={[styles.periodOptionText, { color: selected ? colors.primary : colors.textMuted }]}>
+                    {option === "monthly" ? "Monthly" : "Annual"}
+                  </Text>
+                  {option === "annual" ? (
+                    <Text style={[styles.periodSaveBadge, { color: selected ? colors.primary : colors.textMuted }]}>Save ~35%</Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+
           {PLANS.map((plan) => {
-            const isCurrent = plan.tier === currentTier;
-            const offer = plan.tier === "free" ? null : getTierOffer(plan.tier as PaidTier, offerings);
+            const onThisTier = plan.tier === currentTier;
+            // A subscription's billing period can differ from the plan toggle above even while
+            // you're on that tier - e.g. you're on Half-Century Monthly but have switched the
+            // toggle to Annual to see what it costs. Only call it "current" when both match.
+            const billingPeriodMatches = !billingState?.period || billingState.period === period;
+            const isCurrent = onThisTier && billingPeriodMatches;
+            const isPeriodSwitch = onThisTier && !billingPeriodMatches;
+            const monthlyOffer = plan.tier === "free" ? null : getTierOffer(plan.tier as PaidTier, "monthly", offerings);
+            const annualOffer = plan.tier === "free" ? null : getTierOffer(plan.tier as PaidTier, "annual", offerings);
+            const offer = period === "monthly" ? monthlyOffer : annualOffer;
+            const saving = period === "annual" && monthlyOffer && annualOffer ? annualSaving(monthlyOffer.price, annualOffer.price) : null;
             const isUpgrade = TIER_RANK[plan.tier] > TIER_RANK[currentTier];
             const priceUnavailable = plan.tier !== "free" && billingEnabled && status === "ready" && !offer;
 
@@ -403,12 +452,14 @@ export const SubscriptionPlansScreen = () => {
                       {plan.tier === "free" ? "Free" : offer?.priceText ?? "—"}
                     </Text>
                     {plan.tier !== "free" && offer ? (
-                      <Text style={[styles.planPeriod, { color: colors.textMuted }]}>
-                        {offer.periodLabel === "monthly" ? "per month" : offer.periodLabel ?? "per month"}
-                      </Text>
+                      <Text style={[styles.planPeriod, { color: colors.textMuted }]}>{period === "monthly" ? "per month" : "per year"}</Text>
                     ) : null}
                   </View>
                 </View>
+
+                {saving ? (
+                  <Text style={[styles.planSaving, { color: colors.primary }]}>Save {saving}% vs paying monthly</Text>
+                ) : null}
 
                 {isCurrent ? (
                   <View style={[styles.currentBadge, { backgroundColor: colors.primary }]}>
@@ -431,7 +482,17 @@ export const SubscriptionPlansScreen = () => {
                   </Text>
                 ) : null}
 
-                {!isCurrent ? (
+                {isPeriodSwitch ? (
+                  <View style={styles.planAction}>
+                    <AppButton
+                      label={period === "annual" ? "Switch to annual billing" : "Switch to monthly billing"}
+                      variant="primary"
+                      loading={busyTier === plan.tier}
+                      disabled={!billingEnabled || !offer || busyTier !== null}
+                      onPress={() => void purchase(plan.tier as PaidTier)}
+                    />
+                  </View>
+                ) : !isCurrent ? (
                   <View style={styles.planAction}>
                     <AppButton
                       label={isUpgrade ? `Choose ${TIER_LABELS[plan.tier]}` : `Switch to ${TIER_LABELS[plan.tier]}`}
@@ -510,6 +571,21 @@ const styles = StyleSheet.create({
   loadingBlock: { alignItems: "center", paddingVertical: 24, gap: 8 },
   loadingText: { fontSize: 13 },
   sectionTitle: { fontSize: 11, fontWeight: "700", letterSpacing: 1.2, marginBottom: 12 },
+  periodToggle: { flexDirection: "row", borderRadius: 12, borderWidth: 1, padding: 4, marginBottom: 16 },
+  periodOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "transparent",
+    paddingVertical: 9,
+  },
+  periodOptionText: { fontSize: 14, fontWeight: "700" },
+  periodSaveBadge: { fontSize: 11, fontWeight: "700" },
+  planSaving: { fontSize: 12, fontWeight: "700", marginTop: 10 },
   planCard: { borderRadius: 16, borderWidth: 1, padding: 18, marginBottom: 14 },
   planCardCurrent: { borderWidth: 2 },
   planHeader: { flexDirection: "row", justifyContent: "space-between", gap: 12 },

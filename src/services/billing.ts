@@ -19,6 +19,11 @@ const HALF_CENTURY_PRODUCT_ID =
   process.env.EXPO_PUBLIC_RC_PRODUCT_HALF_CENTURY ?? process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_HALF_CENTURY ?? "half_century_monthly";
 const CENTURY_PRODUCT_ID =
   process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY ?? process.env.EXPO_PUBLIC_ADAPTY_PRODUCT_CENTURY ?? "century_monthly";
+const HALF_CENTURY_ANNUAL_PRODUCT_ID =
+  process.env.EXPO_PUBLIC_RC_PRODUCT_HALF_CENTURY_ANNUAL ?? "annual_half_century";
+const CENTURY_ANNUAL_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_CENTURY_ANNUAL ?? "annual_century";
+
+export type BillingPeriod = "monthly" | "annual";
 
 export type BillingOfferings = {
   current: PurchasesOfferings["current"];
@@ -162,31 +167,54 @@ export const addBillingCustomerInfoListener = (listener: (profile: CustomerInfo)
   };
 };
 
-const findProductForTier = (tier: Exclude<SubscriptionTier, "free">, offerings: BillingOfferings) => {
+const findProductForTier = (
+  tier: Exclude<SubscriptionTier, "free">,
+  period: BillingPeriod,
+  offerings: BillingOfferings
+) => {
   const allPackages = offerings.packages;
 
   const productHint =
-    tier === "half_century" ? HALF_CENTURY_PRODUCT_ID : tier === "century" ? CENTURY_PRODUCT_ID : PRO_MONTHLY_PRODUCT_ID;
+    period === "annual"
+      ? tier === "half_century"
+        ? HALF_CENTURY_ANNUAL_PRODUCT_ID
+        : CENTURY_ANNUAL_PRODUCT_ID
+      : tier === "half_century"
+        ? HALF_CENTURY_PRODUCT_ID
+        : tier === "century"
+          ? CENTURY_PRODUCT_ID
+          : PRO_MONTHLY_PRODUCT_ID;
 
   const explicit = allPackages.find((item) => item.product.identifier === productHint || item.identifier === productHint);
   if (explicit) return explicit;
 
-  const token = tier === "half_century" ? "half" : tier === "century" ? "century" : "monthly";
-  const fallbackByToken = allPackages.find(
-    (item) => item.product.identifier.toLowerCase().includes(token) || item.identifier.toLowerCase().includes(token)
-  );
-  if (fallbackByToken) return fallbackByToken;
+  const token = tier === "half_century" ? "half" : "century";
+  const isoPeriod = period === "annual" ? "P1Y" : "P1M";
+  const fallbackByTokenAndPeriod = allPackages.find((item) => {
+    const haystack = `${item.product.identifier} ${item.identifier}`.toLowerCase();
+    return haystack.includes(token) && (item.product as any)?.subscriptionPeriod === isoPeriod;
+  });
+  if (fallbackByTokenAndPeriod) return fallbackByTokenAndPeriod;
+
+  if (period === "monthly") {
+    const looseToken = tier === "century" ? "century" : tier === "half_century" ? "half" : "monthly";
+    const fallbackByToken = allPackages.find(
+      (item) => item.product.identifier.toLowerCase().includes(looseToken) || item.identifier.toLowerCase().includes(looseToken)
+    );
+    if (fallbackByToken) return fallbackByToken;
+  }
 
   return null;
 };
 
-export const purchaseTierMonthly = async (
+export const purchaseTier = async (
   tier: Exclude<SubscriptionTier, "free">,
+  period: BillingPeriod,
   offerings: BillingOfferings
 ): Promise<PurchaseTierResult> => {
-  const product = findProductForTier(tier, offerings);
+  const product = findProductForTier(tier, period, offerings);
   if (!product) {
-    throw new Error(`No product found for tier: ${tier}. Check RevenueCat offering/packages and product IDs.`);
+    throw new Error(`No product found for tier: ${tier} (${period}). Check RevenueCat offering/packages and product IDs.`);
   }
 
   try {
@@ -215,9 +243,12 @@ export const purchaseTierMonthly = async (
 
 export type TierOffer = {
   tier: Exclude<SubscriptionTier, "free">;
+  period: BillingPeriod;
   productId: string;
   /** Localised price straight from the store, e.g. "£5.00". */
   priceText: string;
+  /** Numeric price in the store's local currency, for working out savings. */
+  price: number;
   /** How often it bills, from the store's own period, e.g. "monthly". */
   periodLabel: string | null;
 };
@@ -246,18 +277,21 @@ const periodLabelFrom = (period?: string | null) => {
  */
 export const getTierOffer = (
   tier: Exclude<SubscriptionTier, "free">,
+  period: BillingPeriod,
   offerings: BillingOfferings | null
 ): TierOffer | null => {
   if (!offerings) return null;
 
-  const item = findProductForTier(tier, offerings);
+  const item = findProductForTier(tier, period, offerings);
   const priceText = item?.product?.priceString;
   if (!item || !priceText) return null;
 
   return {
     tier,
+    period,
     productId: item.product.identifier,
     priceText,
+    price: item.product.price,
     periodLabel: periodLabelFrom((item.product as any)?.subscriptionPeriod),
   };
 };
@@ -276,6 +310,13 @@ export type BillingSubscriptionState = {
   willRenew: boolean;
   /** When the current period ends, ISO string, if the store reported one. */
   expiresAt: string | null;
+  /** Monthly or annual, read off the active product id. Null if there is no active subscription. */
+  period: BillingPeriod | null;
+};
+
+const periodFromProductIdentifier = (productIdentifier: string | null | undefined): BillingPeriod | null => {
+  if (!productIdentifier) return null;
+  return productIdentifier.toLowerCase().includes("annual") ? "annual" : "monthly";
 };
 
 /**
@@ -284,7 +325,7 @@ export type BillingSubscriptionState = {
  */
 export const subscriptionStateFromCustomerInfo = (profile: CustomerInfo): BillingSubscriptionState => {
   const tier = tierFromCustomerInfo(profile);
-  if (tier === "free") return { tier, willRenew: false, expiresAt: null };
+  if (tier === "free") return { tier, willRenew: false, expiresAt: null, period: null };
 
   const active = Object.values(profile.entitlements.active ?? {});
   const latest = active
@@ -295,19 +336,22 @@ export const subscriptionStateFromCustomerInfo = (profile: CustomerInfo): Billin
     tier,
     willRenew: latest?.willRenew ?? true,
     expiresAt: latest?.expirationDate ?? null,
+    period: periodFromProductIdentifier(latest?.productIdentifier),
   };
 };
 
 export const tierFromCustomerInfo = (profile: CustomerInfo): SubscriptionTier => {
   const activeProducts = (profile.activeSubscriptions ?? []).map((value) => value.toLowerCase());
 
-  const centuryProductTokens = [CENTURY_PRODUCT_ID, PRO_MONTHLY_PRODUCT_ID].map((value) => value.toLowerCase());
+  const centuryProductTokens = [CENTURY_PRODUCT_ID, PRO_MONTHLY_PRODUCT_ID, CENTURY_ANNUAL_PRODUCT_ID].map((value) =>
+    value.toLowerCase()
+  );
   if (centuryProductTokens.some((value) => activeProducts.includes(value))) {
     return "century";
   }
 
-  const halfCenturyProductToken = HALF_CENTURY_PRODUCT_ID.toLowerCase();
-  if (activeProducts.includes(halfCenturyProductToken)) {
+  const halfCenturyProductTokens = [HALF_CENTURY_PRODUCT_ID, HALF_CENTURY_ANNUAL_PRODUCT_ID].map((value) => value.toLowerCase());
+  if (halfCenturyProductTokens.some((value) => activeProducts.includes(value))) {
     return "half_century";
   }
 
@@ -337,8 +381,12 @@ export const resolveTierFromPurchaseResult = (
   result: PurchaseTierResult,
   requestedTier: Exclude<SubscriptionTier, "free">
 ): SubscriptionTier => {
+  const centuryProducts = [CENTURY_PRODUCT_ID, PRO_MONTHLY_PRODUCT_ID, CENTURY_ANNUAL_PRODUCT_ID].map((value) =>
+    value.toLowerCase()
+  );
+  const halfCenturyProducts = [HALF_CENTURY_PRODUCT_ID, HALF_CENTURY_ANNUAL_PRODUCT_ID].map((value) => value.toLowerCase());
+
   if (requestedTier === "century") {
-    const centuryProducts = [CENTURY_PRODUCT_ID, PRO_MONTHLY_PRODUCT_ID].map((value) => value.toLowerCase());
     const purchased = result.purchasedProductIdentifier.toLowerCase();
     const selected = result.selectedProductIdentifier.toLowerCase();
     if (centuryProducts.includes(purchased) || centuryProducts.includes(selected)) {
@@ -349,16 +397,16 @@ export const resolveTierFromPurchaseResult = (
   const resolvedFromCustomer = tierFromCustomerInfo(result.customerInfo);
   if (resolvedFromCustomer === "century") return "century";
   if (resolvedFromCustomer === "half_century") {
-    if (result.purchasedProductIdentifier === CENTURY_PRODUCT_ID || result.purchasedProductIdentifier === PRO_MONTHLY_PRODUCT_ID) {
+    if (centuryProducts.includes(result.purchasedProductIdentifier.toLowerCase())) {
       return "century";
     }
     return "half_century";
   }
 
-  if (result.purchasedProductIdentifier === CENTURY_PRODUCT_ID || result.purchasedProductIdentifier === PRO_MONTHLY_PRODUCT_ID) {
+  if (centuryProducts.includes(result.purchasedProductIdentifier.toLowerCase())) {
     return "century";
   }
-  if (result.purchasedProductIdentifier === HALF_CENTURY_PRODUCT_ID) {
+  if (halfCenturyProducts.includes(result.purchasedProductIdentifier.toLowerCase())) {
     return "half_century";
   }
 
