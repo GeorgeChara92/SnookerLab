@@ -14,6 +14,23 @@ import type { WorldPoint } from "./table";
 const STILL_RADIUS_MM = 4;
 /** How long the aim has to stay within that radius before it counts as locked on. */
 const HOLD_MS = 550;
+/**
+ * How much weight a fresh reading gets against the running average used only to decide "is this
+ * still the same hold" - not the average the hold eventually locks to, which stays built from the
+ * raw readings so this does not bias the result. A single noisy raycast - seen far more often the
+ * closer the phone is held to the table, where ARKit has a smaller patch of cloth and fewer
+ * features to fit a plane to (confirmed from a user's recording, 2026-10-09: steady standing back,
+ * still jumpy close up) - would otherwise throw the whole hold away on its own even though the
+ * next reading lands right back where it was. A real change of aim keeps moving for several
+ * readings in a row, so it still clears the still radius and resets within a reading or two.
+ */
+const SMOOTHING = 0.4;
+
+const lerp = (a: WorldPoint, b: WorldPoint, t: number): WorldPoint => ({
+  x: a.x + (b.x - a.x) * t,
+  y: a.y + (b.y - a.y) * t,
+  z: a.z + (b.z - a.z) * t,
+});
 
 export type Stability = {
   /** 0 to 1: how far through the hold. Reaching 1 means `locked` is ready to use. */
@@ -33,17 +50,24 @@ const average = (points: WorldPoint[]): WorldPoint => {
 
 export class AimStabiliser {
   private streak: Array<{ point: WorldPoint; t: number }> = [];
+  private smoothed: WorldPoint | null = null;
 
   /** Feed the latest reading, or null when the camera has nothing to aim at. Returns the new state. */
   update(point: WorldPoint | null, now: number): Stability {
     if (!point) {
       this.streak = [];
+      this.smoothed = null;
       return STILL;
     }
 
+    this.smoothed = this.smoothed ? lerp(this.smoothed, point, SMOOTHING) : point;
+
     if (this.streak.length) {
       const centre = average(this.streak.map((sample) => sample.point));
-      if (distanceMm(centre, point) > STILL_RADIUS_MM) this.streak = [];
+      if (distanceMm(centre, this.smoothed) > STILL_RADIUS_MM) {
+        this.streak = [];
+        this.smoothed = point;
+      }
     }
     this.streak.push({ point, t: now });
 
@@ -55,5 +79,6 @@ export class AimStabiliser {
 
   reset() {
     this.streak = [];
+    this.smoothed = null;
   }
 }

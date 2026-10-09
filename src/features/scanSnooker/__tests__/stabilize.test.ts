@@ -66,4 +66,16 @@ describe("holding the aim steady", () => {
     expect(later.progress).toBeGreaterThan(0);
     expect(later.progress).toBeLessThan(0.2);
   });
+
+  it("does not throw the hold away for a single noisy reading - the closer-to-the-table case", () => {
+    const s = new AimStabiliser();
+    s.update(P(0, 0.8, 0), 0);
+    s.update(P(0, 0.8, 0), 150);
+    // 6mm on its own: over the still radius raw, but a single raycast blip, not a real move.
+    s.update(P(0.006, 0.8, 0), 300);
+    s.update(P(0, 0.8, 0), 450);
+    const state = s.update(P(0, 0.8, 0), 600);
+    expect(state.progress).toBe(1);
+    expect(state.locked).not.toBeNull();
+  });
 });
