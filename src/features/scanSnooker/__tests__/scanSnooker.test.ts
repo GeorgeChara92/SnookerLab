@@ -7,6 +7,7 @@ import {
   clampToBed,
   describeCorrection,
   describePosition,
+  describeScale,
   distance,
   frameFromLandmarks,
   tableToWorld,
@@ -52,11 +53,11 @@ describe("calibrating from two landmarks", () => {
     z: -3 + (p.x / 1000) * Math.sin(angle) + (p.y / 1000) * Math.cos(angle),
   });
 
-  it("finds the table from any two landmarks and maps positions both ways", () => {
+  it("finds the table from any two spots and maps positions both ways", () => {
     const pairs = [
       ["black-spot", "brown-spot"],
-      ["top-left-pocket", "top-right-pocket"],
-      ["pink-spot", "middle-right-pocket"],
+      ["yellow-spot", "green-spot"],
+      ["pink-spot", "blue-spot"],
     ];
     for (const [a, b] of pairs) {
       const first = LANDMARKS.find((mark) => mark.id === a)!;
@@ -65,7 +66,7 @@ describe("calibrating from two landmarks", () => {
         { table: first.point, world: truth(first.point) },
         { table: second.point, world: truth(second.point) }
       );
-      expect(frame.errorMm).toBeLessThan(0.01);
+      expect(frame.scale).toBeCloseTo(1, 2);
       const ball = { x: 1234, y: 2345 };
       const world = tableToWorld(frame, ball);
       expect(world.y).toBeCloseTo(0.8 + BALL_RADIUS / 1000);
@@ -74,15 +75,31 @@ describe("calibrating from two landmarks", () => {
     }
   });
 
-  it("reports how far off the taps were, so a poor calibration can be redone", () => {
+  it("treats a real table's own size as normal, but flags a wild mismatch", () => {
     const tapped = truth(SPOTS.brown);
-    const frame = frameFromLandmarks(
+    // 6cm over regulation, on a ~2.5m black-to-brown spot distance: a real table's own cloth, not
+    // a mis-tap - the frame should come out a little bigger, not be marked as a poor fit.
+    const stretched = frameFromLandmarks(
       { table: SPOTS.black, world: truth(SPOTS.black) },
       { table: SPOTS.brown, world: { ...tapped, z: tapped.z + 0.06 } }
     );
-    expect(frame.errorMm).toBeGreaterThan(30);
-    expect(calibrationQuality(frame.errorMm)).not.toBe("good");
-    expect(calibrationQuality(8)).toBe("good");
+    expect(stretched.scale).toBeCloseTo(1.024, 2);
+    expect(calibrationQuality(stretched.scale)).toBe("good");
+
+    // 60cm over: no real table's cloth stretches this much - almost certainly a mis-tap.
+    const wrong = frameFromLandmarks(
+      { table: SPOTS.black, world: truth(SPOTS.black) },
+      { table: SPOTS.brown, world: { ...tapped, z: tapped.z + 0.6 } }
+    );
+    expect(calibrationQuality(wrong.scale)).toBe("poor");
+    expect(calibrationQuality(1.02)).toBe("good");
+  });
+
+  it("describes the scale in plain words", () => {
+    expect(describeScale(1)).toBe("Matches a regulation table");
+    expect(describeScale(1.001)).toBe("Matches a regulation table");
+    expect(describeScale(1.06)).toBe("6% bigger than standard");
+    expect(describeScale(0.92)).toBe("8% smaller than standard");
   });
 });
 
