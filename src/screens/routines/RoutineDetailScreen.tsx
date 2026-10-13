@@ -5,11 +5,12 @@ import { useRoutinesStore, useRoutineScoresStore } from "../../store";
 import type { PracticeStackParamList, ScoringType } from "../../types";
 import { getYoutubeThumbnailUrl, getYoutubeWatchUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
+import { getRoutinePlacedBalls, getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
 import { getGuidePlaybookByRoutineId } from "../../features/guides/guidePlaybooks";
 import { RoutineProgressCard } from "../../components/routines/RoutineProgressCard";
 import { RoutineLeaderboardCard } from "../../components/community/RoutineLeaderboardCard";
 import { openSendToChat } from "../../navigation/navigationRef";
+import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
 
 const scoringTypeLabel = (type: ScoringType): string => {
   switch (type) {
@@ -61,7 +62,8 @@ export const RoutineDetailScreen = () => {
   const hasPrimary = Boolean(primaryVideoId);
   const hasAlt = Boolean(altVideoId);
   const referenceImage = routine ? getRoutineReferenceImageByRoutineId(routine.id) : undefined;
-  const hasImageGuide = !isGuide && Boolean(referenceImage);
+  const placedBalls = routine ? getRoutinePlacedBalls(routine) : null;
+  const hasImageGuide = !isGuide && Boolean(referenceImage || placedBalls);
   const guidePlaybook = routine && isGuide ? getGuidePlaybookByRoutineId(routine.id) : undefined;
 
   useEffect(() => {
@@ -175,14 +177,18 @@ export const RoutineDetailScreen = () => {
                     selectedGuide === "image" && styles.videoPickerButtonTextActive,
                   ]}
                 >
-                  Setup Image
+                  {placedBalls ? "Table Layout" : "Setup Image"}
                 </Text>
               </Pressable>
             ) : null}
           </View>
         ) : null}
 
-        {selectedGuide === "image" && referenceImage && !isGuide ? (
+        {selectedGuide === "image" && placedBalls && !isGuide ? (
+          <View style={[styles.thumbnail, styles.diagramWrap]}>
+            <TableDiagram balls={placedBalls} readOnly landscape />
+          </View>
+        ) : selectedGuide === "image" && referenceImage && !isGuide ? (
           <Image source={referenceImage} style={styles.thumbnail} resizeMode="contain" />
         ) : thumbnail ? (
           <Pressable style={styles.thumbnailWrap} onPress={() => youtubeUrl && Linking.openURL(youtubeUrl)}>
@@ -566,6 +572,14 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 200,
     backgroundColor: "#E2E8F0",
+  },
+  diagramWrap: {
+    overflow: "hidden",
+    backgroundColor: "#0F4A33",
+    // Matches the table-plus-rail aspect ratio (table.ts's 3569x1778mm + rail) so the landscape
+    // diagram fills the box edge to edge instead of leaving it letterboxed.
+    height: undefined,
+    aspectRatio: 1.9,
   },
   playOverlay: {
     position: "absolute",

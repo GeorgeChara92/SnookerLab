@@ -1,3 +1,5 @@
+import { TABLE } from "../scanSnooker/table";
+
 export type SnookerSpotId = "yellow" | "green" | "brown" | "blue" | "pink" | "black";
 
 export type SnookerSpot = {
@@ -17,12 +19,16 @@ export type SnookerTableGeometry = {
   spots: Record<SnookerSpotId, SnookerSpot>;
 };
 
-const PLAYING_LENGTH_M = 3.657;
-const PLAYING_WIDTH_M = 1.829;
-const BLACK_FROM_TOP_M = 0.324;
-const PINK_FROM_TOP_M = 0.91425;
-const BAULK_FROM_BOTTOM_M = 0.737;
-const D_RADIUS_M = 0.292;
+// Derived from `table.ts`'s TABLE constant - the one geometry every other part of the app (the
+// diagram, scan-snooker, the AR calibration) already trusts - rather than a separate standalone
+// figure, so a routine's normalized position and a scanned ball's table-millimetre position agree
+// on the same real table instead of two slightly different "standard" sizes.
+const PLAYING_LENGTH_M = TABLE.length / 1000;
+const PLAYING_WIDTH_M = TABLE.width / 1000;
+const BLACK_FROM_TOP_M = TABLE.blackFromTop / 1000;
+const PINK_FROM_TOP_M = TABLE.length / 4 / 1000;
+const BAULK_FROM_BOTTOM_M = TABLE.baulkFromBottom / 1000;
+const D_RADIUS_M = TABLE.dRadius / 1000;
 
 const BLACK_Y_NORM = BLACK_FROM_TOP_M / PLAYING_LENGTH_M;
 const BLUE_Y_NORM = 0.5;
@@ -37,9 +43,12 @@ export const SNOOKER_TABLE_GEOMETRY: SnookerTableGeometry = {
   blueSpot: { xNorm: 0.5, yNorm: BLUE_Y_NORM },
   pinkSpot: { xNorm: 0.5, yNorm: PINK_Y_NORM },
   blackSpot: { xNorm: 0.5, yNorm: BLACK_Y_NORM },
+  // Seen from baulk, the way a player breaks off (table.ts's own convention, its tests pin this
+  // down): yellow is on the right of the D, green on the left. These were previously swapped here
+  // - a confirmed, real bug from before this file was unified with table.ts, not a guess.
   spots: {
-    yellow: { id: "yellow", label: "Yellow", xNorm: 0.5 - D_X_OFFSET_NORM, yNorm: BAULK_Y_NORM },
-    green: { id: "green", label: "Green", xNorm: 0.5 + D_X_OFFSET_NORM, yNorm: BAULK_Y_NORM },
+    yellow: { id: "yellow", label: "Yellow", xNorm: 0.5 + D_X_OFFSET_NORM, yNorm: BAULK_Y_NORM },
+    green: { id: "green", label: "Green", xNorm: 0.5 - D_X_OFFSET_NORM, yNorm: BAULK_Y_NORM },
     brown: { id: "brown", label: "Brown", xNorm: 0.5, yNorm: BAULK_Y_NORM },
     blue: { id: "blue", label: "Blue", xNorm: 0.5, yNorm: BLUE_Y_NORM },
     pink: { id: "pink", label: "Pink", xNorm: 0.5, yNorm: PINK_Y_NORM },

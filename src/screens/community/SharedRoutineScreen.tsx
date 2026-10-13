@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,7 +35,6 @@ export const SharedRoutineScreen = () => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
-  const { width, height } = useWindowDimensions();
   const me = useAuthStore((state) => state.user?.id ?? null);
   const customRoutines = useCustomRoutinesStore((state) => state.routines);
   const saveCustom = useCustomRoutinesStore((state) => state.save);
@@ -120,15 +119,13 @@ export const SharedRoutineScreen = () => {
     });
   };
 
-  const tableHeight = Math.round(Math.min(height * 0.42, (width - SPACING.lg * 2) * 1.95));
-
   return (
     <ScrollView
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]}
     >
-      <View style={{ height: tableHeight }}>
-        <TableDiagram balls={routine.balls} readOnly />
+      <View style={styles.diagramWrap}>
+        <TableDiagram balls={routine.balls} readOnly landscape />
       </View>
 
       <Pressable
@@ -269,6 +266,14 @@ const styles = StyleSheet.create({
   centre: { flex: 1, alignItems: "center", justifyContent: "center", gap: SPACING.sm },
   body: { fontSize: 15 },
   content: { padding: SPACING.lg, gap: SPACING.md },
+  diagramWrap: {
+    overflow: "hidden",
+    borderRadius: RADIUS.md,
+    backgroundColor: "#0F4A33",
+    // Matches the table-plus-rail aspect ratio (table.ts's 3569x1778mm + rail) so the landscape
+    // diagram fills the box edge to edge instead of leaving it letterboxed.
+    aspectRatio: 1.9,
+  },
   author: { flexDirection: "row", alignItems: "center", gap: SPACING.md, minHeight: HIT_TARGET },
   authorName: { fontSize: 16, fontWeight: "800" },
   meta: { fontSize: 12 },

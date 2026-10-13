@@ -76,7 +76,8 @@ export const DEFAULT_CATEGORIES: RoutineCategory[] = [
     order_index: 6,
     created_at: now,
   },
-  ...EXTRA_CATEGORIES,
+  // EXTRA_CATEGORIES (in routineDrills.ts) only group EXTRA_ROUTINES, paused below for the same
+  // reason - bring both back together.
 ];
 
 export const DEFAULT_ROUTINES: Routine[] = [
@@ -1094,5 +1095,8 @@ export const DEFAULT_ROUTINES: Routine[] = [
       }
     ),
   },
-  ...EXTRA_ROUTINES,
+  // EXTRA_ROUTINES (39 more, in routineDrills.ts) are paused for now while the 32 routines above
+  // get real ball-position data and reference-checked content - none of the 39 have that yet, and
+  // showing them alongside ones that do made the routine list look inconsistent. Bring back with
+  // `...EXTRA_ROUTINES` once they've had the same treatment.
 ];

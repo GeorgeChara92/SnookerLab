@@ -1,10 +1,10 @@
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Routine } from "../../types";
 import { getYoutubeThumbnailUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { getRoutineReferenceImageByRoutineId, isRoutineARBadgeVisible } from "../../features/ar/routineLayouts";
+import { getRoutinePlacedBalls, getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
+import { TableDiagram } from "../scanSnooker/TableDiagram";
 
 interface RoutineCardProps {
   routine: Routine;
@@ -16,26 +16,27 @@ interface RoutineCardProps {
 export const RoutineCard = ({ routine, categoryName, categoryColor, onPress }: RoutineCardProps) => {
   const videoId = routine.youtube_video_id ?? routine.youtube_alt_video_id;
   const thumbnail = videoId ? getYoutubeThumbnailUrl(videoId) : undefined;
+  // A routine with real ball-position data draws through the same diagram every other part of the
+  // app uses, instead of a one-off image - consistent across every routine, and the one place the
+  // layout needs to be right is the data itself, not a separately hand-made picture of it.
+  const placedBalls = getRoutinePlacedBalls(routine);
   const referenceImage = getRoutineReferenceImageByRoutineId(routine.id);
   const imageSource = referenceImage ? referenceImage : thumbnail ? { uri: thumbnail } : undefined;
   const isGuide = routine.content_type === "guide";
-  const showARBadge = isRoutineARBadgeVisible(routine);
   const { colors } = useAppTheme();
 
   return (
     <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={onPress}>
-      {imageSource ? (
+      {placedBalls ? (
+        <View style={[styles.previewImage, styles.diagramWrap]}>
+          <TableDiagram balls={placedBalls} readOnly landscape />
+        </View>
+      ) : imageSource ? (
         <View>
           <Image source={imageSource} style={styles.previewImage} />
           {!referenceImage ? (
             <View style={styles.playBadge}>
               <Text style={styles.playText}>▶</Text>
-            </View>
-          ) : null}
-          {showARBadge ? (
-            <View style={styles.arBadge}>
-              <MaterialCommunityIcons name="camera-outline" size={12} color="#FFFFFF" />
-              <Text style={styles.arBadgeText}>AR</Text>
             </View>
           ) : null}
         </View>
@@ -69,6 +70,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 10,
     backgroundColor: "#E2E8F0",
+  },
+  diagramWrap: {
+    overflow: "hidden",
+    backgroundColor: "#0F4A33",
+    // Matches the table-plus-rail aspect ratio exactly (table.ts's 3569x1778mm + rail), so the
+    // landscape diagram fills the card edge to edge instead of leaving it letterboxed.
+    height: undefined,
+    aspectRatio: 1.9,
   },
   playBadge: {
     position: "absolute",

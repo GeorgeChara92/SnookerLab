@@ -53,11 +53,14 @@ const RoutineThumb = ({
   custom,
   style,
   onPress,
+  landscape,
 }: {
   routine: Routine;
   custom?: CustomRoutine;
   style: any;
   onPress?: () => void;
+  /** The wide preview box, not the small square one in a picker row. */
+  landscape?: boolean;
 }) => {
   const { colors } = useAppTheme();
   if (custom) {
@@ -67,7 +70,7 @@ const RoutineThumb = ({
         disabled={!onPress}
         style={[style, styles.diagramThumb, { backgroundColor: "#0F4A33" }]}
       >
-        <TableDiagram balls={custom.balls} readOnly />
+        <TableDiagram balls={custom.balls} readOnly landscape={landscape} />
       </Pressable>
     );
   }
@@ -440,7 +443,7 @@ const RoutineEntryEditSheet = ({
         <View style={[styles.grabber, { backgroundColor: colors.border }]} />
         {entry ? (
           <ScrollView keyboardShouldPersistTaps="handled" style={styles.previewScroll}>
-            {routine ? <RoutineThumb routine={routine} custom={custom} style={styles.previewImage} /> : null}
+            {routine ? <RoutineThumb routine={routine} custom={custom} style={styles.previewImage} landscape /> : null}
             <Text style={[styles.sheetTitle, { color: colors.text }]}>{entry.routineName}</Text>
 
             <Text style={[styles.label, { color: colors.textMuted }]}>Score (optional)</Text>
@@ -651,7 +654,7 @@ const RoutinePickerSheet = ({
         ) : (
           <ScrollView keyboardShouldPersistTaps="handled" style={styles.previewScroll}>
             {selectedCustom ? (
-              <RoutineThumb routine={selected} custom={selectedCustom} style={styles.previewImage} />
+              <RoutineThumb routine={selected} custom={selectedCustom} style={styles.previewImage} landscape />
             ) : selectedThumb ? (
               <RoutineThumb
                 routine={selected}

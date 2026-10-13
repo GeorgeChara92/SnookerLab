@@ -66,6 +66,14 @@ const SNAP_PX = 8;
 const GUIDE = "#E3C15A";
 /** A finger moving less than this is a tap, not a drag. */
 const TAP_SLOP = 6;
+/**
+ * While a ball is being dragged, its preview is drawn this many screen px above the finger - not
+ * directly under it - so a thumb does not sit right on top of the exact spot it is about to land
+ * on. The true drop point still gets a small ring, joined to the lifted ball by a stem, so what
+ * is covered by the finger is only that ring, not the ball itself or the gap it is landing in.
+ */
+const DRAG_LIFT_PX = 56;
+const ANCHOR_D = 10;
 
 type View2 = { zoom: number; panX: number; panY: number };
 const FULL_VIEW: View2 = { zoom: 1, panX: 0, panY: 0 };
@@ -90,6 +98,12 @@ type Props = {
   onLine?: (start: Point, end: Point) => void;
   /** Line balls up with each other and the spots as they are placed and moved, showing guides. */
   snap?: boolean;
+  /**
+   * Draws the table on its side - black end on the left, baulk/D on the right - so a wide card
+   * fills with table instead of a thin portrait strip surrounded by empty cloth. Touch handling
+   * (place/move/line) is not rotated to match, so this is for `readOnly` display only.
+   */
+  landscape?: boolean;
 };
 
 export const TableDiagram = ({
@@ -104,6 +118,7 @@ export const TableDiagram = ({
   lineCount = 5,
   onLine,
   snap = false,
+  landscape = false,
 }: Props) => {
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View2>(FULL_VIEW);
@@ -122,18 +137,23 @@ export const TableDiagram = ({
   // ---------------------------------------------------------------- the whole table, fitted
   const base = useMemo(() => {
     if (!box.width || !box.height) return null;
-    const outerW = TABLE.width * (1 + RAIL_SHARE * 2);
-    const outerL = TABLE.length + TABLE.width * RAIL_SHARE * 2;
+    // Landscape swaps which real-world dimension (the short "width" or the long "length") maps to
+    // the screen's horizontal axis - the rail's physical thickness (a share of TABLE.width either
+    // way) stays the same either way.
+    const bedScreenW = landscape ? TABLE.length : TABLE.width;
+    const bedScreenL = landscape ? TABLE.width : TABLE.length;
+    const outerW = landscape ? TABLE.length + TABLE.width * RAIL_SHARE * 2 : TABLE.width * (1 + RAIL_SHARE * 2);
+    const outerL = landscape ? TABLE.width * (1 + RAIL_SHARE * 2) : TABLE.length + TABLE.width * RAIL_SHARE * 2;
     const scale = Math.min(box.width / outerW, box.height / outerL); // px per mm at 1x
     return {
       scale,
-      left: (box.width - TABLE.width * scale) / 2,
-      top: (box.height - TABLE.length * scale) / 2,
+      left: (box.width - bedScreenW * scale) / 2,
+      top: (box.height - bedScreenL * scale) / 2,
       rail: TABLE.width * RAIL_SHARE * scale,
       cx: box.width / 2,
       cy: box.height / 2,
     };
-  }, [box]);
+  }, [box, landscape]);
 
   // The closest any two balls are, centre to centre, in mm. Balls are drawn larger than life at
   // full view so they can be seen, but never wider than this gap: enlarged any further, two balls
@@ -160,8 +180,8 @@ export const TableDiagram = ({
       left,
       top,
       rail: base.rail * current.zoom,
-      bedW: TABLE.width * scale,
-      bedL: TABLE.length * scale,
+      bedW: (landscape ? TABLE.length : TABLE.width) * scale,
+      bedL: (landscape ? TABLE.width : TABLE.length) * scale,
       // Enlarged for visibility, capped by the closest gap, and never below true size.
       d: Math.max(TABLE.ball * scale, Math.min(Math.max(9, TABLE.ball * scale * ballScale), closestMm * scale)),
     };
@@ -197,7 +217,14 @@ export const TableDiagram = ({
   };
 
   const fit = layoutFor(view);
-  const toPx = (point: Point) => ({ x: fit!.left + point.x * fit!.scale, y: fit!.top + point.y * fit!.scale });
+  // Landscape turns the table on its side - black end (table y = 0) to the left, baulk/D to the
+  // right - by swapping which table axis maps to screen-x: screen-x follows table y (length), and
+  // screen-y follows table x counted from the yellow/right-hand side inward, so yellow ends up at
+  // the top and green at the bottom (matching every rotated reference image in the routine library).
+  const toPx = (point: Point) =>
+    landscape
+      ? { x: fit!.left + point.y * fit!.scale, y: fit!.top + (TABLE.width - point.x) * fit!.scale }
+      : { x: fit!.left + point.x * fit!.scale, y: fit!.top + point.y * fit!.scale };
 
   // ---------------------------------------------------------------- touch
   // The latest values, for the touch handlers created once below.
@@ -514,30 +541,63 @@ export const TableDiagram = ({
           })}
 
           {/* ------------------------------------------------ baulk line, D and spots */}
-          <View
-            style={[
-              styles.abs,
-              {
-                left: fit.left,
-                width: fit.bedW,
-                top: toPx({ x: 0, y: BAULK_LINE_Y }).y,
-                height: 1,
-                backgroundColor: LINE,
-              },
-            ]}
-          />
-          <Svg
-            style={[styles.abs, { left: toPx(SPOTS.green).x - 1, top: toPx(SPOTS.brown).y - 1 }]}
-            width={TABLE.dRadius * 2 * fit.scale + 2}
-            height={TABLE.dRadius * fit.scale + 2}
-          >
-            <Path
-              d={`M 1 1 A ${TABLE.dRadius * fit.scale} ${TABLE.dRadius * fit.scale} 0 0 0 ${TABLE.dRadius * 2 * fit.scale + 1} 1`}
-              stroke={LINE}
-              strokeWidth={1}
-              fill="none"
+          {landscape ? (
+            <View
+              style={[
+                styles.abs,
+                {
+                  top: fit.top,
+                  height: fit.bedL,
+                  left: toPx({ x: 0, y: BAULK_LINE_Y }).x,
+                  width: 1,
+                  backgroundColor: LINE,
+                },
+              ]}
             />
-          </Svg>
+          ) : (
+            <View
+              style={[
+                styles.abs,
+                {
+                  left: fit.left,
+                  width: fit.bedW,
+                  top: toPx({ x: 0, y: BAULK_LINE_Y }).y,
+                  height: 1,
+                  backgroundColor: LINE,
+                },
+              ]}
+            />
+          )}
+          {landscape ? (
+            // The D rotated with the table: its diameter runs vertically between yellow (top) and
+            // green (bottom), bulging right - towards the baulk-end cushion, same as it bulges down
+            // (towards that same cushion) in the upright orientation below.
+            <Svg
+              style={[styles.abs, { left: toPx(SPOTS.brown).x - 1, top: toPx(SPOTS.yellow).y - 1 }]}
+              width={TABLE.dRadius * fit.scale + 2}
+              height={TABLE.dRadius * 2 * fit.scale + 2}
+            >
+              <Path
+                d={`M 1 1 A ${TABLE.dRadius * fit.scale} ${TABLE.dRadius * fit.scale} 0 0 1 1 ${TABLE.dRadius * 2 * fit.scale + 1}`}
+                stroke={LINE}
+                strokeWidth={1}
+                fill="none"
+              />
+            </Svg>
+          ) : (
+            <Svg
+              style={[styles.abs, { left: toPx(SPOTS.green).x - 1, top: toPx(SPOTS.brown).y - 1 }]}
+              width={TABLE.dRadius * 2 * fit.scale + 2}
+              height={TABLE.dRadius * fit.scale + 2}
+            >
+              <Path
+                d={`M 1 1 A ${TABLE.dRadius * fit.scale} ${TABLE.dRadius * fit.scale} 0 0 0 ${TABLE.dRadius * 2 * fit.scale + 1} 1`}
+                stroke={LINE}
+                strokeWidth={1}
+                fill="none"
+              />
+            </Svg>
+          )}
           {Object.values(SPOTS).map((spot, index) => {
             const p = toPx(spot);
             return <View key={index} style={[styles.abs, styles.spot, { left: p.x - 2, top: p.y - 2 }]} />;
@@ -600,41 +660,60 @@ export const TableDiagram = ({
 
           {/* ------------------------------------------------ the balls */}
           {balls.map((ball) => {
-            const at = dragging?.id === ball.id ? dragging.point : ball;
+            const isDragged = dragging?.id === ball.id;
+            const at = isDragged ? dragging.point : ball;
             const p = toPx(at);
+            const renderP = isDragged ? { x: p.x, y: p.y - DRAG_LIFT_PX } : p;
             const look = BALL_LOOK[ball.colour];
             const selected = ball.id === selectedId;
             return (
-              <View
-                key={ball.id}
-                style={[
-                  styles.abs,
-                  styles.ball,
-                  {
-                    left: p.x - fit.d / 2,
-                    top: p.y - fit.d / 2,
-                    width: fit.d,
-                    height: fit.d,
-                    borderRadius: fit.d / 2,
-                    backgroundColor: look.fill,
-                    borderColor: look.edge,
-                    transform: [{ scale: dragging?.id === ball.id && view.zoom < 1.5 ? 1.3 : 1 }],
-                  },
-                ]}
-              >
-                <View
-                  style={[styles.shine, { width: fit.d * 0.32, height: fit.d * 0.32, borderRadius: fit.d * 0.16 }]}
-                />
-                {selected ? (
-                  <View
-                    style={[
-                      styles.abs,
-                      styles.selected,
-                      { left: -5, top: -5, width: fit.d + 10, height: fit.d + 10, borderRadius: (fit.d + 10) / 2 },
-                    ]}
-                  />
+              <React.Fragment key={ball.id}>
+                {isDragged ? (
+                  <>
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        styles.abs,
+                        styles.dragStem,
+                        { left: p.x - 0.75, top: renderP.y + fit.d / 2, height: Math.max(0, DRAG_LIFT_PX - fit.d / 2) },
+                      ]}
+                    />
+                    <View
+                      pointerEvents="none"
+                      style={[styles.abs, styles.dragAnchor, { left: p.x - ANCHOR_D / 2, top: p.y - ANCHOR_D / 2 }]}
+                    />
+                  </>
                 ) : null}
-              </View>
+                <View
+                  style={[
+                    styles.abs,
+                    styles.ball,
+                    {
+                      left: renderP.x - fit.d / 2,
+                      top: renderP.y - fit.d / 2,
+                      width: fit.d,
+                      height: fit.d,
+                      borderRadius: fit.d / 2,
+                      backgroundColor: look.fill,
+                      borderColor: look.edge,
+                      transform: [{ scale: isDragged && view.zoom < 1.5 ? 1.3 : 1 }],
+                    },
+                  ]}
+                >
+                  <View
+                    style={[styles.shine, { width: fit.d * 0.32, height: fit.d * 0.32, borderRadius: fit.d * 0.16 }]}
+                  />
+                  {selected ? (
+                    <View
+                      style={[
+                        styles.abs,
+                        styles.selected,
+                        { left: -5, top: -5, width: fit.d + 10, height: fit.d + 10, borderRadius: (fit.d + 10) / 2 },
+                      ]}
+                    />
+                  ) : null}
+                </View>
+              </React.Fragment>
             );
           })}
         </View>
@@ -692,6 +771,14 @@ const styles = StyleSheet.create({
   },
   shine: { position: "absolute", top: "14%", left: "20%", backgroundColor: "rgba(255,255,255,0.6)" },
   selected: { borderWidth: 2, borderColor: "#FFFFFF" },
+  dragStem: { width: 1.5, backgroundColor: "rgba(255,255,255,0.75)" },
+  dragAnchor: {
+    width: ANCHOR_D,
+    height: ANCHOR_D,
+    borderRadius: ANCHOR_D / 2,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.85)",
+  },
   ghost: { backgroundColor: "rgba(208,20,47,0.55)", borderWidth: 1.5, borderColor: "#FFFFFF" },
   zoomBar: { position: "absolute", right: 8, bottom: 8, gap: 8 },
   zoomButton: {

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,8 +30,6 @@ export const CustomRoutineScreen = () => {
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
-  const tableHeight = Math.round(Math.min(height * 0.5, (width - SPACING.lg * 2) * 1.95));
   const asRoutine = useMemo(() => (routine ? toRoutine(routine) : null), [routine]);
   const [sharing, setSharing] = useState(false);
   const [author, setAuthor] = useState<PublicProfile | null>(null);
@@ -82,8 +80,8 @@ export const CustomRoutineScreen = () => {
       style={{ backgroundColor: colors.background }}
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]}
     >
-      <View style={{ height: tableHeight }}>
-        <TableDiagram balls={routine.balls} readOnly />
+      <View style={styles.diagramWrap}>
+        <TableDiagram balls={routine.balls} readOnly landscape />
       </View>
 
       {routine.sourceSharedId ? (
@@ -252,6 +250,14 @@ export const CustomRoutineScreen = () => {
 
 const styles = StyleSheet.create({
   content: { padding: SPACING.lg, gap: SPACING.md },
+  diagramWrap: {
+    overflow: "hidden",
+    borderRadius: RADIUS.md,
+    backgroundColor: "#0F4A33",
+    // Matches the table-plus-rail aspect ratio (table.ts's 3569x1778mm + rail) so the landscape
+    // diagram fills the box edge to edge instead of leaving it letterboxed.
+    aspectRatio: 1.9,
+  },
   missing: { flex: 1, alignItems: "center", justifyContent: "center", padding: SPACING.xl },
   missingText: { fontSize: 15 },
   author: {
