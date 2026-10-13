@@ -11,6 +11,9 @@ export type ReleaseNote = {
   headline: string;
   added: Array<{ icon: string; title: string; body: string }>;
   fixed?: string[];
+  /** Who this note is written for: the player app, coach view, or both - see WhatsNewSheet, shown
+   * separately per view so a coach is not told about player-only changes and back again. */
+  audience: "player" | "coach" | "both";
 };
 
 export const RELEASE_NOTES: ReleaseNote[] = [
@@ -18,6 +21,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     version: "1.1.0",
     date: "October 2026",
     headline: "Coaching, verified",
+    audience: "player",
     added: [
       {
         icon: "shield-check-outline",
@@ -45,6 +49,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     version: "1.0.0",
     date: "September 2026",
     headline: "The community is here",
+    audience: "player",
     added: [
       {
         icon: "account-multiple-outline",
@@ -96,6 +101,19 @@ export const isNewer = (a: string, b: string) => {
   return false;
 };
 
-/** The notes a player has not seen: every version after the last one they saw, up to this one. */
-export const unseenNotes = (current: string, lastSeen: string | null, notes = RELEASE_NOTES) =>
-  notes.filter((note) => !isNewer(note.version, current) && (lastSeen === null || isNewer(note.version, lastSeen)));
+/**
+ * The notes for a view (player or coach) that account has not seen: every version after the last
+ * one they saw there, up to this one, written for that view or for both.
+ */
+export const unseenNotes = (
+  current: string,
+  lastSeen: string | null,
+  audience: "player" | "coach",
+  notes = RELEASE_NOTES
+) =>
+  notes.filter(
+    (note) =>
+      (note.audience === audience || note.audience === "both") &&
+      !isNewer(note.version, current) &&
+      (lastSeen === null || isNewer(note.version, lastSeen))
+  );

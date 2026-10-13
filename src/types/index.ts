@@ -23,6 +23,8 @@ export type SubscriptionTier = "free" | "half_century" | "century";
 export interface User {
   /** Set once the player has been through (or skipped) the welcome tour, on any phone. */
   tour_seen?: boolean;
+  /** Same, for the separate coach tour shown the first time this account opens coach view. */
+  coach_tour_seen?: boolean;
   id: string;
   email: string;
   username?: string;

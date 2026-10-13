@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { showOnboardingIfDue } from "../../components/onboarding/OnboardingHost";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMatchesStore, useRoutineScoresStore, useRoutinesStore, useSessionsStore } from "../../store";
 import { useTourNewsStore } from "../../store/tourNewsStore";
@@ -95,6 +96,15 @@ export const DashboardHomeScreen = () => {
     });
     return () => subscription.remove();
   }, [refreshNews]);
+
+  // The welcome tour and "what's new" belong here, not on whatever screen the app happens to be a
+  // moment after sign in - see showOnboardingIfDue.
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => showOnboardingIfDue("player"), 500);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   const template = templates[0];
   const templateMinutes = useMemo(

@@ -1,8 +1,9 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { showOnboardingIfDue } from "../../components/onboarding/OnboardingHost";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useCoachStore } from "../../store/coachStore";
 import { useCommunityStore } from "../../store/communityStore";
@@ -45,6 +46,15 @@ export const CoachAnalyticsDashboardScreen = () => {
   const [railWidth, setRailWidth] = useState(0);
   const [rhythmWidth, setRhythmWidth] = useState(0);
   const listRef = useRef<FlatList>(null);
+
+  // The coach tour and "what's new for coaches" belong here, the moment coach view is actually
+  // open - see showOnboardingIfDue.
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => showOnboardingIfDue("coach"), 500);
+      return () => clearTimeout(timer);
+    }, [])
+  );
 
   const playerName = (booking: CoachBooking) => booking.guestName ?? nameOf(profiles[booking.playerId ?? ""]);
   const clientName = (client: { playerId: string | null; guestName: string | null }) =>

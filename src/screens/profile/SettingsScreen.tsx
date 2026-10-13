@@ -5,6 +5,7 @@ import { useNavigation, useNavigationState, type NavigationProp } from "@react-n
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useOnboardingStore } from "../../store/onboardingStore";
+import { useUiModeStore } from "../../store/uiModeStore";
 import { APP_VERSION } from "../../components/onboarding/OnboardingHost";
 import { AppButton } from "../../components/ui/AppButton";
 import { AppCard } from "../../components/ui/AppCard";
@@ -88,13 +89,16 @@ const SettingsSection: React.FC<{ title: string; children: React.ReactNode; colo
 export const SettingsScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp<ProfileStackParamList & RootStackParamList>>();
+  // Settings is reached the same way from either view, so "Take the tour" and "What's new" here
+  // are for whichever one is currently open.
+  const viewMode = useUiModeStore((state) => state.viewMode);
   // Settings is a sheet iOS will not show the tour over, so it closes first and the tour follows.
   const reopen = (which: "tour" | "whatsNew") => {
     (navigation as any).getParent?.()?.goBack?.() ?? (navigation as any).goBack();
     setTimeout(() => {
       const store = useOnboardingStore.getState();
-      if (which === "tour") store.openTour();
-      else store.openWhatsNew();
+      if (which === "tour") store.openTour(viewMode);
+      else store.openWhatsNew(viewMode);
     }, 450);
   };
   const { colors } = useAppTheme();
@@ -495,11 +499,16 @@ export const SettingsScreen = () => {
 
         {/* Support Section */}
         <SettingsSection title="SUPPORT & POLICIES" colors={colors}>
-          <SettingsRow icon="map-marker-path" label="Take the tour" onPress={() => reopen("tour")} colors={colors} />
+          <SettingsRow
+            icon="map-marker-path"
+            label={viewMode === "coach" ? "Take the coach tour" : "Take the tour"}
+            onPress={() => reopen("tour")}
+            colors={colors}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
           <SettingsRow
             icon="star-four-points-outline"
-            label="What's new"
+            label={viewMode === "coach" ? "What's new for coaches" : "What's new"}
             value={`Version ${APP_VERSION}`}
             onPress={() => reopen("whatsNew")}
             colors={colors}

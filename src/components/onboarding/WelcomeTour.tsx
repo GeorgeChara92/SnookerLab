@@ -16,12 +16,20 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 type Page =
-  | { kind: "welcome" }
+  | { kind: "welcome"; kicker: string; hero: string; body: string }
   | { kind: "feature"; kicker: string; title: string; body: string; image: ImageSourcePropType }
-  | { kind: "start" };
+  | { kind: "start"; title: string };
 
-const PAGES: Page[] = [
-  { kind: "welcome" },
+export type TourVariant = "player" | "coach";
+export type TourChoice = "match" | "practice" | "community" | "calendar" | "clients" | "groups" | null;
+
+const PLAYER_PAGES: Page[] = [
+  {
+    kind: "welcome",
+    kicker: "WELCOME TO SNOOKERED",
+    hero: "Your snooker,\non the scoreboard.",
+    body: "Score your matches, practise with a plan and play your friends. Here is a quick look round.",
+  },
   {
     kind: "feature",
     kicker: "SCORE",
@@ -64,12 +72,55 @@ const PAGES: Page[] = [
     body: "A result card that leads with the century, the maximum or the comeback.",
     image: require("../../../assets/tour/share-card.jpg"),
   },
-  { kind: "start" },
+  { kind: "start", title: "Where do you want to start?" },
 ];
 
-export type TourChoice = "match" | "practice" | "community" | null;
+const COACH_PAGES: Page[] = [
+  {
+    kind: "welcome",
+    kicker: "WELCOME TO COACH VIEW",
+    hero: "Your coaching,\non your terms.",
+    body: "Take bookings, message clients and keep your session notes - all in the app your players are already on. Here is a quick look round.",
+  },
+  {
+    kind: "feature",
+    kicker: "AT A GLANCE",
+    title: "Your coaching, at a glance",
+    body: "What's next, how many sessions this week and this month, and who you've been seeing most.",
+    image: require("../../../assets/tour/coach-dashboard.jpg"),
+  },
+  {
+    kind: "feature",
+    kicker: "DIARY",
+    title: "Run it like a diary, not just an inbox",
+    body: "Set your hours, then book a slot yourself for anyone - including someone who has never opened the app.",
+    image: require("../../../assets/tour/coach-calendar.jpg"),
+  },
+  {
+    kind: "feature",
+    kicker: "CLIENTS",
+    title: "Every client, on the books or not",
+    body: "A running list of everyone you've coached, how many sessions, and when you last saw them.",
+    image: require("../../../assets/tour/coach-clients.jpg"),
+  },
+  {
+    kind: "feature",
+    kicker: "GROUPS",
+    title: "Post once, reach everyone",
+    body: "A broadcast group for your clients: drills, videos and PDFs posted straight to their feed.",
+    image: require("../../../assets/tour/coach-group.jpg"),
+  },
+  {
+    kind: "feature",
+    kicker: "NOTES",
+    title: "Track exactly what you covered",
+    body: "Log the routines from the session with a score each, and a note on what to pick up next time - private to you.",
+    image: require("../../../assets/tour/session-notes.jpg"),
+  },
+  { kind: "start", title: "Where do you want to start?" },
+];
 
-const CHOICES: Array<{ value: Exclude<TourChoice, null>; icon: string; title: string; body: string }> = [
+const PLAYER_CHOICES: Array<{ value: Exclude<TourChoice, null>; icon: string; title: string; body: string }> = [
   { value: "match", icon: "scoreboard-outline", title: "Score a match", body: "Play someone and score it live" },
   { value: "practice", icon: "target", title: "Start practising", body: "Pick a routine and log a score" },
   {
@@ -80,17 +131,34 @@ const CHOICES: Array<{ value: Exclude<TourChoice, null>; icon: string; title: st
   },
 ];
 
+const COACH_CHOICES: Array<{ value: Exclude<TourChoice, null>; icon: string; title: string; body: string }> = [
+  { value: "calendar", icon: "calendar-month-outline", title: "Set my availability", body: "Open your diary and set your hours" },
+  { value: "clients", icon: "account-group-outline", title: "Add a client", body: "Book a session, even for a walk-in" },
+  { value: "groups", icon: "account-multiple-outline", title: "Start a group", body: "Post a drill to everyone at once" },
+];
+
 /**
- * The welcome tour for someone new: what the app is, five things it does shown on real screens,
- * and where to start. Swipe or tap through; skip at any point.
+ * The welcome tour for someone new to a view: what it does, shown on real screens, and where to
+ * start. The same component runs both the player tour and the coach tour - only the pages, choices
+ * and where "start" leads differ. Swipe or tap through; skip at any point.
  */
-export const WelcomeTour = ({ visible, onDone }: { visible: boolean; onDone: (choice: TourChoice) => void }) => {
+export const WelcomeTour = ({
+  visible,
+  variant = "player",
+  onDone,
+}: {
+  visible: boolean;
+  variant?: TourVariant;
+  onDone: (choice: TourChoice) => void;
+}) => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [page, setPage] = useState(0);
   const list = useRef<FlatList<Page>>(null);
 
+  const PAGES = variant === "coach" ? COACH_PAGES : PLAYER_PAGES;
+  const CHOICES = variant === "coach" ? COACH_CHOICES : PLAYER_CHOICES;
   const last = PAGES.length - 1;
   // The screenshot fills what the words and buttons leave, and never gets too wide.
   const shotHeight = Math.max(260, Math.min(height * 0.52, (width - 96) * 2.17));
@@ -113,14 +181,12 @@ export const WelcomeTour = ({ visible, onDone }: { visible: boolean; onDone: (ch
           <View style={styles.centre}>
             <Image source={require("../../../assets/icon.png")} style={styles.icon} accessibilityIgnoresInvertColors />
             <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.kicker, { color: colors.boardRule }]}>
-              WELCOME TO SNOOKERED
+              {item.kicker}
             </Text>
             <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.hero, { color: colors.text }]}>
-              Your snooker,{"\n"}on the scoreboard.
+              {item.hero}
             </Text>
-            <Text style={[styles.body, { color: colors.textMuted }]}>
-              Score your matches, practise with a plan and play your friends. Here is a quick look round.
-            </Text>
+            <Text style={[styles.body, { color: colors.textMuted }]}>{item.body}</Text>
           </View>
         </View>
       );
@@ -133,7 +199,7 @@ export const WelcomeTour = ({ visible, onDone }: { visible: boolean; onDone: (ch
               READY WHEN YOU ARE
             </Text>
             <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.title, { color: colors.text }]}>
-              Where do you want to start?
+              {item.title}
             </Text>
             <View style={styles.choices}>
               {CHOICES.map((choice) => (

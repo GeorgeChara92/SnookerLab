@@ -28,6 +28,7 @@ const mapAuthUser = (authUser: any): User => ({
   wpbsa_accredited: authUser.user_metadata?.wpbsa_accredited,
   coach_qualifications: authUser.user_metadata?.coach_qualifications,
   tour_seen: authUser.user_metadata?.tour_seen === true,
+  coach_tour_seen: authUser.user_metadata?.coach_tour_seen === true,
   // app_metadata is written only by the service role (the RevenueCat webhook and the
   // sync-subscription function), so the tier cannot be forged from the client.
   subscription_tier: authUser.app_metadata?.subscription_tier,

@@ -1,6 +1,12 @@
 import { isNewer, unseenNotes, type ReleaseNote } from "../releaseNotes";
 
-const note = (version: string): ReleaseNote => ({ version, date: "", headline: version, added: [] });
+const note = (version: string, audience: ReleaseNote["audience"] = "both"): ReleaseNote => ({
+  version,
+  date: "",
+  headline: version,
+  added: [],
+  audience,
+});
 const NOTES = [note("1.2.0"), note("1.1.0"), note("1.0.0")];
 
 describe("release notes", () => {
@@ -12,12 +18,18 @@ describe("release notes", () => {
   });
 
   it("shows what came out since the player last looked, up to this version", () => {
-    expect(unseenNotes("1.2.0", "1.0.0", NOTES).map((n) => n.version)).toEqual(["1.2.0", "1.1.0"]);
-    expect(unseenNotes("1.1.0", "1.0.0", NOTES).map((n) => n.version)).toEqual(["1.1.0"]);
-    expect(unseenNotes("1.2.0", "1.2.0", NOTES)).toEqual([]);
+    expect(unseenNotes("1.2.0", "1.0.0", "player", NOTES).map((n) => n.version)).toEqual(["1.2.0", "1.1.0"]);
+    expect(unseenNotes("1.1.0", "1.0.0", "player", NOTES).map((n) => n.version)).toEqual(["1.1.0"]);
+    expect(unseenNotes("1.2.0", "1.2.0", "player", NOTES)).toEqual([]);
   });
 
   it("shows everything so far to someone who has never seen any", () => {
-    expect(unseenNotes("1.1.0", null, NOTES).map((n) => n.version)).toEqual(["1.1.0", "1.0.0"]);
+    expect(unseenNotes("1.1.0", null, "player", NOTES).map((n) => n.version)).toEqual(["1.1.0", "1.0.0"]);
+  });
+
+  it("keeps a view to its own notes and whatever is marked for both", () => {
+    const mixed = [note("1.2.0", "coach"), note("1.1.0", "player"), note("1.0.0", "both")];
+    expect(unseenNotes("1.2.0", null, "player", mixed).map((n) => n.version)).toEqual(["1.1.0", "1.0.0"]);
+    expect(unseenNotes("1.2.0", null, "coach", mixed).map((n) => n.version)).toEqual(["1.2.0", "1.0.0"]);
   });
 });
