@@ -495,6 +495,16 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
           </View>
         ) : null}
 
+        {/* Moved to a different table: redo calibration without losing balls already scanned -
+            those are stored in table millimetres, not AR world space, so they are untouched by a
+            new frame. Only shown once there is a frame to redo. */}
+        {(phase === "scan" || phase === "replace") && frame ? (
+          <Pressable onPress={redoCalibration} accessibilityRole="button" accessibilityLabel="Recalibrate the table" style={styles.chip}>
+            <MaterialCommunityIcons name="crosshairs-gps" size={16} color="#FFFFFF" />
+            <Text style={styles.chipText}>Recalibrate</Text>
+          </Pressable>
+        ) : null}
+
         {phase === "scan" || (phase === "replace" && saved) ? (
           <View style={styles.tray}>
             {(phase === "scan" ? TRAY : TRAY.filter((item) => countOf(saved!.balls, item) > 0)).map((item) => {
