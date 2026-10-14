@@ -40,6 +40,7 @@ import { ProfileNavigator } from "./ProfileNavigator";
 import { LoadingPlayerScreen } from "../screens/auth/LoadingPlayerScreen";
 import { ChooseViewScreen } from "../screens/auth/ChooseViewScreen";
 import { LiveSessionScreen } from "../screens/coach/LiveSessionScreen";
+import { CoachSubscriptionScreen } from "../screens/coach/CoachSubscriptionScreen";
 import { PdfViewerScreen } from "../screens/shared/PdfViewerScreen";
 import { CustomRoutineBuilderScreen } from "../screens/routines/CustomRoutineBuilderScreen";
 import { RootStackParamList } from "../types";
@@ -376,6 +377,18 @@ export const AppNavigator = () => {
                 <Stack.Screen name="ProfileModal" component={ProfileNavigator} options={{ presentation: "modal" }} />
                 <Stack.Screen name="SendToChat" component={SendToChatScreen} options={{ presentation: "modal" }} />
                 <Stack.Screen name="LiveSession" component={LiveSessionScreen} options={{ presentation: "modal" }} />
+                <Stack.Screen
+                  name="CoachSubscription"
+                  component={CoachSubscriptionScreen}
+                  options={{
+                    presentation: "modal",
+                    headerShown: true,
+                    title: "Coach plan",
+                    headerStyle: { backgroundColor: colors.surface },
+                    headerTintColor: colors.text,
+                    headerShadowVisible: false,
+                  }}
+                />
                 <Stack.Screen
                   name="PdfViewer"
                   component={PdfViewerScreen}

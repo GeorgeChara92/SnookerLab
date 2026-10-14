@@ -74,6 +74,36 @@ export const tierFromCustomerState = (
   return "free";
 };
 
+/**
+ * Orthogonal to the player tier above: a coach can be on any player tier (or free) and
+ * separately subscribed to the Coach plan, which unlocks the booking diary. Matched the same way
+ * - entitlement id, lookup key or product id, whichever RevenueCat's response happens to carry.
+ */
+export const hasCoachEntitlement = (
+  state: { entitlements: any[]; subscriptions: any[] } | null,
+  coachIds: string[],
+  now = Date.now()
+): boolean => {
+  if (!state) return false;
+
+  const tokens: string[] = [];
+
+  for (const entitlement of state.entitlements) {
+    const expires = entitlement?.expires_at;
+    const live = expires === null || expires === undefined || (typeof expires === "number" && expires > now);
+    if (!live) continue;
+    if (entitlement?.entitlement_id) tokens.push(String(entitlement.entitlement_id));
+    if (entitlement?.lookup_key) tokens.push(String(entitlement.lookup_key));
+  }
+
+  for (const subscription of state.subscriptions) {
+    if (isLive(subscription, now) && subscription?.product_id) tokens.push(String(subscription.product_id));
+  }
+
+  const lower = tokens.map((token) => token.toLowerCase());
+  return lower.some((token) => coachIds.includes(token));
+};
+
 /** Start of the earliest live subscription: the day of the month the quota resets on. */
 export const anchorFromCustomerState = (
   state: { subscriptions: any[] } | null,

@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showOnboardingIfDue } from "../../components/onboarding/OnboardingHost";
 import { useAppTheme } from "../../hooks/useAppTheme";
+import { useAuthStore } from "../../store";
 import { useCoachStore } from "../../store/coachStore";
 import { useCommunityStore } from "../../store/communityStore";
 import { nameOf } from "../../features/community/types";
@@ -40,6 +41,7 @@ export const CoachAnalyticsDashboardScreen = () => {
   const insets = useSafeAreaInsets();
   const { bookingsAsCoach, sessionNotes, sessionRoutines, loaded } = useCoachStore();
   const { profiles } = useCommunityStore();
+  const coachSubscribed = useAuthStore((state) => state.user?.coach_subscription_active ?? false);
 
   const [pager, setPager] = useState({ width: 0, height: 0 });
   const [page, setPage] = useState(0);
@@ -211,6 +213,19 @@ export const CoachAnalyticsDashboardScreen = () => {
           </Text>
         ) : null}
       </View>
+
+      {!coachSubscribed ? (
+        <Pressable
+          onPress={() => navigation.getParent()?.navigate("CoachSubscription")}
+          accessibilityRole="button"
+          accessibilityLabel="Subscribe to the Coach plan to unlock your booking diary"
+          style={[styles.requestsBanner, { backgroundColor: colors.surface, borderColor: colors.primary }]}
+        >
+          <MaterialCommunityIcons name="lock-outline" size={20} color={colors.primary} />
+          <Text style={[styles.requestsBannerText, { color: colors.text }]}>Subscribe to unlock your booking diary</Text>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
+        </Pressable>
+      ) : null}
 
       {pendingCount ? (
         <Pressable

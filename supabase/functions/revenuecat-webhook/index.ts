@@ -24,6 +24,10 @@ const parseIds = (raw, fallback) =>
 
 const CENTURY_IDS = parseIds(Deno.env.get("RC_CENTURY_IDS"), "century,century_monthly,monthly_12,entlc40a5bb905");
 const HALF_CENTURY_IDS = parseIds(Deno.env.get("RC_HALF_CENTURY_IDS"), "half_century,half_century_monthly,monthly_3_46,entl243f0aff7d");
+// Orthogonal to the player tier above: a coach can be on any player tier (or free) and separately
+// subscribed to the Coach plan, which unlocks the booking diary. Matched the same way - lookup
+// key, entitlement id or product id, whichever RevenueCat's response happens to carry.
+const COACH_IDS = parseIds(Deno.env.get("RC_COACH_IDS"), "coach,monthly_coach,annual_coach");
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -136,6 +140,8 @@ const tierFromTokens = (tokens) => {
   return "free";
 };
 
+const hasCoachFromTokens = (tokens) => tokens.some((token) => COACH_IDS.includes(token));
+
 const anchorFromCustomerState = (state, now = Date.now()) => {
   const starts = (state?.subscriptions ?? [])
     .filter((subscription) => isLive(subscription, now))
@@ -167,6 +173,7 @@ Deno.serve(async (request) => {
     const [state, catalog] = await Promise.all([loadCustomerState(appUserId), loadCatalog()]);
     const tokens = liveTokens(state, catalog);
     const tier = tierFromTokens(tokens);
+    const hasCoach = hasCoachFromTokens(tokens);
     const anchor = anchorFromCustomerState(state);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -175,6 +182,7 @@ Deno.serve(async (request) => {
 
     const appMetadata = { ...(existing.user.app_metadata ?? {}) };
     appMetadata.subscription_tier = tier;
+    appMetadata.coach_subscription_active = hasCoach;
     if (tier === "free") {
       delete appMetadata.subscription_anchor_date;
     } else if (anchor && !appMetadata.subscription_anchor_date) {
@@ -189,8 +197,8 @@ Deno.serve(async (request) => {
     const { error: profileError } = await admin.from("profiles").update({ subscription_tier: tier }).eq("id", appUserId);
     if (profileError) console.warn("subscription badge sync failed", { message: profileError.message });
 
-    console.log("revenuecat-webhook applied", { type: event?.type, tokens, tier });
-    return json({ ok: true, tier });
+    console.log("revenuecat-webhook applied", { type: event?.type, tokens, tier, hasCoach });
+    return json({ ok: true, tier, coach_subscription_active: hasCoach });
   } catch (error) {
     console.error("revenuecat-webhook failed", { message: error?.message });
     return json({ error: "webhook_failed" }, 500);

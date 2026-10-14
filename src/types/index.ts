@@ -51,6 +51,9 @@ export interface User {
   coach_qualifications?: string[];
   subscription_tier?: SubscriptionTier;
   subscription_anchor_date?: string;
+  /** Separate from subscription_tier: a coach can be on any player tier (or free) and separately
+   * subscribed to the Coach plan, which is what actually unlocks the booking diary. */
+  coach_subscription_active?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -319,6 +322,9 @@ export type RootStackParamList = {
   /** Building a custom routine from outside the Practice tab (coach mode has no Practice tab of
    * its own). `returnToCaller` skips the player flow's "open the new routine" hop and just closes. */
   CustomRoutineBuilder: { routineId?: string; returnToCaller?: boolean } | undefined;
+  /** The Coach plan: separate from the player's subscription_tier, this is what actually unlocks
+   * the booking diary for an approved coach. */
+  CoachSubscription: undefined;
 };
 
 export type AuthStackParamList = {

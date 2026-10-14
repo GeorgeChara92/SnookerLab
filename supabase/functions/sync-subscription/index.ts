@@ -21,6 +21,10 @@ const parseIds = (raw, fallback) =>
 
 const CENTURY_IDS = parseIds(Deno.env.get("RC_CENTURY_IDS"), "century,century_monthly,monthly_12,entlc40a5bb905");
 const HALF_CENTURY_IDS = parseIds(Deno.env.get("RC_HALF_CENTURY_IDS"), "half_century,half_century_monthly,monthly_3_46,entl243f0aff7d");
+// Orthogonal to the player tier above: a coach can be on any player tier (or free) and separately
+// subscribed to the Coach plan, which unlocks the booking diary. Matched the same way - lookup
+// key, entitlement id or product id, whichever RevenueCat's response happens to carry.
+const COACH_IDS = parseIds(Deno.env.get("RC_COACH_IDS"), "coach,monthly_coach,annual_coach");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -135,6 +139,8 @@ const tierFromTokens = (tokens) => {
   return "free";
 };
 
+const hasCoachFromTokens = (tokens) => tokens.some((token) => COACH_IDS.includes(token));
+
 const anchorFromCustomerState = (state, now = Date.now()) => {
   const starts = (state?.subscriptions ?? [])
     .filter((subscription) => isLive(subscription, now))
@@ -144,12 +150,13 @@ const anchorFromCustomerState = (state, now = Date.now()) => {
   return starts.length ? new Date(Math.min(...starts)).toISOString() : null;
 };
 
-const applyTier = async (admin, userId, tier, anchor) => {
+const applyTier = async (admin, userId, tier, anchor, hasCoach) => {
   const { data: existing, error: readError } = await admin.auth.admin.getUserById(userId);
   if (readError) throw readError;
 
   const appMetadata = { ...(existing?.user?.app_metadata ?? {}) };
   appMetadata.subscription_tier = tier;
+  appMetadata.coach_subscription_active = hasCoach;
   // Keep the first anchor seen for a continuing subscription so the quota window is stable.
   if (tier === "free") {
     delete appMetadata.subscription_anchor_date;
@@ -186,12 +193,13 @@ Deno.serve(async (request) => {
     const [state, catalog] = await Promise.all([loadCustomerState(caller.user.id), loadCatalog()]);
     const tokens = liveTokens(state, catalog);
     const tier = tierFromTokens(tokens);
+    const hasCoach = hasCoachFromTokens(tokens);
     const anchor = anchorFromCustomerState(state);
 
-    console.log("sync-subscription", { tokens, tier });
-    await applyTier(admin, caller.user.id, tier, anchor);
+    console.log("sync-subscription", { tokens, tier, hasCoach });
+    await applyTier(admin, caller.user.id, tier, anchor, hasCoach);
 
-    return json({ tier });
+    return json({ tier, coach_subscription_active: hasCoach });
   } catch (error) {
     console.error("sync-subscription failed", { message: error?.message });
     return json({ error: "sync_failed" }, 502);

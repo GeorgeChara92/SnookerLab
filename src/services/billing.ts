@@ -207,16 +207,9 @@ const findProductForTier = (
   return null;
 };
 
-export const purchaseTier = async (
-  tier: Exclude<SubscriptionTier, "free">,
-  period: BillingPeriod,
-  offerings: BillingOfferings
-): Promise<PurchaseTierResult> => {
-  const product = findProductForTier(tier, period, offerings);
-  if (!product) {
-    throw new Error(`No product found for tier: ${tier} (${period}). Check RevenueCat offering/packages and product IDs.`);
-  }
-
+/** Buys a package already found in the catalog, normalising RevenueCat's own errors into the
+ * shape every purchase screen expects (a cancelled purchase is not a failure to report). */
+const buyPackage = async (product: PurchasesPackage): Promise<PurchaseTierResult> => {
   try {
     const result = await Purchases.purchasePackage(product);
     const synced = await Purchases.syncPurchasesForResult().catch(() => null);
@@ -239,6 +232,18 @@ export const purchaseTier = async (
 
     throw error;
   }
+};
+
+export const purchaseTier = async (
+  tier: Exclude<SubscriptionTier, "free">,
+  period: BillingPeriod,
+  offerings: BillingOfferings
+): Promise<PurchaseTierResult> => {
+  const product = findProductForTier(tier, period, offerings);
+  if (!product) {
+    throw new Error(`No product found for tier: ${tier} (${period}). Check RevenueCat offering/packages and product IDs.`);
+  }
+  return buyPackage(product);
 };
 
 export type TierOffer = {
@@ -294,6 +299,74 @@ export const getTierOffer = (
     price: item.product.price,
     periodLabel: periodLabelFrom((item.product as any)?.subscriptionPeriod),
   };
+};
+
+// ---------------------------------------------------------------------------- the Coach plan
+// Orthogonal to the player tier above: a coach can be on any player tier (or free) and
+// separately subscribed to this, which is what actually unlocks the booking diary.
+
+const COACH_ENTITLEMENT_ID = process.env.EXPO_PUBLIC_RC_ENTITLEMENT_COACH ?? "coach";
+const COACH_MONTHLY_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_COACH_MONTHLY ?? "monthly_coach";
+const COACH_ANNUAL_PRODUCT_ID = process.env.EXPO_PUBLIC_RC_PRODUCT_COACH_ANNUAL ?? "annual_coach";
+
+const findCoachProduct = (period: BillingPeriod, offerings: BillingOfferings) => {
+  const allPackages = offerings.packages;
+  const productHint = period === "annual" ? COACH_ANNUAL_PRODUCT_ID : COACH_MONTHLY_PRODUCT_ID;
+
+  const explicit = allPackages.find((item) => item.product.identifier === productHint || item.identifier === productHint);
+  if (explicit) return explicit;
+
+  const isoPeriod = period === "annual" ? "P1Y" : "P1M";
+  return (
+    allPackages.find((item) => {
+      const haystack = `${item.product.identifier} ${item.identifier}`.toLowerCase();
+      return haystack.includes("coach") && (item.product as any)?.subscriptionPeriod === isoPeriod;
+    }) ?? null
+  );
+};
+
+export type CoachOffer = {
+  period: BillingPeriod;
+  productId: string;
+  priceText: string;
+  price: number;
+  periodLabel: string | null;
+};
+
+export const getCoachOffer = (period: BillingPeriod, offerings: BillingOfferings | null): CoachOffer | null => {
+  if (!offerings) return null;
+
+  const item = findCoachProduct(period, offerings);
+  const priceText = item?.product?.priceString;
+  if (!item || !priceText) return null;
+
+  return {
+    period,
+    productId: item.product.identifier,
+    priceText,
+    price: item.product.price,
+    periodLabel: periodLabelFrom((item.product as any)?.subscriptionPeriod),
+  };
+};
+
+export const purchaseCoachSubscription = async (
+  period: BillingPeriod,
+  offerings: BillingOfferings
+): Promise<PurchaseTierResult> => {
+  const product = findCoachProduct(period, offerings);
+  if (!product) {
+    throw new Error(`No Coach product found (${period}). Check RevenueCat offering/packages and product IDs.`);
+  }
+  return buyPackage(product);
+};
+
+export const hasCoachEntitlement = (profile: CustomerInfo): boolean => {
+  const activeEntitlements = profile.entitlements.active ?? {};
+  if (activeEntitlements[COACH_ENTITLEMENT_ID]) return true;
+
+  const activeProducts = (profile.activeSubscriptions ?? []).map((value) => value.toLowerCase());
+  const coachProducts = [COACH_MONTHLY_PRODUCT_ID, COACH_ANNUAL_PRODUCT_ID].map((value) => value.toLowerCase());
+  return coachProducts.some((value) => activeProducts.includes(value));
 };
 
 export const restoreBillingPurchases = async () => {

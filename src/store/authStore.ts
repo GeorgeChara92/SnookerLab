@@ -33,6 +33,7 @@ const mapAuthUser = (authUser: any): User => ({
   // sync-subscription function), so the tier cannot be forged from the client.
   subscription_tier: authUser.app_metadata?.subscription_tier,
   subscription_anchor_date: authUser.app_metadata?.subscription_anchor_date,
+  coach_subscription_active: authUser.app_metadata?.coach_subscription_active === true,
   created_at: authUser.created_at ?? new Date().toISOString(),
   updated_at: authUser.updated_at ?? new Date().toISOString(),
 });
