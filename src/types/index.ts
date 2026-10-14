@@ -479,10 +479,14 @@ export type CommunityStackParamList = {
   GroupForm: { groupId?: string };
   SharedRoutine: { id: string };
   Leaderboards: undefined;
-  /** News from the professional tour. */
-  TourNews: undefined;
+  /** News from the professional tour, or live scores/results when opened straight to that segment. */
+  TourNews: { segment?: "news" | "live" | "rankings" } | undefined;
   /** Following a match someone is scoring. */
   LiveMatch: { matchId: string };
+  /** A professional player's snooker.org profile and recent/upcoming tour matches. */
+  ProTourPlayer: { playerId: number };
+  /** A tournament's full fixture list, venue and dates - everything one of its matches shows. */
+  ProTourTournament: { tournamentId: number };
   /** One routine's leaderboard; the key is a library routine's id or "shared:<id>". */
   RoutineLeaderboard: { routineKey: string; name: string; group?: { name: string; memberIds: string[] } };
   /** Booking a session with a coach, from their profile. */

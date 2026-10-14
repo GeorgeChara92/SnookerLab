@@ -94,12 +94,13 @@ Expect a **13+** rating.
 
 ## Notes for App Review
 
-> Snookered needs an account. Two demo logins cover everything below:
+> Snookered needs an account. One demo login covers both sides of the app:
 >
-> Player account - Email: ____________  Password: ____________ (matches, practice and a group already set up)
-> Coach account - Email: ____________  Password: ____________ (already approved to coach, with a diary, a client and a booking already set up)
+> Email: demo@snookeredapp.com  Password: ____________
 >
-> Coach status is reached from Profile > Apply to coach, then reviewed by an admin against a word-filtered application form - the coach demo account above is pre-approved so you don't need to wait on that review to test Coach Diary and Find a Coach.
+> This single account is set up as both a player and a coach. On the player side it already has match history, a practice routine and a club group. On the coach side it is pre-approved to coach, with a booking diary (two completed sessions with notes, one pending booking request), a client list and a broadcast group. Switch between the Player and Coach views at any time from the button in the header - no need to log out or use a second account.
+>
+> Coach status is normally reached from Profile > Apply to coach, then reviewed by an admin against a word-filtered application form - this demo account is pre-approved so you don't need to wait on that review to test Coach Diary and Find a Coach.
 >
 > Scan a Snooker (the AR table scan under a match's foul options) needs an iPhone with a LiDAR scanner (iPhone 12 Pro or later Pro/Pro Max, or an iPad Pro). On a device or the simulator without LiDAR it falls back to a table diagram automatically - there is nothing to toggle.
 >
@@ -107,7 +108,7 @@ Expect a **13+** rating.
 >
 > Live scores: a player scoring a match can share it live with friends and group members. It can be turned off from the scoring screen.
 
-Fill in both demo logins yourself. The test accounts already have the seeded data described above.
+Fill in the demo account's password yourself. The test account already has the seeded data described above.
 
 ## Screenshots
 
