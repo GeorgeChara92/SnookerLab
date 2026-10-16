@@ -1,12 +1,13 @@
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { motion, useScroll, useTransform, useReducedMotion } from "motion/react";
-import { Medal, Newspaper, ScanLine, Trophy, Users, WifiOff } from "lucide-react";
+import { Medal, ScanLine, Trophy, Users, WifiOff, Bell } from "lucide-react";
 import { Phone } from "../components/Phone";
 import { LiveBoard } from "../components/Scoreboard";
 import { Scorer } from "../components/Scorer";
 import { AppTour, CoreLoop, LaunchList } from "../components/Tour";
 import { AppleLogo, Arrow, Reveal } from "../components/Blocks";
+import { TourBracket, TourLiveCard } from "../components/ProTour";
 import { PLANS, type Screen } from "../site";
 
 function Hero() {
@@ -37,8 +38,8 @@ function Hero() {
               <AppleLogo />
               Coming soon to iPhone
             </a>
-            <a className="btn btn-ghost" href="#inside">
-              Explore the app <Arrow />
+            <a className="btn btn-ghost" href="#film">
+              Watch the film <Arrow />
             </a>
           </Reveal>
         </div>
@@ -167,7 +168,7 @@ const SECONDARY: { icon: typeof Trophy; title: string; body: string; to?: string
   { icon: Trophy, title: "Tournaments", body: "Knockouts and leagues for your club, with the draw, fixtures and results kept for you." },
   { icon: ScanLine, title: "Scan a Snooker", body: "Scan the table before a snooker, then put every ball back in AR after a miss.", to: "/scan-snooker", soon: true },
   { icon: Users, title: "Groups and boards", body: "A group for your league, with chat, a feed of results and pinned routines.", to: "/community" },
-  { icon: Newspaper, title: "Pro tour news", body: "The latest from the World Snooker Tour and BBC Sport, next to your own game." },
+  { icon: Bell, title: "Follow the pros", body: "Follow your favourite players and get a notification when their match starts and finishes.", to: "/pro-tour" },
   { icon: Medal, title: "Achievements", body: "Level up for the things that matter: centuries, streaks, wins and practice." },
   { icon: WifiOff, title: "Offline scoring", body: "Frames save on the phone and sync later, so a dead signal never stops a match." },
 ];
@@ -258,10 +259,51 @@ function Gallery() {
   );
 }
 
+/** The 25-second film: a poster and a play button until it's wanted, so it costs nothing to load. */
+function Film() {
+  const [playing, setPlaying] = useState(false);
+  return (
+    <section className="section tight" id="film">
+      <div className="wrap">
+        <Reveal className="section-head split">
+          <div>
+            <p className="eyebrow">See it in action</p>
+            <h2 className="display-l">Snookered in 25 seconds.</h2>
+          </div>
+          <p className="lead">Live scoring, practice, Scan a Snooker and the coaching side, in one short film.</p>
+        </Reveal>
+        <Reveal delay={0.08}>
+          <div className="film">
+            {playing ? (
+              <video controls autoPlay playsInline poster="/media/snookered-film-poster.webp" preload="auto">
+                <source src="/media/snookered-film-720.mp4" type="video/mp4" media="(max-width: 860px)" />
+                <source src="/media/snookered-film.mp4" type="video/mp4" />
+              </video>
+            ) : (
+              <>
+                <img src="/media/snookered-film-poster.webp" alt="" width={1280} height={720} loading="lazy" decoding="async" />
+                <button type="button" className="film-play" onClick={() => setPlaying(true)} aria-label="Play the Snookered film, 25 seconds, with sound">
+                  <span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />
+                    </svg>
+                    Watch the film
+                  </span>
+                </button>
+              </>
+            )}
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 export default function Home() {
   return (
     <>
       <Hero />
+      <Film />
       <CoreLoop />
       <AppTour />
       <Feature
@@ -340,6 +382,27 @@ export default function Home() {
           </div>
         }
         link={{ to: "/community", label: "Explore community" }}
+      />
+      <Feature
+        id="pro-tour"
+        tone="dark"
+        eyebrow="Pro Tour"
+        title="The pro tour, live in your pocket."
+        body="Live scores, fixtures and results from every professional tournament, in your own time zone. The full draw and bracket, head-to-heads, money rankings, and a notification when the players you follow start and finish."
+        points={[
+          "Every session time shown in your local time",
+          "A link to watch, where the match is streamed",
+          "Follow players and get notified when they're on",
+        ]}
+        visual={
+          <div className="tour-duo">
+            <TourLiveCard />
+            <div className="board-panel">
+              <TourBracket />
+            </div>
+          </div>
+        }
+        link={{ to: "/pro-tour", label: "Explore the pro tour" }}
       />
       <Feature
         id="for-coaches"

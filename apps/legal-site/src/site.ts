@@ -8,7 +8,7 @@ export const ROUTES: RouteMeta[] = [
     path: "/",
     title: "Snookered · Snooker scoring, practice and club app",
     description:
-      "Score matches ball by ball, practise with purpose, track your progress, get coaching from a clip of your own game and play your mates. Coming soon to iPhone.",
+      "Score matches ball by ball, practise with purpose, track your progress, get coaching from a clip of your own game, play your mates and follow the pro tour live. Coming soon to iPhone.",
   },
   {
     path: "/scoring",
@@ -53,6 +53,12 @@ export const ROUTES: RouteMeta[] = [
       "Play friends in matches that count for both players, follow their frames live, and run a group for your snooker club or league with its own chat, feed and leaderboards.",
   },
   {
+    path: "/pro-tour",
+    title: "Live snooker scores, fixtures and results in your time zone · Snookered",
+    description:
+      "Follow the professional snooker tour live: scores, fixtures and results in your own time zone, the full draw and bracket, head-to-heads, money rankings and notifications for the players you follow.",
+  },
+  {
     path: "/plans",
     title: "Plans and pricing · Snookered",
     description: "Snookered plans: Free, Half-Century and Century. Compare matches, tournaments and AI coach reviews a month. Free to start, billed through your Apple account.",
@@ -82,6 +88,7 @@ export const NAV = [
   { to: "/find-a-coach", label: "Find a Coach" },
   { to: "/scoring", label: "Scoring" },
   { to: "/community", label: "Community" },
+  { to: "/pro-tour", label: "Pro Tour" },
   { to: "/plans", label: "Plans" },
 ];
 

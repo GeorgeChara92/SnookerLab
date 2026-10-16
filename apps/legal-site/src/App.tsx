@@ -9,6 +9,7 @@ import Coach from "./pages/Coach";
 import FindACoach from "./pages/FindACoach";
 import CoachDiary from "./pages/CoachDiary";
 import ScanSnooker from "./pages/ScanSnooker";
+import ProTour from "./pages/ProTour";
 import AdminDashboard from "./pages/AdminDashboard";
 import { NotFound, Plans, Privacy, Support, Terms } from "./pages/Info";
 import { metaFor } from "./site";
@@ -21,6 +22,7 @@ import "./styles/base.css";
 import "./styles/layout.css";
 import "./styles/sections.css";
 import "./styles/features.css";
+import "./styles/tour.css";
 
 /** Shows each .rv block as it arrives. Without an observer, or with reduced motion, everything shows at once. */
 function useReveals() {
@@ -95,6 +97,7 @@ export function App() {
           <Route path="/coach-diary" element={<CoachDiary />} />
           <Route path="/scan-snooker" element={<ScanSnooker />} />
           <Route path="/community" element={<Community />} />
+          <Route path="/pro-tour" element={<ProTour />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/support" element={<Support />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />

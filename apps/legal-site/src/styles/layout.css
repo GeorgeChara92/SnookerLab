@@ -62,6 +62,7 @@
   color: var(--ink-2);
   font-size: 15px;
   font-weight: 500;
+  white-space: nowrap;
   text-decoration: none;
   transition: color 150ms var(--ease), background-color 150ms var(--ease);
 }
@@ -164,7 +165,8 @@
   background: var(--mint);
 }
 
-@media (max-width: 860px) {
+/* Seven links on one line need about 1000px; below that, the menu. */
+@media (max-width: 1000px) {
   .header-nav {
     display: none;
   }
