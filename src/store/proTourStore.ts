@@ -90,7 +90,19 @@ const allRows = async <T>(page: (from: number, to: number) => PromiseLike<{ data
   }
 };
 
-const readMatches = (rows: unknown[] | null) => (rows ?? []).map((row) => fromMatchRow(row as Record<string, unknown>));
+/** Rows to matches, one per slot of the draw: if snooker.org has redrawn a round (new ids for the
+ *  same event, round and match number) and the old rows haven't been cleared yet, the newest wins
+ *  rather than every fixture showing twice. */
+const readMatches = (rows: unknown[] | null) => {
+  const bySlot = new Map<string, ProTourMatch>();
+  for (const row of rows ?? []) {
+    const match = fromMatchRow(row as Record<string, unknown>);
+    const key = `${match.eventId}:${match.round}:${match.number}`;
+    const existing = bySlot.get(key);
+    if (!existing || match.id > existing.id) bySlot.set(key, match);
+  }
+  return [...bySlot.values()];
+};
 
 /** The live feed: anything unfinished, and everything from three days ago to three weeks ahead. */
 const feedQuery = () => {
@@ -315,7 +327,7 @@ export const useProTourStore = create<ProTourState>()(
         const byId: Record<number, ProTourMatch> = {};
         mergeMatches(
           byId,
-          (data ?? []).map((row) => fromMatchRow(row as unknown as Record<string, unknown>))
+          readMatches(data)
         );
         set((state) => ({
           playerMatches: {

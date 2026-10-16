@@ -397,6 +397,14 @@ const KINDS = {
       if (!target) return { called: false };
       const rows = asArray(await snookerGet(`?t=6&e=${target.id}`));
       await notifyFollowers(admin, await upsertMatches(admin, rows.map(toMatchRow)));
+      // t=6 is the event's whole draw. When snooker.org redraws a round it gives the matches new
+      // ids, so anything of this event's it no longer lists is stale - left in, every fixture of
+      // that round would show twice.
+      if (rows.length) {
+        const ids = rows.map((row) => Number(row.ID)).filter(Boolean);
+        const { error } = await admin.from("pro_tour_matches").delete().eq("event_id", target.id).not("id", "in", `(${ids.join(",")})`);
+        if (error) console.warn("stale match cleanup failed", target.id, error.message);
+      }
       await logFetch(admin, "sync", target.id, rows.length);
       return { called: true, eventId: target.id, fetched: rows.length };
     },
