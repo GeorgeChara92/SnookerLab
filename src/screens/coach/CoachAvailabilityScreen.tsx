@@ -13,6 +13,7 @@ import { nameOf } from "../../features/community/types";
 import { clientsOf, generateWeeklySlots, type Client, type CoachBooking, type CoachSlot } from "../../features/coach/types";
 import { FONTS, HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const WEEKDAYS: Array<{ value: number; label: string }> = [
   { value: 1, label: "Mon" },
   { value: 2, label: "Tue" },
@@ -49,8 +50,19 @@ export const CoachAvailabilityScreen = () => {
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
   const navigation = useNavigation<any>();
-  const { mySlots, bookingsAsCoach, addSlot, removeSlot, addRecurringSlots, respondToBooking, createManualBooking, loaded } = useCoachStore();
-  const { profiles } = useCommunityStore();
+  const { mySlots, bookingsAsCoach, addSlot, removeSlot, addRecurringSlots, respondToBooking, createManualBooking, loaded } = useCoachStore(
+    useShallow((state) => ({
+      mySlots: state.mySlots,
+      bookingsAsCoach: state.bookingsAsCoach,
+      addSlot: state.addSlot,
+      removeSlot: state.removeSlot,
+      addRecurringSlots: state.addRecurringSlots,
+      respondToBooking: state.respondToBooking,
+      createManualBooking: state.createManualBooking,
+      loaded: state.loaded,
+    }))
+  );
+  const { profiles } = useCommunityStore(useShallow((state) => ({ profiles: state.profiles })));
 
   const partyName = (booking: CoachBooking) => booking.guestName ?? nameOf(profiles[booking.playerId ?? ""]);
 

@@ -36,6 +36,7 @@ import {
 } from "../../services/billing";
 import type { SubscriptionTier } from "../../types";
 
+import { useShallow } from "zustand/react/shallow";
 type PaidTier = Exclude<SubscriptionTier, "free">;
 
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snookeredapp.com/privacy";
@@ -90,7 +91,7 @@ const formatDate = (value: string | null) => {
 export const SubscriptionPlansScreen = () => {
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { user, setUser } = useAuthStore();
+  const { user, setUser } = useAuthStore(useShallow((state) => ({ user: state.user, setUser: state.setUser })));
   const subscription = useSubscriptionAccess();
 
   const [offerings, setOfferings] = useState<BillingOfferings | null>(null);

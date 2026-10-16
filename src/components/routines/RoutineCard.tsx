@@ -1,5 +1,6 @@
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { Routine } from "../../types";
 import { getYoutubeThumbnailUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";

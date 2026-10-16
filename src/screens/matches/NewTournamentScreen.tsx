@@ -23,6 +23,7 @@ import type { MatchesStackParamList, TournamentEntryMode, TournamentPairingMode,
 import { TierPaywallModal } from "../../components/subscription";
 import { HIT_TARGET, RADIUS, SCRIM, SPACING, TYPE, isSubscriptionLimitError } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 /** The scrim behind a modal, matching AppDialog and FoulSheet. There is no token for it. */
 
 const framesOptions = [1, 3, 5, 7, 9, 11, 13, 19];
@@ -168,7 +169,7 @@ export const NewTournamentScreen = () => {
   const prefill = route.params?.prefill;
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { createTournament } = useTournamentsStore();
+  const { createTournament } = useTournamentsStore(useShallow((state) => ({ createTournament: state.createTournament })));
   const subscription = useSubscriptionAccess();
   const [isSaving, setIsSaving] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);

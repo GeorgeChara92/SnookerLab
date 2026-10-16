@@ -30,10 +30,23 @@ const stopRetryTimer = () => {
   retryTimer = null;
 };
 
+/** How long in the background before coming back re-reads everything. Shorter trips are covered by
+ *  live sync, which also catches up by itself if its connection dropped while away. */
+const CATCH_UP_AFTER_MS = 30_000;
+let backgroundedAt: number | null = null;
+
 const onAppStateChange = (status: AppStateStatus) => {
+  if (status === "background") {
+    backgroundedAt = Date.now();
+    return;
+  }
   if (status !== "active") return;
+  // "active" also follows a photo picker, a permission prompt, Face ID or a pull of Notification
+  // Centre - none of which is time away. Only a real trip to the background earns a full re-read.
+  const away = backgroundedAt == null ? 0 : Date.now() - backgroundedAt;
+  backgroundedAt = null;
   // Back in the hand: send what is waiting, then catch up on anything missed while away.
-  void flushOutbox().then(() => refreshEverything());
+  void flushOutbox().then(() => (away >= CATCH_UP_AFTER_MS ? refreshEverything() : undefined));
 };
 
 export const startSync = (userId: string) => {

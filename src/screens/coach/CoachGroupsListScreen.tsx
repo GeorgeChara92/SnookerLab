@@ -7,6 +7,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useCoachStore } from "../../store/coachStore";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 /** A coach's own broadcast groups: their clients, and the practice content posted for them. Loaded
  * alongside the rest of coach mode's data (see coachStore.hydrate), so this screen paints from
  * cache immediately rather than fetching cold on every visit. */
@@ -14,7 +15,9 @@ export const CoachGroupsListScreen = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { myCoachGroups: groups, loaded, refreshMyCoachGroups } = useCoachStore();
+  const { myCoachGroups: groups, loaded, refreshMyCoachGroups } = useCoachStore(
+    useShallow((state) => ({ myCoachGroups: state.myCoachGroups, loaded: state.loaded, refreshMyCoachGroups: state.refreshMyCoachGroups }))
+  );
 
   useFocusEffect(
     useCallback(() => {

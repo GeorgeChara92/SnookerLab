@@ -45,6 +45,7 @@ import { RADIUS, SCRIM, SPACING, DISPLAY_TEXT_SCALE } from "../../constants";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { nextFrameStakes } from "../../features/matches/matchStory";
 
+import { useShallow } from "zustand/react/shallow";
 const BALL_META: Array<{ key: LiveBall; color: string; textColor: string }> = [
   { key: "red", color: "#C7343A", textColor: "#FFFFFF" },
   { key: "yellow", color: "#FFD75A", textColor: "#2A2400" },
@@ -116,7 +117,7 @@ export const LiveFrameScoringScreen = () => {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const { colors, isDark } = useAppTheme();
-  const { user } = useAuthStore();
+  const { user } = useAuthStore(useShallow((state) => ({ user: state.user })));
   const { getMatchById, getFrameRecordsByMatchId, getNextFrameNumber, saveFrameRecord, updateMatch, deleteMatch } =
     useMatchesStore();
   const match = getMatchById(route.params.matchId);

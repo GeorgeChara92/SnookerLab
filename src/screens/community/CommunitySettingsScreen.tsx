@@ -24,6 +24,7 @@ import { nameOf, type Privacy } from "../../features/community/types";
 import type { CommunityStackParamList } from "../../types";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const PRIVACY: Array<{ value: Privacy; label: string }> = [
   { value: "everyone", label: "Everyone" },
   { value: "friends", label: "Friends" },
@@ -44,7 +45,18 @@ export const CommunitySettingsScreen = () => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((state) => state.user);
-  const { me, blocked, profiles, isAdmin, saveMe, handleIsFree, freeHandles, unblock } = useCommunityStore();
+  const { me, blocked, profiles, isAdmin, saveMe, handleIsFree, freeHandles, unblock } = useCommunityStore(
+    useShallow((state) => ({
+      me: state.me,
+      blocked: state.blocked,
+      profiles: state.profiles,
+      isAdmin: state.isAdmin,
+      saveMe: state.saveMe,
+      handleIsFree: state.handleIsFree,
+      freeHandles: state.freeHandles,
+      unblock: state.unblock,
+    }))
+  );
 
   const [handle, setHandle] = useState(me?.handle ?? suggestHandle(user?.username));
   const [bio, setBio] = useState(me?.bio ?? "");

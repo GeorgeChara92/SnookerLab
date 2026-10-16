@@ -7,6 +7,7 @@ import { useAuthStore } from "../../store";
 import { submitAppFeedback } from "../../features/feedback/feedback";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const LIMIT = 2000;
 
 /** A note about the app itself - not a coach review, not a support request needing a reply, just
@@ -15,7 +16,7 @@ export const FeedbackScreen = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { user } = useAuthStore();
+  const { user } = useAuthStore(useShallow((state) => ({ user: state.user })));
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 

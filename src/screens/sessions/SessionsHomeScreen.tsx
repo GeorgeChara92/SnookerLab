@@ -8,6 +8,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { WeekCard } from "../../components/practice/WeekCard";
 
+import { useShallow } from "zustand/react/shallow";
 type TemplateWithStats = {
   id: string;
   name: string;
@@ -101,7 +102,9 @@ const PresetCard = ({
 
 export const SessionsHomeScreen = () => {
   const navigation = useNavigation<NavigationProp<SessionsStackParamList>>();
-  const { templates, logs, deleteTemplate } = useSessionsStore();
+  const { templates, logs, deleteTemplate } = useSessionsStore(
+    useShallow((state) => ({ templates: state.templates, logs: state.logs, deleteTemplate: state.deleteTemplate }))
+  );
   const { colors } = useAppTheme();
   const dialog = useDialog();
 

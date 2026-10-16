@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -25,6 +26,7 @@ import { groupMediaUrl } from "../../features/coach/groupMedia";
 import type { CoachGroupMember, CoachGroupPost } from "../../features/coach/types";
 import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 /** A lightweight stand-in for a video post - no player is created (and nothing streams) until it
  * is actually tapped, instead of every video in the feed loading and buffering its first frame at
  * once. The real player only exists inside the lightbox once opened. */
@@ -73,7 +75,7 @@ const PostCard = ({
         </View>
       ) : post.mediaType === "image" ? (
         <Pressable onPress={onExpand} accessibilityRole="imagebutton" accessibilityLabel="Expand image">
-          <Image source={{ uri: url }} style={styles.media} resizeMode="cover" />
+          <Image source={{ uri: url }} style={styles.media} contentFit="cover" cachePolicy="memory-disk" />
         </Pressable>
       ) : post.mediaType === "video" ? (
         <VideoThumb onPress={onExpand} />
@@ -118,8 +120,10 @@ export const CoachGroupScreen = () => {
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
   const me = useAuthStore((state) => state.user?.id ?? null);
-  const { profiles, loadProfile } = useCommunityStore();
-  const { bookingsAsCoach, refreshMyCoachGroups } = useCoachStore();
+  const { profiles, loadProfile } = useCommunityStore(useShallow((state) => ({ profiles: state.profiles, loadProfile: state.loadProfile })));
+  const { bookingsAsCoach, refreshMyCoachGroups } = useCoachStore(
+    useShallow((state) => ({ bookingsAsCoach: state.bookingsAsCoach, refreshMyCoachGroups: state.refreshMyCoachGroups }))
+  );
   const [posts, setPosts] = useState<CoachGroupPost[] | null>(null);
   const [members, setMembers] = useState<CoachGroupMember[]>([]);
   const [coachId, setCoachId] = useState<string | null>(null);
@@ -359,7 +363,7 @@ export const CoachGroupScreen = () => {
               accessibilityRole="button"
               accessibilityLabel="Close"
             >
-              <Image source={{ uri: lightbox.url }} style={styles.lightboxImage} resizeMode="contain" />
+              <Image source={{ uri: lightbox.url }} style={styles.lightboxImage} contentFit="contain" cachePolicy="memory-disk" />
             </Pressable>
           ) : lightbox?.type === "video" ? (
             <>

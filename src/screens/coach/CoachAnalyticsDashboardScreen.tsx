@@ -15,6 +15,7 @@ import { WeekTrack } from "../../components/stats/WeekTrack";
 import { RhythmBars } from "../../components/stats/RhythmBars";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const PAGES = [
   { key: "week", label: "This week" },
   { key: "clients", label: "Clients" },
@@ -39,8 +40,15 @@ export const CoachAnalyticsDashboardScreen = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { bookingsAsCoach, sessionNotes, sessionRoutines, loaded } = useCoachStore();
-  const { profiles } = useCommunityStore();
+  const { bookingsAsCoach, sessionNotes, sessionRoutines, loaded } = useCoachStore(
+    useShallow((state) => ({
+      bookingsAsCoach: state.bookingsAsCoach,
+      sessionNotes: state.sessionNotes,
+      sessionRoutines: state.sessionRoutines,
+      loaded: state.loaded,
+    }))
+  );
+  const { profiles } = useCommunityStore(useShallow((state) => ({ profiles: state.profiles })));
   const coachSubscribed = useAuthStore((state) => state.user?.coach_subscription_active ?? false);
 
   const [pager, setPager] = useState({ width: 0, height: 0 });

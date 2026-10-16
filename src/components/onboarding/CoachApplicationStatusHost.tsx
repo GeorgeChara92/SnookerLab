@@ -4,6 +4,7 @@ import { useCoachApplicationStatusStore } from "../../store/coachApplicationStat
 import { useMyCoachApplicationStore } from "../../store/myCoachApplicationStore";
 import { useDialog } from "../ui/DialogProvider";
 
+import { useShallow } from "zustand/react/shallow";
 /**
  * Tells a player, once, the moment their coach application has been decided - approved or
  * rejected - rather than leaving them to notice next time they open Profile. Pending applications
@@ -13,7 +14,7 @@ import { useDialog } from "../ui/DialogProvider";
 export const CoachApplicationStatusHost = () => {
   const user = useAuthStore((state) => state.user);
   const dialog = useDialog();
-  const { seen, markSeen } = useCoachApplicationStatusStore();
+  const { seen, markSeen } = useCoachApplicationStatusStore(useShallow((state) => ({ seen: state.seen, markSeen: state.markSeen })));
   const refresh = useMyCoachApplicationStore((state) => state.refresh);
 
   useEffect(() => {

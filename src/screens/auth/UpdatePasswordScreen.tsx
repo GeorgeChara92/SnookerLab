@@ -8,11 +8,14 @@ import { useAuthStore } from "../../store";
 import { AppButton } from "../../components/ui/AppButton";
 import { useDialog } from "../../components/ui/DialogProvider";
 
+import { useShallow } from "zustand/react/shallow";
 type Props = NativeStackScreenProps<AuthStackParamList, "UpdatePassword">;
 
 export const UpdatePasswordScreen = ({ navigation }: Props) => {
   const { colors } = useAppTheme();
-  const { updatePassword, signOut, isLoading } = useAuthStore();
+  const { updatePassword, signOut, isLoading } = useAuthStore(
+    useShallow((state) => ({ updatePassword: state.updatePassword, signOut: state.signOut, isLoading: state.isLoading }))
+  );
   const dialog = useDialog();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");

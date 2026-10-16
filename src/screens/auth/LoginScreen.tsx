@@ -10,6 +10,7 @@ import { AuthField } from "../../components/auth/AuthField";
 import { getAuthEmailActionErrorMessage, getAuthErrorMessage } from "../../utils/authErrors";
 import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
 
 const looksLikeEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
@@ -22,7 +23,9 @@ export const LoginScreen = ({ navigation, route }: Props) => {
   const [showResend, setShowResend] = useState(false);
   const [resendEmail, setResendEmail] = useState("");
   const [resendError, setResendError] = useState("");
-  const { signIn, resendEmailVerification, isLoading } = useAuthStore();
+  const { signIn, resendEmailVerification, isLoading } = useAuthStore(
+    useShallow((state) => ({ signIn: state.signIn, resendEmailVerification: state.resendEmailVerification, isLoading: state.isLoading }))
+  );
   const { colors } = useAppTheme();
   const passwordRef = useRef<TextInput>(null);
 

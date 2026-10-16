@@ -3,6 +3,13 @@ import { supabase } from "../api/supabase";
 import {
   BOOKING_COLUMNS,
   COACH_GROUP_COLUMNS,
+  HOMEWORK_COLUMNS,
+  SESSION_RECAP_COLUMNS,
+  homeworkFromRow,
+  sessionRecapFromRow,
+  type Homework,
+  type HomeworkProgress,
+  type SessionRecap,
   SESSION_ROUTINE_COLUMNS,
   SLOT_COLUMNS,
   bookingFromRow,
@@ -76,8 +83,15 @@ type CoachState = {
   memberCoachGroups: CoachGroup[];
   /** This coach's own private notes on a session, keyed by booking id - never visible to the player. */
   sessionNotes: Record<string, string>;
-  /** Routines covered in a session, keyed by booking id - same privacy as sessionNotes. */
+  /** Routines covered in a session, keyed by booking id - the coach's own sessions, and (since
+   * 20261025) the player's, who can see what was covered in theirs. */
   sessionRoutines: Record<string, SessionRoutineEntry[]>;
+  /** What the coach shared with the player about a session, keyed by booking id - for both sides. */
+  sessionRecaps: Record<string, SessionRecap>;
+  /** Live homework: set by this account as a coach, or set for this account as a player. */
+  homework: Homework[];
+  /** A client's progress on homework this coach set, by homework id - fetched per client. */
+  homeworkProgress: Record<string, HomeworkProgress>;
   /** A request awaiting a response always shows in its own list (pending, filtered by
    * awaitingResponseFrom), so it needs no separate unseen count. These two only cover the one-off,
    * nothing-left-to-show events - a request being accepted or declined - for the nav bar's badge. */
@@ -129,6 +143,20 @@ type CoachState = {
   ) => Promise<Result>;
   removeSessionRoutine: (id: string, bookingId: string) => Promise<Result>;
   updateSessionRoutine: (id: string, bookingId: string, score: number | null, notes: string) => Promise<Result>;
+  /** The write-up shared with the player: what the session focused on, and a summary. */
+  saveSessionRecap: (bookingId: string, summary: string, focus: string[]) => Promise<Result>;
+  addHomework: (homework: {
+    playerId: string;
+    bookingId: string | null;
+    routineId: string;
+    routineName: string;
+    targetScore: number | null;
+    perWeek: number | null;
+    note: string;
+  }) => Promise<Result>;
+  /** Takes homework off the client's list (kept on the server, just no longer current). */
+  archiveHomework: (id: string) => Promise<Result>;
+  loadHomeworkProgress: (playerId: string) => Promise<void>;
 };
 
 const explain = (error: { code?: string; message?: string } | null): string => {
@@ -148,6 +176,9 @@ export const useCoachStore = create<CoachState>()((set, get) => ({
   memberCoachGroups: [],
   sessionNotes: {},
   sessionRoutines: {},
+  sessionRecaps: {},
+  homework: [],
+  homeworkProgress: {},
   unseenPlayerResolutions: 0,
   unseenCoachResolutions: 0,
   markPlayerResolutionsSeen: () => set({ unseenPlayerResolutions: 0 }),
@@ -165,6 +196,9 @@ export const useCoachStore = create<CoachState>()((set, get) => ({
       memberCoachGroups: [],
       sessionNotes: {},
       sessionRoutines: {},
+      sessionRecaps: {},
+      homework: [],
+      homeworkProgress: {},
       unseenPlayerResolutions: 0,
       unseenCoachResolutions: 0,
     });
@@ -194,7 +228,7 @@ export const useCoachStore = create<CoachState>()((set, get) => ({
     const wasLoaded = get().loaded;
     const oldBookingsAsCoach = get().bookingsAsCoach;
     const oldBookingsAsPlayer = get().bookingsAsPlayer;
-    const [slotsResult, coachBookingsResult, playerBookingsResult, notesResult, routinesResult, groupsResult, memberGroups] =
+    const [slotsResult, coachBookingsResult, playerBookingsResult, notesResult, routinesResult, groupsResult, memberGroups, recapsResult, homeworkResult] =
       await Promise.all([
         supabase.from("coach_availability").select(SLOT_COLUMNS).eq("coach_id", userId).order("starts_at"),
         supabase.from("coach_bookings").select(BOOKING_COLUMNS).eq("coach_id", userId).order("starts_at"),
@@ -203,6 +237,9 @@ export const useCoachStore = create<CoachState>()((set, get) => ({
         supabase.from("coach_session_routines").select(SESSION_ROUTINE_COLUMNS).eq("coach_id", userId).order("created_at"),
         supabase.from("coach_groups").select(COACH_GROUP_COLUMNS).eq("coach_id", userId).order("created_at", { ascending: false }),
         listMemberCoachGroups(userId),
+        // Both sides' rows come back: RLS gives a coach their own and a player theirs.
+        supabase.from("coach_session_recaps").select(SESSION_RECAP_COLUMNS),
+        supabase.from("coach_homework").select(HOMEWORK_COLUMNS).is("archived_at", null).order("created_at"),
       ]);
     if (get().ownerId !== userId) return;
     if (slotsResult.error || coachBookingsResult.error || playerBookingsResult.error) {
@@ -219,6 +256,21 @@ export const useCoachStore = create<CoachState>()((set, get) => ({
     (routinesResult.data ?? []).map(sessionRoutineFromRow).forEach((entry) => {
       (sessionRoutines[entry.bookingId] ??= []).push(entry);
     });
+    // The routines covered in this account's own sessions as a player - written by the coach.
+    const playedIds = bookingsAsPlayer.filter((booking) => booking.status === "accepted").map((booking) => booking.id);
+    if (playedIds.length) {
+      const { data: playerRoutines } = await supabase
+        .from("coach_session_routines")
+        .select(SESSION_ROUTINE_COLUMNS)
+        .in("booking_id", playedIds)
+        .order("created_at");
+      if (get().ownerId !== userId) return;
+      (playerRoutines ?? []).map(sessionRoutineFromRow).forEach((entry) => {
+        (sessionRoutines[entry.bookingId] ??= []).push(entry);
+      });
+    }
+    const sessionRecaps = Object.fromEntries((recapsResult.data ?? []).map((row) => [row.booking_id as string, sessionRecapFromRow(row)]));
+    const homework = (homeworkResult.data ?? []).map(homeworkFromRow);
 
     // A slot nobody booked before its own start time is just clutter from here on - it can never
     // be booked (openSlots already hides it from players) and only makes the coach's own calendar
@@ -241,6 +293,8 @@ export const useCoachStore = create<CoachState>()((set, get) => ({
       memberCoachGroups: memberGroups,
       sessionNotes,
       sessionRoutines,
+      sessionRecaps,
+      homework,
       loaded: true,
     });
 
@@ -629,6 +683,68 @@ export const useCoachStore = create<CoachState>()((set, get) => ({
       },
     }));
     return { ok: true };
+  },
+
+  saveSessionRecap: async (bookingId, summary, focus) => {
+    const ownerId = get().ownerId;
+    if (!ownerId) return { ok: false, message: "You need to be signed in." };
+    const booking = get().bookingsAsCoach.find((item) => item.id === bookingId);
+    const row = {
+      booking_id: bookingId,
+      coach_id: ownerId,
+      player_id: booking?.playerId ?? null,
+      summary: summary.trim() || null,
+      focus,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from("coach_session_recaps").upsert(row).select(SESSION_RECAP_COLUMNS).single();
+    if (error || !data) return { ok: false, message: explain(error) };
+    set((state) => ({ sessionRecaps: { ...state.sessionRecaps, [bookingId]: sessionRecapFromRow(data) } }));
+    return { ok: true };
+  },
+
+  addHomework: async (homework) => {
+    const ownerId = get().ownerId;
+    if (!ownerId) return { ok: false, message: "You need to be signed in." };
+    const { data, error } = await supabase
+      .from("coach_homework")
+      .insert({
+        coach_id: ownerId,
+        player_id: homework.playerId,
+        booking_id: homework.bookingId,
+        routine_id: homework.routineId,
+        routine_name: homework.routineName,
+        target_score: homework.targetScore,
+        per_week: homework.perWeek,
+        note: homework.note.trim() || null,
+      })
+      .select(HOMEWORK_COLUMNS)
+      .single();
+    if (error || !data) return { ok: false, message: explain(error) };
+    set((state) => ({ homework: [...state.homework, homeworkFromRow(data)] }));
+    return { ok: true };
+  },
+
+  archiveHomework: async (id) => {
+    const { error } = await supabase.from("coach_homework").update({ archived_at: new Date().toISOString() }).eq("id", id);
+    if (error) return { ok: false, message: explain(error) };
+    set((state) => ({ homework: state.homework.filter((item) => item.id !== id) }));
+    return { ok: true };
+  },
+
+  loadHomeworkProgress: async (playerId) => {
+    const { data, error } = await supabase.rpc("coach_homework_progress", { p_player: playerId });
+    if (error || !data) return;
+    const progress: Record<string, HomeworkProgress> = {};
+    for (const row of data as Array<Record<string, unknown>>) {
+      progress[row.homework_id as string] = {
+        best: row.best == null ? null : Number(row.best),
+        attempts: Number(row.attempts ?? 0),
+        thisWeek: Number(row.this_week ?? 0),
+        lastAt: (row.last_at as string) ?? null,
+      };
+    }
+    set((state) => ({ homeworkProgress: { ...state.homeworkProgress, ...progress } }));
   },
 
   updateSessionRoutine: async (id, bookingId, score, notes) => {

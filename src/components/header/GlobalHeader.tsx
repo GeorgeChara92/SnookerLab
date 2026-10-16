@@ -1,5 +1,6 @@
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
+import { Image } from "expo-image";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -62,7 +63,7 @@ const PlayerIdentity: React.FC<{ compact?: boolean }> = ({ compact }) => {
           </View>
           <View style={[styles.avatarSmall, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
             {user?.profile_image_url ? (
-              <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
+              <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} contentFit="cover" cachePolicy="memory-disk" />
             ) : (
               <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={levelInfo.level} size={30} showRing={false} />
             )}
@@ -102,7 +103,7 @@ const PlayerIdentity: React.FC<{ compact?: boolean }> = ({ compact }) => {
       </View>
       <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}> 
         {user?.profile_image_url ? (
-          <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} resizeMode="cover" />
+          <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} contentFit="cover" cachePolicy="memory-disk" />
         ) : (
           <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={levelInfo.level} size={34} showRing={false} />
         )}

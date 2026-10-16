@@ -18,6 +18,7 @@ import { usePlayerProgress } from "../../features/profile/playerProgress";
 import { useMyCoachApplicationStore } from "../../store/myCoachApplicationStore";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookeredapp.com";
 
 /** A win rate over fewer matches than this says nothing. */
@@ -25,7 +26,7 @@ const MIN_FOR_WIN_RATE = 3;
 
 export const ProfileScreen = () => {
   const navigation = useNavigation<any>();
-  const { user, signOut } = useAuthStore();
+  const { user, signOut } = useAuthStore(useShallow((state) => ({ user: state.user, signOut: state.signOut })));
   const isCoach = useCommunityStore((state) => state.me?.isCoach ?? false);
   const setViewMode = useUiModeStore((state) => state.setViewMode);
   const categories = useRoutinesStore((state) => state.categories);

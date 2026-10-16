@@ -10,6 +10,7 @@ import { fetchMyCoachApplication, submitCoachApplication } from "../../features/
 import type { CoachApplication } from "../../features/coach/types";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const LOCATION_LIMIT = 120;
 const QUALIFICATION_LIMIT = 40;
 const MAX_QUALIFICATIONS = 6;
@@ -23,7 +24,7 @@ export const ApplyToCoachScreen = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { user } = useAuthStore();
+  const { user } = useAuthStore(useShallow((state) => ({ user: state.user })));
 
   const [checking, setChecking] = useState(true);
   const [existing, setExisting] = useState<CoachApplication | null>(null);

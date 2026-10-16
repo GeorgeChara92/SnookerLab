@@ -28,6 +28,7 @@ import {
 } from "../../features/profile/avatarSpec";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 /**
  * Building your avatar: pick a face, dress it, and choose the ball colour for the ring. Outfits
  * and colours are earned by level, so the picker also shows what the next few levels bring.
@@ -39,7 +40,14 @@ const FACE_GAP = 8;
 
 export const AvatarPickerScreen = () => {
   const navigation = useNavigation();
-  const { user, updateAvatarPreset, uploadProfilePhoto, removeProfilePhoto } = useAuthStore();
+  const { user, updateAvatarPreset, uploadProfilePhoto, removeProfilePhoto } = useAuthStore(
+    useShallow((state) => ({
+      user: state.user,
+      updateAvatarPreset: state.updateAvatarPreset,
+      uploadProfilePhoto: state.uploadProfilePhoto,
+      removeProfilePhoto: state.removeProfilePhoto,
+    }))
+  );
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const { width } = useWindowDimensions();

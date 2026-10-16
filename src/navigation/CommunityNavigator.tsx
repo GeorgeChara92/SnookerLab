@@ -16,6 +16,7 @@ import { ChatsScreen } from "../screens/community/ChatsScreen";
 import { TourNewsScreen } from "../screens/community/TourNewsScreen";
 import { ProTourPlayerScreen } from "../screens/community/ProTourPlayerScreen";
 import { ProTourTournamentScreen } from "../screens/community/ProTourTournamentScreen";
+import { ProTourMatchScreen } from "../screens/community/ProTourMatchScreen";
 import { useAppTheme } from "../hooks/useAppTheme";
 import { FONTS } from "../constants";
 import { LiveMatchScreen } from "../screens/community/LiveMatchScreen";
@@ -67,6 +68,7 @@ export const CommunityNavigator = () => {
       <Stack.Screen name="Leaderboards" component={LeaderboardsScreen} options={{ title: "Leaderboards" }} />
       <Stack.Screen name="TourNews" component={TourNewsScreen} options={{ title: "Pro Tour", ...proTourHeaderOptions }} />
       <Stack.Screen name="ProTourPlayer" component={ProTourPlayerScreen} options={{ title: "Player", ...proTourHeaderOptions }} />
+      <Stack.Screen name="ProTourMatch" component={ProTourMatchScreen} options={{ title: "Match", ...proTourHeaderOptions }} />
       <Stack.Screen
         name="ProTourTournament"
         component={ProTourTournamentScreen}

@@ -28,6 +28,7 @@ type ChatShare = RoutineShare | MatchShare;
 import type { RootStackParamList } from "../../types";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 type Target =
   | { key: string; type: "chat"; conversationId: string; group: Group | null; person: PublicProfile | null }
   | { key: string; type: "friend"; person: PublicProfile };
@@ -47,8 +48,10 @@ export const SendToChatScreen = () => {
   const me = useAuthStore((state) => state.user?.id ?? null);
   const myName = useCommunityStore((state) => nameOf(state.me));
   const joined = useCommunityStore((state) => Boolean(state.me?.handle));
-  const { friendships, profiles } = useCommunityStore();
-  const { inbox, profiles: inboxProfiles, groups, refresh } = useChatStore();
+  const { friendships, profiles } = useCommunityStore(useShallow((state) => ({ friendships: state.friendships, profiles: state.profiles })));
+  const { inbox, profiles: inboxProfiles, groups, refresh } = useChatStore(
+    useShallow((state) => ({ inbox: state.inbox, profiles: state.profiles, groups: state.groups, refresh: state.refresh }))
+  );
   const customRoutine = useCustomRoutinesStore((state) =>
     customRoutineId ? state.routines.find((item) => item.id === customRoutineId) : undefined
   );

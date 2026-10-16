@@ -16,8 +16,8 @@ import { getThemeColors } from "./src/constants";
 export default function App() {
   const isDark = useColorScheme() === "dark";
   const colors = getThemeColors(isDark);
-  // The opening break-off plays once per launch. The app loads underneath once the shot is
-  // under way, so loading it does not compete with the animation.
+  // The opening break-off plays once per launch, with the app loading underneath it from the start
+  // (the animation runs on the native driver, so the loading does not stall it).
   const [showSplash, setShowSplash] = useState(true);
   const [loadApp, setLoadApp] = useState(false);
   const [fontsLoaded, fontError] = useFonts({

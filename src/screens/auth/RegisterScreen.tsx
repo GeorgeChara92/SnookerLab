@@ -30,6 +30,7 @@ import { submitCoachApplication } from "../../features/coach/applications";
 import { getAuthErrorMessage } from "../../utils/authErrors";
 import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 type Props = NativeStackScreenProps<AuthStackParamList, "Register">;
 type AccountType = "player" | "coach" | "both";
 type StepKey = "type" | "details" | "game" | "coach" | "identity";
@@ -127,7 +128,7 @@ export const RegisterScreen = ({ navigation }: Props) => {
   const [playerBio, setPlayerBio] = useState("");
 
   const [problem, setProblem] = useState<{ field?: Field; message: string } | null>(null);
-  const { signUp, isLoading } = useAuthStore();
+  const { signUp, isLoading } = useAuthStore(useShallow((state) => ({ signUp: state.signUp, isLoading: state.isLoading })));
   const { colors } = useAppTheme();
   const usernameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);

@@ -23,6 +23,7 @@ import {
   type BillingPeriod,
 } from "../../services/billing";
 
+import { useShallow } from "zustand/react/shallow";
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snookeredapp.com/privacy";
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snookeredapp.com/terms";
 
@@ -46,7 +47,7 @@ const annualSaving = (monthlyPrice: number, annualPrice: number) => Math.round((
 export const CoachSubscriptionScreen = () => {
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { user, setUser } = useAuthStore();
+  const { user, setUser } = useAuthStore(useShallow((state) => ({ user: state.user, setUser: state.setUser })));
 
   const [offerings, setOfferings] = useState<BillingOfferings | null>(null);
   const [subscribed, setSubscribed] = useState(user?.coach_subscription_active ?? false);

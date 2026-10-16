@@ -26,8 +26,10 @@ import { RhythmBars } from "../../components/stats/RhythmBars";
 import { ScoreStrip } from "../../components/scoreboard/Scoreboard";
 import { FormStrip } from "../../components/matches/MatchRows";
 import { NewsRow } from "../../components/tour/NewsRow";
+import { ProTourTicker } from "../../components/tour/ProTourTicker";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const DAY_MS = 86_400_000;
 
 const PAGES = [
@@ -65,9 +67,9 @@ const sessionCountdown = (iso: string) => {
 export const DashboardHomeScreen = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
-  const { templates, logs } = useSessionsStore();
-  const { entries } = useRoutineScoresStore();
-  const { routines, categories } = useRoutinesStore();
+  const { templates, logs } = useSessionsStore(useShallow((state) => ({ templates: state.templates, logs: state.logs })));
+  const { entries } = useRoutineScoresStore(useShallow((state) => ({ entries: state.entries })));
+  const { routines, categories } = useRoutinesStore(useShallow((state) => ({ routines: state.routines, categories: state.categories })));
   const matches = useMatchesStore((state) => state.matches);
   const news = useTourNewsStore((state) => state.items);
   const refreshNews = useTourNewsStore((state) => state.refresh);
@@ -389,14 +391,24 @@ export const DashboardHomeScreen = () => {
           </View>
         ))
       )}
-      <Pressable
-        onPress={() => navigation.navigate("Community", { screen: "TourNews", initial: false })}
-        accessibilityRole="button"
-        style={styles.more}
-      >
-        <Text style={[styles.moreText, { color: colors.primary }]}>All tour news</Text>
-        <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primary} />
-      </Pressable>
+      <View style={styles.moreRow}>
+        <Pressable
+          onPress={() => navigation.navigate("Community", { screen: "TourNews", initial: false })}
+          accessibilityRole="button"
+          style={styles.more}
+        >
+          <Text style={[styles.moreText, { color: colors.primary }]}>All tour news</Text>
+          <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primary} />
+        </Pressable>
+        <Pressable
+          onPress={() => navigation.navigate("Community", { screen: "TourNews", params: { segment: "live" }, initial: false })}
+          accessibilityRole="button"
+          style={styles.more}
+        >
+          <Text style={[styles.moreText, { color: colors.primary }]}>Live & results</Text>
+          <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primary} />
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -513,6 +525,9 @@ export const DashboardHomeScreen = () => {
           <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
         </Pressable>
       )}
+
+      {/* The pro tour: a live score, or what's on and next - one tap from Live & results */}
+      <ProTourTicker onPress={() => navigation.navigate("Community", { screen: "TourNews", params: { segment: "live" }, initial: false })} />
 
       {/* Pages */}
       <View style={styles.tabs} accessibilityRole="tablist">
@@ -636,6 +651,7 @@ const styles = StyleSheet.create({
   when: { fontSize: 12 },
   empty: { borderWidth: 1, borderStyle: "dashed", borderRadius: RADIUS.lg, padding: SPACING.lg },
   emptyText: { fontSize: 14, lineHeight: 20, textAlign: "center" },
+  moreRow: { flexDirection: "row", flexWrap: "wrap", columnGap: SPACING.lg },
   more: { flexDirection: "row", alignItems: "center", gap: 4, minHeight: HIT_TARGET - 8, alignSelf: "flex-start" },
   moreText: { fontSize: 14, fontWeight: "800" },
 });

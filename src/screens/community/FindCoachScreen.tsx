@@ -13,6 +13,7 @@ import { distanceKm } from "../../features/coach/types";
 import type { CommunityStackParamList } from "../../types";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const WPBSA_FINDER_URL = "https://www.wpbsa.com/participation/find-your-coach/";
 
 /** Coaches who have an account on Snookered, searchable by name or where they coach. */
@@ -21,7 +22,7 @@ export const FindCoachScreen = () => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
-  const { searchCoaches } = useCoachStore();
+  const { searchCoaches } = useCoachStore(useShallow((state) => ({ searchCoaches: state.searchCoaches })));
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
   const [loading, setLoading] = useState(true);

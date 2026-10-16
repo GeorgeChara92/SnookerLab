@@ -9,11 +9,14 @@ import { AppButton } from "../../components/ui/AppButton";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 
+import { useShallow } from "zustand/react/shallow";
 type Props = NativeStackScreenProps<AuthStackParamList, "ConfirmEmail">;
 
 export const ConfirmEmailScreen = ({ navigation, route }: Props) => {
   const { colors } = useAppTheme();
-  const { resendEmailVerification, isLoading } = useAuthStore();
+  const { resendEmailVerification, isLoading } = useAuthStore(
+    useShallow((state) => ({ resendEmailVerification: state.resendEmailVerification, isLoading: state.isLoading }))
+  );
   const dialog = useDialog();
 
   const email = route.params.email;

@@ -11,6 +11,7 @@ import { nameOf, type PublicProfile } from "../../features/community/types";
 import { startDirect } from "../../features/community/chat";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 /**
  * Starting a conversation: friends first, or search for anyone. Someone who is not a friend
  * gets the first message as a request, if their settings allow messages at all.
@@ -20,7 +21,9 @@ export const NewChatScreen = () => {
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const me = useAuthStore((state) => state.user?.id ?? null);
-  const { friendships, profiles, search } = useCommunityStore();
+  const { friendships, profiles, search } = useCommunityStore(
+    useShallow((state) => ({ friendships: state.friendships, profiles: state.profiles, search: state.search }))
+  );
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
   const [opening, setOpening] = useState<string | null>(null);

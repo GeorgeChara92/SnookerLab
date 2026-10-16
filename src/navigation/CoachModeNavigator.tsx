@@ -38,6 +38,9 @@ export const CoachModeNavigator = () => {
     <Tab.Navigator
       screenOptions={{
         header: (props) => <MaterialTopHeader {...props} />,
+        // A tab out of sight doesn't re-render on every live update (scores, chat, bookings); it
+        // catches up the moment it's shown again.
+        freezeOnBlur: true,
         sceneStyle: { backgroundColor: colors.background },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.tabInactive,

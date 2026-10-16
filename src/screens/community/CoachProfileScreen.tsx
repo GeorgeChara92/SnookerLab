@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Image, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +20,7 @@ import { getCountryByCode } from "../../constants/profileOptions";
 import type { CommunityStackParamList } from "../../types";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const GALLERY_TILE = 96;
 
 const SKILL: Record<string, string> = {
@@ -42,7 +44,16 @@ export const CoachProfileScreen = () => {
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
   const me = useAuthStore((state) => state.user?.id ?? null);
-  const { friendships, blocked, profiles, loadProfile, block, unblock } = useCommunityStore();
+  const { friendships, blocked, profiles, loadProfile, block, unblock } = useCommunityStore(
+    useShallow((state) => ({
+      friendships: state.friendships,
+      blocked: state.blocked,
+      profiles: state.profiles,
+      loadProfile: state.loadProfile,
+      block: state.block,
+      unblock: state.unblock,
+    }))
+  );
   const [profile, setProfile] = useState<PublicProfile | null>(profiles[coachId] ?? null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -195,7 +206,7 @@ export const CoachProfileScreen = () => {
                 accessibilityRole="button"
                 accessibilityLabel="View photo"
               >
-                <Image source={{ uri: galleryPhotoUrl(photo.path) }} style={styles.galleryTile} resizeMode="cover" />
+                <Image source={{ uri: galleryPhotoUrl(photo.path) }} style={styles.galleryTile} contentFit="cover" cachePolicy="memory-disk" />
               </Pressable>
             ))}
           </ScrollView>
@@ -389,7 +400,7 @@ export const CoachProfileScreen = () => {
           accessibilityRole="button"
           accessibilityLabel="Close"
         >
-          {lightboxUrl ? <Image source={{ uri: lightboxUrl }} style={styles.lightboxImage} resizeMode="contain" /> : null}
+          {lightboxUrl ? <Image source={{ uri: lightboxUrl }} style={styles.lightboxImage} contentFit="contain" cachePolicy="memory-disk" /> : null}
         </Pressable>
       </Modal>
     </ScrollView>

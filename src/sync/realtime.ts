@@ -57,6 +57,8 @@ const TABLE_SCOPES: Record<string, SyncScope> = {
   coach_availability: "coach",
   coach_session_notes: "coach",
   coach_session_routines: "coach",
+  coach_session_recaps: "coach",
+  coach_homework: "coach",
 };
 
 const refreshers: Record<SyncScope, (userId: string) => Promise<void>> = {
@@ -113,8 +115,19 @@ const scheduleRefresh = (scope: SyncScope) => {
   }, SETTLE_MS);
 };
 
+/** A catch-up already running, so a reconnect and a return to the app at once share one. */
+let everythingInFlight: Promise<void> | null = null;
+
 /** Pull everything again, for when the app comes back to the foreground. */
 export const refreshEverything = async () => {
+  if (everythingInFlight) return everythingInFlight;
+  everythingInFlight = pullEverything().finally(() => {
+    everythingInFlight = null;
+  });
+  return everythingInFlight;
+};
+
+const pullEverything = async () => {
   const userId = currentUserId;
   if (!userId) return;
 

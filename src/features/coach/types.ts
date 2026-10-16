@@ -306,3 +306,73 @@ export const generateWeeklySlots = (
 };
 
 export const COACH_GROUP_POST_COLUMNS = "id, group_id, coach_id, caption, media_path, media_type, file_name, created_at";
+
+/** What a coach writes up FOR the player after a session - shared with them, unlike the coach's
+ * own private notes (coach_session_notes). See 20261025_0001_coaching_shared.sql. */
+export type SessionRecap = {
+  bookingId: string;
+  coachId: string;
+  playerId: string | null;
+  summary: string | null;
+  focus: string[];
+  updatedAt: string;
+};
+
+export const sessionRecapFromRow = (row: any): SessionRecap => ({
+  bookingId: row.booking_id,
+  coachId: row.coach_id,
+  playerId: row.player_id ?? null,
+  summary: row.summary ?? null,
+  focus: row.focus ?? [],
+  updatedAt: row.updated_at,
+});
+
+export const SESSION_RECAP_COLUMNS = "booking_id, coach_id, player_id, summary, focus, updated_at";
+
+/** The areas a coach can tick for "what we worked on" - quick to tap mid-session, with room to add
+ * their own. */
+export const FOCUS_AREAS = [
+  "Cue action",
+  "Stance",
+  "Bridge",
+  "Sighting",
+  "Long potting",
+  "Safety",
+  "Positional play",
+  "Break building",
+  "Rest play",
+  "Shot selection",
+  "Mental game",
+] as const;
+
+/** A routine a coach has set a client to practise between sessions. */
+export type Homework = {
+  id: string;
+  coachId: string;
+  playerId: string;
+  bookingId: string | null;
+  routineId: string;
+  routineName: string;
+  targetScore: number | null;
+  perWeek: number | null;
+  note: string | null;
+  createdAt: string;
+};
+
+export const homeworkFromRow = (row: any): Homework => ({
+  id: row.id,
+  coachId: row.coach_id,
+  playerId: row.player_id,
+  bookingId: row.booking_id ?? null,
+  routineId: row.routine_id,
+  routineName: row.routine_name,
+  targetScore: row.target_score ?? null,
+  perWeek: row.per_week ?? null,
+  note: row.note ?? null,
+  createdAt: row.created_at,
+});
+
+export const HOMEWORK_COLUMNS = "id, coach_id, player_id, booking_id, routine_id, routine_name, target_score, per_week, note, created_at";
+
+/** How a client is getting on with one piece of homework, since it was set. */
+export type HomeworkProgress = { best: number | null; attempts: number; thisWeek: number; lastAt: string | null };

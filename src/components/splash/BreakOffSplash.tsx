@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Defs, LinearGradient, Path, Polygon, RadialGradient, Rect, Stop } from "react-native-svg";
 import { FONTS, DISPLAY_TEXT_SCALE } from "../../constants";
 import { TABLE } from "../../features/scanSnooker/table";
@@ -23,7 +24,8 @@ import { TABLE } from "../../features/scanSnooker/table";
  * strikes. The cue ball runs up the table and takes the back-right corner red thin, goes
  * three cushions - top, right, then across to the left - and comes to rest behind the baulk
  * colours, while the corner red and its neighbours ease out of the pack. Then the name settles
- * in. About three and a half seconds; a tap skips it, and with Reduce Motion on it shows the table and name.
+ * in. About three and a half seconds, on the first launch of the day; later launches play just
+ * the end of it, in under a second. A tap skips it, and with Reduce Motion on it shows the table and name.
  *
  * Everything runs off one clock on the phone's animation thread, so the shot keeps its timing
  * while the app loads.
@@ -73,9 +75,28 @@ const T = {
   dim: [2580, 2880],
   name: [2660, 3000],
   end: 3350,
-  /** The app starts loading underneath once the cue ball is on its way round. */
-  loadApp: 2000,
+  /** The app starts loading underneath as soon as the table is in. The animation runs on the native
+   *  driver, so the work behind it doesn't stall it - and the sign-in and data loads get the whole
+   *  break-off to finish in, rather than its last second. */
+  loadApp: 300,
   fade: 300,
+  /** The short version, after the day's first launch: the end of the shot - the cue ball coming
+   *  back to baulk, the table settling and the name arriving - in under a second. */
+  shortFrom: 2600,
+};
+
+/** The full break-off plays on the first launch of the day; later launches get the short one. */
+const LAST_FULL_KEY = "splash-last-full-day";
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+};
+const playedFullToday = async () => {
+  try {
+    return (await AsyncStorage.getItem(LAST_FULL_KEY)) === today();
+  } catch {
+    return false;
+  }
 };
 
 /**
@@ -132,7 +153,7 @@ type Props = {
   /** The wordmark waits for the scoreboard face; until then it uses the system font. */
   fontsReady: boolean;
   onFinish: () => void;
-  /** Called part-way through, when the app can start loading underneath without slowing the shot. */
+  /** Called as the shot starts (at once, for the short version), so the app loads underneath it. */
   onLoadApp?: () => void;
 };
 
@@ -271,20 +292,27 @@ export const BreakOffSplash = ({ fontsReady, onFinish, onLoadApp }: Props) => {
     let cancelled = false;
     const timers: Array<ReturnType<typeof setTimeout>> = [];
 
-    AccessibilityInfo.isReduceMotionEnabled()
-      .catch(() => false)
-      .then((reduce) => {
-        if (cancelled) return;
-        if (reduce) {
-          clock.setValue(T.end);
-          timers.push(setTimeout(finish, 900));
-          return;
-        }
-        Animated.timing(clock, { toValue: T.end, duration: T.end, easing: Easing.linear, useNativeDriver: true }).start(
+    Promise.all([AccessibilityInfo.isReduceMotionEnabled().catch(() => false), playedFullToday()]).then(([reduce, short]) => {
+      if (cancelled) return;
+      if (reduce) {
+        clock.setValue(T.end);
+        timers.push(setTimeout(finish, 900));
+        return;
+      }
+      if (short) {
+        loadApp();
+        clock.setValue(T.shortFrom);
+        Animated.timing(clock, { toValue: T.end, duration: T.end - T.shortFrom, easing: Easing.linear, useNativeDriver: true }).start(
           ({ finished: done }) => done && finish()
         );
-        timers.push(setTimeout(loadApp, T.loadApp));
-      });
+        return;
+      }
+      void AsyncStorage.setItem(LAST_FULL_KEY, today()).catch(() => undefined);
+      Animated.timing(clock, { toValue: T.end, duration: T.end, easing: Easing.linear, useNativeDriver: true }).start(
+        ({ finished: done }) => done && finish()
+      );
+      timers.push(setTimeout(loadApp, T.loadApp));
+    });
 
     return () => {
       cancelled = true;

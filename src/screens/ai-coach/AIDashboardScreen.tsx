@@ -14,6 +14,7 @@ import { AnalysisRow } from "../../components/ai/AnalysisRow";
 import { FONTS, RADIUS, SPACING } from "../../constants";
 import { analysisDate, daysSince, typeInfo } from "../../features/ai/analysisLabels";
 
+import { useShallow } from "zustand/react/shallow";
 /** How many analyses the home page lists before "See all". */
 const PREVIEW = 3;
 
@@ -27,7 +28,7 @@ export const AIDashboardScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AICoachStackParamList>>();
   const { colors } = useAppTheme();
   const subscription = useSubscriptionAccess();
-  const { analyses } = useAIAnalysesStore();
+  const { analyses } = useAIAnalysesStore(useShallow((state) => ({ analyses: state.analyses })));
   const [showPaywall, setShowPaywall] = useState(false);
 
   const sorted = useMemo(

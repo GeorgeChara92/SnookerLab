@@ -14,6 +14,7 @@ import { analysisDate, statusInfo, tagLabel, typeInfo } from "../../features/ai/
 import { suggestRoutines } from "../../features/ai/suggestRoutines";
 import { DEFAULT_ROUTINES } from "../../constants/routines";
 
+import { useShallow } from "zustand/react/shallow";
 type AnalysisDetailRoute = RouteProp<AICoachStackParamList, "AnalysisDetail">;
 
 const ClipPlayer = ({ url }: { url: string }) => {
@@ -28,7 +29,9 @@ export const AnalysisDetailScreen = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { analyses, deleteAnalysis, runAnalysis } = useAIAnalysesStore();
+  const { analyses, deleteAnalysis, runAnalysis } = useAIAnalysesStore(
+    useShallow((state) => ({ analyses: state.analyses, deleteAnalysis: state.deleteAnalysis, runAnalysis: state.runAnalysis }))
+  );
   const [retrying, setRetrying] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);

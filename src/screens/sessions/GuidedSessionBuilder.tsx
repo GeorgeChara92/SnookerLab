@@ -8,6 +8,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -98,8 +99,8 @@ const STEP_TITLES = ["Focus", "Length", "Detail", "Review"];
 
 export const GuidedSessionBuilder = () => {
   const navigation = useNavigation<NavigationProp<SessionsStackParamList>>();
-  const { categories, routines } = useRoutinesStore();
-  const { createTemplate } = useSessionsStore();
+  const { categories, routines } = useRoutinesStore(useShallow((state) => ({ categories: state.categories, routines: state.routines })));
+  const { createTemplate } = useSessionsStore(useShallow((state) => ({ createTemplate: state.createTemplate })));
   const { colors } = useAppTheme();
   const dialog = useDialog();
 

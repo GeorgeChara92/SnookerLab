@@ -10,6 +10,7 @@ import { openSlots, type CoachBooking, type CoachSlot } from "../../features/coa
 import type { CommunityStackParamList } from "../../types";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const NOTE_LIMIT = 300;
 
 /** A coach's open slots, and a request to book one - the "shared calendar instead of WhatsApp". */
@@ -20,7 +21,13 @@ export const BookCoachScreen = () => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
-  const { bookingsAsPlayer, loadCoachSchedule, requestBooking } = useCoachStore();
+  const { bookingsAsPlayer, loadCoachSchedule, requestBooking } = useCoachStore(
+    useShallow((state) => ({
+      bookingsAsPlayer: state.bookingsAsPlayer,
+      loadCoachSchedule: state.loadCoachSchedule,
+      requestBooking: state.requestBooking,
+    }))
+  );
 
   const [slots, setSlots] = useState<CoachSlot[]>([]);
   const [bookings, setBookings] = useState<CoachBooking[]>([]);

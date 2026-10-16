@@ -20,6 +20,7 @@ import { countByDay, lastDays, longestStreak, thisWeek } from "../../features/st
 import { WeekTrack } from "../../components/stats/WeekTrack";
 import { RhythmBars } from "../../components/stats/RhythmBars";
 
+import { useShallow } from "zustand/react/shallow";
 type SegmentKey = "overview" | "training" | "matches";
 
 const SEGMENTS: { key: SegmentKey; label: string }[] = [
@@ -185,10 +186,10 @@ const generateInsights = (data: {
 };
 
 export const DashboardScreen = () => {
-  const { logs } = useSessionsStore();
-  const { matches } = useMatchesStore();
-  const { entries } = useRoutineScoresStore();
-  const { routines } = useRoutinesStore();
+  const { logs } = useSessionsStore(useShallow((state) => ({ logs: state.logs })));
+  const { matches } = useMatchesStore(useShallow((state) => ({ matches: state.matches })));
+  const { entries } = useRoutineScoresStore(useShallow((state) => ({ entries: state.entries })));
+  const { routines } = useRoutinesStore(useShallow((state) => ({ routines: state.routines })));
   const { colors } = useAppTheme();
   const navigation = useNavigation<any>();
 

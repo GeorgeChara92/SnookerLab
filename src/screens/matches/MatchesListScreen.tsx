@@ -23,6 +23,7 @@ import {
   groupByDay,
 } from "../../features/matches/matchSummary";
 
+import { useShallow } from "zustand/react/shallow";
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -50,8 +51,10 @@ const tournamentChampion = (tournament: Tournament): string | null => {
 
 export const MatchesListScreen = () => {
   const navigation = useNavigation<NavigationProp<MatchesStackParamList>>();
-  const { matches, deleteMatch } = useMatchesStore();
-  const { tournaments, deleteTournament } = useTournamentsStore();
+  const { matches, deleteMatch } = useMatchesStore(useShallow((state) => ({ matches: state.matches, deleteMatch: state.deleteMatch })));
+  const { tournaments, deleteTournament } = useTournamentsStore(
+    useShallow((state) => ({ tournaments: state.tournaments, deleteTournament: state.deleteTournament }))
+  );
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const subscription = useSubscriptionAccess();

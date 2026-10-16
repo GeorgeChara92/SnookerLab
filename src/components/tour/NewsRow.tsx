@@ -1,5 +1,6 @@
 import React from "react";
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -28,7 +29,7 @@ export const LeadStory = ({ item, height = 210 }: { item: NewsItem; height?: num
       accessibilityLabel={`${item.title}. ${NEWS_SOURCES[item.source].name}. Opens their website.`}
       style={({ pressed }) => [styles.lead, { height, backgroundColor: colors.board, opacity: pressed ? 0.9 : 1 }]}
     >
-      {item.image ? <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+      {item.image ? <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={150} /> : null}
       <LinearGradient
         colors={["rgba(8,20,16,0)", "rgba(8,20,16,0.55)", "rgba(8,20,16,0.95)"]}
         locations={[0.2, 0.55, 1]}
@@ -56,7 +57,7 @@ export const NewsRow = ({ item, summary = true }: { item: NewsItem; summary?: bo
     >
       <View style={[styles.thumb, { backgroundColor: colors.surfaceMuted }]}>
         {item.image ? (
-          <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={150} />
         ) : (
           <MaterialCommunityIcons name="newspaper-variant-outline" size={22} color={colors.textMuted} />
         )}

@@ -14,6 +14,7 @@ import { clientsOf } from "../../features/coach/types";
 import { createCoachGroup } from "../../features/coach/groups";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const NAME_LIMIT = 60;
 
 /** Naming a new group and picking which clients are in it. */
@@ -23,8 +24,10 @@ export const CoachGroupFormScreen = () => {
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
   const me = useAuthStore((state) => state.user?.id ?? null);
-  const { bookingsAsCoach, refreshMyCoachGroups } = useCoachStore();
-  const { profiles } = useCommunityStore();
+  const { bookingsAsCoach, refreshMyCoachGroups } = useCoachStore(
+    useShallow((state) => ({ bookingsAsCoach: state.bookingsAsCoach, refreshMyCoachGroups: state.refreshMyCoachGroups }))
+  );
+  const { profiles } = useCommunityStore(useShallow((state) => ({ profiles: state.profiles })));
   const [name, setName] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);

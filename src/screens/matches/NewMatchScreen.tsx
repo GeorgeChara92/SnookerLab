@@ -17,6 +17,7 @@ import { useCommunityStore } from "../../store/communityStore";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { nameOf, type PublicProfile } from "../../features/community/types";
 
+import { useShallow } from "zustand/react/shallow";
 type Mode = "live" | "result";
 
 const FORMATS = [1, 3, 5, 7, 9, 11];
@@ -52,7 +53,7 @@ export const NewMatchScreen = () => {
   const [opponent, setOpponent] = useState(prefill?.opponentName ?? "");
   const [friend, setFriend] = useState<PublicProfile | null>(null);
   const me = useAuthStore((state) => state.user?.id ?? null);
-  const { friendships, profiles } = useCommunityStore();
+  const { friendships, profiles } = useCommunityStore(useShallow((state) => ({ friendships: state.friendships, profiles: state.profiles })));
   const friends = useMemo(
     () =>
       friendships

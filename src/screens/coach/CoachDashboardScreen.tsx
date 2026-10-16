@@ -12,6 +12,7 @@ import { type CoachBooking } from "../../features/coach/types";
 import { addBookingToCalendar } from "../../features/coach/calendarSync";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 /** A coach's own agenda: requests waiting for an answer, then what is coming up today and beyond.
  * The broader picture (trends, top clients, recent sessions) lives on the Dashboard tab instead,
  * so this stays a quick daily check rather than a second dashboard. */
@@ -20,8 +21,15 @@ export const CoachDashboardScreen = () => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
-  const { bookingsAsCoach, respondToBooking, loaded, markCoachResolutionsSeen } = useCoachStore();
-  const { profiles } = useCommunityStore();
+  const { bookingsAsCoach, respondToBooking, loaded, markCoachResolutionsSeen } = useCoachStore(
+    useShallow((state) => ({
+      bookingsAsCoach: state.bookingsAsCoach,
+      respondToBooking: state.respondToBooking,
+      loaded: state.loaded,
+      markCoachResolutionsSeen: state.markCoachResolutionsSeen,
+    }))
+  );
+  const { profiles } = useCommunityStore(useShallow((state) => ({ profiles: state.profiles })));
   const [busyId, setBusyId] = useState<string | null>(null);
   const [addingToCalendar, setAddingToCalendar] = useState<string | null>(null);
 

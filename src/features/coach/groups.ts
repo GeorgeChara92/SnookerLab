@@ -135,3 +135,17 @@ export const deleteGroupPost = async (postId: string, mediaPath: string): Promis
   await supabase.storage.from("coach-group-media").remove([mediaPath]);
   return { ok: true };
 };
+
+/** The newest posts across these groups (newest first), for "what's new" previews - one query for
+ *  every group, not one per group. */
+export const latestGroupPosts = async (groupIds: string[]): Promise<CoachGroupPost[]> => {
+  if (!groupIds.length) return [];
+  const { data, error } = await supabase
+    .from("coach_group_posts")
+    .select(COACH_GROUP_POST_COLUMNS)
+    .in("group_id", groupIds)
+    .order("created_at", { ascending: false })
+    .limit(60);
+  if (error || !data) return [];
+  return data.map(coachGroupPostFromRow);
+};

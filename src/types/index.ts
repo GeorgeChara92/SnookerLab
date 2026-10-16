@@ -351,6 +351,7 @@ export type MainTabParamList = {
 export type CoachingStackParamList = {
   CoachingHome: undefined;
   CoachGroup: { groupId: string; groupName: string };
+  CoachingSession: { bookingId: string };
 };
 
 /**
@@ -487,6 +488,7 @@ export type CommunityStackParamList = {
   ProTourPlayer: { playerId: number };
   /** A tournament's full fixture list, venue and dates - everything one of its matches shows. */
   ProTourTournament: { tournamentId: number };
+  ProTourMatch: { matchId: number };
   /** One routine's leaderboard; the key is a library routine's id or "shared:<id>". */
   RoutineLeaderboard: { routineKey: string; name: string; group?: { name: string; memberIds: string[] } };
   /** Booking a session with a coach, from their profile. */

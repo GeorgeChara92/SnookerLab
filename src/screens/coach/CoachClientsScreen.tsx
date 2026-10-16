@@ -15,14 +15,22 @@ import { clientsOf, type Client } from "../../features/coach/types";
 import type { CoachClientsStackParamList } from "../../types";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 /** Everyone who has ever booked a session with this coach, most recently active first. */
 export const CoachClientsScreen = () => {
   const navigation = useNavigation<NavigationProp<CoachClientsStackParamList>>();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
-  const { bookingsAsCoach, loaded, deleteClientHistory, deleteGuestHistory } = useCoachStore();
-  const { profiles } = useCommunityStore();
+  const { bookingsAsCoach, loaded, deleteClientHistory, deleteGuestHistory } = useCoachStore(
+    useShallow((state) => ({
+      bookingsAsCoach: state.bookingsAsCoach,
+      loaded: state.loaded,
+      deleteClientHistory: state.deleteClientHistory,
+      deleteGuestHistory: state.deleteGuestHistory,
+    }))
+  );
+  const { profiles } = useCommunityStore(useShallow((state) => ({ profiles: state.profiles })));
   const [messaging, setMessaging] = useState<string | null>(null);
 
   const clients = useMemo(() => clientsOf(bookingsAsCoach), [bookingsAsCoach]);

@@ -50,15 +50,25 @@ import { UnlockQueueProvider } from "../components/achievements/UnlockQueueProvi
 import { AchievementWatcher } from "../components/achievements/AchievementWatcher";
 import { SendToChatScreen } from "../screens/community/SendToChatScreen";
 import { OnboardingHost } from "../components/onboarding/OnboardingHost";
+import { ProTourNotificationHost } from "../components/tour/ProTourNotificationHost";
 import { CoachApplicationStatusHost } from "../components/onboarding/CoachApplicationStatusHost";
 
+import { useShallow } from "zustand/react/shallow";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 /** The longest a fresh sign in waits for the player's data before opening anyway. */
 const LOAD_TIMEOUT_MS = 10000;
 
 export const AppNavigator = () => {
-  const { session, isAuthenticated, requiresPasswordReset, setRequiresPasswordReset, setUser } = useAuthStore();
+  const { session, isAuthenticated, requiresPasswordReset, setRequiresPasswordReset, setUser } = useAuthStore(
+    useShallow((state) => ({
+      session: state.session,
+      isAuthenticated: state.isAuthenticated,
+      requiresPasswordReset: state.requiresPasswordReset,
+      setRequiresPasswordReset: state.setRequiresPasswordReset,
+      setUser: state.setUser,
+    }))
+  );
   const setSessionsOwner = useSessionsStore((state) => state.setOwnerUserId);
   const hydrateSessionsForUser = useSessionsStore((state) => state.hydrateSessionsForUser);
   const setMatchesOwner = useMatchesStore((state) => state.setOwnerUserId);
@@ -137,6 +147,20 @@ export const AppNavigator = () => {
         .finally(() => {
           if (loadingFor.current === id) setCoachFlagReady(true);
         });
+      // This phone already knowing who they are (their own profile, saved last time) settles the
+      // coach flag straight away - no waiting on the network on every launch just to ask it again.
+      // hydrate() above still refreshes it, and the navigator follows if it ever changed.
+      const coachFlagCached = () => {
+        const community = useCommunityStore.getState();
+        if (loadingFor.current === id && community.ownerId === id && community.me) setCoachFlagReady(true);
+      };
+      if (useCommunityStore.persist.hasHydrated()) coachFlagCached();
+      else {
+        const stop = useCommunityStore.persist.onFinishHydration(() => {
+          stop();
+          coachFlagCached();
+        });
+      }
       // A photo picked during registration, before email confirmation, uploads itself the moment a
       // session exists - not waited for, so it never delays getting into the app.
       void useAuthStore.getState().uploadPendingAvatar();
@@ -424,6 +448,7 @@ export const AppNavigator = () => {
           !(isCoach && isDualAccount && !viewChosen) ? (
             <>
               <OnboardingHost />
+              <ProTourNotificationHost />
               <CoachApplicationStatusHost />
             </>
           ) : null}

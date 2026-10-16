@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View, Image } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { useRoute, useNavigation, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useRoutinesStore, useRoutineScoresStore } from "../../store";
 import type { PracticeStackParamList, ScoringType } from "../../types";
@@ -189,10 +190,10 @@ export const RoutineDetailScreen = () => {
             <TableDiagram balls={placedBalls} readOnly landscape />
           </View>
         ) : selectedGuide === "image" && referenceImage && !isGuide ? (
-          <Image source={referenceImage} style={styles.thumbnail} resizeMode="contain" />
+          <Image source={referenceImage} style={styles.thumbnail} contentFit="contain" />
         ) : thumbnail ? (
           <Pressable style={styles.thumbnailWrap} onPress={() => youtubeUrl && Linking.openURL(youtubeUrl)}>
-            <Image source={{ uri: thumbnail }} style={styles.thumbnail} />
+            <Image source={{ uri: thumbnail }} style={styles.thumbnail} cachePolicy="memory-disk" />
             <View style={styles.playOverlay}>
               <Text style={styles.playOverlayText}>▶</Text>
             </View>

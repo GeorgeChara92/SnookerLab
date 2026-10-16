@@ -22,6 +22,7 @@ import {
   CONTEXT_TAGS,
 } from "../../features/ai/analysisLabels";
 
+import { useShallow } from "zustand/react/shallow";
 // One vocabulary for the whole AI Coach, so what you pick here is what the report calls it.
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snookeredapp.com/privacy";
 
@@ -145,7 +146,9 @@ export const VideoUploadScreen = () => {
   const coachAnalysisAt = useConsentStore((state) => state.coachAnalysisAt);
   const allowCoachAnalysis = useConsentStore((state) => state.allowCoachAnalysis);
   const subscription = useSubscriptionAccess();
-  const { createAnalysis, runAnalysis } = useAIAnalysesStore();
+  const { createAnalysis, runAnalysis } = useAIAnalysesStore(
+    useShallow((state) => ({ createAnalysis: state.createAnalysis, runAnalysis: state.runAnalysis }))
+  );
 
   const validateClipLength = (asset: any) => {
     const seconds = getDurationSeconds(asset?.duration);

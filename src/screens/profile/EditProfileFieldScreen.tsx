@@ -23,6 +23,7 @@ import {
 import type { ProfileStackParamList, SkillLevel } from "../../types";
 import { RADIUS, SCRIM, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 type FieldRoute = RouteProp<ProfileStackParamList, "EditProfileField">;
 
 const FIELD_CONFIG: Record<string, { label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; type: "skill" | "country" | "cue" }> = {
@@ -38,7 +39,7 @@ export const EditProfileFieldScreen = () => {
   const navigation = useNavigation();
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { user, updateProfile } = useAuthStore();
+  const { user, updateProfile } = useAuthStore(useShallow((state) => ({ user: state.user, updateProfile: state.updateProfile })));
 
   const field = route.params.field;
   const config = FIELD_CONFIG[field];

@@ -1,5 +1,6 @@
 import React from "react";
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -25,7 +26,7 @@ export const ChatMediaBubble = ({ share, url, onExpand }: { share: MediaShare; u
   if (share.mediaType === "image") {
     return (
       <Pressable onPress={onExpand} accessibilityRole="imagebutton" accessibilityLabel="Expand image">
-        <Image source={{ uri: url }} style={styles.box} resizeMode="cover" />
+        <Image source={{ uri: url }} style={styles.box} contentFit="cover" cachePolicy="memory-disk" />
       </Pressable>
     );
   }

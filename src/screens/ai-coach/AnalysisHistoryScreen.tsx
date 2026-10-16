@@ -11,6 +11,7 @@ import { AnalysisRow } from "../../components/ai/AnalysisRow";
 import { FONTS, RADIUS, SPACING } from "../../constants";
 import { ANALYSIS_TYPES, ANALYSIS_TYPE_ORDER } from "../../features/ai/analysisLabels";
 
+import { useShallow } from "zustand/react/shallow";
 type StatusFilter = "all" | "ready" | "working" | "failed";
 
 const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
@@ -24,7 +25,9 @@ export const AnalysisHistoryScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<AICoachStackParamList>>();
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { analyses, deleteAnalysis } = useAIAnalysesStore();
+  const { analyses, deleteAnalysis } = useAIAnalysesStore(
+    useShallow((state) => ({ analyses: state.analyses, deleteAnalysis: state.deleteAnalysis }))
+  );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [typeFilter, setTypeFilter] = useState<AnalysisType | "all">("all");
 

@@ -27,6 +27,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -55,7 +56,7 @@ export const SessionSetupScreen = () => {
 
   const templateId = route.params?.templateId;
 
-  const { categories, routines } = useRoutinesStore();
+  const { categories, routines } = useRoutinesStore(useShallow((state) => ({ categories: state.categories, routines: state.routines })));
   const { createTemplate, updateTemplate, getTemplateById } = useSessionsStore();
   const { colors } = useAppTheme();
   const dialog = useDialog();

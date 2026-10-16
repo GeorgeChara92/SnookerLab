@@ -8,6 +8,7 @@ import { useCoachStore } from "../../store/coachStore";
 import { openSlots, type CoachBooking, type CoachSlot } from "../../features/coach/types";
 import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const formatDay = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 const formatTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -31,7 +32,9 @@ export const RescheduleSheet = ({
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const dialog = useDialog();
-  const { loadCoachSchedule, rescheduleBooking } = useCoachStore();
+  const { loadCoachSchedule, rescheduleBooking } = useCoachStore(
+    useShallow((state) => ({ loadCoachSchedule: state.loadCoachSchedule, rescheduleBooking: state.rescheduleBooking }))
+  );
   const [loading, setLoading] = useState(true);
   const [slots, setSlots] = useState<CoachSlot[]>([]);
   const [bookings, setBookings] = useState<CoachBooking[]>([]);

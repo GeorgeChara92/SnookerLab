@@ -12,6 +12,7 @@ import { nameOf } from "../../features/community/types";
 import type { InboxRow } from "../../features/community/chat";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 /** "14:05" today, "Mon" this week, "12 Sep" before. */
 export const chatTime = (iso: string | null) => {
   if (!iso) return "";
@@ -31,7 +32,9 @@ export const ChatsScreen = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const me = useAuthStore((state) => state.user?.id ?? null);
-  const { inbox, profiles, groups, loaded, refresh } = useChatStore();
+  const { inbox, profiles, groups, loaded, refresh } = useChatStore(
+    useShallow((state) => ({ inbox: state.inbox, profiles: state.profiles, groups: state.groups, loaded: state.loaded, refresh: state.refresh }))
+  );
   const [view, setView] = useState<"chats" | "requests">("chats");
   const [refreshing, setRefreshing] = useState(false);
 

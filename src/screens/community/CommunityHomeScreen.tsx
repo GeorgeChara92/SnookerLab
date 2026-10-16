@@ -7,8 +7,7 @@ import { useAuthStore } from "../../store";
 import { useCommunityStore } from "../../store/communityStore";
 import { splitBadges, useChatBadges } from "../../store/chatStore";
 import { useTourNewsStore } from "../../store/tourNewsStore";
-import { useProTourStore, subscribeProTourLive } from "../../store/proTourStore";
-import { eventName, formatScore, groupMatches, playerName } from "../../features/tour/liveScores";
+import { ProTourTicker } from "../../components/tour/ProTourTicker";
 import { NewsRow } from "../../components/tour/NewsRow";
 import { LiveNow } from "../../components/matches/LiveNow";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
@@ -37,11 +36,6 @@ export const CommunityHomeScreen = () => {
   useEffect(() => {
     void refreshNews();
   }, [refreshNews]);
-  const proTourMatches = useProTourStore((state) => state.matches);
-  const proTourPlayers = useProTourStore((state) => state.players);
-  const proTourEvents = useProTourStore((state) => state.events);
-  useEffect(() => subscribeProTourLive(), []);
-  const liveMatch = useMemo(() => groupMatches(proTourMatches).live[0] ?? null, [proTourMatches]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PublicProfile[]>([]);
   const [searching, setSearching] = useState(false);
@@ -293,33 +287,19 @@ export const CommunityHomeScreen = () => {
 
       <LiveNow onOpen={(matchId) => navigation.navigate("LiveMatch", { matchId })} />
 
-      {/* The pro tour, one story */}
-      {tourNews[0] ? (
-        <View style={styles.section}>
-          <View style={styles.sectionHead}>
-            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.sectionLabel, { color: colors.text }]}>
-              PRO TOUR
-            </Text>
-            <Pressable onPress={() => navigation.navigate("TourNews")} accessibilityRole="button" hitSlop={8}>
-              <Text style={[styles.sectionMore, { color: colors.primary }]}>All news</Text>
-            </Pressable>
-          </View>
-          {liveMatch ? (
-            <Pressable
-              onPress={() => navigation.navigate("TourNews", { segment: "live" })}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.liveChip, { backgroundColor: colors.board, opacity: pressed ? 0.85 : 1 }]}
-            >
-              <View style={styles.liveDot} />
-              <Text style={[styles.liveChipText, { color: colors.boardText, fontFamily: FONTS.boardLabel }]} numberOfLines={1}>
-                {eventName(proTourEvents, liveMatch.eventId)}: {playerName(proTourPlayers, liveMatch.player1Id)}{" "}
-                {formatScore(liveMatch)} {playerName(proTourPlayers, liveMatch.player2Id)}
-              </Text>
-            </Pressable>
-          ) : null}
-          <NewsRow item={tourNews[0]} summary={false} />
+      {/* The pro tour: the scores strip, then the top story */}
+      <View style={styles.section}>
+        <View style={styles.sectionHead}>
+          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.sectionLabel, { color: colors.text }]}>
+            PRO TOUR
+          </Text>
+          <Pressable onPress={() => navigation.navigate("TourNews")} accessibilityRole="button" hitSlop={8}>
+            <Text style={[styles.sectionMore, { color: colors.primary }]}>All news</Text>
+          </Pressable>
         </View>
-      ) : null}
+        <ProTourTicker onPress={() => navigation.navigate("TourNews", { segment: "live" })} />
+        {tourNews[0] ? <NewsRow item={tourNews[0]} summary={false} /> : null}
+      </View>
 
       {/* Your people */}
       <View style={[styles.tabs, { borderBottomColor: colors.border }]} accessibilityRole="tablist">
@@ -588,16 +568,6 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sectionLabel: { fontFamily: FONTS.board, fontSize: 15, letterSpacing: 1.2 },
   sectionMore: { fontSize: 14, fontWeight: "700" },
-  liveChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
-    borderRadius: RADIUS.sm,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#C8102E" },
-  liveChipText: { flex: 1, fontSize: 13, fontWeight: "700" },
   tabs: { flexDirection: "row", gap: SPACING.lg, borderBottomWidth: StyleSheet.hairlineWidth, marginTop: SPACING.xs },
   tab: {
     flexDirection: "row",

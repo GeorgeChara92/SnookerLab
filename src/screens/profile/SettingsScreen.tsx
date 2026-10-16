@@ -20,6 +20,7 @@ import { isBillingConfigured, openNativeSubscriptionSettings, presentCustomerCen
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 import { flushOutbox, refreshEverything, useOutboxStore } from "../../sync";
 
+import { useShallow } from "zustand/react/shallow";
 const PRIVACY_URL = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "https://snookeredapp.com/privacy";
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? "https://snookeredapp.com/terms";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookeredapp.com";
@@ -143,7 +144,16 @@ export const SettingsScreen = () => {
     }
   };
   const subscription = useSubscriptionAccess();
-  const { user, resetPassword, resendEmailVerification, deleteAccount, resetProfile, isLoading } = useAuthStore();
+  const { user, resetPassword, resendEmailVerification, deleteAccount, resetProfile, isLoading } = useAuthStore(
+    useShallow((state) => ({
+      user: state.user,
+      resetPassword: state.resetPassword,
+      resendEmailVerification: state.resendEmailVerification,
+      deleteAccount: state.deleteAccount,
+      resetProfile: state.resetProfile,
+      isLoading: state.isLoading,
+    }))
+  );
 
   // Reflects the actual OS-level icon rather than assuming - a reinstall or a restored backup can
   // leave this out of step with what the picker last set.

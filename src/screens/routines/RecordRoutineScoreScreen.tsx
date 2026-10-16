@@ -17,6 +17,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import type { ScoringType } from "../../types";
 
+import { useShallow } from "zustand/react/shallow";
 type EntryMode = "direct" | "fraction";
 
 const getScoringUnitLabel = (scoringType: ScoringType): string => {
@@ -122,7 +123,7 @@ export const RecordRoutineScoreScreen = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   const { getRoutineById } = useRoutinesStore();
-  const { addEntry } = useRoutineScoresStore();
+  const { addEntry } = useRoutineScoresStore(useShallow((state) => ({ addEntry: state.addEntry })));
   const { colors } = useAppTheme();
   const dialog = useDialog();
 

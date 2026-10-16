@@ -27,6 +27,7 @@ import {
 } from "../../features/community/chat";
 import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 type Tab = "feed" | "boards" | "members";
 
 /**
@@ -43,7 +44,7 @@ export const GroupScreen = () => {
   const dialog = useDialog();
   const me = useAuthStore((state) => state.user?.id ?? null);
   const refreshInbox = useChatStore((state) => state.refresh);
-  const { friendships, profiles } = useCommunityStore();
+  const { friendships, profiles } = useCommunityStore(useShallow((state) => ({ friendships: state.friendships, profiles: state.profiles })));
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);

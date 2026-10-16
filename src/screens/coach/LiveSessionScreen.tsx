@@ -28,10 +28,12 @@ import { getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLa
 import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { RescheduleSheet } from "../../components/coach/RescheduleSheet";
 import { FONTS, HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
-import type { SessionRoutineEntry } from "../../features/coach/types";
+import { FOCUS_AREAS, type SessionRoutineEntry } from "../../features/coach/types";
+import { HomeworkRow } from "../../components/coach/HomeworkRow";
 import type { Routine, RoutineCategory } from "../../types";
 import type { RootStackParamList } from "../../types";
 
+import { useShallow } from "zustand/react/shallow";
 const CUSTOM_CATEGORY: RoutineCategory = {
   id: CUSTOM_CATEGORY_ID,
   name: "My routines",
@@ -89,7 +91,7 @@ const RoutineThumb = ({
 /** The routine library plus this account's own custom routines, merged and indexed by id - the
  * same set whichever mode (player or coach) built them, since both are the one signed-in account. */
 const useMergedRoutines = () => {
-  const { routines: libraryRoutines } = useRoutinesStore();
+  const { routines: libraryRoutines } = useRoutinesStore(useShallow((state) => ({ routines: state.routines })));
   const customRoutines = useCustomRoutinesStore((state) => state.routines);
   const mine = useMemo(() => customRoutines.map(toRoutine), [customRoutines]);
   const customById = useMemo(() => new Map(customRoutines.map((routine) => [routine.id, routine])), [customRoutines]);
@@ -154,8 +156,33 @@ const LiveSessionScreenContent = () => {
     removeSessionRoutine,
     updateSessionRoutine,
     cancelBooking,
-  } = useCoachStore();
-  const { profiles } = useCommunityStore();
+    sessionRecaps,
+    saveSessionRecap,
+    allHomework,
+    homeworkProgress,
+    addHomework,
+    archiveHomework,
+    loadHomeworkProgress,
+  } = useCoachStore(
+    useShallow((state) => ({
+      sessionRecaps: state.sessionRecaps,
+      saveSessionRecap: state.saveSessionRecap,
+      allHomework: state.homework,
+      homeworkProgress: state.homeworkProgress,
+      addHomework: state.addHomework,
+      archiveHomework: state.archiveHomework,
+      loadHomeworkProgress: state.loadHomeworkProgress,
+      bookingsAsCoach: state.bookingsAsCoach,
+      sessionNotes: state.sessionNotes,
+      sessionRoutines: state.sessionRoutines,
+      saveSessionNotes: state.saveSessionNotes,
+      addSessionRoutine: state.addSessionRoutine,
+      removeSessionRoutine: state.removeSessionRoutine,
+      updateSessionRoutine: state.updateSessionRoutine,
+      cancelBooking: state.cancelBooking,
+    }))
+  );
+  const { profiles } = useCommunityStore(useShallow((state) => ({ profiles: state.profiles })));
   const { byId, customById } = useMergedRoutines();
 
   const booking = bookingsAsCoach.find((item) => item.id === bookingId);
@@ -166,8 +193,43 @@ const LiveSessionScreenContent = () => {
   const [picking, setPicking] = useState(false);
   const [editing, setEditing] = useState<SessionRoutineEntry | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
+  // What's shared with the player: what the session focused on, and a summary in the coach's words.
+  const recap = sessionRecaps[bookingId];
+  const [summary, setSummary] = useState(recap?.summary ?? "");
+  const [focus, setFocus] = useState<string[]>(recap?.focus ?? []);
+  const [customFocus, setCustomFocus] = useState("");
+  const [settingHomework, setSettingHomework] = useState(false);
 
   const routines = sessionRoutines[bookingId] ?? [];
+  const playerId = booking?.playerId ?? null;
+  const firstName = partyName.split(" ")[0] || "them";
+  const homework = useMemo(
+    () => (playerId ? allHomework.filter((item) => item.playerId === playerId && item.coachId === booking?.coachId) : []),
+    [allHomework, playerId, booking?.coachId]
+  );
+  const focusChoices = useMemo(() => [...new Set([...FOCUS_AREAS, ...focus])], [focus]);
+
+  useEffect(() => {
+    if (playerId) void loadHomeworkProgress(playerId);
+  }, [playerId, loadHomeworkProgress]);
+
+  const toggleFocus = (area: string) =>
+    setFocus((current) => (current.includes(area) ? current.filter((item) => item !== area) : [...current, area].slice(0, 8)));
+  const addCustomFocus = () => {
+    const text = customFocus.trim();
+    if (text && !focus.includes(text)) setFocus((current) => [...current, text].slice(0, 8));
+    setCustomFocus("");
+  };
+
+  const removeHomework = (id: string, name: string) =>
+    dialog.confirm({
+      title: `Take ${name} off ${firstName}'s homework?`,
+      message: "It comes off their list. Their scores on it are kept.",
+      tone: "danger",
+      confirmLabel: "Remove",
+      cancelLabel: "Keep it",
+      onConfirm: () => archiveHomework(id),
+    });
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
@@ -185,9 +247,18 @@ const LiveSessionScreenContent = () => {
 
   const save = async () => {
     setSaving(true);
-    const result = await saveSessionNotes(bookingId, notes);
+    const recapChanged =
+      !!playerId && ((recap?.summary ?? "") !== summary.trim() || (recap?.focus ?? []).join("|") !== focus.join("|"));
+    const [notesResult, recapResult] = await Promise.all([
+      saveSessionNotes(bookingId, notes),
+      recapChanged ? saveSessionRecap(bookingId, summary, focus) : Promise.resolve({ ok: true as const }),
+    ]);
     setSaving(false);
-    if (result.ok) navigation.goBack();
+    if (notesResult.ok && recapResult.ok) navigation.goBack();
+    else {
+      const failed = !notesResult.ok ? notesResult : recapResult;
+      dialog.alert({ title: "Could not save", message: failed.ok ? "" : failed.message, tone: "danger" });
+    }
   };
 
   const removeRoutine = (id: string, name: string) =>
@@ -329,11 +400,94 @@ const LiveSessionScreenContent = () => {
           <Text style={[styles.emptyRoutines, { color: colors.textMuted }]}>Nothing added yet.</Text>
         )}
 
-        <Text style={[styles.label, styles.notesLabel, { color: colors.textMuted }]}>Session notes</Text>
+        {playerId ? (
+          <>
+            {routines.length ? (
+              <Text style={[styles.sharedHint, { color: colors.textMuted }]}>
+                <MaterialCommunityIcons name="eye-outline" size={13} /> {firstName} can see the routines covered and their scores.
+              </Text>
+            ) : null}
+
+            <View style={[styles.sharedBlock, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
+              <View style={styles.sharedHead}>
+                <MaterialCommunityIcons name="account-eye-outline" size={18} color={colors.primary} />
+                <Text style={[styles.sharedTitle, { color: colors.text }]}>Shared with {firstName}</Text>
+              </View>
+              <Text style={[styles.label, { color: colors.textMuted }]}>What you worked on</Text>
+              <View style={styles.focusChips}>
+                {focusChoices.map((area) => {
+                  const on = focus.includes(area);
+                  return (
+                    <Pressable
+                      key={area}
+                      onPress={() => toggleFocus(area)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: on }}
+                      style={[styles.focusChip, { borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : "transparent" }]}
+                    >
+                      <Text style={[styles.focusChipText, { color: on ? colors.onPrimary : colors.text }]}>{area}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <TextInput
+                value={customFocus}
+                onChangeText={(text) => setCustomFocus(text.slice(0, 40))}
+                onSubmitEditing={addCustomFocus}
+                onBlur={addCustomFocus}
+                returnKeyType="done"
+                placeholder="Add your own..."
+                placeholderTextColor={colors.textMuted}
+                style={[styles.search, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted, marginTop: SPACING.sm }]}
+              />
+              <Text style={[styles.label, styles.notesLabel, { color: colors.textMuted }]}>Notes for {firstName}</Text>
+              <TextInput
+                value={summary}
+                onChangeText={(text) => setSummary(text.slice(0, NOTES_LIMIT))}
+                placeholder={`What went well, and what ${firstName} should work on before next time...`}
+                placeholderTextColor={colors.textMuted}
+                multiline
+                textAlignVertical="top"
+                style={[styles.notes, styles.sharedNotes, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
+              />
+            </View>
+
+            <View style={[styles.sectionHead, styles.homeworkHead]}>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Homework for {firstName}</Text>
+              <Pressable onPress={() => setSettingHomework(true)} accessibilityRole="button" hitSlop={8} style={styles.addRoutine}>
+                <MaterialCommunityIcons name="plus-circle-outline" size={18} color={colors.primary} />
+                <Text style={[styles.addRoutineText, { color: colors.primary }]}>Set homework</Text>
+              </Pressable>
+            </View>
+            {homework.length ? (
+              <View style={styles.routineList}>
+                {homework.map((item) => (
+                  <HomeworkRow
+                    key={item.id}
+                    homework={item}
+                    progress={homeworkProgress[item.id]}
+                    onRemove={() => removeHomework(item.id, item.routineName)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <Text style={[styles.emptyRoutines, { color: colors.textMuted }]}>
+                Routines to practise before next time. {firstName} sees them on their Coaching tab, with their scores.
+              </Text>
+            )}
+          </>
+        ) : (
+          <Text style={[styles.sharedHint, { color: colors.textMuted, marginTop: SPACING.lg }]}>
+            {partyName} has no Snookered account, so everything here stays with you.
+          </Text>
+        )}
+
+        <Text style={[styles.label, styles.notesLabel, { color: colors.textMuted }]}>Private notes</Text>
+        <Text style={[styles.privateHint, { color: colors.textMuted }]}>Only you can see these.</Text>
         <TextInput
           value={notes}
           onChangeText={(text) => setNotes(text.slice(0, NOTES_LIMIT))}
-          placeholder="What you covered, and what to focus on before the next session..."
+          placeholder="Anything for your own records..."
           placeholderTextColor={colors.textMuted}
           multiline
           textAlignVertical="top"
@@ -349,7 +503,7 @@ const LiveSessionScreenContent = () => {
           {saving ? (
             <ActivityIndicator color={colors.onPrimary} />
           ) : (
-            <Text style={[styles.saveText, { color: colors.onPrimary }]}>Save notes</Text>
+            <Text style={[styles.saveText, { color: colors.onPrimary }]}>Save</Text>
           )}
         </Pressable>
       </ScrollView>
@@ -363,6 +517,27 @@ const LiveSessionScreenContent = () => {
           else dialog.alert({ title: "Could not add that routine", message: result.message, tone: "danger" });
         }}
       />
+
+      {playerId ? (
+        <RoutinePickerSheet
+          visible={settingHomework}
+          mode="homework"
+          onClose={() => setSettingHomework(false)}
+          onAdd={async (routine, target, note, perWeek) => {
+            const result = await addHomework({
+              playerId,
+              bookingId,
+              routineId: routine.id,
+              routineName: routine.name,
+              targetScore: target,
+              perWeek: perWeek ?? null,
+              note,
+            });
+            if (result.ok) setSettingHomework(false);
+            else dialog.alert({ title: "Could not set that homework", message: result.message, tone: "danger" });
+          }}
+        />
+      ) : null}
 
       <RoutineEntryEditSheet
         entry={editing}
@@ -489,19 +664,27 @@ type RoutineSection = { title: string; categoryId: string; data: Routine[] };
 
 /** Browse the routine library by category (with a preview thumbnail), open one to see what it
  * actually involves, then say how the client did on it. Closes itself once actually added. */
-const RoutinePickerSheet = ({
+export const RoutinePickerSheet = ({
   visible,
   onClose,
   onAdd,
+  mode = "session",
 }: {
   visible: boolean;
   onClose: () => void;
-  onAdd: (routine: Routine, score: number | null, notes: string) => Promise<void>;
+  /** For homework, `score` is the target and `perWeek` how many times a week. */
+  onAdd: (routine: Routine, score: number | null, notes: string, perWeek?: number | null) => Promise<void>;
+  /** "homework": the library only (a client can't open the coach's own custom routines), with a
+   *  target and a times-a-week instead of a score. */
+  mode?: "session" | "homework";
 }) => {
+  const homeworkMode = mode === "homework";
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { routines: libraryRoutines, categories } = useRoutinesStore();
+  const { routines: libraryRoutines, categories } = useRoutinesStore(
+    useShallow((state) => ({ routines: state.routines, categories: state.categories }))
+  );
   const customRoutines = useCustomRoutinesStore((state) => state.routines);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Routine | null>(null);
@@ -510,8 +693,9 @@ const RoutinePickerSheet = ({
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set([CUSTOM_CATEGORY_ID]));
   const [lightboxSource, setLightboxSource] = useState<any>(null);
+  const [perWeek, setPerWeek] = useState<number | null>(3);
 
-  const mine = useMemo(() => customRoutines.map(toRoutine), [customRoutines]);
+  const mine = useMemo(() => (homeworkMode ? [] : customRoutines.map(toRoutine)), [customRoutines, homeworkMode]);
   const customById = useMemo(() => new Map(customRoutines.map((routine) => [routine.id, routine])), [customRoutines]);
   const allCategories = useMemo(() => (mine.length ? [CUSTOM_CATEGORY, ...categories] : categories), [mine.length, categories]);
   const categoryName = (categoryId: string) => allCategories.find((category) => category.id === categoryId)?.name ?? "Practice";
@@ -550,6 +734,7 @@ const RoutinePickerSheet = ({
     setSelected(null);
     setScore("");
     setRoutineNotes("");
+    setPerWeek(3);
   };
 
   const close = () => {
@@ -565,7 +750,7 @@ const RoutinePickerSheet = ({
   const add = async () => {
     if (!selected) return;
     setSaving(true);
-    await onAdd(selected, score.trim() ? Math.max(0, Math.round(Number(score))) : null, routineNotes);
+    await onAdd(selected, score.trim() ? Math.max(0, Math.round(Number(score))) : null, routineNotes, homeworkMode ? perWeek : undefined);
     setSaving(false);
     reset();
   };
@@ -585,7 +770,7 @@ const RoutinePickerSheet = ({
         <View style={[styles.grabber, { backgroundColor: colors.border }]} />
         {!selected ? (
           <>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>Add a routine</Text>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>{homeworkMode ? "Set homework" : "Add a routine"}</Text>
             <TextInput
               value={query}
               onChangeText={setQuery}
@@ -593,14 +778,16 @@ const RoutinePickerSheet = ({
               placeholderTextColor={colors.textMuted}
               style={[styles.search, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
             />
-            <Pressable
-              onPress={buildRoutine}
-              accessibilityRole="button"
-              style={[styles.newRoutine, { borderColor: colors.primary }]}
-            >
-              <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.primary} />
-              <Text style={[styles.newRoutineText, { color: colors.primary }]}>Build a new routine</Text>
-            </Pressable>
+            {homeworkMode ? null : (
+              <Pressable
+                onPress={buildRoutine}
+                accessibilityRole="button"
+                style={[styles.newRoutine, { borderColor: colors.primary }]}
+              >
+                <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.primary} />
+                <Text style={[styles.newRoutineText, { color: colors.primary }]}>Build a new routine</Text>
+              </Pressable>
+            )}
             <SectionList
               sections={visibleSections}
               keyExtractor={(item) => item.id}
@@ -677,7 +864,9 @@ const RoutinePickerSheet = ({
               </>
             ) : null}
 
-            <Text style={[styles.label, styles.notesLabel, { color: colors.textMuted }]}>Score (optional)</Text>
+            <Text style={[styles.label, styles.notesLabel, { color: colors.textMuted }]}>
+              {homeworkMode ? "Target score (optional)" : "Score (optional)"}
+            </Text>
             <TextInput
               value={score}
               onChangeText={(text) => setScore(text.replace(/[^0-9]/g, ""))}
@@ -686,11 +875,36 @@ const RoutinePickerSheet = ({
               keyboardType="number-pad"
               style={[styles.search, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
             />
-            <Text style={[styles.label, styles.notesLabel, { color: colors.textMuted }]}>Notes on this routine (optional)</Text>
+            {homeworkMode ? (
+              <>
+                <Text style={[styles.label, styles.notesLabel, { color: colors.textMuted }]}>How often</Text>
+                <View style={styles.focusChips}>
+                  {[null, 1, 2, 3, 4, 5, 7].map((value) => {
+                    const on = perWeek === value;
+                    return (
+                      <Pressable
+                        key={String(value)}
+                        onPress={() => setPerWeek(value)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on }}
+                        style={[styles.focusChip, { borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.primary : "transparent" }]}
+                      >
+                        <Text style={[styles.focusChipText, { color: on ? colors.onPrimary : colors.text }]}>
+                          {value == null ? "Any time" : value === 7 ? "Every day" : `${value}× a week`}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+            <Text style={[styles.label, styles.notesLabel, { color: colors.textMuted }]}>
+              {homeworkMode ? "What to focus on (optional)" : "Notes on this routine (optional)"}
+            </Text>
             <TextInput
               value={routineNotes}
-              onChangeText={(text) => setRoutineNotes(text.slice(0, ROUTINE_NOTES_LIMIT))}
-              placeholder="What to watch on this one..."
+              onChangeText={(text) => setRoutineNotes(text.slice(0, homeworkMode ? 500 : ROUTINE_NOTES_LIMIT))}
+              placeholder={homeworkMode ? "Keep the cue arm still through the shot..." : "What to watch on this one..."}
               placeholderTextColor={colors.textMuted}
               multiline
               textAlignVertical="top"
@@ -710,7 +924,11 @@ const RoutinePickerSheet = ({
                 accessibilityRole="button"
                 style={[styles.save, styles.sheetSave, { backgroundColor: colors.primary, opacity: saving ? 0.6 : 1 }]}
               >
-                {saving ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={[styles.saveText, { color: colors.onPrimary }]}>Add</Text>}
+                {saving ? (
+                  <ActivityIndicator color={colors.onPrimary} />
+                ) : (
+                  <Text style={[styles.saveText, { color: colors.onPrimary }]}>{homeworkMode ? "Set homework" : "Add"}</Text>
+                )}
               </Pressable>
             </View>
           </ScrollView>
@@ -799,4 +1017,14 @@ const styles = StyleSheet.create({
   secondaryButton: { flex: 1, minHeight: HIT_TARGET, borderWidth: 1, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
   secondaryButtonText: { fontSize: 15, fontWeight: "700" },
   sheetSave: { flex: 1, marginTop: 0 },
+  sharedHint: { fontSize: 12, lineHeight: 17, marginTop: SPACING.sm },
+  sharedBlock: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACING.md, marginTop: SPACING.lg, gap: SPACING.xs },
+  sharedHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: SPACING.xs },
+  sharedTitle: { fontSize: 16, fontWeight: "800" },
+  sharedNotes: { minHeight: 110 },
+  focusChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  focusChip: { borderWidth: 1, borderRadius: RADIUS.pill, paddingHorizontal: 12, minHeight: 34, justifyContent: "center" },
+  focusChipText: { fontSize: 13, fontWeight: "700" },
+  homeworkHead: { marginTop: SPACING.lg },
+  privateHint: { fontSize: 12, marginBottom: SPACING.xs },
 });

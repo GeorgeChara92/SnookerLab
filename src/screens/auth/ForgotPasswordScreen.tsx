@@ -10,6 +10,7 @@ import { AuthField } from "../../components/auth/AuthField";
 import { getAuthEmailActionErrorMessage } from "../../utils/authErrors";
 import { HIT_TARGET, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 type Props = NativeStackScreenProps<AuthStackParamList, "ForgotPassword">;
 
 const looksLikeEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
@@ -19,7 +20,7 @@ export const ForgotPasswordScreen = ({ navigation }: Props) => {
   const [problem, setProblem] = useState("");
   const [sentTo, setSentTo] = useState("");
   const { colors } = useAppTheme();
-  const { resetPassword, isLoading } = useAuthStore();
+  const { resetPassword, isLoading } = useAuthStore(useShallow((state) => ({ resetPassword: state.resetPassword, isLoading: state.isLoading })));
 
   const handleReset = async () => {
     const cleanEmail = email.trim();

@@ -22,6 +22,7 @@ import {
 } from "../../features/coach/gallery";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
+import { useShallow } from "zustand/react/shallow";
 const LOCATION_LIMIT = 120;
 const QUALIFICATION_LIMIT = 40;
 const MAX_QUALIFICATIONS = 6;
@@ -35,9 +36,11 @@ export const CoachSettingsScreen = () => {
   const navigation = useNavigation<any>();
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const { me, saveMe, handleIsFree } = useCommunityStore();
-  const { viewMode, setViewMode } = useUiModeStore();
-  const { user, signOut } = useAuthStore();
+  const { me, saveMe, handleIsFree } = useCommunityStore(
+    useShallow((state) => ({ me: state.me, saveMe: state.saveMe, handleIsFree: state.handleIsFree }))
+  );
+  const { viewMode, setViewMode } = useUiModeStore(useShallow((state) => ({ viewMode: state.viewMode, setViewMode: state.setViewMode })));
+  const { user, signOut } = useAuthStore(useShallow((state) => ({ user: state.user, signOut: state.signOut })));
 
   const [handle, setHandle] = useState(me?.handle ?? "");
   const [handleState, setHandleState] = useState<HandleState>("idle");
