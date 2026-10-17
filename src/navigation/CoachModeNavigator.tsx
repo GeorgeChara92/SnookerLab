@@ -23,6 +23,36 @@ const Tab = createBottomTabNavigator<CoachModeTabParamList>();
  * looking at their own player level and subscription badge, which is what MainTabNavigator's
  * header shows on every screen.
  */
+import { CoachPlanGate } from "../components/coach/CoachPlanGate";
+
+// Everything in coach view but Chats is behind the Coach plan. Defined once, here, so each tab keeps
+// a stable component (an inline wrapper would remount the screen on every render).
+const GatedDashboard = () => (
+  <CoachPlanGate title="your coach dashboard">
+    <CoachAnalyticsDashboardScreen />
+  </CoachPlanGate>
+);
+const GatedAgenda = () => (
+  <CoachPlanGate title="your agenda">
+    <CoachDashboardScreen />
+  </CoachPlanGate>
+);
+const GatedCalendar = () => (
+  <CoachPlanGate title="your calendar">
+    <CoachAvailabilityScreen />
+  </CoachPlanGate>
+);
+const GatedClients = () => (
+  <CoachPlanGate title="your clients">
+    <CoachClientsNavigator />
+  </CoachPlanGate>
+);
+const GatedGroups = () => (
+  <CoachPlanGate title="your groups">
+    <CoachGroupsNavigator />
+  </CoachPlanGate>
+);
+
 export const CoachModeNavigator = () => {
   const insets = useSafeAreaInsets();
   const { colors } = useAppTheme();
@@ -57,7 +87,7 @@ export const CoachModeNavigator = () => {
     >
       <Tab.Screen
         name="CoachDashboard"
-        component={CoachAnalyticsDashboardScreen}
+        component={GatedDashboard}
         options={{
           title: "Dashboard",
           tabBarLabel: "Dashboard",
@@ -66,7 +96,7 @@ export const CoachModeNavigator = () => {
       />
       <Tab.Screen
         name="CoachToday"
-        component={CoachDashboardScreen}
+        component={GatedAgenda}
         options={{
           title: "Agenda",
           tabBarLabel: "Agenda",
@@ -77,7 +107,7 @@ export const CoachModeNavigator = () => {
       />
       <Tab.Screen
         name="CoachCalendar"
-        component={CoachAvailabilityScreen}
+        component={GatedCalendar}
         options={{
           title: "Calendar",
           tabBarLabel: "Calendar",
@@ -86,7 +116,7 @@ export const CoachModeNavigator = () => {
       />
       <Tab.Screen
         name="CoachClients"
-        component={CoachClientsNavigator}
+        component={GatedClients}
         options={{
           headerShown: false,
           tabBarLabel: "Clients",
@@ -95,7 +125,7 @@ export const CoachModeNavigator = () => {
       />
       <Tab.Screen
         name="CoachGroups"
-        component={CoachGroupsNavigator}
+        component={GatedGroups}
         options={{
           headerShown: false,
           tabBarLabel: "Groups",

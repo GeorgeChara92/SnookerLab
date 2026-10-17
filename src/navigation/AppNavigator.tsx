@@ -19,6 +19,9 @@ import { useCoachStore } from "../store/coachStore";
 import { navigationRef } from "./navigationRef";
 import { routineIdFromLink } from "../features/community/links";
 
+/** The store's plan-change listener, kept so a new sign-in replaces it rather than adding another. */
+let billingListenerCleanup: (() => void) | null = null;
+
 /** A routine link that arrived before the app was ready to show it. */
 let pendingRoutineId: string | null = null;
 
@@ -44,7 +47,7 @@ import { PdfViewerScreen } from "../screens/shared/PdfViewerScreen";
 import { CustomRoutineBuilderScreen } from "../screens/routines/CustomRoutineBuilderScreen";
 import { RootStackParamList } from "../types";
 import { useAppTheme } from "../hooks/useAppTheme";
-import { initBilling, isBillingConfigured } from "../services/billing";
+import { addBillingCustomerInfoListener, initBilling, isBillingConfigured, syncSubscriptionWithServer } from "../services/billing";
 import { UnlockQueueProvider } from "../components/achievements/UnlockQueueProvider";
 import { AchievementWatcher } from "../components/achievements/AchievementWatcher";
 import { SendToChatScreen } from "../screens/community/SendToChatScreen";
@@ -261,13 +264,28 @@ export const AppNavigator = () => {
     if (session?.user) {
       setUser(session.user);
       if (isBillingConfigured()) {
-        void initBilling(session.user.id).catch((error) => {
-          console.warn("Billing init failed:", {
-            message: error?.message,
-            detail: error?.detail,
-            code: error?.code,
+        void initBilling(session.user.id)
+          .then(() => {
+            // Plans are checked with the server at start-up and whenever the store reports a
+            // change (a purchase, renewal or cancellation, on this phone or another), so a new
+            // Coach or player plan unlocks everywhere at once rather than only on the plan screen.
+            const syncPlans = () =>
+              void syncSubscriptionWithServer()
+                .then((updated) => {
+                  if (updated) useAuthStore.getState().setUser(updated);
+                })
+                .catch(() => undefined);
+            syncPlans();
+            billingListenerCleanup?.();
+            billingListenerCleanup = addBillingCustomerInfoListener(syncPlans);
+          })
+          .catch((error) => {
+            console.warn("Billing init failed:", {
+              message: error?.message,
+              detail: error?.detail,
+              code: error?.code,
+            });
           });
-        });
       }
       void loadUser(session.user.id);
       startSync(session.user.id);

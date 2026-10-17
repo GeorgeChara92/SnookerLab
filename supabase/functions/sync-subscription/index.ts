@@ -16,15 +16,19 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const RC_SECRET_API_KEY = Deno.env.get("REVENUECAT_SECRET_API_KEY") ?? "";
 const RC_PROJECT_ID = Deno.env.get("REVENUECAT_PROJECT_ID") ?? "2c1d0f01";
 
+// The built-in ids always count; anything set in the RC_*_IDS secrets adds to them rather than
+// replacing them, so a secret set before a plan existed can't hide that plan.
 const parseIds = (raw, fallback) =>
-  (raw ?? fallback).split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+  [...new Set(`${fallback},${raw ?? ""}`.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean))];
 
 const CENTURY_IDS = parseIds(Deno.env.get("RC_CENTURY_IDS"), "century,century_monthly,monthly_12,entlc40a5bb905");
 const HALF_CENTURY_IDS = parseIds(Deno.env.get("RC_HALF_CENTURY_IDS"), "half_century,half_century_monthly,monthly_3_46,entl243f0aff7d");
 // Orthogonal to the player tier above: a coach can be on any player tier (or free) and separately
 // subscribed to the Coach plan, which unlocks the booking diary. Matched the same way - lookup
 // key, entitlement id or product id, whichever RevenueCat's response happens to carry.
-const COACH_IDS = parseIds(Deno.env.get("RC_COACH_IDS"), "coach,monthly_coach,annual_coach");
+// entlfafd2f11be is the Coach entitlement's internal id: the catalog lookup that turns ids into
+// names needs a key with project-config access, and without it only internal ids come back.
+const COACH_IDS = parseIds(Deno.env.get("RC_COACH_IDS"), "coach,monthly_coach,annual_coach,entlfafd2f11be");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

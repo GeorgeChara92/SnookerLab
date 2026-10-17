@@ -494,6 +494,9 @@ export const resolveTierFromPurchaseResult = (
 export const syncSubscriptionWithServer = async () => {
   const { error } = await supabase.functions.invoke("sync-subscription", { body: {} });
   if (error) throw error;
+  // The plan lives in the account's app_metadata, which rides in the sign-in token: refresh the
+  // session so the token carries the new plan straight away, not at its next hourly refresh.
+  await supabase.auth.refreshSession().catch(() => undefined);
 
   const { data, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
