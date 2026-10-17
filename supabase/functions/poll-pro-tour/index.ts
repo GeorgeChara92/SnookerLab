@@ -47,6 +47,87 @@ const asArray = (value) => (Array.isArray(value) ? value : value ? [value] : [])
 const nowIso = () => new Date().toISOString();
 
 // ------------------------------------------------------------------ row mappers
+// ------------------------------------------------------------------ venue time zones
+// snooker.org's ScheduledDate is UTC for a session's fixed start - but an ESTIMATED start (a
+// follow-on match, "Est." on its site) is the venue's own clock time with a "Z" on the end. In
+// Belfast a 2pm follow-on arrives as 14:00Z, which is 3pm in the UK. Those are converted from the
+// venue's time zone here, so everything stored is true UTC.
+const COUNTRY_ZONES = {
+  England: "Europe/London",
+  Scotland: "Europe/London",
+  Wales: "Europe/London",
+  "Northern Ireland": "Europe/London",
+  "United Kingdom": "Europe/London",
+  Ireland: "Europe/Dublin",
+  China: "Asia/Shanghai",
+  "Hong Kong": "Asia/Hong_Kong",
+  Macau: "Asia/Macau",
+  Thailand: "Asia/Bangkok",
+  Malaysia: "Asia/Kuala_Lumpur",
+  Singapore: "Asia/Singapore",
+  India: "Asia/Kolkata",
+  "Saudi Arabia": "Asia/Riyadh",
+  Qatar: "Asia/Qatar",
+  "United Arab Emirates": "Asia/Dubai",
+  Bahrain: "Asia/Bahrain",
+  Turkey: "Europe/Istanbul",
+  Cyprus: "Asia/Nicosia",
+  Belgium: "Europe/Brussels",
+  Netherlands: "Europe/Amsterdam",
+  Germany: "Europe/Berlin",
+  Austria: "Europe/Vienna",
+  Switzerland: "Europe/Zurich",
+  France: "Europe/Paris",
+  Poland: "Europe/Warsaw",
+  Latvia: "Europe/Riga",
+  Bulgaria: "Europe/Sofia",
+  Malta: "Europe/Malta",
+  Gibraltar: "Europe/Gibraltar",
+  Canada: "America/Toronto",
+};
+const CITY_ZONES = {
+  Perth: "Australia/Perth",
+  Adelaide: "Australia/Adelaide",
+  Brisbane: "Australia/Brisbane",
+  Darwin: "Australia/Darwin",
+  "Kuala Lumpur": "Asia/Kuala_Lumpur",
+};
+const venueZone = (country, city) => CITY_ZONES[city] ?? COUNTRY_ZONES[country] ?? (country === "Australia" ? "Australia/Sydney" : null);
+
+/** Event id -> its venue's time zone, refreshed from the events table on every invocation. */
+let venueZones = new Map();
+
+/** "2026-10-18T14:00:00Z" read as 14:00 on the clock in `zone`, as a true UTC instant. */
+const wallClockToUtc = (iso, zone) => {
+  const wall = new Date(iso);
+  if (Number.isNaN(wall.getTime())) return iso;
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: zone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(wall)
+      .map((part) => [part.type, part.value])
+  );
+  const asIfUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  return new Date(wall.getTime() - (asIfUtc - wall.getTime())).toISOString();
+};
+
+const scheduledUtc = (row) => {
+  const at = row.ScheduledDate || null;
+  const estimated = row.Estimated === true || row.Estimated === "true";
+  const zone = venueZones.get(Number(row.EventID));
+  // Midnight is snooker.org's "day set, time not yet" - nothing to convert.
+  if (!at || !estimated || !zone || /T00:00:00/.test(at)) return at;
+  return wallClockToUtc(at, zone);
+};
+
 const toMatchRow = (row) => ({
   id: row.ID,
   event_id: row.EventID,
@@ -59,7 +140,7 @@ const toMatchRow = (row) => ({
   winner_id: row.WinnerID || null,
   unfinished: !!row.Unfinished,
   on_break: !!row.OnBreak,
-  scheduled_at: row.ScheduledDate || null,
+  scheduled_at: scheduledUtc(row),
   live_url: row.LiveUrl || null,
   details_url: row.DetailsUrl || null,
   table_no: row.TableNo ?? null,
@@ -251,14 +332,17 @@ const currentSeason = (state) => state.season?.last_value?.season ?? new Date().
 
 /** Every cached event with where it sits relative to now: running, soon (within 30 days), recent (ended in the last 3). */
 const loadEvents = async (admin, now) => {
-  const { data } = await admin.from("pro_tour_events").select("id, season, start_date, end_date, main:raw->>Main").limit(20000);
+  const { data } = await admin
+    .from("pro_tour_events")
+    .select("id, season, start_date, end_date, main:raw->>Main, country:raw->>Country, city:raw->>City")
+    .limit(20000);
   return (data ?? []).map((row) => {
     const start = row.start_date ? new Date(row.start_date).getTime() : null;
     const end = row.end_date ? new Date(row.end_date).getTime() + DAY : null; // end date is a whole day
     const running = start != null && end != null && start <= now && now < end;
     const soon = start != null && start > now && start - now <= 30 * DAY;
     const recent = end != null && end <= now && now - end <= 3 * DAY;
-    return { id: Number(row.id), season: row.season, start, end, main: Number(row.main || 0), running, soon, recent };
+    return { id: Number(row.id), season: row.season, start, end, main: Number(row.main || 0), zone: venueZone(row.country, row.city), running, soon, recent };
   });
 };
 const priority = (event) => (event.running ? 0 : event.soon ? 1 : event.recent ? 2 : 3);
@@ -628,6 +712,7 @@ Deno.serve(async (request) => {
   try {
     const state = await loadState(admin);
     const ctx = { now, state, events: await loadEvents(admin, now) };
+    venueZones = new Map(ctx.events.filter((event) => event.zone).map((event) => [event.id, event.zone]));
 
     let photos = null;
     const photosLast = state.photo_fill?.last_fetched_at ? new Date(state.photo_fill.last_fetched_at).getTime() : 0;
