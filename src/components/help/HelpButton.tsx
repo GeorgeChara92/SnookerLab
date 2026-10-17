@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { createContext, useContext, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -8,6 +8,30 @@ import { useHelpSeenStore } from "../../store/helpSeenStore";
 import { useOnboardingStore } from "../../store/onboardingStore";
 import { navigationRef } from "../../navigation/navigationRef";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
+
+/** Opens the help sheet in the nearest host. */
+const HelpContext = createContext<((topicId: HelpTopicId) => void) | null>(null);
+
+/**
+ * Hosts the help sheet for everything inside it. Mounted by DialogProvider, so wherever pop-ups
+ * can show (the app root, and each sheet presented over it) help can too. The sheet lives here,
+ * not inside the "?" - a pop-up rendered from inside a native header bar can stop responding.
+ */
+export const HelpProvider = ({ children }: { children: React.ReactNode }) => {
+  const [topicId, setTopicId] = useState<HelpTopicId | null>(null);
+  // The last topic stays on screen while the sheet slides away.
+  const [shown, setShown] = useState<HelpTopicId | null>(null);
+  const open = (id: HelpTopicId) => {
+    setShown(id);
+    setTopicId(id);
+  };
+  return (
+    <HelpContext.Provider value={open}>
+      {children}
+      {shown ? <HelpSheet topicId={shown} visible={topicId !== null} onClose={() => setTopicId(null)} /> : null}
+    </HelpContext.Provider>
+  );
+};
 
 /**
  * The "?" in a screen's header: what this part of the app is for, how to use it, and a few tips,
@@ -19,14 +43,14 @@ export const HelpButton = ({ routeName, color, size = 23 }: { routeName: string;
   const topicId = ROUTE_TOPICS[routeName];
   const seen = useHelpSeenStore((state) => (topicId ? state.seen.includes(topicId) : true));
   const markSeen = useHelpSeenStore((state) => state.markSeen);
-  const [open, setOpen] = useState(false);
-  if (!topicId) return null;
+  const openHelp = useContext(HelpContext);
+  if (!topicId || !openHelp) return null;
   const topic: HelpTopic = HELP_TOPICS[topicId];
   return (
     <>
       <Pressable
         onPress={() => {
-          setOpen(true);
+          openHelp(topicId);
           markSeen(topicId);
         }}
         accessibilityRole="button"
@@ -37,7 +61,6 @@ export const HelpButton = ({ routeName, color, size = 23 }: { routeName: string;
         <MaterialCommunityIcons name="help-circle-outline" size={size} color={color ?? colors.textMuted} />
         {!seen ? <View style={[styles.dot, { backgroundColor: colors.primary, borderColor: colors.surface }]} /> : null}
       </Pressable>
-      <HelpSheet topicId={topicId} visible={open} onClose={() => setOpen(false)} />
     </>
   );
 };

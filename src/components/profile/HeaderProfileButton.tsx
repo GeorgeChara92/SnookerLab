@@ -8,6 +8,8 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { PlayerAvatar } from "./PlayerAvatar";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
+import { useUiModeStore } from "../../store/uiModeStore";
+import { useCommunityStore } from "../../store/communityStore";
 import { compactXp } from "../../features/profile/playerStats";
 import { FONTS, DISPLAY_TEXT_SCALE } from "../../constants";
 
@@ -28,9 +30,13 @@ export const HeaderProfileButton = () => {
   const user = useAuthStore((state) => state.user);
   const subscription = useSubscriptionAccess();
   const { xp, level } = usePlayerProgress();
-  // Both paid plans wear brass; the name says which one.
-  const paid = subscription.tier !== "free";
-  const plan = subscription.tierLabel.toUpperCase();
+  // In coach view the badge is the Coach plan; in player view, the player plan. Paid wears brass.
+  const inCoachMode = useUiModeStore((state) => state.viewMode === "coach");
+  const isCoach = useCommunityStore((state) => state.me?.isCoach ?? false);
+  const coachView = inCoachMode && isCoach;
+  const coachPlan = user?.coach_subscription_active ?? false;
+  const paid = coachView ? coachPlan : subscription.tier !== "free";
+  const plan = coachView ? "COACH" : subscription.tierLabel.toUpperCase();
   const compact = useWindowDimensions().width < COMPACT_BELOW;
 
   return (
@@ -40,7 +46,7 @@ export const HeaderProfileButton = () => {
       accessibilityRole="button"
       accessibilityLabel={`Your profile. Level ${level.level}, ${xp} XP${
         level.nextTitle ? `, ${level.xpToNext} to level ${level.level + 1}` : ""
-      }. ${subscription.tierLabel} plan.`}
+      }. ${coachView ? (coachPlan ? "Coach plan active" : "No coach plan") : `${subscription.tierLabel} plan`}.`}
       style={({ pressed }) => [styles.container, { opacity: pressed ? 0.8 : 1 }]}
     >
       {user?.profile_image_url ? (
@@ -84,7 +90,7 @@ export const HeaderProfileButton = () => {
             : { backgroundColor: "transparent", borderColor: colors.border },
         ]}
       >
-        {paid ? <MaterialCommunityIcons name="crown" size={11} color={colors.accent} /> : null}
+        {paid ? <MaterialCommunityIcons name={coachView ? "whistle" : "crown"} size={11} color={colors.accent} /> : null}
         {/* On a narrow screen a paid plan is just the crown; the full name is in the label. */}
         {compact && paid ? null : (
           <Text

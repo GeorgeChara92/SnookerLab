@@ -324,7 +324,6 @@ export type RootStackParamList = {
   CustomRoutineBuilder: { routineId?: string; returnToCaller?: boolean } | undefined;
   /** The Coach plan: separate from the player's subscription_tier, this is what actually unlocks
    * the booking diary for an approved coach. */
-  CoachSubscription: undefined;
 };
 
 export type AuthStackParamList = {
@@ -521,4 +520,6 @@ export type ProfileStackParamList = {
   ApplyToCoach: undefined;
   /** A note about the app itself, read by an admin - not a coach review, not a support request. */
   Feedback: undefined;
+  /** The Coach plan - subscribe, restore or manage it - reachable from either view. */
+  CoachPlan: undefined;
 };

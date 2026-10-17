@@ -16,6 +16,8 @@ import { ACHIEVEMENTS } from "../../constants/achievements";
 import { getSkillLabel, getCuePreferenceLabel, getCountryByCode } from "../../constants/profileOptions";
 import { usePlayerProgress } from "../../features/profile/playerProgress";
 import { useMyCoachApplicationStore } from "../../store/myCoachApplicationStore";
+import { useCoachStore } from "../../store/coachStore";
+import { clientKeyOf } from "../../features/coach/types";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 import { useShallow } from "zustand/react/shallow";
@@ -29,6 +31,11 @@ export const ProfileScreen = () => {
   const { user, signOut } = useAuthStore(useShallow((state) => ({ user: state.user, signOut: state.signOut })));
   const isCoach = useCommunityStore((state) => state.me?.isCoach ?? false);
   const setViewMode = useUiModeStore((state) => state.setViewMode);
+  // One Profile for both views: in coach view it leads with the coaching - the Coach plan and the
+  // listing - and keeps the player plan, account, help and sign out, so nothing needs a switch.
+  const coachView = useUiModeStore((state) => state.viewMode === "coach") && isCoach;
+  const coachMe = useCommunityStore((state) => state.me);
+  const bookingsAsCoach = useCoachStore((state) => state.bookingsAsCoach);
   const categories = useRoutinesStore((state) => state.categories);
   const { colors } = useAppTheme();
   const dialog = useDialog();
@@ -45,6 +52,21 @@ export const ProfileScreen = () => {
   );
 
   const country = user?.country_code ? getCountryByCode(user.country_code) : null;
+  const coachSubscribed = user?.coach_subscription_active ?? false;
+  const coachNumbers = (() => {
+    const now = Date.now();
+    const accepted = bookingsAsCoach.filter((booking) => booking.status === "accepted");
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+    return {
+      coached: accepted.filter((booking) => new Date(booking.endsAt).getTime() <= now).length,
+      thisMonth: accepted.filter((booking) => {
+        const at = new Date(booking.startsAt).getTime();
+        return at >= monthStart && new Date(booking.endsAt).getTime() <= now;
+      }).length,
+      clients: new Set(accepted.map(clientKeyOf)).size,
+      upcoming: accepted.filter((booking) => new Date(booking.startsAt).getTime() > now).length,
+    };
+  })();
   const mostPractised = categories.find((category) => category.id === stats.mostTrainedCategory)?.name ?? null;
 
   const openSupport = async () => {
@@ -129,149 +151,250 @@ export const ProfileScreen = () => {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* ---------------------------------------------------------------- the player */}
-      <BoardPanel kicker="PLAYER" aside={`${subscription.tierLabel.toUpperCase()} PLAN`}>
-        <View style={styles.identity}>
-          <Pressable
-            onPress={() => navigation.navigate("AvatarPicker")}
-            accessibilityRole="button"
-            accessibilityLabel="Change your avatar"
-            style={styles.avatarWrap}
-          >
-            {user?.profile_image_url ? (
-              <View style={[styles.avatar, { borderColor: colors.boardRule, backgroundColor: colors.boardRaised }]}>
-                <Image
-                  source={{ uri: user.profile_image_url }}
-                  style={styles.avatarImage}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                  transition={0}
-                />
+      {coachView ? (
+        <>
+          {/* ---------------------------------------------------------------- the coach */}
+          <BoardPanel kicker="COACH" aside={coachSubscribed ? "COACH PLAN" : "NO COACH PLAN"}>
+            <View style={styles.identity}>
+              <Pressable
+                onPress={() => navigation.navigate("AvatarPicker")}
+                accessibilityRole="button"
+                accessibilityLabel="Change your avatar"
+                style={styles.avatarWrap}
+              >
+                {user?.profile_image_url ? (
+                  <View style={[styles.avatar, { borderColor: colors.boardRule, backgroundColor: colors.boardRaised }]}>
+                    <Image source={{ uri: user.profile_image_url }} style={styles.avatarImage} contentFit="cover" cachePolicy="memory-disk" transition={0} />
+                  </View>
+                ) : (
+                  <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={level.level} size={80} />
+                )}
+                <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.board }]}>
+                  <MaterialCommunityIcons name="pencil" size={12} color={colors.onPrimary} />
+                </View>
+              </Pressable>
+              <View style={styles.identityText}>
+                <Text style={[styles.name, { color: colors.boardText }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {(user?.username || "Coach").toUpperCase()}
+                </Text>
+                <Text style={[styles.levelLine, { color: colors.boardRule }]} numberOfLines={1}>
+                  {[coachMe?.wpbsaAccredited ? "WPBSA COACH" : "COACH", coachMe?.coachLocation?.toUpperCase()].filter(Boolean).join(" · ")}
+                </Text>
               </View>
-            ) : (
-              <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={level.level} size={80} />
-            )}
-            <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.board }]}>
-              <MaterialCommunityIcons name="pencil" size={12} color={colors.onPrimary} />
             </View>
-            <SubscriberBadge tier={subscription.tier} size={80} corner="bottom-left" borderColour={colors.board} />
+            <View style={[styles.cells, { borderTopColor: colors.boardRaised }]}>
+              {[
+                { label: "COACHED", value: `${coachNumbers.coached}` },
+                { label: "THIS MONTH", value: `${coachNumbers.thisMonth}` },
+                { label: "CLIENTS", value: `${coachNumbers.clients}` },
+                { label: "UPCOMING", value: `${coachNumbers.upcoming}` },
+              ].map((cell) => (
+                <View key={cell.label} style={styles.cell}>
+                  <Text style={[styles.cellValue, { color: colors.boardText }]}>{cell.value}</Text>
+                  <Text style={[styles.cellLabel, { color: colors.boardMuted }]}>{cell.label}</Text>
+                </View>
+              ))}
+            </View>
+          </BoardPanel>
+
+          {/* ---------------------------------------------------------------- coach plan */}
+          <Text style={[styles.groupLabel, { color: colors.textMuted }]}>COACH PLAN</Text>
+          <Pressable
+            onPress={() => navigation.navigate("CoachPlan")}
+            accessibilityRole="button"
+            accessibilityLabel={coachSubscribed ? "Coach plan, active. Manage it" : "Coach plan, not subscribed. See the plan"}
+            style={({ pressed }) => [
+              styles.card,
+              { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: coachSubscribed ? colors.border : colors.primary },
+            ]}
+          >
+            <View style={styles.cardHead}>
+              <MaterialCommunityIcons name="whistle-outline" size={20} color={colors.accent} />
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{coachSubscribed ? "Coach plan" : "No coach plan"}</Text>
+              <Text style={[styles.cardLink, { color: colors.primary }]}>{coachSubscribed ? "Manage" : "Subscribe"}</Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSubtle} />
+            </View>
+            <Text style={[styles.planNote, { color: colors.textMuted }]}>
+              {coachSubscribed
+                ? "Your booking diary, client list, groups and session notes are unlocked."
+                : "Unlock your booking diary, client list, groups and session notes."}
+            </Text>
           </Pressable>
 
-          <View style={styles.identityText}>
-            <Text style={[styles.name, { color: colors.boardText }]} numberOfLines={1} adjustsFontSizeToFit>
-              {(user?.username || "Snooker player").toUpperCase()}
-            </Text>
-            <Text style={[styles.levelLine, { color: colors.boardRule }]}>
-              LEVEL {level.level} · {level.title.toUpperCase()}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.xp}>
-          <View style={[styles.xpTrack, { backgroundColor: colors.boardRaised }]}>
-            <View style={[styles.xpFill, { width: `${Math.round(level.progress * 100)}%`, backgroundColor: colors.primary }]} />
-          </View>
-          <Text style={[styles.xpText, { color: colors.boardMuted }]}>
-            {level.nextTitle ? `${level.xpToNext} XP to ${level.nextTitle}` : "Top level reached"}
-          </Text>
-        </View>
-
-        <View style={[styles.cells, { borderTopColor: colors.boardRaised }]}>
-          {[
-            { label: "WON", value: `${stats.matchesWon}` },
-            {
-              label: "WIN RATE",
-              value: stats.matchesPlayed >= MIN_FOR_WIN_RATE ? `${stats.winRate}%` : "–",
-            },
-            { label: "SESSIONS", value: `${stats.sessionsLogged}` },
-            { label: "BEST RUN", value: `${stats.longestWinStreak}` },
-          ].map((cell) => (
-            <View key={cell.label} style={styles.cell}>
-              <Text style={[styles.cellValue, { color: colors.boardText }]}>{cell.value}</Text>
-              <Text style={[styles.cellLabel, { color: colors.boardMuted }]}>{cell.label}</Text>
-            </View>
-          ))}
-        </View>
-      </BoardPanel>
-
-      {/* ---------------------------------------------------------------- achievements */}
-      <Pressable
-        onPress={() => navigation.navigate("Achievements")}
-        accessibilityRole="button"
-        accessibilityLabel={`Achievements, ${unlocked.length} of ${ACHIEVEMENTS.length} unlocked`}
-        style={({ pressed }) => [
-          styles.card,
-          { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
-        ]}
-      >
-        <View style={styles.cardHead}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Achievements</Text>
-          <Text style={[styles.cardCount, { color: colors.textMuted }]}>
-            {unlocked.length}/{ACHIEVEMENTS.length}
-          </Text>
-          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSubtle} />
-        </View>
-        <View style={[styles.bar, { backgroundColor: colors.surfaceMuted }]}>
-          <View
-            style={[
-              styles.barFill,
-              { width: `${(unlocked.length / ACHIEVEMENTS.length) * 100}%`, backgroundColor: colors.primary },
-            ]}
-          />
-        </View>
-
-        {nextGoal ? (
-          <View style={styles.goal}>
-            <View style={[styles.goalIcon, { backgroundColor: colors.surfaceMuted }]}>
-              <MaterialCommunityIcons name={nextGoal.achievement.icon} size={20} color={colors.primary} />
-            </View>
-            <View style={styles.goalText}>
-              <Text style={[styles.goalKicker, { color: colors.textMuted }]}>NEXT UP</Text>
-              <Text style={[styles.goalTitle, { color: colors.text }]} numberOfLines={1}>
-                {nextGoal.achievement.title}
-              </Text>
-              <Text style={[styles.goalMeta, { color: colors.textMuted }]} numberOfLines={1}>
-                {nextGoal.achievement.description} · {Math.min(nextGoal.current, nextGoal.achievement.requirement.value)} of{" "}
-                {nextGoal.achievement.requirement.value}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-      </Pressable>
-
-      {/* ---------------------------------------------------------------- your game */}
-      <Text style={[styles.groupLabel, { color: colors.textMuted }]}>YOUR GAME</Text>
-      <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Row
-          icon="star-outline"
-          label="Skill level"
-          value={getSkillLabel(user?.skill_level)}
-          onPress={() => navigation.navigate("EditProfileField", { field: "skill_level" })}
-        />
-        <Divider />
-        <Row
-          icon="flag-outline"
-          label="Country"
-          value={country ? `${country.emoji ?? ""} ${country.name}`.trim() : "Not set"}
-          onPress={() => navigation.navigate("EditProfileField", { field: "country_code" })}
-        />
-        <Divider />
-        <Row
-          icon="billiards"
-          label="Cue"
-          value={getCuePreferenceLabel(user?.cue_preference)}
-          onPress={() => navigation.navigate("EditProfileField", { field: "cue_preference" })}
-        />
-        {mostPractised ? (
-          <>
+          {/* ---------------------------------------------------------------- listing */}
+          <Text style={[styles.groupLabel, { color: colors.textMuted }]}>YOUR LISTING</Text>
+          <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Row
+              icon="certificate-outline"
+              label="Qualifications"
+              value={coachMe?.coachQualifications?.length ? `${coachMe.coachQualifications.length} listed` : "Add yours"}
+              onPress={() => navigation.navigate("CoachSettings")}
+            />
             <Divider />
-            <Row icon="target" label="Most practised" value={mostPractised} />
-          </>
-        ) : null}
-      </View>
+            <Row
+              icon="shield-check-outline"
+              label="WPBSA accredited"
+              value={coachMe?.wpbsaAccredited ? "Yes" : "No"}
+              onPress={() => navigation.navigate("CoachSettings")}
+            />
+            <Divider />
+            <Row
+              icon="map-marker-outline"
+              label="Where you coach"
+              value={coachMe?.coachLocation || "Not set"}
+              onPress={() => navigation.navigate("CoachSettings")}
+            />
+          </View>
+
+        </>
+      ) : (
+        <>
+          {/* ---------------------------------------------------------------- the player */}
+          <BoardPanel kicker="PLAYER" aside={`${subscription.tierLabel.toUpperCase()} PLAN`}>
+            <View style={styles.identity}>
+              <Pressable
+                onPress={() => navigation.navigate("AvatarPicker")}
+                accessibilityRole="button"
+                accessibilityLabel="Change your avatar"
+                style={styles.avatarWrap}
+              >
+                {user?.profile_image_url ? (
+                  <View style={[styles.avatar, { borderColor: colors.boardRule, backgroundColor: colors.boardRaised }]}>
+                    <Image
+                      source={{ uri: user.profile_image_url }}
+                      style={styles.avatarImage}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      transition={0}
+                    />
+                  </View>
+                ) : (
+                  <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={level.level} size={80} />
+                )}
+                <View style={[styles.editBadge, { backgroundColor: colors.primary, borderColor: colors.board }]}>
+                  <MaterialCommunityIcons name="pencil" size={12} color={colors.onPrimary} />
+                </View>
+                <SubscriberBadge tier={subscription.tier} size={80} corner="bottom-left" borderColour={colors.board} />
+              </Pressable>
+
+              <View style={styles.identityText}>
+                <Text style={[styles.name, { color: colors.boardText }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {(user?.username || "Snooker player").toUpperCase()}
+                </Text>
+                <Text style={[styles.levelLine, { color: colors.boardRule }]}>
+                  LEVEL {level.level} · {level.title.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.xp}>
+              <View style={[styles.xpTrack, { backgroundColor: colors.boardRaised }]}>
+                <View style={[styles.xpFill, { width: `${Math.round(level.progress * 100)}%`, backgroundColor: colors.primary }]} />
+              </View>
+              <Text style={[styles.xpText, { color: colors.boardMuted }]}>
+                {level.nextTitle ? `${level.xpToNext} XP to ${level.nextTitle}` : "Top level reached"}
+              </Text>
+            </View>
+
+            <View style={[styles.cells, { borderTopColor: colors.boardRaised }]}>
+              {[
+                { label: "WON", value: `${stats.matchesWon}` },
+                {
+                  label: "WIN RATE",
+                  value: stats.matchesPlayed >= MIN_FOR_WIN_RATE ? `${stats.winRate}%` : "–",
+                },
+                { label: "SESSIONS", value: `${stats.sessionsLogged}` },
+                { label: "BEST RUN", value: `${stats.longestWinStreak}` },
+              ].map((cell) => (
+                <View key={cell.label} style={styles.cell}>
+                  <Text style={[styles.cellValue, { color: colors.boardText }]}>{cell.value}</Text>
+                  <Text style={[styles.cellLabel, { color: colors.boardMuted }]}>{cell.label}</Text>
+                </View>
+              ))}
+            </View>
+          </BoardPanel>
+
+          {/* ---------------------------------------------------------------- achievements */}
+          <Pressable
+            onPress={() => navigation.navigate("Achievements")}
+            accessibilityRole="button"
+            accessibilityLabel={`Achievements, ${unlocked.length} of ${ACHIEVEMENTS.length} unlocked`}
+            style={({ pressed }) => [
+              styles.card,
+              { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border },
+            ]}
+          >
+            <View style={styles.cardHead}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Achievements</Text>
+              <Text style={[styles.cardCount, { color: colors.textMuted }]}>
+                {unlocked.length}/{ACHIEVEMENTS.length}
+              </Text>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSubtle} />
+            </View>
+            <View style={[styles.bar, { backgroundColor: colors.surfaceMuted }]}>
+              <View
+                style={[
+                  styles.barFill,
+                  { width: `${(unlocked.length / ACHIEVEMENTS.length) * 100}%`, backgroundColor: colors.primary },
+                ]}
+              />
+            </View>
+
+            {nextGoal ? (
+              <View style={styles.goal}>
+                <View style={[styles.goalIcon, { backgroundColor: colors.surfaceMuted }]}>
+                  <MaterialCommunityIcons name={nextGoal.achievement.icon} size={20} color={colors.primary} />
+                </View>
+                <View style={styles.goalText}>
+                  <Text style={[styles.goalKicker, { color: colors.textMuted }]}>NEXT UP</Text>
+                  <Text style={[styles.goalTitle, { color: colors.text }]} numberOfLines={1}>
+                    {nextGoal.achievement.title}
+                  </Text>
+                  <Text style={[styles.goalMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                    {nextGoal.achievement.description} · {Math.min(nextGoal.current, nextGoal.achievement.requirement.value)} of{" "}
+                    {nextGoal.achievement.requirement.value}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+          </Pressable>
+
+          {/* ---------------------------------------------------------------- your game */}
+          <Text style={[styles.groupLabel, { color: colors.textMuted }]}>YOUR GAME</Text>
+          <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Row
+              icon="star-outline"
+              label="Skill level"
+              value={getSkillLabel(user?.skill_level)}
+              onPress={() => navigation.navigate("EditProfileField", { field: "skill_level" })}
+            />
+            <Divider />
+            <Row
+              icon="flag-outline"
+              label="Country"
+              value={country ? `${country.emoji ?? ""} ${country.name}`.trim() : "Not set"}
+              onPress={() => navigation.navigate("EditProfileField", { field: "country_code" })}
+            />
+            <Divider />
+            <Row
+              icon="billiards"
+              label="Cue"
+              value={getCuePreferenceLabel(user?.cue_preference)}
+              onPress={() => navigation.navigate("EditProfileField", { field: "cue_preference" })}
+            />
+            {mostPractised ? (
+              <>
+                <Divider />
+                <Row icon="target" label="Most practised" value={mostPractised} />
+              </>
+            ) : null}
+          </View>
+
+        </>
+      )}
 
       {/* ---------------------------------------------------------------- plan */}
-      <Text style={[styles.groupLabel, { color: colors.textMuted }]}>PLAN</Text>
+      <Text style={[styles.groupLabel, { color: colors.textMuted }]}>{coachView ? "PLAYER PLAN" : "PLAN"}</Text>
       <Pressable
         onPress={() => navigation.navigate("SubscriptionPlans")}
         accessibilityRole="button"
@@ -316,18 +439,29 @@ export const ProfileScreen = () => {
       {/* ---------------------------------------------------------------- coach */}
       {isCoach ? (
         <>
-          <Text style={[styles.groupLabel, { color: colors.textMuted }]}>COACH</Text>
+          <Text style={[styles.groupLabel, { color: colors.textMuted }]}>{coachView ? "VIEW" : "COACH"}</Text>
           <View style={[styles.list, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Row
-              icon="whistle-outline"
-              label="Switch to coach view"
+              icon="swap-horizontal"
+              label={coachView ? "Switch to player view" : "Switch to coach view"}
               onPress={() => {
-                setViewMode("coach");
+                setViewMode(coachView ? "player" : "coach");
                 navigation.getParent()?.goBack();
               }}
             />
-            <Divider />
-            <Row icon="certificate-outline" label="Coach settings" onPress={() => navigation.navigate("CoachSettings")} />
+            {coachView ? null : (
+              <>
+                <Divider />
+                <Row
+                  icon="whistle-outline"
+                  label="Coach plan"
+                  value={coachSubscribed ? "Active" : "Not subscribed"}
+                  onPress={() => navigation.navigate("CoachPlan")}
+                />
+                <Divider />
+                <Row icon="certificate-outline" label="Coach listing" onPress={() => navigation.navigate("CoachSettings")} />
+              </>
+            )}
           </View>
         </>
       ) : (
@@ -386,6 +520,7 @@ export const ProfileScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  planNote: { fontSize: 13, lineHeight: 18 },
   content: { padding: SPACING.lg, paddingBottom: SPACING.xxl, gap: SPACING.md },
 
   identity: { flexDirection: "row", alignItems: "center", gap: SPACING.lg },

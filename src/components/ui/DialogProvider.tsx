@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { AppDialog, type DialogRequest } from "./AppDialog";
+import { HelpProvider } from "../help/HelpButton";
 
 type ConfirmRequest = Omit<DialogRequest, "confirmLabel"> & { confirmLabel?: string };
 
@@ -37,7 +38,7 @@ export const DialogProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <DialogContext.Provider value={api}>
-      {children}
+      <HelpProvider>{children}</HelpProvider>
       <AppDialog
         visible={request !== null}
         {...(request ?? { title: "", confirmLabel: "OK" })}

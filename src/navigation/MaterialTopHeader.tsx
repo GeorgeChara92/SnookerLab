@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomTabHeaderProps } from "@react-navigation/bottom-tabs";
 import { useAppTheme } from "../hooks/useAppTheme";
 import { HelpButton } from "../components/help/HelpButton";
+import { HeaderProfileButton } from "../components/profile/HeaderProfileButton";
 import { useUiModeStore } from "../store/uiModeStore";
 import { useAuthStore, useMatchesStore } from "../store";
 import { useCommunityStore } from "../store/communityStore";
@@ -54,15 +55,7 @@ export const MaterialTopHeader = ({ options, navigation, route }: BottomTabHeade
           {playerSideWaiting ? <View style={[styles.dot, { backgroundColor: colors.danger }]} /> : null}
         </Pressable>
       </View>
-      <Pressable
-        onPress={() => navigation.getParent()?.navigate("ProfileModal", { screen: "CoachSettings" } as never)}
-        accessibilityRole="button"
-        accessibilityLabel="Coach settings"
-        hitSlop={8}
-        style={styles.button}
-      >
-        <MaterialCommunityIcons name="cog-outline" size={22} color={colors.textMuted} />
-      </Pressable>
+      <HeaderProfileButton />
     </View>
   );
 };

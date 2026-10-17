@@ -224,7 +224,7 @@ export const CoachAnalyticsDashboardScreen = () => {
 
       {!coachSubscribed ? (
         <Pressable
-          onPress={() => navigation.getParent()?.navigate("CoachSubscription")}
+          onPress={() => navigation.getParent()?.navigate("ProfileModal", { screen: "CoachPlan" })}
           accessibilityRole="button"
           accessibilityLabel="Subscribe to the Coach plan to unlock your booking diary"
           style={[styles.requestsBanner, { backgroundColor: colors.surface, borderColor: colors.primary }]}
