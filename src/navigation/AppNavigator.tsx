@@ -22,6 +22,28 @@ import { routineIdFromLink } from "../features/community/links";
 /** The store's plan-change listener, kept so a new sign-in replaces it rather than adding another. */
 let billingListenerCleanup: (() => void) | null = null;
 
+/** Asks the server to check this account's plans with RevenueCat, and applies the answer. */
+const syncPlans = () =>
+  void syncSubscriptionWithServer()
+    .then((updated) => {
+      if (updated) useAuthStore.getState().setUser(updated);
+    })
+    .catch(() => undefined);
+
+/** Links the store to this account, then fetches its plans - on opening the app signed in and on
+ *  every sign-in, so plans arrive by themselves rather than needing "Restore purchases". */
+const startBilling = (userId: string) =>
+  void initBilling(userId)
+    .then(() => {
+      syncPlans();
+      // A purchase, renewal or cancellation (on this phone or another) re-checks too.
+      billingListenerCleanup?.();
+      billingListenerCleanup = addBillingCustomerInfoListener(syncPlans);
+    })
+    .catch((error) => {
+      console.warn("Billing init failed:", { message: error?.message, detail: error?.detail, code: error?.code });
+    });
+
 /** A routine link that arrived before the app was ready to show it. */
 let pendingRoutineId: string | null = null;
 
@@ -264,28 +286,7 @@ export const AppNavigator = () => {
     if (session?.user) {
       setUser(session.user);
       if (isBillingConfigured()) {
-        void initBilling(session.user.id)
-          .then(() => {
-            // Plans are checked with the server at start-up and whenever the store reports a
-            // change (a purchase, renewal or cancellation, on this phone or another), so a new
-            // Coach or player plan unlocks everywhere at once rather than only on the plan screen.
-            const syncPlans = () =>
-              void syncSubscriptionWithServer()
-                .then((updated) => {
-                  if (updated) useAuthStore.getState().setUser(updated);
-                })
-                .catch(() => undefined);
-            syncPlans();
-            billingListenerCleanup?.();
-            billingListenerCleanup = addBillingCustomerInfoListener(syncPlans);
-          })
-          .catch((error) => {
-            console.warn("Billing init failed:", {
-              message: error?.message,
-              detail: error?.detail,
-              code: error?.code,
-            });
-          });
+        startBilling(session.user.id);
       }
       void loadUser(session.user.id);
       startSync(session.user.id);
@@ -358,17 +359,17 @@ export const AppNavigator = () => {
   }, [setRequiresPasswordReset]);
 
   useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (nextSession?.user) {
         setUser(nextSession.user);
         if (isBillingConfigured()) {
-          void initBilling(nextSession.user.id).catch((error) => {
-            console.warn("Billing init failed:", {
-              message: error?.message,
-              detail: error?.detail,
-              code: error?.code,
+          // A real sign-in fetches the plans; a token refresh (which the plan sync itself causes)
+          // only re-links, so the two can never set each other off.
+          if (event === "SIGNED_IN") startBilling(nextSession.user.id);
+          else
+            void initBilling(nextSession.user.id).catch((error) => {
+              console.warn("Billing init failed:", { message: error?.message, detail: error?.detail, code: error?.code });
             });
-          });
         }
         void loadUser(nextSession.user.id);
         startSync(nextSession.user.id);

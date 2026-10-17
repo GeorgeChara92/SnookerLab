@@ -132,18 +132,16 @@ export const initBilling = async (appUserId: string) => {
   }
 };
 
+/**
+ * Signing out of Snookered deliberately does NOT sign RevenueCat out. Purchases.logOut() switches
+ * to an anonymous RevenueCat user, and because a subscription belongs to the phone's Apple ID,
+ * RevenueCat then moves it onto that anonymous user - so signing back in found no plans until
+ * "Restore purchases" moved them back. Staying on the last account, the next sign-in simply logs
+ * in (initBilling) as whoever signs in: the same person keeps their plans, someone else on this
+ * phone gets the plan the phone's Apple ID paid for, exactly as a restore would.
+ */
 export const logoutBilling = async () => {
   configuredForUserId = null;
-  if (!isPurchasesConfigured) {
-    isPurchasesConfigured = await Purchases.isConfigured().catch(() => false);
-  }
-  if (!isPurchasesConfigured) return;
-
-  try {
-    await Purchases.logOut();
-  } catch {
-    // Ignore logout failures to avoid blocking sign-out.
-  }
 };
 
 export const fetchCurrentOfferings = async (): Promise<BillingOfferings> => {
