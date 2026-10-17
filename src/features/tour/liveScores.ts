@@ -18,6 +18,8 @@ export type ProTourMatch = {
   onBreak: boolean;
   /** UTC. Midnight UTC across a whole round means "the day is set, the session time isn't" - see sessionTimesKnown. */
   scheduledAt: string | null;
+  /** When play actually began, per snooker.org (UTC). */
+  startedAt: string | null;
   /** snooker.org's flag for a time that is an estimate (a follow-on match, say), not a fixed start. */
   estimated: boolean;
   /** Any sessions after the first (a final played over an afternoon and an evening, say). */
@@ -35,7 +37,7 @@ export type ProTourMatch = {
 /** The columns the app reads from public.pro_tour_matches - a few from `raw`, never all of it. */
 export const MATCH_COLUMNS =
   "id, event_id, round, number, player1_id, player2_id, score1, score2, winner_id, unfinished, on_break, scheduled_at, live_url, details_url, table_no, note, " +
-  "estimated:raw->>Estimated, sessions:raw->>Sessions, video_url:raw->>VideoURL, frame_scores:raw->>FrameScores, walkover1:raw->>Walkover1, walkover2:raw->>Walkover2";
+  "estimated:raw->>Estimated, started_at:raw->>StartDate, sessions:raw->>Sessions, video_url:raw->>VideoURL, frame_scores:raw->>FrameScores, walkover1:raw->>Walkover1, walkover2:raw->>Walkover2";
 
 export type ProTourEvent = {
   id: number;
@@ -124,6 +126,7 @@ export const fromMatchRow = (row: Record<string, unknown>): ProTourMatch => ({
   unfinished: Boolean(row.unfinished),
   onBreak: Boolean(row.on_break),
   scheduledAt: (row.scheduled_at as string) || null,
+  startedAt: (row.started_at as string) || null,
   estimated: truthy(row.estimated),
   laterSessions: parseSessions((row.sessions as string) ?? null),
   liveUrl: (row.live_url as string) || null,
@@ -259,8 +262,34 @@ export const formatMoney = (amount: number, currency = "GBP") => {
 
 // ------------------------------------------------------------------ status, names, streams
 
+/** Longer than any one session runs: still "live" this long after its latest session began, a match
+ *  has been left open by the source, not still being played. */
+const STALE_LIVE_MS = 6 * 3_600_000;
+/** A fixture with no start and no result this long after its date (a whole day, for date-only fixtures). */
+const STALE_UNSTARTED_MS = 30 * 3_600_000;
+
+/**
+ * Over, but with no result yet: some events reach snooker.org from the organiser's own scoring in
+ * occasional batches, and a match can sit "live" at 0-0, or never start at all, long after it ended.
+ * Shown as "Result to come" rather than a live score that never moves.
+ */
+export const resultPending = (match: ProTourMatch, now = Date.now()): boolean => {
+  if (match.winnerId || match.walkover) return false;
+  if (match.unfinished) {
+    const starts = [match.startedAt, match.scheduledAt, ...match.laterSessions.map((d) => d.toISOString())]
+      .filter((value): value is string => !!value)
+      .map((value) => new Date(value).getTime())
+      .filter((time) => !Number.isNaN(time) && time <= now);
+    return starts.length > 0 && now - Math.max(...starts) > STALE_LIVE_MS;
+  }
+  if (!match.scheduledAt) return false;
+  const last = Math.max(new Date(match.scheduledAt).getTime(), ...match.laterSessions.map((d) => d.getTime()));
+  return now - last > STALE_UNSTARTED_MS;
+};
+
 export const matchStatus = (match: ProTourMatch): ProTourMatchStatus => {
   if (match.winnerId) return "finished";
+  if (resultPending(match)) return "finished";
   if (match.unfinished) return "live";
   return "upcoming";
 };
@@ -795,6 +824,7 @@ export const drawRounds = (
         unfinished: false,
         onBreak: false,
         scheduledAt: null,
+        startedAt: null,
         estimated: false,
         laterSessions: [],
         liveUrl: null,

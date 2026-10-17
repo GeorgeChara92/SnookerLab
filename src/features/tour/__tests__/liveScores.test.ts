@@ -22,6 +22,7 @@ import {
   parseSessions,
   playerName,
   prizeMoney,
+  resultPending,
   roundKey,
   roundShortTitle,
   roundTitle,
@@ -374,5 +375,30 @@ describe("pro tour: match detail", () => {
     expect(h.winsA).toBe(1);
     expect(h.winsB).toBe(1);
     expect(h.meetings[0]).toMatchObject({ eventId: 2, scoreA: 1, scoreB: 4 });
+  });
+});
+
+describe("pro tour: results that never arrived", () => {
+  const now = new Date("2026-10-17T15:00:00Z").getTime();
+  const base = fromMatchRow(row({ scheduled_at: "2026-10-17T05:00:00Z" }));
+
+  it("stops calling a match live hours after it began", () => {
+    const stuck = { ...base, unfinished: true, startedAt: "2026-10-17T05:25:00Z", score1: 1 };
+    expect(resultPending(stuck, now)).toBe(true);
+    expect(resultPending({ ...stuck, startedAt: "2026-10-17T12:00:00Z" }, now)).toBe(false);
+  });
+
+  it("counts a later session as the latest start", () => {
+    const twoSessions = { ...base, unfinished: true, startedAt: "2026-10-17T05:00:00Z", laterSessions: [new Date("2026-10-17T13:00:00Z")] };
+    expect(resultPending(twoSessions, now)).toBe(false);
+  });
+
+  it("gives a date-only fixture its whole day", () => {
+    expect(resultPending({ ...base, scheduledAt: "2026-10-17T00:00:00Z" }, now)).toBe(false);
+    expect(resultPending({ ...base, scheduledAt: "2026-10-16T00:00:00Z" }, now)).toBe(true);
+  });
+
+  it("never applies to a decided match", () => {
+    expect(resultPending({ ...base, unfinished: true, winnerId: 11, startedAt: "2026-10-16T05:00:00Z" }, now)).toBe(false);
   });
 });

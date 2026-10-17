@@ -12,6 +12,7 @@ import {
   matchStatus,
   parseFrameScores,
   playerName,
+  resultPending,
   roundInfo,
   roundTitle,
   seasonRecord,
@@ -76,8 +77,21 @@ export const ProTourMatchScreen = () => {
   }
 
   const status = matchStatus(match);
+  const pendingResult = resultPending(match);
   const info = roundInfo(rounds, match.eventId, match.round);
   const tid = tournamentKey(events[match.eventId], match.eventId);
+  // Events scored on snookerscores.net reach snooker.org late: link the live source itself.
+  // Its own stage's scoreboard if it has one, else the tournament's page from a sibling stage's link.
+  const scoreboard = (() => {
+    const isScores = (url: string | null | undefined): url is string => !!url && /snookerscores\.net/i.test(url);
+    const own = [events[match.eventId]?.url, events[tid]?.url].find(isScores);
+    if (own) return own;
+    const sibling = Object.values(events)
+      .filter((event) => tournamentKey(event, event.id) === tid)
+      .map((event) => event.url)
+      .find(isScores);
+    return sibling ? sibling.replace(/\/group\/[^/]+\/?$/i, "") : null;
+  })();
   const tournament = tournamentName(events, tid, match.eventId);
   const round = roundTitle(info, match.round);
   const k = kickoff(match, sessionTimesKnown([match]));
@@ -92,7 +106,7 @@ export const ProTourMatchScreen = () => {
     const open = !sideUndecided(match, n, players);
     const name = open ? playerName(players, id) : "To be decided";
     const won = status === "finished" && match.winnerId === id;
-    const lost = status === "finished" && !won;
+    const lost = status === "finished" && !won && !pendingResult;
     const ahead = status === "live" && score > otherScore;
     return (
       <View style={styles.sideRow}>
@@ -138,7 +152,7 @@ export const ProTourMatchScreen = () => {
             </View>
           ) : (
             <Text style={[styles.statusText, { color: status === "finished" ? colors.boardRule : colors.boardText }]}>
-              {status === "finished" ? "RESULT" : when ?? "Time to be confirmed"}
+              {pendingResult ? "RESULT TO COME" : status === "finished" ? "RESULT" : when ?? "Time to be confirmed"}
             </Text>
           )}
           {sessions && status !== "finished" ? <Text style={[styles.sessions, { color: colors.boardMuted }]}>Sessions {sessions}</Text> : null}
@@ -146,12 +160,23 @@ export const ProTourMatchScreen = () => {
         {side(p1, match.score1, match.score2, 1)}
         <View style={[styles.boardRule, { backgroundColor: colors.boardRaised }]} />
         {side(p2, match.score2, match.score1, 2)}
-        {match.videoUrl || link ? (
+        {pendingResult ? (
+          <Text style={[styles.sessions, { color: colors.boardMuted }]}>
+            This match is over, but its score hasn't reached snooker.org yet.{scoreboard ? " See the live scoreboard for the result." : ""}
+          </Text>
+        ) : null}
+        {match.videoUrl || link || scoreboard ? (
           <View style={styles.actions}>
             {match.videoUrl ? (
               <Pressable onPress={() => void Linking.openURL(match.videoUrl as string)} style={[styles.primaryButton, { backgroundColor: colors.primary }]} accessibilityRole="link">
                 <MaterialCommunityIcons name="play" size={18} color={colors.onPrimary} />
                 <Text style={[styles.primaryText, { color: colors.onPrimary }]}>Watch on {streamName(match.videoUrl)}</Text>
+              </Pressable>
+            ) : null}
+            {scoreboard ? (
+              <Pressable onPress={() => void Linking.openURL(scoreboard)} style={[styles.ghostButton, { borderColor: colors.boardRule }]} accessibilityRole="link">
+                <MaterialCommunityIcons name="scoreboard-outline" size={16} color={colors.boardText} />
+                <Text style={[styles.ghostText, { color: colors.boardText }]}>Live scoreboard</Text>
               </Pressable>
             ) : null}
             {link ? (

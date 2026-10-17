@@ -8,6 +8,7 @@ import {
   dayLabel,
   matchStatus,
   playerName,
+  resultPending,
   roundInfo,
   roundTitle,
   sessionsLabel,
@@ -177,6 +178,7 @@ export const FixtureRow = ({
   const { colors } = useAppTheme();
   const navigation = useNavigation<NavigationProp<CommunityStackParamList>>();
   const status = matchStatus(match);
+  const pendingResult = resultPending(match);
   // A real fixture opens the match screen; a slot the draw hasn't created yet (negative id) doesn't.
   const real = match.id > 0;
   const sides = [
@@ -200,7 +202,7 @@ export const FixtureRow = ({
       ]}
     >
       <View style={styles.rowMain}>
-        {title || status === "live" || sessions ? (
+        {title || status === "live" || sessions || pendingResult ? (
           <View style={styles.rowMeta}>
             {status === "live" ? (
               <View style={styles.liveInline}>
@@ -208,6 +210,7 @@ export const FixtureRow = ({
                 <Text style={[styles.metaText, { color: colors.danger }]}>{match.onBreak ? "INTERVAL" : "LIVE"}</Text>
               </View>
             ) : null}
+            {pendingResult ? <Text style={[styles.metaText, { color: colors.accent }]}>RESULT TO COME</Text> : null}
             {title ? <Text style={[styles.metaText, { color: colors.textSubtle }]}>{title.toUpperCase()}</Text> : null}
             {sessions ? (
               <View style={styles.liveInline}>
@@ -222,7 +225,7 @@ export const FixtureRow = ({
           const name = open ? playerName(players, side.id) : null;
           const pending = open ? null : labelFor?.(match, (i + 1) as 1 | 2) ?? null;
           const won = status === "finished" && match.winnerId === side.id;
-          const lost = status === "finished" && !won;
+          const lost = status === "finished" && !won && !pendingResult;
           const ahead = status === "live" && side.score > side.other;
           return (
             <View key={i} style={styles.sideLine}>
