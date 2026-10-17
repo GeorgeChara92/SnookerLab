@@ -39,7 +39,10 @@ export const MaterialTopHeader = ({ options, navigation, route }: BottomTabHeade
       ]}
     >
       <View style={styles.left}>
-        <Text style={[styles.title, { color: colors.text }]}>{options.title}</Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: colors.text }]}>{options.title}</Text>
+          <HelpButton routeName={route.name} size={20} />
+        </View>
         <Pressable
           onPress={() => setViewMode("player")}
           accessibilityRole="button"
@@ -51,8 +54,6 @@ export const MaterialTopHeader = ({ options, navigation, route }: BottomTabHeade
           {playerSideWaiting ? <View style={[styles.dot, { backgroundColor: colors.danger }]} /> : null}
         </Pressable>
       </View>
-      <View style={styles.rightButtons}>
-      <HelpButton routeName={route.name} />
       <Pressable
         onPress={() => navigation.getParent()?.navigate("ProfileModal", { screen: "CoachSettings" } as never)}
         accessibilityRole="button"
@@ -62,13 +63,12 @@ export const MaterialTopHeader = ({ options, navigation, route }: BottomTabHeade
       >
         <MaterialCommunityIcons name="cog-outline" size={22} color={colors.textMuted} />
       </Pressable>
-      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  rightButtons: { flexDirection: "row", alignItems: "center", gap: 2 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   container: {
     flexDirection: "row",
     alignItems: "center",

@@ -40,7 +40,11 @@ export const PlayerRootHeader = ({ options, navigation, route }: NativeStackHead
       ]}
     >
       <View style={styles.left}>
-        <Text style={[styles.title, { color: colors.text }]}>{options.title}</Text>
+        {/* The "?" sits with the title it explains, leaving the right side to the profile. */}
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: colors.text }]}>{options.title}</Text>
+          <HelpButton routeName={route.name} size={20} />
+        </View>
         {isCoach ? (
           <Pressable
             onPress={() => setViewMode("coach")}
@@ -70,10 +74,7 @@ export const PlayerRootHeader = ({ options, navigation, route }: NativeStackHead
           </Pressable>
         ) : null}
       </View>
-      <View style={styles.right}>
-        <HelpButton routeName={route.name} />
-        <HeaderProfileButton />
-      </View>
+      <HeaderProfileButton />
     </View>
   );
 };
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   left: { gap: 4, flexShrink: 1 },
-  right: { flexDirection: "row", alignItems: "center", gap: 2 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   title: { fontSize: 22, fontWeight: "800" },
   switchPill: {
     flexDirection: "row",

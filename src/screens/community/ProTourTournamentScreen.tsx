@@ -112,6 +112,16 @@ export const ProTourTournamentScreen = () => {
   const place = [event?.venue, event?.city, event?.country].filter(Boolean).join(", ");
   const [prizeOpen, setPrizeOpen] = useState(false);
 
+  // The organiser's own page: for an event scored on snookerscores.net (the Australian Women's
+  // Open), the only place its live scores are - snooker.org's feed carries them as 0-0 until later.
+  const officialLink = useMemo(() => {
+    const urls = [...eventIds].map((id) => events[id]?.url).filter((url): url is string => !!url);
+    const scoreboard = urls.find((url) => /snookerscores\.net/i.test(url));
+    if (scoreboard) return { url: scoreboard, label: status.tone === "live" ? "Live scores" : "Scoreboard", icon: "scoreboard-outline" as const };
+    const own = event?.url || urls[0];
+    return own ? { url: own, label: "Official site", icon: "open-in-new" as const } : null;
+  }, [eventIds, events, event?.url, status.tone]);
+
   const roundDates = useMemo(() => {
     if (!current?.matches.length) return null;
     const known = sessionTimesKnown(current.matches);
@@ -179,15 +189,32 @@ export const ProTourTournamentScreen = () => {
           </View>
         ) : null}
 
-        {event?.sponsor || event?.wikipediaUrl ? (
+        {event?.sponsor || event?.wikipediaUrl || officialLink ? (
           <View style={styles.heroFoot}>
             {event?.sponsor ? <Text style={[styles.sponsor, { color: colors.boardMuted }]}>Sponsored by {event.sponsor}</Text> : <View />}
-            {event?.wikipediaUrl ? (
-              <Pressable onPress={() => void Linking.openURL(event.wikipediaUrl as string)} accessibilityRole="link" hitSlop={8} style={styles.wiki}>
-                <Text style={[styles.wikiText, { color: colors.boardMuted }]}>Wikipedia</Text>
-                <MaterialCommunityIcons name="open-in-new" size={13} color={colors.boardMuted} />
-              </Pressable>
-            ) : null}
+            <View style={styles.heroLinks}>
+              {officialLink ? (
+                <Pressable
+                  onPress={() => void Linking.openURL(officialLink.url)}
+                  accessibilityRole="link"
+                  hitSlop={8}
+                  style={[styles.wiki, officialLink.label === "Live scores" ? [styles.livePill, { backgroundColor: colors.danger }] : null]}
+                >
+                  <MaterialCommunityIcons
+                    name={officialLink.icon}
+                    size={13}
+                    color={officialLink.label === "Live scores" ? "#fff" : colors.boardMuted}
+                  />
+                  <Text style={[styles.wikiText, { color: officialLink.label === "Live scores" ? "#fff" : colors.boardMuted }]}>{officialLink.label}</Text>
+                </Pressable>
+              ) : null}
+              {event?.wikipediaUrl ? (
+                <Pressable onPress={() => void Linking.openURL(event.wikipediaUrl as string)} accessibilityRole="link" hitSlop={8} style={styles.wiki}>
+                  <Text style={[styles.wikiText, { color: colors.boardMuted }]}>Wikipedia</Text>
+                  <MaterialCommunityIcons name="open-in-new" size={13} color={colors.boardMuted} />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         ) : null}
       </View>
@@ -378,6 +405,8 @@ const styles = StyleSheet.create({
   heroFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sponsor: { fontSize: 12, fontWeight: "600" },
   wiki: { flexDirection: "row", alignItems: "center", gap: 4 },
+  heroLinks: { flexDirection: "row", alignItems: "center", gap: SPACING.md },
+  livePill: { borderRadius: RADIUS.pill, paddingHorizontal: 10, paddingVertical: 4 },
   wikiText: { fontSize: 12, fontWeight: "700" },
   block: { gap: SPACING.md },
   drawHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: SPACING.md },

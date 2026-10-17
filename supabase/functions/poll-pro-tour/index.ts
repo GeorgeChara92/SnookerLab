@@ -334,7 +334,7 @@ const currentSeason = (state) => state.season?.last_value?.season ?? new Date().
 const loadEvents = async (admin, now) => {
   const { data } = await admin
     .from("pro_tour_events")
-    .select("id, season, start_date, end_date, main:raw->>Main, country:raw->>Country, city:raw->>City")
+    .select("id, season, tour, start_date, end_date, main:raw->>Main, country:raw->>Country, city:raw->>City")
     .limit(20000);
   return (data ?? []).map((row) => {
     const start = row.start_date ? new Date(row.start_date).getTime() : null;
@@ -342,7 +342,7 @@ const loadEvents = async (admin, now) => {
     const running = start != null && end != null && start <= now && now < end;
     const soon = start != null && start > now && start - now <= 30 * DAY;
     const recent = end != null && end <= now && now - end <= 3 * DAY;
-    return { id: Number(row.id), season: row.season, start, end, main: Number(row.main || 0), zone: venueZone(row.country, row.city), running, soon, recent };
+    return { id: Number(row.id), season: row.season, tour: row.tour, start, end, main: Number(row.main || 0), zone: venueZone(row.country, row.city), running, soon, recent };
   });
 };
 const priority = (event) => (event.running ? 0 : event.soon ? 1 : event.recent ? 2 : 3);
@@ -424,6 +424,9 @@ const KINDS = {
     tier: 0,
     interval: (ctx) => (ctx.events.some((event) => event.running) ? 45_000 : 10 * MIN),
     run: async (admin) => {
+      // The main tour's feed. (Checked 2026-10-17: the women's tour feed returned nothing even with
+      // its events on, and events scored on snookerscores.net - the Australian Women's Open - come
+      // through 0-0 here while snooker.org's own site shows them live, so there is nothing more to get.)
       const rows = asArray(await snookerGet(`?t=17&tr=${TOUR}`));
       const notified = await notifyFollowers(admin, await upsertMatches(admin, rows.map(toMatchRow)));
       return { called: true, fetched: rows.length, notified };
@@ -707,6 +710,7 @@ Deno.serve(async (request) => {
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+
   const now = Date.now();
   let kind = null;
   try {

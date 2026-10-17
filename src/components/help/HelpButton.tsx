@@ -14,7 +14,7 @@ import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SCRIM, SPACING } from ".
  * in a sheet over the screen so nobody loses their place. Wears a small dot until its topic has
  * been opened once. Renders nothing for a screen with no topic (see ROUTE_TOPICS).
  */
-export const HelpButton = ({ routeName, color }: { routeName: string; color?: string }) => {
+export const HelpButton = ({ routeName, color, size = 23 }: { routeName: string; color?: string; size?: number }) => {
   const { colors } = useAppTheme();
   const topicId = ROUTE_TOPICS[routeName];
   const seen = useHelpSeenStore((state) => (topicId ? state.seen.includes(topicId) : true));
@@ -34,7 +34,7 @@ export const HelpButton = ({ routeName, color }: { routeName: string; color?: st
         hitSlop={6}
         style={styles.button}
       >
-        <MaterialCommunityIcons name="help-circle-outline" size={23} color={color ?? colors.textMuted} />
+        <MaterialCommunityIcons name="help-circle-outline" size={size} color={color ?? colors.textMuted} />
         {!seen ? <View style={[styles.dot, { backgroundColor: colors.primary, borderColor: colors.surface }]} /> : null}
       </Pressable>
       <HelpSheet topicId={topicId} visible={open} onClose={() => setOpen(false)} />
