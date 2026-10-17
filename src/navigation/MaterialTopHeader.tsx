@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { BottomTabHeaderProps } from "@react-navigation/bottom-tabs";
 import { useAppTheme } from "../hooks/useAppTheme";
+import { HelpButton } from "../components/help/HelpButton";
 import { useUiModeStore } from "../store/uiModeStore";
 import { useAuthStore, useMatchesStore } from "../store";
 import { useCommunityStore } from "../store/communityStore";
@@ -17,7 +18,7 @@ import { useCommunityStore } from "../store/communityStore";
  * The switch itself is a named, always-visible pill rather than tucked inside settings, because a
  * plain gear icon here was not enough for anyone to actually find their way back to player view.
  */
-export const MaterialTopHeader = ({ options, navigation }: BottomTabHeaderProps) => {
+export const MaterialTopHeader = ({ options, navigation, route }: BottomTabHeaderProps) => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const setViewMode = useUiModeStore((state) => state.setViewMode);
@@ -50,6 +51,8 @@ export const MaterialTopHeader = ({ options, navigation }: BottomTabHeaderProps)
           {playerSideWaiting ? <View style={[styles.dot, { backgroundColor: colors.danger }]} /> : null}
         </Pressable>
       </View>
+      <View style={styles.rightButtons}>
+      <HelpButton routeName={route.name} />
       <Pressable
         onPress={() => navigation.getParent()?.navigate("ProfileModal", { screen: "CoachSettings" } as never)}
         accessibilityRole="button"
@@ -59,11 +62,13 @@ export const MaterialTopHeader = ({ options, navigation }: BottomTabHeaderProps)
       >
         <MaterialCommunityIcons name="cog-outline" size={22} color={colors.textMuted} />
       </Pressable>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  rightButtons: { flexDirection: "row", alignItems: "center", gap: 2 },
   container: {
     flexDirection: "row",
     alignItems: "center",

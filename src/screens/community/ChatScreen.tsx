@@ -20,7 +20,8 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { HeaderIconButton } from "../../navigation/stackOptions";
+import { HeaderButtons, HeaderIconButton } from "../../navigation/stackOptions";
+import { HelpButton } from "../../components/help/HelpButton";
 import { supabase } from "../../api/supabase";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
@@ -242,19 +243,23 @@ export const ChatScreen = () => {
           </Text>
         </Pressable>
       ),
-      headerRight: () =>
-        inboxRow && !isRequest ? (
-          <HeaderIconButton
-            icon={inboxRow.muted ? "bell-off-outline" : "bell-outline"}
-            color={colors.textMuted}
-            label={inboxRow.muted ? "Unmute" : "Mute"}
-            onPress={async () => {
-              if (!me) return;
-              await setMuted(conversationId, me, !inboxRow.muted);
-              void refreshInbox();
-            }}
-          />
-        ) : null,
+      headerRight: () => (
+        <HeaderButtons>
+          <HelpButton routeName="Chat" />
+          {inboxRow && !isRequest ? (
+            <HeaderIconButton
+              icon={inboxRow.muted ? "bell-off-outline" : "bell-outline"}
+              color={colors.textMuted}
+              label={inboxRow.muted ? "Unmute" : "Mute"}
+              onPress={async () => {
+                if (!me) return;
+                await setMuted(conversationId, me, !inboxRow.muted);
+                void refreshInbox();
+              }}
+            />
+          ) : null}
+        </HeaderButtons>
+      ),
     });
   }, [
     colors.text,

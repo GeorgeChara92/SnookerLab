@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { HeaderIconButton } from "../../navigation/stackOptions";
+import { HeaderButtons, HeaderIconButton } from "../../navigation/stackOptions";
+import { HelpButton } from "../../components/help/HelpButton";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { useChatStore } from "../../store/chatStore";
@@ -69,13 +70,16 @@ export const GroupsScreen = () => {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <HeaderIconButton
-          icon="plus-circle-outline"
-          size={24}
-          color={colors.primary}
-          label="Create a group"
-          onPress={() => navigation.navigate("GroupForm", {})}
-        />
+        <HeaderButtons>
+          <HelpButton routeName="Groups" />
+          <HeaderIconButton
+            icon="plus-circle-outline"
+            size={24}
+            color={colors.primary}
+            label="Create a group"
+            onPress={() => navigation.navigate("GroupForm", {})}
+          />
+        </HeaderButtons>
       ),
     });
   }, [colors.primary, navigation]);

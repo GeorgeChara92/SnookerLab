@@ -2,9 +2,11 @@ import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
+import type { RouteProp, ParamListBase } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../hooks/useAppTheme";
 import { HeaderProfileButton } from "../components/profile/HeaderProfileButton";
+import { HelpButton } from "../components/help/HelpButton";
 
 const HeaderBackArrow: React.FC<{ tintColor?: string }> = ({ tintColor }) => {
   const navigation = useNavigation<any>();
@@ -38,10 +40,18 @@ export const HeaderIconButton: React.FC<{
   </Pressable>
 );
 
-export const useAppStackScreenOptions = (withProfileShortcut = true): NativeStackNavigationOptions => {
+/** A header's right-hand buttons in a row - the "?" first, then whatever the screen adds. */
+export const HeaderButtons: React.FC<{ children: React.ReactNode }> = ({ children }) => <View style={styles.buttonRow}>{children}</View>;
+
+/** Every stack screen's header: the back arrow, and on the right the screen's "?" help (when it has
+ *  a topic) - plus, on a tab's landing screen, the profile shortcut. A function of the route, so
+ *  each screen's "?" opens its own help. */
+export const useAppStackScreenOptions = (
+  withProfileShortcut = true
+): ((props: { route: RouteProp<ParamListBase, string> }) => NativeStackNavigationOptions) => {
   const { colors } = useAppTheme();
 
-  return {
+  return ({ route }) => ({
     headerStyle: {
       backgroundColor: colors.surface,
     },
@@ -55,16 +65,17 @@ export const useAppStackScreenOptions = (withProfileShortcut = true): NativeStac
     headerLeft: withProfileShortcut
       ? (props) => (props.canGoBack ? <HeaderBackArrow tintColor={props.tintColor} /> : null)
       : undefined,
-    headerRight: withProfileShortcut
-      ? (props) =>
-          props.canGoBack ? null : (
-            <View style={styles.rightSlot}>
-              <HeaderProfileButton />
-            </View>
-          )
-      : undefined,
+    headerRight: (props) =>
+      withProfileShortcut && !props.canGoBack ? (
+        <View style={[styles.rightSlot, styles.buttonRow]}>
+          <HelpButton routeName={route.name} />
+          <HeaderProfileButton />
+        </View>
+      ) : (
+        <HelpButton routeName={route.name} color={props.tintColor} />
+      ),
     contentStyle: { backgroundColor: colors.background },
-  };
+  });
 };
 
 const styles = StyleSheet.create({
@@ -74,6 +85,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  buttonRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   rightSlot: {
     paddingRight: 12,
     minWidth: 100,

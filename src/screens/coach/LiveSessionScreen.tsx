@@ -30,6 +30,7 @@ import { RescheduleSheet } from "../../components/coach/RescheduleSheet";
 import { FONTS, HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 import { FOCUS_AREAS, type SessionRoutineEntry } from "../../features/coach/types";
 import { HomeworkRow } from "../../components/coach/HomeworkRow";
+import { HelpButton } from "../../components/help/HelpButton";
 import type { Routine, RoutineCategory } from "../../types";
 import type { RootStackParamList } from "../../types";
 
@@ -325,13 +326,14 @@ const LiveSessionScreenContent = () => {
           <MaterialCommunityIcons name="close" size={24} color={colors.text} />
         </Pressable>
         <Text style={[styles.name, { color: colors.text }]}>{partyName}</Text>
-        {phase?.label === "Session ended" ? (
-          <View style={{ width: 24 }} />
-        ) : (
-          <Pressable onPress={openSessionActions} accessibilityRole="button" accessibilityLabel="Session options" hitSlop={10}>
-            <MaterialCommunityIcons name="dots-horizontal" size={24} color={colors.text} />
-          </Pressable>
-        )}
+        <View style={styles.headerRight}>
+          <HelpButton routeName="LiveSession" color={colors.text} />
+          {phase?.label === "Session ended" ? null : (
+            <Pressable onPress={openSessionActions} accessibilityRole="button" accessibilityLabel="Session options" hitSlop={10}>
+              <MaterialCommunityIcons name="dots-horizontal" size={24} color={colors.text} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + SPACING.xl }]}>
@@ -955,6 +957,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
   content: { paddingHorizontal: SPACING.lg },
   name: { fontSize: 18, fontWeight: "800" },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 4 },
   countdownBlock: { alignItems: "center", marginBottom: SPACING.xl },
   countdownLabel: { fontSize: 12, fontFamily: FONTS.boardLabel, letterSpacing: 1 },
   countdown: { fontSize: 48, marginTop: 4 },

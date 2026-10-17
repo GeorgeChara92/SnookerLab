@@ -2,7 +2,8 @@ import React, { useCallback, useLayoutEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { HeaderIconButton } from "../../navigation/stackOptions";
+import { HeaderButtons, HeaderIconButton } from "../../navigation/stackOptions";
+import { HelpButton } from "../../components/help/HelpButton";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { useChatStore } from "../../store/chatStore";
@@ -47,12 +48,15 @@ export const ChatsScreen = () => {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <HeaderIconButton
-          icon="square-edit-outline"
-          color={colors.primary}
-          label="New message"
-          onPress={() => navigation.navigate("NewChat")}
-        />
+        <HeaderButtons>
+          <HelpButton routeName="Chats" />
+          <HeaderIconButton
+            icon="square-edit-outline"
+            color={colors.primary}
+            label="New message"
+            onPress={() => navigation.navigate("NewChat")}
+          />
+        </HeaderButtons>
       ),
     });
   }, [colors.primary, navigation]);

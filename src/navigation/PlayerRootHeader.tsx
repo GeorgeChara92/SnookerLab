@@ -9,6 +9,7 @@ import { useCommunityStore } from "../store/communityStore";
 import { useCoachStore } from "../store/coachStore";
 import { useMyCoachApplicationStore } from "../store/myCoachApplicationStore";
 import { HeaderProfileButton } from "../components/profile/HeaderProfileButton";
+import { HelpButton } from "../components/help/HelpButton";
 
 /**
  * The header for a player tab's root screen: a title, and - for a coach - the exact same
@@ -19,7 +20,7 @@ import { HeaderProfileButton } from "../components/profile/HeaderProfileButton";
  * screen (RoutineDetail, MatchDetail, ...) keeps the normal back-arrow header from
  * useAppStackScreenOptions.
  */
-export const PlayerRootHeader = ({ options, navigation }: NativeStackHeaderProps) => {
+export const PlayerRootHeader = ({ options, navigation, route }: NativeStackHeaderProps) => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const isCoach = useCommunityStore((state) => state.me?.isCoach ?? false);
@@ -69,7 +70,10 @@ export const PlayerRootHeader = ({ options, navigation }: NativeStackHeaderProps
           </Pressable>
         ) : null}
       </View>
-      <HeaderProfileButton />
+      <View style={styles.right}>
+        <HelpButton routeName={route.name} />
+        <HeaderProfileButton />
+      </View>
     </View>
   );
 };
@@ -83,7 +87,8 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  left: { gap: 4 },
+  left: { gap: 4, flexShrink: 1 },
+  right: { flexDirection: "row", alignItems: "center", gap: 2 },
   title: { fontSize: 22, fontWeight: "800" },
   switchPill: {
     flexDirection: "row",

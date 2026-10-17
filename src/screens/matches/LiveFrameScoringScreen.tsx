@@ -20,7 +20,8 @@ import { AppDialog, type DialogRequest } from "../../components/ui/AppDialog";
 import { FoulSheet } from "../../components/matches/FoulSheet";
 import { useLiveBroadcast } from "../../features/matches/useLiveBroadcast";
 import { useSharePrefsStore } from "../../store/sharePrefsStore";
-import { HeaderIconButton } from "../../navigation/stackOptions";
+import { HeaderButtons, HeaderIconButton } from "../../navigation/stackOptions";
+import { HelpButton } from "../../components/help/HelpButton";
 import {
   BALL_POINTS,
   COLOR_SEQUENCE,
@@ -208,16 +209,19 @@ export const LiveFrameScoringScreen = () => {
   const setSharePrefs = useSharePrefsStore((state) => state.set);
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: live.available
-        ? () => (
+      headerRight: () => (
+        <HeaderButtons>
+          <HelpButton routeName="LiveFrameScoring" />
+          {live.available ? (
             <HeaderIconButton
               icon={live.sharing ? "access-point" : "access-point-off"}
               color={live.sharing ? colors.primary : colors.textMuted}
               label={live.sharing ? "Live: friends can follow. Tap to stop" : "Not shared live. Tap to share"}
               onPress={() => setSharePrefs({ liveSharing: !live.sharing })}
             />
-          )
-        : undefined,
+          ) : null}
+        </HeaderButtons>
+      ),
     });
   }, [colors.primary, colors.textMuted, live.available, live.sharing, navigation, setSharePrefs]);
 
