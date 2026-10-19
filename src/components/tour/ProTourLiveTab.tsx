@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, type NavigationProp } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useProTourStore, subscribeProTourLive } from "../../store/proTourStore";
 import {
@@ -59,7 +59,7 @@ export const ProTourLiveTab = ({ onBrowseRankings }: { onBrowseRankings?: () => 
       loadFinals: state.loadFinals,
     }))
   );
-  useEffect(() => subscribeProTourLive(), []);
+  useFocusEffect(useCallback(() => subscribeProTourLive(), []));
   const followed = useProTourFollowStore((state) => state.ids);
   const syncFollows = useProTourFollowStore((state) => state.sync);
   useEffect(() => {

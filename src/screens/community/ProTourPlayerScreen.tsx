@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRoute, type RouteProp } from "@react-navigation/native";
+import { useFocusEffect, useRoute, type RouteProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useProTourStore, subscribeProTourLive } from "../../store/proTourStore";
 import {
@@ -49,7 +49,7 @@ export const ProTourPlayerScreen = () => {
       rounds: state.rounds,
     }))
   );
-  useEffect(() => subscribeProTourLive(undefined, playerId), [playerId]);
+  useFocusEffect(useCallback(() => subscribeProTourLive(undefined, playerId), [playerId]));
   const following = useProTourFollowStore((state) => state.ids.includes(playerId));
   const toggleFollow = useProTourFollowStore((state) => state.toggle);
   const signedIn = useAuthStore((state) => !!state.user);

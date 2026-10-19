@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useProTourStore, subscribeProTourLive } from "../../store/proTourStore";
 import {
@@ -48,7 +48,7 @@ export const ProTourMatchScreen = () => {
       loadPlayer: state.loadPlayer,
     }))
   );
-  useEffect(() => subscribeProTourLive(undefined, undefined, matchId), [matchId]);
+  useFocusEffect(useCallback(() => subscribeProTourLive(undefined, undefined, matchId), [matchId]));
 
   const detail = matchDetails[matchId];
   const match = detail?.match ?? matches.find((m) => m.id === matchId) ?? null;

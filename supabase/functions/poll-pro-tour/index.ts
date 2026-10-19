@@ -416,20 +416,30 @@ const fillPhotos = async (admin, now) => {
 // ------------------------------------------------------------------ kinds
 // interval: how often the kind is worth looking at. run: returns { called } - whether it spent the
 // one snooker.org call this invocation is allowed.
+const LIVE_STREAK = 2;
 const KINDS = {
   live: {
     // Ongoing matches plus anything starting or finishing within 147 minutes. First call on the
     // budget while a tournament is on (every other tick, so the other half is left for fixtures and
     // backfills); every 10 minutes otherwise, in case something starts unannounced.
+    // While a match is actually being played, two ticks in every three (see LIVE_STREAK), so a frame
+    // shows within about 30 seconds of snooker.org having it.
     tier: 0,
-    interval: (ctx) => (ctx.events.some((event) => event.running) ? 45_000 : 10 * MIN),
-    run: async (admin) => {
+    interval: (ctx) =>
+      ctx.state.live?.last_value?.inPlay ? 20_000 : ctx.events.some((event) => event.running) ? 45_000 : 10 * MIN,
+    run: async (admin, ctx) => {
       // The main tour's feed. (Checked 2026-10-17: the women's tour feed returned nothing even with
       // its events on, and events scored on snookerscores.net - the Australian Women's Open - come
       // through 0-0 here while snooker.org's own site shows them live, so there is nothing more to get.)
       const rows = asArray(await snookerGet(`?t=17&tr=${TOUR}`));
       const notified = await notifyFollowers(admin, await upsertMatches(admin, rows.map(toMatchRow)));
-      return { called: true, fetched: rows.length, notified };
+      const inPlay = rows.some(
+        (row) => row.Unfinished && ((row.Score1 ?? 0) + (row.Score2 ?? 0) > 0 || row.OnBreak || (Date.parse(row.StartDate ?? "") || Infinity) <= ctx.now)
+      );
+      const last = ctx.state.live;
+      const ranLastTick = last?.last_fetched_at && ctx.now - new Date(last.last_fetched_at).getTime() < 40_000;
+      const streak = ranLastTick ? (last?.last_value?.streak ?? 0) + 1 : 1;
+      return { called: true, fetched: rows.length, notified, value: { inPlay, streak } };
     },
   },
   upcoming: {
@@ -736,12 +746,19 @@ Deno.serve(async (request) => {
       })
       .filter((entry) => entry.overdueBy >= 0)
       .sort((a, b) => a.def.tier - b.def.tier || b.overdueBy - a.overdueBy);
+    // Live scores take at most LIVE_STREAK ticks in a row, then give one to everything else.
+    const liveState = state.live;
+    const liveRanLastTick = liveState?.last_fetched_at && now - new Date(liveState.last_fetched_at).getTime() < 40_000;
+    if (liveRanLastTick && (liveState?.last_value?.streak ?? 0) >= LIVE_STREAK && due.some((entry) => entry.name !== "live")) {
+      const at = due.findIndex((entry) => entry.name === "live");
+      if (at >= 0) due.push(...due.splice(at, 1));
+    }
 
     const looked = [];
     for (const entry of due) {
       kind = entry.name;
       const result = await entry.def.run(admin, ctx);
-      if (!result.skipMark) await markFetched(admin, kind, {});
+      if (!result.skipMark) await markFetched(admin, kind, result.value === undefined ? {} : { value: result.value });
       if (result.called) return json({ ok: true, kind, ...result, looked, photos });
       looked.push(kind);
     }

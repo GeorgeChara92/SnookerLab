@@ -71,6 +71,11 @@ const NI_ROUNDS: ProTourRound[] = [
 const ni = (round: number) => NI_ROUNDS.find((r) => r.eventId === 2548 && r.round === round);
 
 describe("pro tour: matches", () => {
+  // The fixtures are dated around 17 October 2026: hold the clock there, or once they're a day or
+  // two old they count as results that never arrived.
+  beforeAll(() => jest.useFakeTimers({ now: new Date("2026-10-17T12:00:00Z") }));
+  afterAll(() => jest.useRealTimers());
+
   it("maps a cache row, including the raw-backed fields", () => {
     const m = fromMatchRow(row({ estimated: "true", video_url: "https://www.youtube.com/watch?v=x", walkover1: "false", score1: 2 }));
     expect(m).toMatchObject({ id: 1, eventId: 2548, score1: 2, estimated: true, videoUrl: "https://www.youtube.com/watch?v=x", walkover: false });

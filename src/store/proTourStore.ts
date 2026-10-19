@@ -1,3 +1,4 @@
+import { AppState, type AppStateStatus } from "react-native";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { supabase } from "../api/supabase";
@@ -11,6 +12,7 @@ import {
   fromRankingRow,
   fromRoundRow,
   buildDrawLinks,
+  matchStatus,
   roundKey,
   tournamentKey,
   type DrawLinks,
@@ -118,6 +120,7 @@ const feedQuery = () => {
 
 /** One refresh at a time, shared by every screen that asks. */
 let inFlight: Promise<void> | null = null;
+let followUp: Promise<void> | null = null;
 
 /** The pro tour, as cached by poll-pro-tour - and kept on the phone, so the screens open on the last
  *  known state at once and refresh underneath. */
@@ -142,7 +145,16 @@ export const useProTourStore = create<ProTourState>()(
       fullFetchedAt: 0,
 
       refresh: async (force = false) => {
-        if (inFlight) return inFlight;
+        if (inFlight) {
+          // A change landed while a read was already going: read once more after it, or the read
+          // under way (begun before the change) would be the last word.
+          if (!force) return inFlight;
+          followUp ??= inFlight.then(() => {
+            followUp = null;
+            return get().refresh(true);
+          });
+          return followUp;
+        }
         const { fetchedAt, fullFetchedAt } = get();
         if (!force && Date.now() - fetchedAt < FRESH_MS) return;
         const full = Date.now() - fullFetchedAt > FULL_MS;
@@ -162,8 +174,13 @@ export const useProTourStore = create<ProTourState>()(
               return;
             }
             const minSeason = new Date().getFullYear() - 2;
+            // The scores show the moment they arrive, not after the events, rounds and photos too.
+            const feed = Promise.resolve(feedQuery()).then((result) => {
+              if (!result.error) set({ matches: readMatches(result.data), fetchedAt: Date.now() });
+              return result;
+            });
             const [matchResult, eventResult, playerResult, rankingResult, roundRows, photoResult] = await Promise.all([
-              feedQuery(),
+              feed,
               supabase.from("pro_tour_events").select("id, name, season, start_date, end_date, raw").gte("season", minSeason).limit(PAGE),
               supabase.from("pro_tour_players").select("id, display_name, raw").limit(PAGE),
               supabase.from("pro_tour_rankings").select("season, rows, updated_at").eq("ranking_type", "MoneyRankings"),
@@ -377,6 +394,14 @@ type Listener = { tournamentId?: number; playerId?: number; matchId?: number };
 const listeners = new Set<Listener>();
 let channel: ReturnType<typeof supabase.channel> | null = null;
 let changeTimer: ReturnType<typeof setTimeout> | null = null;
+/** Closing the channel waits a moment, so moving from one tour screen to the next keeps it open. */
+let closeTimer: ReturnType<typeof setTimeout> | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let appStateSubscription: { remove: () => void } | null = null;
+let appActive = AppState.currentState === "active";
+/** How often an open tour screen re-reads the feed while a match is live - a safety net for a
+ *  realtime message that never arrives (a dropped socket, a flaky connection). */
+const LIVE_POLL_MS = 30_000;
 
 const loadDetail = (l: Listener) => {
   const s = useProTourStore.getState();
@@ -395,10 +420,61 @@ const onMatchesChanged = () => {
   }, 1500);
 };
 
+const openChannel = () => {
+  if (channel) return;
+  channel = supabase
+    .channel("pro-tour-live")
+    .on("postgres_changes", { event: "*", schema: "public", table: "pro_tour_matches" }, onMatchesChanged)
+    .subscribe();
+};
+
+const closeChannel = () => {
+  if (changeTimer) clearTimeout(changeTimer);
+  changeTimer = null;
+  if (channel) void supabase.removeChannel(channel);
+  channel = null;
+};
+
+/** Re-reads everything the open screens show, now. */
+const refreshOpenScreens = () => {
+  void useProTourStore.getState().refresh(true);
+  for (const l of listeners) loadDetail(l);
+};
+
 /**
- * Keeps the cache fresh while a screen using it is mounted: a refresh if it's stale, the screen's
- * own detail (a tournament's draw, a player's matches, a match) straight away alongside it, then a
- * re-read whenever poll-pro-tour writes a change - over one realtime channel shared by every screen.
+ * Back from the background: the phone will have closed the realtime socket while the app slept, and
+ * whatever changed meanwhile was never sent. So reopen the channel and re-read straight away -
+ * rather than showing this morning's scores until someone pulls to refresh.
+ */
+const onAppStateChange = (status: AppStateStatus) => {
+  const wasActive = appActive;
+  appActive = status === "active";
+  if (!listeners.size || appActive === wasActive) return;
+  if (appActive) {
+    closeChannel();
+    openChannel();
+    refreshOpenScreens();
+  } else {
+    closeChannel();
+  }
+};
+
+/** While a tour screen is open and a match is on, re-read every 30s whatever realtime says. */
+const startPolling = () => {
+  if (pollTimer) return;
+  pollTimer = setInterval(() => {
+    if (!appActive || !listeners.size) return;
+    const anyLive = useProTourStore.getState().matches.some((m) => matchStatus(m) === "live");
+    if (anyLive) refreshOpenScreens();
+  }, LIVE_POLL_MS);
+};
+
+/**
+ * Keeps the cache fresh while a screen using it is open: a refresh if it's stale, the screen's own
+ * detail (a tournament's draw, a player's matches, a match) straight away alongside it, then a
+ * re-read whenever poll-pro-tour writes a change - over one realtime channel shared by every screen -
+ * on coming back to the app, and every 30s while a match is live. Call it from useFocusEffect, so
+ * going back to a tour screen re-reads it too.
  */
 export const subscribeProTourLive = (tournamentId?: number, playerId?: number, matchId?: number): (() => void) => {
   const listener: Listener = { tournamentId, playerId, matchId };
@@ -408,18 +484,24 @@ export const subscribeProTourLive = (tournamentId?: number, playerId?: number, m
   else loadDetail(listener);
 
   listeners.add(listener);
-  if (!channel) {
-    channel = supabase
-      .channel("pro-tour-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "pro_tour_matches" }, onMatchesChanged)
-      .subscribe();
-  }
+  if (closeTimer) clearTimeout(closeTimer);
+  closeTimer = null;
+  appActive = AppState.currentState === "active";
+  if (appActive) openChannel();
+  appStateSubscription ??= AppState.addEventListener("change", onAppStateChange);
+  startPolling();
   return () => {
     listeners.delete(listener);
-    if (!listeners.size && channel) {
-      if (changeTimer) clearTimeout(changeTimer);
-      void supabase.removeChannel(channel);
-      channel = null;
-    }
+    if (listeners.size) return;
+    if (closeTimer) clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      closeTimer = null;
+      if (listeners.size) return;
+      closeChannel();
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
+      appStateSubscription?.remove();
+      appStateSubscription = null;
+    }, 3000);
   };
 };

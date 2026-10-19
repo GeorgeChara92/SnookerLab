@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, LayoutAnimation, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useProTourStore, subscribeProTourLive } from "../../store/proTourStore";
 import {
@@ -53,7 +53,7 @@ export const ProTourTournamentScreen = () => {
     }))
   );
   const following = useProTourFollowStore((state) => state.ids);
-  useEffect(() => subscribeProTourLive(tournamentId), [tournamentId]);
+  useFocusEffect(useCallback(() => subscribeProTourLive(tournamentId), [tournamentId]));
 
   const detail = tournaments[tournamentId];
   const matches = detail?.matches ?? [];

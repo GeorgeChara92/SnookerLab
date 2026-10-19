@@ -84,9 +84,9 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const LOAD_TIMEOUT_MS = 10000;
 
 export const AppNavigator = () => {
-  const { session, isAuthenticated, requiresPasswordReset, setRequiresPasswordReset, setUser } = useAuthStore(
+  const { sessionUserId, isAuthenticated, requiresPasswordReset, setRequiresPasswordReset, setUser } = useAuthStore(
     useShallow((state) => ({
-      session: state.session,
+      sessionUserId: (state.session?.user?.id as string | undefined) ?? null,
       isAuthenticated: state.isAuthenticated,
       requiresPasswordReset: state.requiresPasswordReset,
       setRequiresPasswordReset: state.setRequiresPasswordReset,
@@ -283,13 +283,16 @@ export const AppNavigator = () => {
 
   useEffect(() => {
     // Check for existing session on app start
-    if (session?.user) {
-      setUser(session.user);
+    if (sessionUserId) {
+      // The saved session is a snapshot from the moment of signing in - its plan is whatever the
+      // account had then (often Free, before the purchase). The saved user is the latest known, so
+      // it stays; the session's copy only stands in if there's no saved user for this account.
+      if (useAuthStore.getState().user?.id !== sessionUserId) setUser(useAuthStore.getState().session.user);
       if (isBillingConfigured()) {
-        startBilling(session.user.id);
+        startBilling(sessionUserId);
       }
-      void loadUser(session.user.id);
-      startSync(session.user.id);
+      void loadUser(sessionUserId);
+      startSync(sessionUserId);
     } else {
       forgetUser();
       stopSync();
@@ -302,7 +305,7 @@ export const AppNavigator = () => {
   }, [
     forgetUser,
     loadUser,
-    session,
+    sessionUserId,
     setMatchesOwner,
     setRoutineScoresOwner,
     setSessionsOwner,
@@ -361,6 +364,8 @@ export const AppNavigator = () => {
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (nextSession?.user) {
+        // Keep the saved session current too, so it never holds an old plan.
+        useAuthStore.setState({ session: nextSession });
         setUser(nextSession.user);
         if (isBillingConfigured()) {
           // A real sign-in fetches the plans; a token refresh (which the plan sync itself causes)

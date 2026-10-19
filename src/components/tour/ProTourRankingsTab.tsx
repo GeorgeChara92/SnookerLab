@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, type NavigationProp } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useProTourStore, subscribeProTourLive } from "../../store/proTourStore";
 import { formatMoney, playerName, type ProTourRankingRow } from "../../features/tour/liveScores";
@@ -28,7 +28,7 @@ export const ProTourRankingsTab = () => {
       failed: state.failed,
     }))
   );
-  useEffect(() => subscribeProTourLive(), []);
+  useFocusEffect(useCallback(() => subscribeProTourLive(), []));
   const followed = useProTourFollowStore((state) => state.ids);
 
   const seasons = useMemo(() => Object.keys(rankingsBySeason).map(Number).sort((a, b) => b - a), [rankingsBySeason]);
