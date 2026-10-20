@@ -444,6 +444,9 @@ const KINDS = {
       // its events on, and events scored on snookerscores.net - the Australian Women's Open - come
       // through 0-0 here while snooker.org's own site shows them live, so there is nothing more to get.)
       const rows = asArray(await snookerGet(`?t=17&tr=${TOUR}`));
+      // One short line a run - what snooker.org's live feed said, and when it last changed each match -
+      // so a score that's late can be pinned on the feed or on us.
+      console.log("live feed", rows.map((row) => `${row.ID} ${row.Score1}-${row.Score2} mod ${row.ModDate ?? "?"}`).join(", "));
       const notified = await notifyFollowers(admin, await upsertMatches(admin, rows.map(toMatchRow)));
       const inPlay = rows.some(
         (row) => row.Unfinished && ((row.Score1 ?? 0) + (row.Score2 ?? 0) > 0 || row.OnBreak || (Date.parse(row.StartDate ?? "") || Infinity) <= ctx.now)
