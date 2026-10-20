@@ -41,7 +41,15 @@ export const MaterialTopHeader = ({ options, navigation, route }: BottomTabHeade
     >
       <View style={styles.left}>
         <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: colors.text }]}>{options.title}</Text>
+          <Text
+            style={[styles.title, { color: colors.text }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            maxFontSizeMultiplier={1.3}
+          >
+            {options.title}
+          </Text>
           <HelpButton routeName={route.name} size={20} />
         </View>
         <Pressable
@@ -61,7 +69,7 @@ export const MaterialTopHeader = ({ options, navigation, route }: BottomTabHeade
 };
 
 const styles = StyleSheet.create({
-  titleRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 1 },
   container: {
     flexDirection: "row",
     alignItems: "center",
@@ -70,8 +78,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  left: { gap: 4 },
-  title: { fontSize: 22, fontWeight: "800" },
+  left: { gap: 4, flexShrink: 1, marginRight: 12 },
+  // Shrinks (then truncates) a long title rather than pushing the "?" into the profile button.
+  title: { fontSize: 22, fontWeight: "800", flexShrink: 1 },
   switchPill: {
     flexDirection: "row",
     alignItems: "center",

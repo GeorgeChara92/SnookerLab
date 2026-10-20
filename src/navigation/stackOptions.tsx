@@ -7,6 +7,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAppTheme } from "../hooks/useAppTheme";
 import { HeaderProfileButton } from "../components/profile/HeaderProfileButton";
 import { HelpButton } from "../components/help/HelpButton";
+import { ROUTE_TOPICS } from "../features/help/helpTopics";
 
 const HeaderBackArrow: React.FC<{ tintColor?: string }> = ({ tintColor }) => {
   const navigation = useNavigation<any>();
@@ -65,15 +66,19 @@ export const useAppStackScreenOptions = (
     headerLeft: withProfileShortcut
       ? (props) => (props.canGoBack ? <HeaderBackArrow tintColor={props.tintColor} /> : null)
       : undefined,
-    headerRight: (props) =>
-      withProfileShortcut && !props.canGoBack ? (
-        <View style={[styles.rightSlot, styles.buttonRow]}>
-          <HelpButton routeName={route.name} />
-          <HeaderProfileButton />
-        </View>
-      ) : (
-        <HelpButton routeName={route.name} color={props.tintColor} />
-      ),
+    // No topic, no button: iOS draws an empty glass bubble for a header button that renders nothing.
+    headerRight:
+      withProfileShortcut || ROUTE_TOPICS[route.name]
+        ? (props) =>
+            withProfileShortcut && !props.canGoBack ? (
+              <View style={[styles.rightSlot, styles.buttonRow]}>
+                <HelpButton routeName={route.name} />
+                <HeaderProfileButton />
+              </View>
+            ) : (
+              <HelpButton routeName={route.name} color={props.tintColor} />
+            )
+        : undefined,
     contentStyle: { backgroundColor: colors.background },
   });
 };

@@ -177,7 +177,7 @@ const BracketCard = ({
         </Text>
         {status !== "upcoming" ? (
           <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.cardScore, { color: won || live ? colors.text : colors.textSubtle }]}>
-            {score}
+            {match.walkover ? (won ? "W/O" : "") : score}
           </Text>
         ) : null}
       </View>

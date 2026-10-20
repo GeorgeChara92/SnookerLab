@@ -202,7 +202,7 @@ export const FixtureRow = ({
       ]}
     >
       <View style={styles.rowMain}>
-        {title || status === "live" || sessions || pendingResult ? (
+        {title || status === "live" || sessions || pendingResult || match.walkover ? (
           <View style={styles.rowMeta}>
             {status === "live" ? (
               <View style={styles.liveInline}>
@@ -211,6 +211,8 @@ export const FixtureRow = ({
               </View>
             ) : null}
             {pendingResult ? <Text style={[styles.metaText, { color: colors.accent }]}>RESULT TO COME</Text> : null}
+            {/* A withdrawal: no frames were played, so no 0-0 "result" either. */}
+            {match.walkover ? <Text style={[styles.metaText, { color: colors.accent }]}>WALKOVER</Text> : null}
             {title ? <Text style={[styles.metaText, { color: colors.textSubtle }]}>{title.toUpperCase()}</Text> : null}
             {sessions ? (
               <View style={styles.liveInline}>
@@ -252,7 +254,13 @@ export const FixtureRow = ({
                 )}
                 {won ? <MaterialCommunityIcons name="check-circle" size={14} color={colors.primary} /> : null}
               </Pressable>
-              {status !== "upcoming" ? (
+              {match.walkover ? (
+                won ? (
+                  <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.walkover, { color: colors.textMuted }]}>
+                    W/O
+                  </Text>
+                ) : null
+              ) : status !== "upcoming" ? (
                 <Text
                   maxFontSizeMultiplier={DISPLAY_TEXT_SCALE}
                   style={[
@@ -266,6 +274,11 @@ export const FixtureRow = ({
             </View>
           );
         })}
+        {match.walkover && match.note ? (
+          <Text numberOfLines={2} style={[styles.walkoverNote, { color: colors.textMuted }]}>
+            {match.note}
+          </Text>
+        ) : null}
       </View>
       <View style={styles.rowSide}>
         {match.videoUrl ? <WatchButton url={match.videoUrl} compact /> : real ? <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSubtle} /> : null}
@@ -511,6 +524,8 @@ const styles = StyleSheet.create({
   name: { fontSize: 15, flexShrink: 1 },
   tbd: { fontStyle: "italic", fontWeight: "500" },
   score: { fontFamily: FONTS.board, fontSize: 20, fontVariant: ["tabular-nums"], minWidth: 26, textAlign: "right" },
+  walkover: { fontFamily: FONTS.boardLabel, fontSize: 12, letterSpacing: 1, textAlign: "right" },
+  walkoverNote: { fontSize: 12, marginTop: 2 },
   rowSide: { width: 30, alignItems: "flex-end" },
 
   watch: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: RADIUS.pill, paddingHorizontal: 14, minHeight: 36 },

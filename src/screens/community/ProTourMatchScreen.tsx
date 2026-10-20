@@ -126,7 +126,13 @@ export const ProTourMatchScreen = () => {
             ) : null}
           </View>
         </Pressable>
-        {status !== "upcoming" ? (
+        {match.walkover ? (
+          won ? (
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.statusText, { color: colors.boardRule }]}>
+              W/O
+            </Text>
+          ) : null
+        ) : status !== "upcoming" ? (
           <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.sideScore, { color: lost ? colors.boardMuted : colors.boardText }]}>
             {score}
           </Text>
@@ -152,7 +158,7 @@ export const ProTourMatchScreen = () => {
             </View>
           ) : (
             <Text style={[styles.statusText, { color: status === "finished" ? colors.boardRule : colors.boardText }]}>
-              {pendingResult ? "RESULT TO COME" : status === "finished" ? "RESULT" : when ?? "Time to be confirmed"}
+              {match.walkover ? "WALKOVER" : pendingResult ? "RESULT TO COME" : status === "finished" ? "RESULT" : when ?? "Time to be confirmed"}
             </Text>
           )}
           {sessions && status !== "finished" ? <Text style={[styles.sessions, { color: colors.boardMuted }]}>Sessions {sessions}</Text> : null}
@@ -160,6 +166,11 @@ export const ProTourMatchScreen = () => {
         {side(p1, match.score1, match.score2, 1)}
         <View style={[styles.boardRule, { backgroundColor: colors.boardRaised }]} />
         {side(p2, match.score2, match.score1, 2)}
+        {match.walkover ? (
+          <Text style={[styles.sessions, { color: colors.boardMuted }]}>
+            {match.note || "One player withdrew, so no frames were played."}
+          </Text>
+        ) : null}
         {pendingResult ? (
           <Text style={[styles.sessions, { color: colors.boardMuted }]}>
             This match is over, but its score hasn't reached snooker.org yet.{scoreboard ? " See the live scoreboard for the result." : ""}

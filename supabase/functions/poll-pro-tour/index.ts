@@ -338,10 +338,13 @@ const logFetch = async (admin, kind, target, rows) => {
 const currentSeason = (state) => state.season?.last_value?.season ?? new Date().getUTCFullYear();
 
 /** Every cached event with where it sits relative to now: running, soon (within 30 days), recent (ended in the last 3). */
-const loadEvents = async (admin, now) => {
+// Read every tick, so only the seasons anything here works on (this one and the two before) - not
+// every event snooker.org has ever listed.
+const loadEvents = async (admin, now, season) => {
   const { data } = await admin
     .from("pro_tour_events")
     .select("id, season, tour, start_date, end_date, main:raw->>Main, country:raw->>Country, city:raw->>City")
+    .or(`season.gte.${season - 2},season.is.null`)
     .limit(20000);
   return (data ?? []).map((row) => {
     const start = row.start_date ? new Date(row.start_date).getTime() : null;
@@ -568,7 +571,11 @@ const KINDS = {
           .order("unfinished", { ascending: false })
           .order("scheduled_at", { ascending: true })
           .limit(500),
-        admin.from("pro_tour_h2h").select("player_a, player_b, updated_at").limit(20000),
+        admin
+          .from("pro_tour_h2h")
+          .select("player_a, player_b, updated_at")
+          .gte("updated_at", new Date(ctx.now - 7 * DAY).toISOString())
+          .limit(20000),
         // snooker.org's stand-ins ("TBD  ", "WILDCARD  ") come with trailing spaces.
         admin.from("pro_tour_players").select("id").or("display_name.ilike.TBD%,display_name.ilike.WILDCARD%").limit(5000),
       ]);
@@ -625,7 +632,9 @@ const KINDS = {
   // A name and bio for any player a cached match refers to.
   player_fill: {
     tier: 1,
-    interval: () => 40_000,
+    // It reads the player list and 5,000 matches to find one missing name: every 40s while names are
+    // missing, every 10 minutes once they're all known (the last run says which).
+    interval: (ctx) => (ctx.state.player_fill?.last_value?.missing === false ? 10 * MIN : 40_000),
     run: async (admin) => {
       const [{ data: known }, { data: matchRows }, log] = await Promise.all([
         admin.from("pro_tour_players").select("id, display_name").limit(20000),
@@ -639,7 +648,7 @@ const KINDS = {
       const ids = [];
       for (const row of matchRows ?? []) ids.push(row.player1_id, row.player2_id);
       const missing = ids.map(Number).find((id) => id > 0 && !skip.has(id));
-      if (!missing) return { called: false };
+      if (!missing) return { called: false, value: { missing: false } };
       let player = null;
       try {
         // One player still comes back as a one-item list.
@@ -651,7 +660,7 @@ const KINDS = {
       const row = player?.ID ? toPlayerRow(player) : { id: missing, display_name: "TBD", raw: {}, updated_at: nowIso() };
       await upsert(admin, "pro_tour_players", [row]);
       await logFetch(admin, "player", missing, player?.ID ? 1 : 0);
-      return { called: true, playerId: missing };
+      return { called: true, playerId: missing, value: { missing: true } };
     },
   },
   season: {
@@ -735,7 +744,7 @@ Deno.serve(async (request) => {
   let ctx = null;
   try {
     const state = await loadState(admin);
-    ctx = { now, state, events: await loadEvents(admin, now) };
+    ctx = { now, state, events: await loadEvents(admin, now, currentSeason(state)) };
     venueZones = new Map(ctx.events.filter((event) => event.zone).map((event) => [event.id, event.zone]));
 
     let photos = null;

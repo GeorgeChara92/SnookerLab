@@ -42,7 +42,15 @@ export const PlayerRootHeader = ({ options, navigation, route }: NativeStackHead
       <View style={styles.left}>
         {/* The "?" sits with the title it explains, leaving the right side to the profile. */}
         <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: colors.text }]}>{options.title}</Text>
+          <Text
+            style={[styles.title, { color: colors.text }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            maxFontSizeMultiplier={1.3}
+          >
+            {options.title}
+          </Text>
           <HelpButton routeName={route.name} size={20} />
         </View>
         {isCoach ? (
@@ -88,9 +96,10 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  left: { gap: 4, flexShrink: 1 },
-  titleRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  title: { fontSize: 22, fontWeight: "800" },
+  left: { gap: 4, flexShrink: 1, marginRight: 12 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 1 },
+  // Shrinks (then truncates) a long title rather than pushing the "?" into the profile button.
+  title: { fontSize: 22, fontWeight: "800", flexShrink: 1 },
   switchPill: {
     flexDirection: "row",
     alignItems: "center",

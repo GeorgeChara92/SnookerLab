@@ -155,6 +155,7 @@ export const ProTourLiveTab = ({ onBrowseRankings }: { onBrowseRankings?: () => 
     if (status === "live") return { line: `${mine}–${theirs} v ${vs}`, sub: `${t} · ${titleFor(m)}`, tone: "live" as const };
     if (status === "finished") {
       const won = m.winnerId === playerId;
+      if (m.walkover) return { line: `${won ? "Walkover v" : "Withdrew v"} ${vs}`, sub: `${t} · ${titleFor(m)}`, tone: won ? ("won" as const) : ("muted" as const) };
       return { line: `${won ? "Beat" : "Lost to"} ${vs} ${mine}–${theirs}`, sub: `${t} · ${titleFor(m)}`, tone: won ? ("won" as const) : ("muted" as const) };
     }
     const k = kickoff(m, timesKnown);

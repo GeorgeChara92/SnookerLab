@@ -11,7 +11,8 @@ import { ApplyToCoachScreen } from "../screens/profile/ApplyToCoachScreen";
 import { FeedbackScreen } from "../screens/profile/FeedbackScreen";
 import { CoachSubscriptionScreen } from "../screens/coach/CoachSubscriptionScreen";
 import { ProfileStackParamList } from "../types";
-import { useAppStackScreenOptions } from "./stackOptions";
+import { HeaderIconButton, useAppStackScreenOptions } from "./stackOptions";
+import { useAppTheme } from "../hooks/useAppTheme";
 import { DialogProvider } from "../components/ui/DialogProvider";
 import { UnlockQueueProvider } from "../components/achievements/UnlockQueueProvider";
 
@@ -19,6 +20,7 @@ const Stack = createNativeStackNavigator<ProfileStackParamList>();
 
 export const ProfileNavigator = () => {
   const screenOptions = useAppStackScreenOptions(false);
+  const { colors } = useAppTheme();
 
   // Profile opens as a sheet over the app. iOS will not show a pop-up from the app's root while
   // a sheet is on top of it, so a pop-up raised in here (sign out, help, locked outfits) never
@@ -28,7 +30,17 @@ export const ProfileNavigator = () => {
     <DialogProvider>
       <UnlockQueueProvider>
         <Stack.Navigator screenOptions={screenOptions}>
-          <Stack.Screen name="ProfileHome" component={ProfileScreen} options={{ title: "Profile" }} />
+          <Stack.Screen
+            name="ProfileHome"
+            component={ProfileScreen}
+            options={({ navigation }) => ({
+              title: "Profile",
+              // The sheet's way out, besides swiping it down.
+              headerRight: () => (
+                <HeaderIconButton icon="close" color={colors.text} label="Close profile" onPress={() => navigation.getParent()?.goBack()} />
+              ),
+            })}
+          />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Account settings" }} />
           <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} options={{ title: "Plans" }} />
           <Stack.Screen name="Achievements" component={AchievementsScreen} options={{ title: "Achievements" }} />

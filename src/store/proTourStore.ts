@@ -92,6 +92,24 @@ const allRows = async <T>(page: (from: number, to: number) => PromiseLike<{ data
   }
 };
 
+/** The raw snooker.org fields each mapper reads. The full record is several times larger, so the
+ *  refresh asks for just these and rebuilds a slim `raw` for the mapper - same result, a fraction of
+ *  the download, and far less for the database to send. */
+const RAW_FIELDS = {
+  rounds: ["RoundName", "NumLeft", "NumMatches", "Distance", "Money", "Currency"],
+  events: ["Main", "Type", "Venue", "City", "Country", "Sponsor", "NumCompetitors", "DefendingChampion", "WikipediaURL", "Url"],
+  players: ["Nationality", "Born", "Photo", "HighestRanking", "FirstSeasonAsPro", "NumRankingTitles", "NumMaximums", "WikipediaURL", "BioPage"],
+};
+const rawColumns = (fields: string[]) => fields.map((field) => `raw_${field}:raw->${field}`).join(", ");
+// Typed as plain strings, as MATCH_COLUMNS is, so the client doesn't try to parse them.
+const EVENT_COLUMNS: string = `id, name, season, start_date, end_date, ${rawColumns(RAW_FIELDS.events)}`;
+const PLAYER_COLUMNS: string = `id, display_name, ${rawColumns(RAW_FIELDS.players)}`;
+const ROUND_COLUMNS: string = `event_id, round, name, ${rawColumns(RAW_FIELDS.rounds)}`;
+const withSlimRaw = (row: Record<string, unknown>, fields: string[]) => ({
+  ...row,
+  raw: Object.fromEntries(fields.map((field) => [field, row[`raw_${field}`]])),
+});
+
 /** Rows to matches, one per slot of the draw: if snooker.org has redrawn a round (new ids for the
  *  same event, round and match number) and the old rows haven't been cleared yet, the newest wins
  *  rather than every fixture showing twice. */
@@ -181,23 +199,35 @@ export const useProTourStore = create<ProTourState>()(
             });
             const [matchResult, eventResult, playerResult, rankingResult, roundRows, photoResult] = await Promise.all([
               feed,
-              supabase.from("pro_tour_events").select("id, name, season, start_date, end_date, raw").gte("season", minSeason).limit(PAGE),
-              supabase.from("pro_tour_players").select("id, display_name, raw").limit(PAGE),
+              supabase
+                .from("pro_tour_events")
+                .select(EVENT_COLUMNS)
+                .gte("season", minSeason)
+                .limit(PAGE),
+              supabase.from("pro_tour_players").select(PLAYER_COLUMNS).limit(PAGE),
               supabase.from("pro_tour_rankings").select("season, rows, updated_at").eq("ranking_type", "MoneyRankings"),
-              allRows<Record<string, unknown>>((from, to) =>
-                supabase.from("pro_tour_rounds").select("event_id, round, name, raw").order("event_id").order("round").range(from, to)
+              allRows<unknown>((from, to) =>
+                supabase
+                  .from("pro_tour_rounds")
+                  .select(ROUND_COLUMNS)
+                  .order("event_id")
+                  .order("round")
+                  .range(from, to)
               ),
               supabase.from("pro_tour_player_photos").select("player_id, url, credit, license, source_url").not("url", "is", null).limit(PAGE),
             ]);
             if (matchResult.error) throw matchResult.error;
 
             const events: Record<number, ProTourEvent> = { ...get().events };
-            for (const row of eventResult.data ?? []) events[row.id] = fromEventRow(row);
+            for (const row of (eventResult.data ?? []) as unknown as Record<string, unknown>[]) {
+              const event = fromEventRow(withSlimRaw(row, RAW_FIELDS.events));
+              events[event.id] = event;
+            }
 
             const playerProfiles: Record<number, ProTourPlayerProfile> = {};
             const players: Record<number, string> = {};
-            for (const row of playerResult.data ?? []) {
-              const profile = fromPlayerRow(row);
+            for (const row of (playerResult.data ?? []) as unknown as Record<string, unknown>[]) {
+              const profile = fromPlayerRow(withSlimRaw(row, RAW_FIELDS.players));
               if (profile.name === "TBD") continue;
               playerProfiles[profile.id] = profile;
               players[profile.id] = profile.name;
@@ -214,7 +244,7 @@ export const useProTourStore = create<ProTourState>()(
 
             const rounds: ProTourRounds = {};
             for (const row of roundRows) {
-              const info = fromRoundRow(row);
+              const info = fromRoundRow(withSlimRaw(row as Record<string, unknown>, RAW_FIELDS.rounds));
               rounds[roundKey(info.eventId, info.round)] = info;
             }
 
