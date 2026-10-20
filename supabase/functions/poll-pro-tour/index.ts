@@ -35,9 +35,16 @@ const corsHeaders = {
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+// A request snooker.org never answers would otherwise hang until the function is killed, with no
+// failure recorded - so the same kind was asked again every tick and nothing else ran (19 Oct,
+// when its API stalled for hours). Timed out, it fails like any other error and backs off.
+const SNOOKER_TIMEOUT_MS = 20_000;
 const snookerGet = async (query) => {
   const response = await fetch(`https://api.snooker.org/${query}`, {
     headers: { "X-Requested-By": REQUESTED_BY, Accept: "application/json" },
+    signal: AbortSignal.timeout(SNOOKER_TIMEOUT_MS),
+  }).catch((error) => {
+    throw new Error(error?.name === "TimeoutError" ? "snooker_org_timeout" : `snooker_org_unreachable: ${error?.message ?? error}`);
   });
   if (!response.ok) throw new Error(`snooker_org_${response.status}`);
   const text = await response.text();
@@ -417,6 +424,8 @@ const fillPhotos = async (admin, now) => {
 // interval: how often the kind is worth looking at. run: returns { called } - whether it spent the
 // one snooker.org call this invocation is allowed.
 const LIVE_STREAK = 2;
+/** The least time a kind waits after snooker.org fails it. */
+const RETRY_AFTER = 3 * MIN;
 const KINDS = {
   live: {
     // Ongoing matches plus anything starting or finishing within 147 minutes. First call on the
@@ -723,9 +732,10 @@ Deno.serve(async (request) => {
 
   const now = Date.now();
   let kind = null;
+  let ctx = null;
   try {
     const state = await loadState(admin);
-    const ctx = { now, state, events: await loadEvents(admin, now) };
+    ctx = { now, state, events: await loadEvents(admin, now) };
     venueZones = new Map(ctx.events.filter((event) => event.zone).map((event) => [event.id, event.zone]));
 
     let photos = null;
@@ -765,12 +775,14 @@ Deno.serve(async (request) => {
     return json({ ok: true, idle: true, looked, photos });
   } catch (error) {
     console.error("poll-pro-tour failed", { kind, message: error?.message });
-    // Recorded against the kind so it isn't retried - starving everything else - on every tick,
-    // but back-dated so it's tried again in about ten minutes rather than a whole interval (half a
-    // day, for events and rankings) after one bad response.
+    // Recorded against the kind so it isn't retried - starving everything else - on every tick:
+    // it's next tried in RETRY_AFTER (sooner only if its interval is longer than ten minutes - half a
+    // day, for events and rankings - and never later than ten minutes). On 19 Oct snooker.org
+    // answered the live feed with 503s for hours; retried every tick, it froze every result.
     if (kind) {
       const def = KINDS[kind];
-      const retryAt = def ? now - Math.max(0, def.interval({ now, state: {}, events: [] }) - 10 * MIN) : now;
+      const interval = def ? def.interval(ctx ?? { now, state: {}, events: [] }) : 0;
+      const retryAt = now - interval + Math.min(Math.max(interval, RETRY_AFTER), 10 * MIN);
       const { error: writeError } = await admin
         .from("pro_tour_poll_state")
         .upsert({ kind, last_fetched_at: new Date(retryAt).toISOString(), last_error: String(error?.message ?? error) }, { onConflict: "kind" });
