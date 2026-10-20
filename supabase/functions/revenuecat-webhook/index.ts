@@ -138,6 +138,13 @@ const liveTokens = (state, catalog, now = Date.now()) => {
   return tokens.map((token) => token.toLowerCase());
 };
 
+// A complimentary plan: app_metadata.comp_tier, which only the service role can set (from the
+// dashboard or SQL editor - a demo account, a tester, a friend). The account gets whichever is
+// higher, it or what RevenueCat says, so a comp plan survives every re-check and a real purchase
+// above it still counts.
+const TIER_RANK = { free: 0, half_century: 1, century: 2 };
+const withComp = (tier, comp) => ((TIER_RANK[comp] ?? 0) > (TIER_RANK[tier] ?? 0) ? comp : tier);
+
 const tierFromTokens = (tokens) => {
   if (tokens.some((token) => CENTURY_IDS.includes(token))) return "century";
   if (tokens.some((token) => HALF_CENTURY_IDS.includes(token))) return "half_century";
@@ -176,7 +183,7 @@ Deno.serve(async (request) => {
   try {
     const [state, catalog] = await Promise.all([loadCustomerState(appUserId), loadCatalog()]);
     const tokens = liveTokens(state, catalog);
-    const tier = tierFromTokens(tokens);
+    const fromStore = tierFromTokens(tokens);
     const hasCoach = hasCoachFromTokens(tokens);
     const anchor = anchorFromCustomerState(state);
 
@@ -185,6 +192,7 @@ Deno.serve(async (request) => {
     if (readError || !existing?.user) return json({ ok: true, skipped: "unknown_user" });
 
     const appMetadata = { ...(existing.user.app_metadata ?? {}) };
+    const tier = withComp(fromStore, appMetadata.comp_tier);
     appMetadata.subscription_tier = tier;
     appMetadata.coach_subscription_active = hasCoach;
     if (tier === "free") {

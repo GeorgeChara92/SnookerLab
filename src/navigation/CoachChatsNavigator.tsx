@@ -8,6 +8,7 @@ import { GroupScreen } from "../screens/community/GroupScreen";
 import { SharedRoutineScreen } from "../screens/community/SharedRoutineScreen";
 import type { CoachChatsStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
+import { MaterialTopHeader } from "./MaterialTopHeader";
 
 const Stack = createNativeStackNavigator<CoachChatsStackParamList>();
 
@@ -18,7 +19,12 @@ export const CoachChatsNavigator = () => {
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="ChatsList" component={ChatsScreen} options={{ title: "Chats" }} />
+      <Stack.Screen
+        name="ChatsList"
+        component={ChatsScreen}
+        // The tab's first screen wears the coach header, so the switch to player view is on every tab.
+        options={{ title: "Chats", header: (props) => <MaterialTopHeader {...props} /> }}
+      />
       <Stack.Screen name="Chat" component={ChatScreen} options={{ title: "" }} />
       <Stack.Screen name="NewChat" component={NewChatScreen} options={{ title: "New message" }} />
       <Stack.Screen name="PlayerProfile" component={PlayerProfileScreen} options={{ title: "Player" }} />

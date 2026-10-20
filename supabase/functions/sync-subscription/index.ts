@@ -145,6 +145,14 @@ const tierFromTokens = (tokens) => {
 
 const hasCoachFromTokens = (tokens) => tokens.some((token) => COACH_IDS.includes(token));
 
+// A complimentary plan: app_metadata.comp_tier, which only the service role can set (from the
+// dashboard or SQL editor - a demo account, a tester, a friend). The account gets whichever is
+// higher, it or what RevenueCat says, so a comp plan survives every re-check and a real purchase
+// above it still counts.
+const TIER_RANK = { free: 0, half_century: 1, century: 2 };
+const withComp = (tier, comp) => ((TIER_RANK[comp] ?? 0) > (TIER_RANK[tier] ?? 0) ? comp : tier);
+
+
 const anchorFromCustomerState = (state, now = Date.now()) => {
   const starts = (state?.subscriptions ?? [])
     .filter((subscription) => isLive(subscription, now))
@@ -159,6 +167,7 @@ const applyTier = async (admin, userId, tier, anchor, hasCoach) => {
   if (readError) throw readError;
 
   const appMetadata = { ...(existing?.user?.app_metadata ?? {}) };
+  tier = withComp(tier, appMetadata.comp_tier);
   appMetadata.subscription_tier = tier;
   appMetadata.coach_subscription_active = hasCoach;
   // Keep the first anchor seen for a continuing subscription so the quota window is stable.
@@ -177,6 +186,7 @@ const applyTier = async (admin, userId, tier, anchor, hasCoach) => {
   // problem, not a reason to fail the whole sync.
   const { error: profileError } = await admin.from("profiles").update({ subscription_tier: tier }).eq("id", userId);
   if (profileError) console.warn("subscription badge sync failed", { message: profileError.message });
+  return tier;
 };
 
 Deno.serve(async (request) => {
@@ -196,12 +206,12 @@ Deno.serve(async (request) => {
   try {
     const [state, catalog] = await Promise.all([loadCustomerState(caller.user.id), loadCatalog()]);
     const tokens = liveTokens(state, catalog);
-    const tier = tierFromTokens(tokens);
+    const fromStore = tierFromTokens(tokens);
     const hasCoach = hasCoachFromTokens(tokens);
     const anchor = anchorFromCustomerState(state);
 
-    console.log("sync-subscription", { tokens, tier, hasCoach });
-    await applyTier(admin, caller.user.id, tier, anchor, hasCoach);
+    const tier = await applyTier(admin, caller.user.id, fromStore, anchor, hasCoach);
+    console.log("sync-subscription", { tokens, fromStore, tier, hasCoach });
 
     return json({ tier, coach_subscription_active: hasCoach });
   } catch (error) {

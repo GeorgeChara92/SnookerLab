@@ -44,9 +44,13 @@ export const HeaderProfileButton = () => {
       onPress={() => navigation.navigate("ProfileModal")}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel={`Your profile. Level ${level.level}, ${xp} XP${
-        level.nextTitle ? `, ${level.xpToNext} to level ${level.level + 1}` : ""
-      }. ${coachView ? (coachPlan ? "Coach plan active" : "No coach plan") : `${subscription.tierLabel} plan`}.`}
+      accessibilityLabel={
+        coachView
+          ? `Your profile. ${coachPlan ? "Coach plan active" : "No coach plan"}.`
+          : `Your profile. Level ${level.level}, ${xp} XP${level.nextTitle ? `, ${level.xpToNext} to level ${level.level + 1}` : ""}. ${
+              subscription.tierLabel
+            } plan.`
+      }
       style={({ pressed }) => [styles.container, { opacity: pressed ? 0.8 : 1 }]}
     >
       {user?.profile_image_url ? (
@@ -61,25 +65,28 @@ export const HeaderProfileButton = () => {
         <PlayerAvatar preset={user?.avatar_preset} name={user?.username} level={level.level} size={AVATAR} />
       )}
 
-      <View style={styles.meta}>
-        <View style={styles.levelLine}>
-          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.levelLabel, { color: colors.textMuted }]}>LV</Text>
-          <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.levelNumber, { color: colors.text }]}>{level.level}</Text>
-          {compact ? null : (
-            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.xp, { color: colors.textMuted }]} numberOfLines={1}>
-              {compactXp(xp)} XP
-            </Text>
-          )}
+      {/* A player's level and XP are theirs alone; coach view shows the coach, not the player. */}
+      {coachView ? null : (
+        <View style={styles.meta}>
+          <View style={styles.levelLine}>
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.levelLabel, { color: colors.textMuted }]}>LV</Text>
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.levelNumber, { color: colors.text }]}>{level.level}</Text>
+            {compact ? null : (
+              <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.xp, { color: colors.textMuted }]} numberOfLines={1}>
+                {compactXp(xp)} XP
+              </Text>
+            )}
+          </View>
+          <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
+            <View
+              style={[
+                styles.fill,
+                { backgroundColor: colors.primary, width: `${Math.round(Math.min(1, level.progress) * 100)}%` },
+              ]}
+            />
+          </View>
         </View>
-        <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
-          <View
-            style={[
-              styles.fill,
-              { backgroundColor: colors.primary, width: `${Math.round(Math.min(1, level.progress) * 100)}%` },
-            ]}
-          />
-        </View>
-      </View>
+      )}
 
       {/* Brass is kept for what is earned or paid for, so the paid plans wear it and Free does not. */}
       <View

@@ -1,7 +1,7 @@
 import React, { useCallback, useLayoutEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { HeaderButtons, HeaderIconButton } from "../../navigation/stackOptions";
 import { HelpButton } from "../../components/help/HelpButton";
 import { useAppTheme } from "../../hooks/useAppTheme";
@@ -31,6 +31,8 @@ export const chatTime = (iso: string | null) => {
  */
 export const ChatsScreen = () => {
   const navigation = useNavigation<any>();
+  // "ChatsList" is coach view's Chats tab, whose header already has the "?" by its title.
+  const isTabRoot = useRoute().name === "ChatsList";
   const { colors } = useAppTheme();
   const me = useAuthStore((state) => state.user?.id ?? null);
   const { inbox, profiles, groups, loaded, refresh } = useChatStore(
@@ -49,7 +51,7 @@ export const ChatsScreen = () => {
     navigation.setOptions({
       headerRight: () => (
         <HeaderButtons>
-          <HelpButton routeName="Chats" />
+          {isTabRoot ? null : <HelpButton routeName="Chats" />}
           <HeaderIconButton
             icon="square-edit-outline"
             color={colors.primary}
@@ -59,7 +61,7 @@ export const ChatsScreen = () => {
         </HeaderButtons>
       ),
     });
-  }, [colors.primary, navigation]);
+  }, [colors.primary, isTabRoot, navigation]);
 
   // A group already has its own screen (with its own way into its chat), so this list stays
   // direct messages only rather than mixing the two kinds of conversation together.

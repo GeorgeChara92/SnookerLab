@@ -2,7 +2,6 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import type { BottomTabHeaderProps } from "@react-navigation/bottom-tabs";
 import { useAppTheme } from "../hooks/useAppTheme";
 import { HelpButton } from "../components/help/HelpButton";
 import { HeaderProfileButton } from "../components/profile/HeaderProfileButton";
@@ -19,7 +18,14 @@ import { useCommunityStore } from "../store/communityStore";
  * The switch itself is a named, always-visible pill rather than tucked inside settings, because a
  * plain gear icon here was not enough for anyone to actually find their way back to player view.
  */
-export const MaterialTopHeader = ({ options, navigation, route }: BottomTabHeaderProps) => {
+/** What the header needs from either a tab or a stack screen - so a coach tab with its own stack
+ *  (Clients, Groups, Chats) uses this same header on its first screen, switch included. */
+type MaterialTopHeaderProps = {
+  options: { title?: string; headerRight?: (props: { canGoBack: boolean; tintColor?: string }) => React.ReactNode };
+  route: { name: string };
+};
+
+export const MaterialTopHeader = ({ options, route }: MaterialTopHeaderProps) => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const setViewMode = useUiModeStore((state) => state.setViewMode);
@@ -63,13 +69,18 @@ export const MaterialTopHeader = ({ options, navigation, route }: BottomTabHeade
           {playerSideWaiting ? <View style={[styles.dot, { backgroundColor: colors.danger }]} /> : null}
         </Pressable>
       </View>
-      <HeaderProfileButton />
+      <View style={styles.right}>
+        {/* A screen's own header buttons (Chats' "New message"), beside the profile. */}
+        {options.headerRight?.({ canGoBack: false, tintColor: colors.text })}
+        <HeaderProfileButton />
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 1 },
+  right: { flexDirection: "row", alignItems: "center", gap: 4 },
   container: {
     flexDirection: "row",
     alignItems: "center",

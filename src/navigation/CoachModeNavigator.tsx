@@ -11,6 +11,7 @@ import { CoachChatsNavigator } from "./CoachChatsNavigator";
 import { useCoachStore } from "../store/coachStore";
 import { splitBadges, useChatBadges } from "../store/chatStore";
 import { useAppTheme } from "../hooks/useAppTheme";
+import { useAuthStore } from "../store";
 import { MaterialTopHeader } from "./MaterialTopHeader";
 import type { CoachModeTabParamList } from "../types";
 
@@ -63,6 +64,9 @@ export const CoachModeNavigator = () => {
   const todayBadge = pendingRequests + unseenCoachResolutions;
   const chat = splitBadges(useChatBadges());
   const chatWaiting = chat.unread + chat.requests;
+  // Clients and Groups bring their own header (with the switch) - but behind the Coach plan's lock it
+  // can't be tapped, so until the plan is active the tab's own header sits above the lock instead.
+  const coachPlanActive = useAuthStore((state) => state.user?.coach_subscription_active ?? false);
 
   return (
     <Tab.Navigator
@@ -118,7 +122,8 @@ export const CoachModeNavigator = () => {
         name="CoachClients"
         component={GatedClients}
         options={{
-          headerShown: false,
+          headerShown: !coachPlanActive,
+          title: "Clients",
           tabBarLabel: "Clients",
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="account-group-outline" size={size} color={color} />,
         }}
@@ -127,7 +132,8 @@ export const CoachModeNavigator = () => {
         name="CoachGroups"
         component={GatedGroups}
         options={{
-          headerShown: false,
+          headerShown: !coachPlanActive,
+          title: "Groups",
           tabBarLabel: "Groups",
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="account-multiple-outline" size={size} color={color} />,
         }}

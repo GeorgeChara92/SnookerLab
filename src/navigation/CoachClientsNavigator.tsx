@@ -6,6 +6,7 @@ import { ChatScreen } from "../screens/community/ChatScreen";
 import { PlayerProfileScreen } from "../screens/community/PlayerProfileScreen";
 import type { CoachClientsStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
+import { MaterialTopHeader } from "./MaterialTopHeader";
 
 const Stack = createNativeStackNavigator<CoachClientsStackParamList>();
 
@@ -14,7 +15,12 @@ export const CoachClientsNavigator = () => {
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="ClientsList" component={CoachClientsScreen} options={{ title: "Clients" }} />
+      <Stack.Screen
+        name="ClientsList"
+        component={CoachClientsScreen}
+        // The tab's first screen wears the coach header, so the switch to player view is on every tab.
+        options={{ title: "Clients", header: (props) => <MaterialTopHeader {...props} /> }}
+      />
       <Stack.Screen
         name="ClientDetail"
         component={CoachClientDetailScreen}

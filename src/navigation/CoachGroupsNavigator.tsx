@@ -6,6 +6,7 @@ import { CoachGroupScreen } from "../screens/coach/CoachGroupScreen";
 import { CoachGroupPostFormScreen } from "../screens/coach/CoachGroupPostFormScreen";
 import type { CoachGroupsStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
+import { MaterialTopHeader } from "./MaterialTopHeader";
 
 const Stack = createNativeStackNavigator<CoachGroupsStackParamList>();
 
@@ -16,7 +17,12 @@ export const CoachGroupsNavigator = () => {
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
-      <Stack.Screen name="GroupsList" component={CoachGroupsListScreen} options={{ title: "Groups" }} />
+      <Stack.Screen
+        name="GroupsList"
+        component={CoachGroupsListScreen}
+        // The tab's first screen wears the coach header, so the switch to player view is on every tab.
+        options={{ title: "Groups", header: (props) => <MaterialTopHeader {...props} /> }}
+      />
       <Stack.Screen name="CoachGroupForm" component={CoachGroupFormScreen} options={{ title: "New group" }} />
       <Stack.Screen
         name="CoachGroup"
