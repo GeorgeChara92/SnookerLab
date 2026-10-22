@@ -124,8 +124,22 @@ const readMatches = (rows: unknown[] | null) => {
   return [...bySlot.values()];
 };
 
+/** How long a read may take before it's given up on. A request in flight when iOS suspends the app
+ *  can hang for minutes before the system kills it - and with one refresh at a time, every refresh
+ *  after it waited too, so reopening the app showed this morning's scores for minutes. */
+const FEED_TIMEOUT_MS = 10_000;
+const FULL_TIMEOUT_MS = 20_000;
+const DETAIL_TIMEOUT_MS = 15_000;
+
+/** An abort signal that fires after `ms`. */
+const timeoutSignal = (ms: number) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return { controller, signal: controller.signal, clear: () => clearTimeout(timer) };
+};
+
 /** The live feed: anything unfinished, and everything from three days ago to three weeks ahead. */
-const feedQuery = () => {
+const feedQuery = (signal: AbortSignal) => {
   const from = new Date(Date.now() - 3 * DAY).toISOString();
   const to = new Date(Date.now() + 21 * DAY).toISOString();
   return supabase
@@ -133,12 +147,26 @@ const feedQuery = () => {
     .select(MATCH_COLUMNS)
     .or(`unfinished.eq.true,and(scheduled_at.gte.${from},scheduled_at.lte.${to})`)
     .order("scheduled_at", { ascending: true })
-    .limit(PAGE);
+    .limit(PAGE)
+    .abortSignal(signal);
 };
 
 /** One refresh at a time, shared by every screen that asks. */
 let inFlight: Promise<void> | null = null;
 let followUp: Promise<void> | null = null;
+let inFlightAbort: AbortController | null = null;
+/** Bumped to abandon the read under way, so its late answer (or failure) changes nothing. */
+let readGeneration = 0;
+
+/** Drops whatever read is under way - on coming back to the app, where it was started before the
+ *  phone suspended it and may never answer - so the next refresh starts at once. */
+export const abandonProTourRead = () => {
+  readGeneration++;
+  inFlightAbort?.abort();
+  inFlightAbort = null;
+  inFlight = null;
+  followUp = null;
+};
 
 /** The pro tour, as cached by poll-pro-tour - and kept on the phone, so the screens open on the last
  *  known state at once and refresh underneath. */
@@ -176,12 +204,16 @@ export const useProTourStore = create<ProTourState>()(
         const { fetchedAt, fullFetchedAt } = get();
         if (!force && Date.now() - fetchedAt < FRESH_MS) return;
         const full = Date.now() - fullFetchedAt > FULL_MS;
+        const generation = ++readGeneration;
+        const limit = timeoutSignal(full ? FULL_TIMEOUT_MS : FEED_TIMEOUT_MS);
+        const signal = limit.signal;
+        inFlightAbort = limit.controller;
         inFlight = (async () => {
           set({ loading: true });
           try {
             if (!full) {
               // Just the live feed: scores, sessions, results. Everything else changes rarely.
-              const { data, error } = await feedQuery();
+              const { data, error } = await feedQuery(signal);
               if (error) throw error;
               set({
                 matches: readMatches(data),
@@ -193,7 +225,7 @@ export const useProTourStore = create<ProTourState>()(
             }
             const minSeason = new Date().getFullYear() - 2;
             // The scores show the moment they arrive, not after the events, rounds and photos too.
-            const feed = Promise.resolve(feedQuery()).then((result) => {
+            const feed = Promise.resolve(feedQuery(signal)).then((result) => {
               if (!result.error) set({ matches: readMatches(result.data), fetchedAt: Date.now() });
               return result;
             });
@@ -203,9 +235,10 @@ export const useProTourStore = create<ProTourState>()(
                 .from("pro_tour_events")
                 .select(EVENT_COLUMNS)
                 .gte("season", minSeason)
-                .limit(PAGE),
-              supabase.from("pro_tour_players").select(PLAYER_COLUMNS).limit(PAGE),
-              supabase.from("pro_tour_rankings").select("season, rows, updated_at").eq("ranking_type", "MoneyRankings"),
+                .limit(PAGE)
+                .abortSignal(signal),
+              supabase.from("pro_tour_players").select(PLAYER_COLUMNS).limit(PAGE).abortSignal(signal),
+              supabase.from("pro_tour_rankings").select("season, rows, updated_at").eq("ranking_type", "MoneyRankings").abortSignal(signal),
               allRows<unknown>((from, to) =>
                 supabase
                   .from("pro_tour_rounds")
@@ -213,8 +246,14 @@ export const useProTourStore = create<ProTourState>()(
                   .order("event_id")
                   .order("round")
                   .range(from, to)
+                  .abortSignal(signal)
               ),
-              supabase.from("pro_tour_player_photos").select("player_id, url, credit, license, source_url").not("url", "is", null).limit(PAGE),
+              supabase
+                .from("pro_tour_player_photos")
+                .select("player_id, url, credit, license, source_url")
+                .not("url", "is", null)
+                .limit(PAGE)
+                .abortSignal(signal),
             ]);
             if (matchResult.error) throw matchResult.error;
 
@@ -269,11 +308,16 @@ export const useProTourStore = create<ProTourState>()(
               fullFetchedAt: Date.now(),
             });
           } catch (error) {
+            // An abandoned read (see abandonProTourRead) says nothing about the one that replaced it.
+            if (generation !== readGeneration) return;
             console.warn("pro tour refresh failed", error);
             set({ loading: false, failed: true });
           }
         })().finally(() => {
+          limit.clear();
+          if (generation !== readGeneration) return;
           inFlight = null;
+          inFlightAbort = null;
         });
         return inFlight;
       },
@@ -297,8 +341,15 @@ export const useProTourStore = create<ProTourState>()(
                 .order("scheduled_at", { ascending: true })
                 .order("id")
                 .range(from, to)
+                .abortSignal(timeoutSignal(DETAIL_TIMEOUT_MS).signal)
             ),
-            supabase.from("pro_tour_event_extras").select("data").eq("event_id", tournamentId).eq("kind", "candidates").maybeSingle(),
+            supabase
+              .from("pro_tour_event_extras")
+              .select("data")
+              .eq("event_id", tournamentId)
+              .eq("kind", "candidates")
+              .abortSignal(timeoutSignal(DETAIL_TIMEOUT_MS).signal)
+              .maybeSingle(),
           ]);
         } catch (error) {
           console.warn("pro tour tournament load failed", error);
@@ -345,7 +396,12 @@ export const useProTourStore = create<ProTourState>()(
 
       /** One match and the two players' head-to-head, for the match screen. */
       loadMatch: async (matchId) => {
-        const { data, error } = await supabase.from("pro_tour_matches").select(MATCH_COLUMNS).eq("id", matchId).maybeSingle();
+        const { data, error } = await supabase
+          .from("pro_tour_matches")
+          .select(MATCH_COLUMNS)
+          .eq("id", matchId)
+          .abortSignal(timeoutSignal(DETAIL_TIMEOUT_MS).signal)
+          .maybeSingle();
         if (error) return;
         const match = data ? fromMatchRow(data as unknown as Record<string, unknown>) : null;
         let h2h: Array<Record<string, unknown>> | null = null;
@@ -369,7 +425,8 @@ export const useProTourStore = create<ProTourState>()(
           .select(MATCH_COLUMNS)
           .or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`)
           .order("scheduled_at", { ascending: false })
-          .limit(80);
+          .limit(80)
+          .abortSignal(timeoutSignal(DETAIL_TIMEOUT_MS).signal);
         if (error) return;
         const byId: Record<number, ProTourMatch> = {};
         mergeMatches(
@@ -481,6 +538,7 @@ const onAppStateChange = (status: AppStateStatus) => {
   appActive = status === "active";
   if (!listeners.size || appActive === wasActive) return;
   if (appActive) {
+    abandonProTourRead();
     closeChannel();
     openChannel();
     refreshOpenScreens();
