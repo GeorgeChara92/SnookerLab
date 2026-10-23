@@ -25,6 +25,7 @@ import {
 import type { CommunityStackParamList } from "../../types";
 import { LiveDot, LiveMatchCard, PlayerAvatar, SectionTitle, TournamentCard, playerPhotoUrl } from "./ProTourUI";
 import { useProTourFollowStore } from "../../store/proTourFollowStore";
+import { ProTourFreshness } from "./ProTourFreshness";
 import { DISPLAY_TEXT_SCALE, FONTS, RADIUS, SPACING } from "../../constants";
 
 import { useShallow } from "zustand/react/shallow";
@@ -175,6 +176,7 @@ export const ProTourLiveTab = ({ onBrowseRankings }: { onBrowseRankings?: () => 
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={loading && matches.length > 0} onRefresh={() => refresh(true)} tintColor={colors.primary} />}
     >
+      <ProTourFreshness />
       <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <MaterialCommunityIcons name="magnify" size={18} color={colors.textMuted} />
         <TextInput

@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useProTourStore, subscribeProTourLive } from "../../store/proTourStore";
+import { ProTourFreshness } from "../../components/tour/ProTourFreshness";
 import {
   dayLabel,
   drawRounds,
@@ -140,6 +141,7 @@ export const ProTourTournamentScreen = () => {
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
+      <ProTourFreshness />
       <View style={[styles.hero, { backgroundColor: colors.board, borderColor: colors.boardRule }]}>
         <View style={styles.heroPills}>
           {event?.type ? <Pill label={`${event.type} event`.toUpperCase()} tone="accent" /> : null}

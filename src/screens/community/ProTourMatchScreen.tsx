@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useProTourStore, subscribeProTourLive } from "../../store/proTourStore";
+import { ProTourFreshness } from "../../components/tour/ProTourFreshness";
 import {
   dayLabel,
   formatTime,
@@ -158,6 +159,7 @@ export const ProTourMatchScreen = () => {
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
+      <ProTourFreshness />
       <View style={[styles.board, { backgroundColor: colors.board, borderColor: colors.boardRule }]}>
         <Pressable onPress={() => navigation.navigate("ProTourTournament", { tournamentId: tid })} accessibilityRole="button" style={styles.boardHead}>
           <Text numberOfLines={1} style={[styles.boardEvent, { color: colors.boardMuted }]}>

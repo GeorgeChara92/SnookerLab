@@ -478,6 +478,7 @@ export const useProTourStore = create<ProTourState>()(
         photos: state.photos,
         finals: state.finals,
         fullFetchedAt: state.fullFetchedAt,
+        fetchedAt: state.fetchedAt,
         // The draws opened lately, so a tournament opens on its draw straight after a relaunch rather
         // than a spinner - only recent ones, to keep what's saved small.
         tournaments: Object.fromEntries(
