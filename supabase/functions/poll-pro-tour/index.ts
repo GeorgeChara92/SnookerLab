@@ -755,14 +755,21 @@ Deno.serve(async (request) => {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return json({ error: "not_configured" }, 503);
   if (!REQUESTED_BY) return json({ error: "snooker_org_not_configured" }, 503);
 
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+
+  // The cron job sends its own token, kept in Vault and read at run time (see
+  // 20261028_0003_poll_token_vault.sql) - not the service key, which written into the job's command
+  // turned up in plain text in the database's slow-query log. The service key still works, for a
+  // call made by hand from the dashboard.
   const token = (request.headers.get("Authorization") ?? "").trim().replace(/^Bearer\s+/i, "");
-  if (token !== SERVICE_ROLE_KEY) {
+  const fromCron = token && token !== SERVICE_ROLE_KEY
+    ? (await admin.rpc("poll_pro_tour_token_ok", { token }).then(({ data }) => data === true, () => false))
+    : false;
+  if (token !== SERVICE_ROLE_KEY && !fromCron) {
     // Lengths only, never the token itself, so this is safe to leave in the logs.
-    console.error("poll-pro-tour unauthorized", { tokenLength: token.length, expectedLength: SERVICE_ROLE_KEY.length });
+    console.error("poll-pro-tour unauthorized", { tokenLength: token.length });
     return json({ error: "unauthorized" }, 401);
   }
-
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
   const now = Date.now();
   let kind = null;
