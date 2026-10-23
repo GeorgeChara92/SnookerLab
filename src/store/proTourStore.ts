@@ -569,12 +569,15 @@ const onMatchesChanged = () => {
   }, 1500);
 };
 
+/**
+ * poll-pro-tour broadcasts on this channel after a poll that changed any match. It used to be
+ * Realtime's postgres_changes on pro_tour_matches, which made the database decode every write of its
+ * busiest table - load that helped stall the free-tier database for hours (23 Oct 2026). A broadcast
+ * never touches the database.
+ */
 const openChannel = () => {
   if (channel) return;
-  channel = supabase
-    .channel("pro-tour-live")
-    .on("postgres_changes", { event: "*", schema: "public", table: "pro_tour_matches" }, onMatchesChanged)
-    .subscribe();
+  channel = supabase.channel("pro-tour").on("broadcast", { event: "changed" }, onMatchesChanged).subscribe();
 };
 
 const closeChannel = () => {

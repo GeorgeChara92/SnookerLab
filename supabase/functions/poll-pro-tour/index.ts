@@ -220,6 +220,27 @@ const signatureOfNew = (row) =>
     walkover2: row.raw?.Walkover2,
   });
 
+// ------------------------------------------------------------------ telling the apps
+// The apps used to watch pro_tour_matches through Realtime's postgres_changes, which makes the
+// database decode every write of the busiest table for Realtime - on the free tier that load helped
+// stall the whole database for four hours (23 Oct 2026). Now the apps listen on a broadcast channel
+// and this sends one message after a poll that changed anything; the database isn't involved.
+const BROADCAST_TOPIC = "pro-tour";
+const broadcastChanged = async (count) => {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
+      method: "POST",
+      headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messages: [{ topic: BROADCAST_TOPIC, event: "changed", payload: { count, at: nowIso() }, private: false }] }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) console.warn("poll-pro-tour: broadcast failed", { status: response.status });
+  } catch (error) {
+    // Not fatal: the apps also re-read every 30s while a match is live.
+    console.warn("poll-pro-tour: broadcast failed", { message: error?.message });
+  }
+};
+
 const upsertMatches = async (admin, rows) => {
   if (!rows.length) return [];
   const before = new Map();
@@ -233,6 +254,7 @@ const upsertMatches = async (admin, rows) => {
     return !old || signature(old) !== signatureOfNew(row);
   });
   await upsert(admin, "pro_tour_matches", changed);
+  if (changed.length) await broadcastChanged(changed.length);
   const cutoff = Date.now() - 2 * DAY;
   const changes = [];
   for (const row of rows) {
