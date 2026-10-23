@@ -35,8 +35,9 @@ export const ProTourMatchScreen = () => {
   const { colors } = useAppTheme();
   const navigation = useNavigation<NavigationProp<CommunityStackParamList>>();
   const { matchId } = useRoute<RouteProp<CommunityStackParamList, "ProTourMatch">>().params;
-  const { matchDetails, matches, events, rounds, players, playerProfiles, photos, playerMatches, loadPlayer } = useProTourStore(
+  const { matchDetails, matches, tournaments, events, rounds, players, playerProfiles, photos, playerMatches, loadPlayer } = useProTourStore(
     useShallow((state) => ({
+      tournaments: state.tournaments,
       matchDetails: state.matchDetails,
       matches: state.matches,
       events: state.events,
@@ -51,7 +52,21 @@ export const ProTourMatchScreen = () => {
   useFocusEffect(useCallback(() => subscribeProTourLive(undefined, undefined, matchId), [matchId]));
 
   const detail = matchDetails[matchId];
-  const match = detail?.match ?? matches.find((m) => m.id === matchId) ?? null;
+  // Whatever copy the phone already has - the feed, a saved draw, a player's matches - shows at once,
+  // while the match's own read (and its head-to-head) arrives.
+  const match = useMemo(
+    () =>
+      detail?.match ??
+      matches.find((m) => m.id === matchId) ??
+      Object.values(tournaments)
+        .flatMap((t) => t.matches)
+        .find((m) => m.id === matchId) ??
+      Object.values(playerMatches)
+        .flat()
+        .find((m) => m.id === matchId) ??
+      null,
+    [detail, matches, tournaments, playerMatches, matchId]
+  );
   const p1 = match?.player1Id ?? null;
   const p2 = match?.player2Id ?? null;
 

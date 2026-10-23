@@ -33,6 +33,9 @@ const PAGE = 1000;
 /** Tournaments whose final has been looked up this session, found or not, so it's asked once. */
 const finalsAsked = new Set<number>();
 const DAY = 86_400_000;
+/** Draws kept on the phone between launches: the most recent few, from the last three days. */
+const KEEP_DRAWS = 4;
+const KEEP_DRAWS_MS = 3 * DAY;
 
 export type TournamentDetail = {
   matches: ProTourMatch[];
@@ -149,6 +152,25 @@ const feedQuery = (signal: AbortSignal) => {
     .order("scheduled_at", { ascending: true })
     .limit(PAGE)
     .abortSignal(signal);
+};
+
+/** The cache is saved on every change - each live update included - so writes are gathered up and the
+ *  latest one saved at most every few seconds, rather than rewriting it all several times a minute. */
+const SAVE_EVERY_MS = 5_000;
+const unsaved = new Map<string, string>();
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+const batchedStorage = {
+  getItem: (name: string) => safeStorage.getItem(name),
+  removeItem: (name: string) => safeStorage.removeItem(name),
+  setItem: async (name: string, value: string) => {
+    unsaved.set(name, value);
+    if (saveTimer) return;
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      for (const [key, latest] of unsaved) void safeStorage.setItem(key, latest);
+      unsaved.clear();
+    }, SAVE_EVERY_MS);
+  },
 };
 
 /** One refresh at a time, shared by every screen that asks. */
@@ -444,7 +466,7 @@ export const useProTourStore = create<ProTourState>()(
     {
       name: "pro-tour-cache",
       version: 1,
-      storage: createJSONStorage(() => safeStorage),
+      storage: createJSONStorage(() => batchedStorage),
       partialize: (state) => ({
         matches: state.matches,
         events: state.events,
@@ -456,6 +478,14 @@ export const useProTourStore = create<ProTourState>()(
         photos: state.photos,
         finals: state.finals,
         fullFetchedAt: state.fullFetchedAt,
+        // The draws opened lately, so a tournament opens on its draw straight after a relaunch rather
+        // than a spinner - only recent ones, to keep what's saved small.
+        tournaments: Object.fromEntries(
+          Object.entries(state.tournaments)
+            .filter(([, detail]) => Date.now() - detail.loadedAt < KEEP_DRAWS_MS)
+            .sort(([, a], [, b]) => b.loadedAt - a.loadedAt)
+            .slice(0, KEEP_DRAWS)
+        ),
       }),
       // JSON turns each match's later sessions into strings; turn them back into dates.
       merge: (persisted, current) => {
@@ -466,16 +496,47 @@ export const useProTourStore = create<ProTourState>()(
         });
         const finals: Record<number, ProTourMatch> = {};
         for (const [id, m] of Object.entries(saved.finals ?? {})) finals[Number(id)] = revive(m);
+        const tournaments: Record<number, TournamentDetail> = {};
+        for (const [id, detail] of Object.entries(saved.tournaments ?? {})) {
+          tournaments[Number(id)] = { ...detail, matches: (detail.matches ?? []).map(revive) };
+        }
         return {
           ...current,
           ...saved,
           matches: (saved.matches ?? current.matches).map(revive),
           finals: { ...current.finals, ...finals },
+          tournaments: { ...current.tournaments, ...tournaments },
         };
       },
     }
   )
 );
+
+/** When the cache was last warmed, so coming back to the app twice in a minute doesn't read twice. */
+let warmedAt = 0;
+const WARM_EVERY_MS = 60_000;
+
+/**
+ * Reads the tour ahead of the screens - on launch and on coming back to the app - so opening Live &
+ * results, a tournament or a match shows today's scores straight away, the way the phone's own copy
+ * of the feed already does. The live feed first, then the draw of every tournament being played now.
+ */
+export const warmProTour = async () => {
+  if (Date.now() - warmedAt < WARM_EVERY_MS) return;
+  warmedAt = Date.now();
+  await useProTourStore.getState().refresh();
+  const { events, tournaments, loadTournament } = useProTourStore.getState();
+  const now = Date.now();
+  const playing = Object.values(events).filter((event) => {
+    if (event.mainId && event.mainId !== event.id) return false;
+    const start = event.startDate ? new Date(event.startDate).getTime() : null;
+    const end = event.endDate ? new Date(event.endDate).getTime() + DAY : start;
+    return start != null && end != null && start - DAY <= now && now <= end + DAY;
+  });
+  for (const event of playing.slice(0, 4)) {
+    if (now - (tournaments[event.id]?.loadedAt ?? 0) > FRESH_MS) void loadTournament(event.id);
+  }
+};
 
 type Listener = { tournamentId?: number; playerId?: number; matchId?: number };
 const listeners = new Set<Listener>();

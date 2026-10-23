@@ -42,8 +42,9 @@ export const ProTourTournamentScreen = () => {
   const { colors } = useAppTheme();
   const navigation = useNavigation<NavigationProp<CommunityStackParamList>>();
   const { tournamentId } = useRoute<RouteProp<CommunityStackParamList, "ProTourTournament">>().params;
-  const { events, players, playerProfiles, photos, rounds, tournaments } = useProTourStore(
+  const { events, players, playerProfiles, photos, rounds, tournaments, feed } = useProTourStore(
     useShallow((state) => ({
+      feed: state.matches,
       events: state.events,
       players: state.players,
       playerProfiles: state.playerProfiles,
@@ -56,7 +57,13 @@ export const ProTourTournamentScreen = () => {
   useFocusEffect(useCallback(() => subscribeProTourLive(tournamentId), [tournamentId]));
 
   const detail = tournaments[tournamentId];
-  const matches = detail?.matches ?? [];
+  // Until the whole draw arrives, the tournament's matches already on the phone (the live feed: today,
+  // the last few days and what's coming up) - so it opens on today's scores, not a spinner.
+  const feedMatches = useMemo(
+    () => (detail ? [] : feed.filter((m) => tournamentKey(events[m.eventId], m.eventId) === tournamentId)),
+    [detail, feed, events, tournamentId]
+  );
+  const matches = detail?.matches ?? feedMatches;
   const event = events[tournamentId] ?? events[matches[0]?.eventId];
   const name = tournamentName(events, tournamentId, matches[0]?.eventId);
   const live = matches.filter((m) => matchStatus(m) === "live");
@@ -303,7 +310,7 @@ export const ProTourTournamentScreen = () => {
           </View>
         ) : null}
 
-        {showBracket ? null : !detail ? (
+        {showBracket ? null : !detail && !matches.length ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: SPACING.lg }} />
         ) : !roundList.length ? (
           <Empty icon="calendar-clock" title="No draw yet" note="Fixtures appear here as soon as snooker.org publishes the draw." />

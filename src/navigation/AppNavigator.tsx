@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Linking } from "react-native";
+import { AppState, Linking } from "react-native";
 import { DarkTheme, DefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import {
@@ -18,6 +18,7 @@ import { useChatStore } from "../store/chatStore";
 import { useCoachStore } from "../store/coachStore";
 import { navigationRef } from "./navigationRef";
 import { routineIdFromLink } from "../features/community/links";
+import { warmProTour } from "../store/proTourStore";
 
 /** The store's plan-change listener, kept so a new sign-in replaces it rather than adding another. */
 let billingListenerCleanup: (() => void) | null = null;
@@ -227,6 +228,17 @@ export const AppNavigator = () => {
       setTournamentsOwner,
     ]
   );
+
+  // The pro tour read ahead of time - at launch and every time the app comes back - so its scores are
+  // already on screen when someone opens Live & results, not fetched once they get there.
+  useEffect(() => {
+    if (!readyUserId) return;
+    void warmProTour();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void warmProTour();
+    });
+    return () => subscription.remove();
+  }, [readyUserId]);
 
   // A routine link opened before sign in, or while the app was starting, opens once it is ready.
   useEffect(() => {
