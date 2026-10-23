@@ -337,6 +337,7 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
       let ringNode = SCNNode(geometry: ring)
       ringNode.position = SCNVector3(0, Float(-ballRadius + 0.002), 0)
       node.addChildNode(ringNode)
+      node.addChildNode(makeOccluder())
     }
 
     if ball.highlighted {
@@ -348,6 +349,27 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
       node.addChildNode(haloNode)
     }
     return node
+  }
+
+  /// The real ball itself, as an invisible sphere: it draws nothing, but it fills the depth buffer
+  /// where the ball is, so anything virtual behind it is hidden the way the real ball would hide it.
+  ///
+  /// Without it the tag's ring - flat on the cloth round the ball - is painted over the camera
+  /// image in full, including the half that should be behind the ball. From above that half is
+  /// hidden anyway; from the side it was drawn across the ball itself, and walking round the table
+  /// the marker looked as if it had slipped off the ball (seen on a real table, 2026-10-23).
+  private func makeOccluder() -> SCNNode {
+    let sphere = SCNSphere(radius: ballRadius * 0.98)
+    sphere.segmentCount = 24
+    let material = SCNMaterial()
+    material.colorBufferWriteMask = []
+    material.writesToDepthBuffer = true
+    material.readsFromDepthBuffer = true
+    sphere.materials = [material]
+    let occluder = SCNNode(geometry: sphere)
+    // Drawn before everything else, so the depth it leaves is there when the rings are drawn.
+    occluder.renderingOrder = -100
+    return occluder
   }
 
   /// The table drawn over the real one after calibrating, so the player can see it lines up.
