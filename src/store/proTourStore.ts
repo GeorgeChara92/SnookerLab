@@ -481,11 +481,13 @@ export const useProTourStore = create<ProTourState>()(
         fetchedAt: state.fetchedAt,
         // The draws opened lately, so a tournament opens on its draw straight after a relaunch rather
         // than a spinner - only recent ones, to keep what's saved small.
+        // A draw's links are a Map, which JSON saves as {} - kept as its entries, rebuilt in merge.
         tournaments: Object.fromEntries(
           Object.entries(state.tournaments)
             .filter(([, detail]) => Date.now() - detail.loadedAt < KEEP_DRAWS_MS)
             .sort(([, a], [, b]) => b.loadedAt - a.loadedAt)
             .slice(0, KEEP_DRAWS)
+            .map(([id, detail]) => [id, { ...detail, links: detail.links instanceof Map ? [...detail.links.entries()] : null }])
         ),
       }),
       // JSON turns each match's later sessions into strings; turn them back into dates.
@@ -499,7 +501,10 @@ export const useProTourStore = create<ProTourState>()(
         for (const [id, m] of Object.entries(saved.finals ?? {})) finals[Number(id)] = revive(m);
         const tournaments: Record<number, TournamentDetail> = {};
         for (const [id, detail] of Object.entries(saved.tournaments ?? {})) {
-          tournaments[Number(id)] = { ...detail, matches: (detail.matches ?? []).map(revive) };
+          // Saved links are the Map's entries. Anything else - the {} an older version saved, which
+          // crashed a tournament opened after a restart - is dropped, and the draw re-reads them.
+          const links = Array.isArray(detail.links) ? (new Map(detail.links) as DrawLinks) : null;
+          tournaments[Number(id)] = { ...detail, links, matches: (detail.matches ?? []).map(revive) };
         }
         return {
           ...current,

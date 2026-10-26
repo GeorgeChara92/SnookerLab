@@ -57,7 +57,7 @@ export const ProTourBracket = ({
     const items = shown.map((r) => (r.matches.length ? r.matches : r.placeholders));
     const order = drawOrder(
       shown.map((r, i) => ({ eventId: r.eventId, round: r.round, numbers: items[i].map((m) => m.number) })),
-      links ?? new Map()
+      links instanceof Map ? links : new Map()
     );
     return shown.map((r, i) => {
       const byNumber = new Map(items[i].map((m) => [m.number, m]));

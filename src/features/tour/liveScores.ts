@@ -620,7 +620,8 @@ export const slotLabel = (
   byKey: Map<string, ProTourMatch>,
   players: Record<number, string>
 ): string | null => {
-  if (!links) return null;
+  // Only a real Map: a draw saved by an older version came back as {}, and .get on it crashed.
+  if (!(links instanceof Map)) return null;
   const from = links.get(slotKey(match.eventId, match.round, match.number, side));
   if (!from) return null;
   const feeder = byKey.get(matchKey(from.event, from.round, from.number));
