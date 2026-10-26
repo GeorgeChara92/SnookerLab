@@ -19,7 +19,28 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+// The server key. Under Supabase's API keys, functions get every secret key, by name, in
+// SUPABASE_SECRET_KEYS; the one named "functions" is preferred, so the key in use can be rotated by
+// adding a new "functions" key and deleting the old one. SUPABASE_SERVICE_ROLE_KEY is the fallback.
+const serverKey = () => {
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
+    return keys.functions ?? keys.default ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  } catch {
+    return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  }
+};
+const SERVICE_ROLE_KEY = serverKey();
+// Which key the functions run on - the name only, never the key - so a rotation can be checked: a new
+// "functions" key shows here before the old one is deleted.
+console.log("server key from", (() => {
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
+    return keys.functions ? "SUPABASE_SECRET_KEYS.functions" : keys.default ? "SUPABASE_SECRET_KEYS.default" : "SUPABASE_SERVICE_ROLE_KEY";
+  } catch {
+    return "SUPABASE_SERVICE_ROLE_KEY";
+  }
+})());
 const REQUESTED_BY = Deno.env.get("SNOOKER_ORG_REQUESTED_BY") ?? "";
 const TOUR = Deno.env.get("SNOOKER_ORG_TOUR") ?? "main";
 

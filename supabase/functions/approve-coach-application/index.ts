@@ -17,7 +17,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+// The server key. Under Supabase's API keys, functions get every secret key, by name, in
+// SUPABASE_SECRET_KEYS; the one named "functions" is preferred, so the key in use can be rotated by
+// adding a new "functions" key and deleting the old one. SUPABASE_SERVICE_ROLE_KEY is the fallback.
+const serverKey = () => {
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}");
+    return keys.functions ?? keys.default ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  } catch {
+    return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  }
+};
+const SERVICE_ROLE_KEY = serverKey();
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
