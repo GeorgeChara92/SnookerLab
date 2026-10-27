@@ -132,7 +132,13 @@ type CoachState = {
   deleteGuestHistory: (guestName: string) => Promise<Result>;
   /** Moves an existing booking to a different open slot of the same coach - either side can call
    * this, since sometimes it's the coach's plans that change and sometimes the player's. */
-  rescheduleBooking: (bookingId: string, slot: CoachSlot, reason?: string) => Promise<Result>;
+  /** Moves a booking to another time: one of the coach's open slots, or - from the coach - any time
+   *  at all (no slot id), e.g. the same day an hour later. The other side then accepts or declines. */
+  rescheduleBooking: (
+    bookingId: string,
+    slot: Pick<CoachSlot, "startsAt" | "endsAt"> & { id?: string | null },
+    reason?: string
+  ) => Promise<Result>;
   saveSessionNotes: (bookingId: string, notes: string) => Promise<Result>;
   addSessionRoutine: (
     bookingId: string,
@@ -609,7 +615,7 @@ export const useCoachStore = create<CoachState>()((set, get) => ({
       .update({
         starts_at: slot.startsAt,
         ends_at: slot.endsAt,
-        availability_id: slot.id,
+        availability_id: slot.id ?? null,
         status: isGuest ? "accepted" : "pending",
         awaiting_response_from: awaitingResponseFrom,
         reschedule_reason: reason?.trim() || null,

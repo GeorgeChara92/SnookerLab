@@ -10,6 +10,9 @@ import { useCoachStore } from "../../store/coachStore";
 import { nameOf } from "../../features/community/types";
 import { clientKeyOf, isSessionLive, type CoachBooking } from "../../features/coach/types";
 import { addBookingToCalendar } from "../../features/coach/calendarSync";
+import { startDirect } from "../../features/community/chat";
+import { RescheduleSheet } from "../../components/coach/RescheduleSheet";
+import { useAuthStore } from "../../store";
 import {
   ClientAvatar,
   SectionLabel,
@@ -44,6 +47,10 @@ export const CoachDashboardScreen = () => {
   const profiles = useCommunityStore((state) => state.profiles);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [addingToCalendar, setAddingToCalendar] = useState<string | null>(null);
+  const [messaging, setMessaging] = useState<string | null>(null);
+  // The request a new time is being suggested for.
+  const [moving, setMoving] = useState<CoachBooking | null>(null);
+  const me = useAuthStore((state) => state.user?.id ?? null);
 
   useFocusEffect(useCallback(() => markCoachResolutionsSeen(), [markCoachResolutionsSeen]));
 
@@ -88,6 +95,17 @@ export const CoachDashboardScreen = () => {
   };
 
   const playerName = (booking: CoachBooking) => booking.guestName ?? nameOf(profiles[booking.playerId ?? ""]);
+
+  // Ask a question before accepting - what they want from the session, their level, a time that
+  // suits better - in the same chat as the rest of their messages.
+  const message = async (booking: CoachBooking) => {
+    if (!booking.playerId) return;
+    setMessaging(booking.id);
+    const result = await startDirect(booking.playerId);
+    setMessaging(null);
+    if (result.ok) navigation.navigate("CoachChats", { screen: "Chat", params: { conversationId: result.value } });
+    else dialog.alert({ title: `You cannot message ${playerName(booking)}`, message: result.message, icon: "message-lock-outline" });
+  };
 
   const addToCalendar = async (booking: CoachBooking) => {
     setAddingToCalendar(booking.id);
@@ -182,6 +200,34 @@ export const CoachDashboardScreen = () => {
                   ) : (
                     <Text style={[styles.actionText, { color: colors.onPrimary }]}>Accept</Text>
                   )}
+                </Pressable>
+              </View>
+              {/* Before answering: talk it over, or offer a time that works better. */}
+              <View style={styles.moreActions}>
+                {booking.playerId ? (
+                  <Pressable
+                    onPress={() => message(booking)}
+                    disabled={messaging === booking.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Message ${playerName(booking)}`}
+                    style={({ pressed }) => [styles.moreButton, { backgroundColor: pressed ? colors.surfaceMuted : "transparent" }]}
+                  >
+                    {messaging === booking.id ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <MaterialCommunityIcons name="chat-outline" size={18} color={colors.primary} />
+                    )}
+                    <Text style={[styles.moreText, { color: colors.primary }]}>Message</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  onPress={() => setMoving(booking)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Suggest a different time to ${playerName(booking)}`}
+                  style={({ pressed }) => [styles.moreButton, { backgroundColor: pressed ? colors.surfaceMuted : "transparent" }]}
+                >
+                  <MaterialCommunityIcons name="calendar-clock" size={18} color={colors.primary} />
+                  <Text style={[styles.moreText, { color: colors.primary }]}>New time</Text>
                 </Pressable>
               </View>
             </View>
@@ -358,6 +404,23 @@ export const CoachDashboardScreen = () => {
           <Text style={[styles.quietText, { color: colors.textMuted }]}>No confirmed sessions yet. Open some slots on Calendar.</Text>
         </Pressable>
       )}
+      {moving && me ? (
+        <RescheduleSheet
+          visible
+          anyTime
+          coachId={me}
+          bookingId={moving.id}
+          onClose={() => setMoving(null)}
+          onDone={() => {
+            setMoving(null);
+            dialog.alert({
+              title: "New time suggested",
+              message: `${playerName(moving)} can accept it or pick another. It's under "Waiting on clients" until they do.`,
+              icon: "calendar-clock",
+            });
+          }}
+        />
+      ) : null}
     </ScrollView>
   );
 };
@@ -383,6 +446,9 @@ const styles = StyleSheet.create({
   },
   noteText: { fontSize: 14, lineHeight: 20, fontStyle: "italic" },
   actions: { flexDirection: "row", gap: SPACING.sm },
+  moreActions: { flexDirection: "row", gap: SPACING.sm, justifyContent: "center" },
+  moreButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: HIT_TARGET, borderRadius: RADIUS.md },
+  moreText: { fontSize: 14, fontWeight: "800" },
   actionButton: {
     flex: 1,
     minHeight: HIT_TARGET,

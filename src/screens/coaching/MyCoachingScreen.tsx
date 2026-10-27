@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +13,7 @@ import { useRoutineScoresStore } from "../../store";
 import { useCoachGroupSeenStore } from "../../store/coachGroupSeenStore";
 import { RescheduleSheet } from "../../components/coach/RescheduleSheet";
 import { ReviewModal } from "../../components/coach/ReviewModal";
+import { BookingNoteFields, composeBookingNote, emptyBookingNote, type BookingNoteDraft } from "../../components/coach/BookingNote";
 import { HomeworkRow } from "../../components/coach/HomeworkRow";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { nameOf, type PublicProfile } from "../../features/community/types";
@@ -30,7 +31,7 @@ import {
   type CoachSlot,
 } from "../../features/coach/types";
 import { supabase } from "../../api/supabase";
-import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 
 const formatDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 const formatTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -280,22 +281,31 @@ export const MyCoachingScreen = () => {
     if (!result.ok) dialog.alert({ title: "Could not update that", message: result.message, tone: "danger" });
   };
 
-  const bookSlot = (coachId: string, slot: CoachSlot) =>
-    dialog.confirm({
-      title: `Book ${formatSlot(slot.startsAt)}?`,
-      message: `${coachName(coachId)} gets a request for ${formatDay(slot.startsAt)}, ${formatTime(slot.startsAt)}–${formatTime(slot.endsAt)}.`,
-      icon: "calendar-plus",
-      confirmLabel: "Send request",
-      cancelLabel: "Not now",
-      onConfirm: async () => {
-        const result = await requestBooking(coachId, slot, "");
-        if (!result.ok) {
-          setTimeout(() => dialog.alert({ title: "Could not book that", message: result.message, tone: "danger" }), 350);
-          return;
-        }
-        setSlotsByCoach((current) => ({ ...current, [coachId]: (current[coachId] ?? []).filter((item) => item.id !== slot.id) }));
-      },
-    });
+  // Booking again: the slot, then what to work on and anything the coach should know - the same
+  // note as the full booking screen, so a quick rebook isn't a request with nothing to go on.
+  const [rebooking, setRebooking] = useState<{ coachId: string; slot: CoachSlot } | null>(null);
+  const [rebookNote, setRebookNote] = useState<BookingNoteDraft>(emptyBookingNote);
+  const [rebookSending, setRebookSending] = useState(false);
+
+  const bookSlot = (coachId: string, slot: CoachSlot) => {
+    setRebookNote(emptyBookingNote());
+    setRebooking({ coachId, slot });
+  };
+
+  const sendRebook = async () => {
+    if (!rebooking) return;
+    const { coachId, slot } = rebooking;
+    setRebookSending(true);
+    const result = await requestBooking(coachId, slot, composeBookingNote(rebookNote));
+    setRebookSending(false);
+    setRebooking(null);
+    if (!result.ok) {
+      // After the sheet has gone: iOS won't show a pop-up over it.
+      setTimeout(() => dialog.alert({ title: "Could not book that", message: result.message, tone: "danger" }), 350);
+      return;
+    }
+    setSlotsByCoach((current) => ({ ...current, [coachId]: (current[coachId] ?? []).filter((item) => item.id !== slot.id) }));
+  };
 
   const openGroup = (groupId: string, groupName: string) => {
     markGroupSeen(groupId);
@@ -668,6 +678,47 @@ export const MyCoachingScreen = () => {
         </Pressable>
       )}
 
+      <Modal visible={rebooking !== null} transparent animationType="slide" onRequestClose={() => setRebooking(null)}>
+        <Pressable style={[StyleSheet.absoluteFill, { backgroundColor: SCRIM }]} onPress={() => setRebooking(null)} />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.rebookWrap} pointerEvents="box-none">
+          <View style={[styles.rebookSheet, { backgroundColor: colors.background, borderColor: colors.border, paddingBottom: insets.bottom + SPACING.md }]}>
+            <View style={[styles.rebookGrabber, { backgroundColor: colors.border }]} />
+            {rebooking ? (
+              <>
+                <Text style={[styles.rebookTitle, { color: colors.text }]}>Book {formatSlot(rebooking.slot.startsAt)}</Text>
+                <Text style={[styles.rebookSub, { color: colors.textMuted }]}>
+                  {coachName(rebooking.coachId)} · {formatDay(rebooking.slot.startsAt)}, {formatTime(rebooking.slot.startsAt)}–{formatTime(rebooking.slot.endsAt)}
+                </Text>
+                <ScrollView style={styles.rebookScroll} contentContainerStyle={styles.rebookContent} keyboardShouldPersistTaps="handled">
+                  <BookingNoteFields coachName={coachName(rebooking.coachId)} draft={rebookNote} onChange={setRebookNote} />
+                </ScrollView>
+                <View style={styles.rebookActions}>
+                  <Pressable
+                    onPress={() => setRebooking(null)}
+                    accessibilityRole="button"
+                    style={[styles.rebookButton, { borderWidth: 1, borderColor: colors.border }]}
+                  >
+                    <Text style={[styles.rebookButtonText, { color: colors.text }]}>Not now</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={sendRebook}
+                    disabled={rebookSending}
+                    accessibilityRole="button"
+                    style={[styles.rebookButton, { backgroundColor: colors.primary, opacity: rebookSending ? 0.6 : 1 }]}
+                  >
+                    {rebookSending ? (
+                      <ActivityIndicator color={colors.onPrimary} />
+                    ) : (
+                      <Text style={[styles.rebookButtonText, { color: colors.onPrimary }]}>Send request</Text>
+                    )}
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <RescheduleSheet
         visible={rescheduling !== null}
         coachId={rescheduling?.coachId ?? ""}
@@ -693,6 +744,16 @@ export const MyCoachingScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  rebookWrap: { flex: 1, justifyContent: "flex-end" },
+  rebookSheet: { maxHeight: "88%", borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, paddingTop: SPACING.sm, paddingHorizontal: SPACING.lg },
+  rebookGrabber: { alignSelf: "center", width: 40, height: 4, borderRadius: RADIUS.pill, marginBottom: SPACING.sm },
+  rebookTitle: { fontSize: 20, fontWeight: "800" },
+  rebookSub: { fontSize: 14, marginTop: 2, marginBottom: SPACING.md },
+  rebookScroll: { flexGrow: 0 },
+  rebookContent: { paddingBottom: SPACING.md },
+  rebookActions: { flexDirection: "row", gap: SPACING.sm, paddingTop: SPACING.sm },
+  rebookButton: { flex: 1, minHeight: HIT_TARGET + 4, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
+  rebookButtonText: { fontSize: 15, fontWeight: "800" },
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
   content: { padding: SPACING.lg, gap: SPACING.lg },
   section: { gap: SPACING.sm },

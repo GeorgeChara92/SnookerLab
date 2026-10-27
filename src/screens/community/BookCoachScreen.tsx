@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { BookingNoteFields, composeBookingNote, emptyBookingNote } from "../../components/coach/BookingNote";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,7 +12,6 @@ import type { CommunityStackParamList } from "../../types";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 import { useShallow } from "zustand/react/shallow";
-const NOTE_LIMIT = 300;
 
 /** A coach's open slots, and a request to book one - the "shared calendar instead of WhatsApp". */
 export const BookCoachScreen = () => {
@@ -33,7 +33,7 @@ export const BookCoachScreen = () => {
   const [bookings, setBookings] = useState<CoachBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<CoachSlot | null>(null);
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState(emptyBookingNote);
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
@@ -57,7 +57,7 @@ export const BookCoachScreen = () => {
   const send = async () => {
     if (!selected) return;
     setSending(true);
-    const result = await requestBooking(coachId, selected, note);
+    const result = await requestBooking(coachId, selected, composeBookingNote(note));
     setSending(false);
     if (!result.ok) {
       dialog.alert({ title: "Could not send that request", message: result.message, tone: "danger" });
@@ -94,27 +94,24 @@ export const BookCoachScreen = () => {
 
   if (selected) {
     return (
-      <View style={[styles.screen, { backgroundColor: colors.background, paddingBottom: insets.bottom + SPACING.lg }]}>
-        <View style={styles.content}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={insets.top + 44}
+        style={[styles.screen, { backgroundColor: colors.background, paddingBottom: insets.bottom + SPACING.lg }]}
+      >
+        <ScrollView style={styles.screen} contentContainerStyle={styles.noteContent} keyboardShouldPersistTaps="handled">
           <Text style={[styles.label, { color: colors.textMuted }]}>Requesting</Text>
           <Text style={[styles.summary, { color: colors.text }]}>
             {formatDay(selected.startsAt)}{"\n"}
             {formatTime(selected.startsAt)}–{formatTime(selected.endsAt)} with {coachName}
           </Text>
 
-          <Text style={[styles.label, { color: colors.textMuted, marginTop: SPACING.lg }]}>
-            Anything to tell {coachName}? (optional)
-          </Text>
-          <TextInput
-            value={note}
-            onChangeText={(text) => setNote(text.slice(0, NOTE_LIMIT))}
-            placeholder="What would you like to work on?"
-            placeholderTextColor={colors.textMuted}
-            multiline
-            style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-          />
+          <View style={{ marginTop: SPACING.lg }}>
+            <BookingNoteFields coachName={coachName} draft={note} onChange={setNote} />
+          </View>
+        </ScrollView>
 
-          <View style={styles.footer}>
+          <View style={[styles.footer, styles.footerBar]}>
             <Pressable
               onPress={() => setSelected(null)}
               accessibilityRole="button"
@@ -135,8 +132,7 @@ export const BookCoachScreen = () => {
               )}
             </Pressable>
           </View>
-        </View>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -181,6 +177,7 @@ const formatTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour:
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: SPACING.lg, flex: 1 },
+  noteContent: { padding: SPACING.lg },
   centre: { flex: 1, alignItems: "center", justifyContent: "center", gap: SPACING.sm, padding: SPACING.xl },
   emptyText: { fontSize: 15, textAlign: "center", maxWidth: 280 },
   list: { padding: SPACING.lg, gap: SPACING.sm, flexGrow: 1 },
@@ -207,6 +204,8 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   footer: { flexDirection: "row", gap: SPACING.sm, marginTop: "auto", paddingTop: SPACING.lg },
+  // Under the scrolling note, kept clear of the screen edges.
+  footerBar: { marginTop: 0, paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
   footerButton: { flex: 1, minHeight: HIT_TARGET + 6, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center" },
   footerButtonText: { fontSize: 16, fontWeight: "800" },
 });
