@@ -9,6 +9,7 @@ import { TournamentDetailScreen } from "../screens/matches/TournamentDetailScree
 import { LiveFrameScoringScreen } from "../screens/matches/LiveFrameScoringScreen";
 import { MatchCompleteScreen } from "../screens/matches/MatchCompleteScreen";
 import { ScanSnookerScreen } from "../screens/matches/ScanSnookerScreen";
+import { RecordSnookerScreen } from "../screens/matches/RecordSnookerScreen";
 import { MatchesStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 import { PlayerRootHeader } from "./PlayerRootHeader";
@@ -34,6 +35,7 @@ export const MatchesNavigator = () => {
         options={{ headerShown: false, title: "Match overview" }}
       />
       <Stack.Screen name="ScanSnooker" component={ScanSnookerScreen} options={{ title: "Scan snooker" }} />
+      <Stack.Screen name="RecordSnooker" component={RecordSnookerScreen} options={{ title: "Record a snooker" }} />
       <Stack.Screen name="NewMatch" component={NewMatchScreen} options={{ title: "New Match" }} />
       <Stack.Screen name="NewTournament" component={NewTournamentScreen} options={{ title: "New Tournament" }} />
       <Stack.Screen name="TournamentDetail" component={TournamentDetailScreen} options={{ title: "Tournament" }} />

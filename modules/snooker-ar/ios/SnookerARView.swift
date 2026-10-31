@@ -15,6 +15,7 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
   let onAim = EventDispatcher()
   let onTapPoint = EventDispatcher()
   let onMarkerMoved = EventDispatcher()
+  let onLapFrame = EventDispatcher()
 
   private let sceneView = ARSCNView(frame: .zero)
   private let coaching = ARCoachingOverlayView()
@@ -46,6 +47,8 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
   private var lastAimTime: TimeInterval = 0
   private var isPaused = false
   private var isRunning = false
+  /// Only there while Record a Snooker's lap is being walked - see `setLapTable`.
+  private var lapDetector: SnookerLapDetector?
 
   /// A snooker ball, 52.5mm across.
   private let ballRadius: CGFloat = 0.02625
@@ -205,6 +208,7 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
 
   /// Where the middle of the screen is pointing, ten times a second, for the crosshair.
   func session(_ session: ARSession, didUpdate frame: ARFrame) {
+    lapDetector?.consider(frame)
     let now = frame.timestamp
     guard now - lastAimTime >= 0.1 else { return }
     lastAimTime = now
@@ -244,6 +248,36 @@ class SnookerARView: ExpoView, ARSCNViewDelegate, ARSessionDelegate {
 
   private func vector(_ value: simd_float3) -> [String: Double] {
     return ["x": Double(value.x), "y": Double(value.y), "z": Double(value.z)]
+  }
+
+  // MARK: - Lap
+
+  /// Record a Snooker's lap: given the table, look for balls; given nothing, stop. Scan Snooker
+  /// never sets this, so no detector exists and it runs just as it did.
+  func setLapTable(_ table: ARLapTable?) {
+    guard let table = table else {
+      lapDetector = nil
+      return
+    }
+    let values = SnookerLapDetector.Table(
+      originX: Float(table.originX),
+      originZ: Float(table.originZ),
+      cosAngle: Float(cos(table.angle)),
+      sinAngle: Float(sin(table.angle)),
+      ballHeight: Float(table.ballHeight),
+      scale: Float(table.scale),
+      width: Float(table.width),
+      length: Float(table.length)
+    )
+    if let lapDetector = lapDetector {
+      lapDetector.table = values
+      return
+    }
+    let detector = SnookerLapDetector(table: values)
+    detector.onResult = { [weak self] payload in
+      self?.onLapFrame(payload)
+    }
+    lapDetector = detector
   }
 
   // MARK: - Drawing

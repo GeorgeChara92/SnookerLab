@@ -21,7 +21,7 @@ import { useAppTheme } from "../hooks/useAppTheme";
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 /** Screens inside a tab that take the whole screen, tab bar and all. */
-const FULL_SCREEN_ROUTES = new Set(["ScanSnooker", "RoutineAR"]);
+const FULL_SCREEN_ROUTES = new Set(["ScanSnooker", "RecordSnooker", "RoutineAR"]);
 
 /** Seven tabs is too many to label all at once without every word truncating ("Dashbo…", "AI
  * Co…") - only the active tab names itself, everything else is icon-only, exactly the way iOS's

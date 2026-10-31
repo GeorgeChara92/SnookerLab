@@ -423,6 +423,8 @@ export type MatchesStackParamList = {
   LiveFrameScoring: { matchId: string };
   /** Recording a snookered position, and replacing the balls after a miss. */
   ScanSnooker: { matchId: string; frameNumber: number };
+  /** Walking a lap of the table to find the balls, being tested alongside Scan Snooker. */
+  RecordSnooker: { matchId: string; frameNumber: number };
   /** The end of a match: who won and how, and what next. */
   MatchComplete: { matchId: string };
   /** A new match, set up from an opponent or a rematch when given. */

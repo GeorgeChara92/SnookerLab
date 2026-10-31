@@ -122,6 +122,7 @@ export const LiveFrameScoringScreen = () => {
   const { getMatchById, getFrameRecordsByMatchId, getNextFrameNumber, saveFrameRecord, updateMatch, deleteMatch } =
     useMatchesStore();
   const match = getMatchById(route.params.matchId);
+  const refused = useMatchesStore((state) => state.refusedMatchId === route.params.matchId);
 
   const frameRecords = getFrameRecordsByMatchId(route.params.matchId);
   const frameNumber = useMemo(
@@ -658,6 +659,11 @@ export const LiveFrameScoringScreen = () => {
     navigation.navigate("ScanSnooker" as any, { matchId: match.id, frameNumber: frame.frameNumber });
   };
 
+  const handleOpenLapRecord = () => {
+    if (!match) return;
+    navigation.navigate("RecordSnooker" as any, { matchId: match.id, frameNumber: frame.frameNumber });
+  };
+
   useEffect(() => {
     if (!match) return;
 
@@ -697,16 +703,18 @@ export const LiveFrameScoringScreen = () => {
     if (!match) {
       const timer = setTimeout(() => {
         navigation.navigate("MatchesList" as any);
-      }, 1500);
+      }, refused ? 5000 : 1500);
       return () => clearTimeout(timer);
     }
-  }, [match, navigation]);
+  }, [match, navigation, refused]);
 
   if (!match) {
     return (
       <View style={[styles.missingWrap, { backgroundColor: colors.background }]}>
-        <Text style={[styles.missingText, { color: colors.textMuted }]}>Match not found</Text>
-        <Text style={[styles.missingSubtext, { color: colors.textMuted }]}>Redirecting to matches...</Text>
+        <Text style={[styles.missingText, { color: colors.textMuted }]}>{refused ? "This match wasn't saved" : "Match not found"}</Text>
+        <Text style={[styles.missingSubtext, { color: colors.textMuted }]}>
+          {refused ? "You've reached your plan's monthly match limit." : "Redirecting to matches..."}
+        </Text>
       </View>
     );
   }
@@ -1092,6 +1100,17 @@ export const LiveFrameScoringScreen = () => {
               accessibilityLabel="Scan snooker: record the position before a snooker, or replace the balls after a miss"
             >
               <Text style={[styles.actionPillText, { color: ui.text }]}>Scan snooker</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.actionPillRow}>
+            <Pressable
+              style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
+              onPress={handleOpenLapRecord}
+              accessibilityRole="button"
+              accessibilityLabel="Record a snooker: walk round the table and the balls are found for you"
+            >
+              <Text style={[styles.actionPillText, { color: ui.text }]}>Record a snooker</Text>
             </Pressable>
           </View>
 

@@ -154,6 +154,17 @@ export const HELP_TOPICS = {
     ],
     tips: ["Works best with good light and the whole table in view.", "Recalibrate if the ghosts don't line up with the table."],
   },
+  recordSnooker: {
+    title: "Record a Snooker",
+    audience: "player",
+    purpose: "Walk once round the table and the balls are found for you, instead of scanning each one by hand.",
+    steps: [
+      "Aim at two spots to line the table up, the same as Scan Snooker.",
+      "Walk slowly all the way round with the phone tilted down at the balls.",
+      "Check what was found on the diagram, fix anything that's wrong, then save.",
+    ],
+    tips: ["This is being tested, and saves separately from Scan Snooker.", "A marker lands on each ball once it has been seen from more than one side."],
+  },
   tournaments: {
     title: "Tournaments",
     audience: "player",
@@ -411,6 +422,7 @@ export const ROUTE_TOPICS: Partial<Record<string, HelpTopicId>> = {
   NewMatch: "newMatch",
   LiveFrameScoring: "liveScoring",
   ScanSnooker: "scanSnooker",
+  RecordSnooker: "recordSnooker",
   NewTournament: "tournaments",
   TournamentDetail: "tournaments",
   Stats: "stats",

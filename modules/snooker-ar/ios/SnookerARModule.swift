@@ -26,6 +26,17 @@ struct ARLine: Record {
   @Field var colour: String = "#FFFFFF"
 }
 
+/// The table for Record a Snooker's lap, in metres - see `SnookerLapDetector`.
+struct ARLapTable: Record {
+  @Field var originX: Double = 0
+  @Field var originZ: Double = 0
+  @Field var angle: Double = 0
+  @Field var ballHeight: Double = 0
+  @Field var scale: Double = 1
+  @Field var width: Double = 0
+  @Field var length: Double = 0
+}
+
 public class SnookerARModule: Module {
   public func definition() -> ModuleDefinition {
     Name("SnookerAR")
@@ -43,8 +54,13 @@ public class SnookerARModule: Module {
       return false
     }
 
+    /// Whether this build has Record a Snooker's lap in it.
+    Function("supportsLap") { () -> Bool in
+      return ARWorldTrackingConfiguration.isSupported
+    }
+
     View(SnookerARView.self) {
-      Events("onTracking", "onPlane", "onAim", "onTapPoint", "onMarkerMoved")
+      Events("onTracking", "onPlane", "onAim", "onTapPoint", "onMarkerMoved", "onLapFrame")
 
       Prop("balls") { (view: SnookerARView, balls: [ARBall]) in
         view.setBalls(balls)
@@ -56,6 +72,10 @@ public class SnookerARModule: Module {
 
       Prop("paused") { (view: SnookerARView, paused: Bool) in
         view.setPaused(paused)
+      }
+
+      Prop("lapTable") { (view: SnookerARView, table: ARLapTable?) in
+        view.setLapTable(table)
       }
     }
   }
