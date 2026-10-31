@@ -9,7 +9,7 @@ import type { MatchResult, MatchType, MatchesStackParamList } from "../../types"
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { TierPaywallModal } from "../../components/subscription";
-import { isSubscriptionLimitError, DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import { parseDateValue, todayKey } from "../../utils/date";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { findOpponent, knownOpponents, searchOpponents } from "../../features/matches/opponents";
@@ -164,9 +164,8 @@ export const NewMatchScreen = () => {
       });
       if (mode === "live") navigation.replace("LiveFrameScoring", { matchId: created.id });
       else navigation.replace("MatchDetail", { matchId: created.id });
-    } catch (error) {
-      if (isSubscriptionLimitError(error)) setShowPaywall(true);
-      else alert("Could not create the match", "Something went wrong. Check your connection and try again.");
+    } catch {
+      alert("Could not create the match", "Sign in again, then try once more.");
     } finally {
       setSaving(false);
     }

@@ -3,7 +3,8 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { safeStorage } from "../utils/storage";
 import { LiveFrameRecord, Match } from "../types";
 import { supabase } from "../api/supabase";
-import { flushOutbox, queueWrite, registerSyncHandler } from "../sync/outbox";
+import { flushOutbox, queueWrite, registerSyncHandler, useOutboxStore } from "../sync/outbox";
+import { isSubscriptionLimitError } from "../constants/subscription";
 import { mirrorFrame, mirrorMatch } from "../features/matches/linked";
 import { matchFinished } from "../features/community/activityItems";
 
@@ -25,11 +26,20 @@ interface MatchesState {
   hydrateMatchesForUser: (userId: string) => Promise<void>;
   /** Finished matches friends scored against the player, waiting for them to confirm. */
   linkRequests: Array<{ match: Match; scorerName: string }>;
+  /** A match the server turned down for being over the plan's limit, after it had been started. */
+  refusedMatchId: string | null;
   /** The player's answer to a friend's match: confirm it, say it is wrong, or take it off. */
   respondToMatch: (matchId: string, answer: "confirmed" | "disputed" | "removed") => Promise<boolean>;
 }
 
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+/** A match's id is made on the phone, so it can be scored before the server has heard of it. */
+const makeUuid = () =>
+  "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    return (character === "x" ? random : (random % 4) + 8).toString(16);
+  });
 
 const deriveMatchSummaryFromFrames = (frames: LiveFrameRecord[]) => {
   const userWins = frames.filter((frame) => frame.winner === "user").length;
@@ -99,6 +109,7 @@ const currentUserId = async () => {
 };
 
 const isMissingTableError = (error: any) => error?.code === "42P01";
+const isDuplicateError = (error: any) => error?.code === "23505";
 
 /**
  * Matches friends scored against the player, from the player's side. Confirmed ones join the
@@ -152,12 +163,40 @@ const loadLinkedMatches = async (userId: string) => {
  * be written to disk and sent later. The store runs these directly; the outbox runs the same
  * ones when the phone could not reach Supabase at the time.
  */
+type MatchCreate = { matchId: string; row: Record<string, any> };
+
 type FrameSync = {
   matchId: string;
   frame: Record<string, any>;
   summary: { user_score: number; opponent_score: number; frames_played: number; result: Match["result"] };
   updatedAt: string;
   userId: string;
+};
+
+/** Whether a match is still waiting to reach the server, so what follows has to wait behind it. */
+const isUnsent = (matchId: string) =>
+  useOutboxStore.getState().jobs.some((job) => job.kind === "match.create" && (job.payload as MatchCreate).matchId === matchId);
+
+/** The plan's limit is the server's to enforce, and it says so after the match has started. */
+const withdrawMatch = (matchId: string) => {
+  useMatchesStore.setState((state) => ({
+    matches: state.matches.filter((match) => match.id !== matchId),
+    liveFramesByMatch: Object.fromEntries(Object.entries(state.liveFramesByMatch).filter(([id]) => id !== matchId)),
+    refusedMatchId: matchId,
+  }));
+  const outbox = useOutboxStore.getState();
+  outbox.jobs.filter((job) => (job.payload as { matchId?: string })?.matchId === matchId).forEach((job) => outbox.discard(job.id));
+};
+
+const pushMatchCreate = async (job: MatchCreate) => {
+  const { error } = await supabase.from("matches").insert(job.row);
+  // Already there: an earlier try landed, but its answer never made it back.
+  if (!error || isDuplicateError(error)) return;
+  if (isSubscriptionLimitError(error)) {
+    withdrawMatch(job.matchId);
+    return;
+  }
+  throw error;
 };
 
 const pushFrameSync = async (job: FrameSync) => {
@@ -198,6 +237,7 @@ const pushMatchDelete = async (job: { matchId: string; userId: string }) => {
   if (error) throw error;
 };
 
+registerSyncHandler("match.create", pushMatchCreate);
 registerSyncHandler("match.frame", pushFrameSync);
 registerSyncHandler("match.update", pushMatchUpdate);
 registerSyncHandler("match.delete", pushMatchDelete);
@@ -210,14 +250,19 @@ export const useMatchesStore = create<MatchesState>()(
       liveFramesByMatch: {},
       isLoading: false,
       linkRequests: [],
+      refusedMatchId: null,
 
+      // The scoreboard opens on the tap and the match follows through the outbox, ahead of anything
+      // scored in it. Waiting for the server here held the player up for as long as the server
+      // took, and stopped them starting a match at all with no signal.
       addMatch: async (matchData) => {
-        const authUser = (await supabase.auth.getUser()).data.user;
-        if (!authUser) throw new Error("You need to be signed in to add a match.");
+        const userId = get().ownerUserId ?? (await currentUserId());
+        if (!userId) throw new Error("You need to be signed in to add a match.");
 
         const now = new Date().toISOString();
         const payload = {
-          user_id: authUser.id,
+          id: makeUuid(),
+          user_id: userId,
           opponent_name: matchData.opponent_name,
           opponent_id: matchData.opponent_id ?? null,
           date: matchData.date,
@@ -235,11 +280,16 @@ export const useMatchesStore = create<MatchesState>()(
           updated_at: now,
         };
 
-        const { data, error } = await supabase.from("matches").insert(payload).select().single();
-        if (error) throw error;
-
-        const match = mapDbMatch(data);
+        // The server marks a match against a friend as pending in the same way.
+        const match = mapDbMatch({ ...payload, opponent_status: payload.opponent_id ? "pending" : null });
         set((state) => ({ matches: [match, ...state.matches] }));
+        queueWrite({
+          kind: "match.create",
+          scope: "matches",
+          payload: { matchId: match.id, row: payload } satisfies MatchCreate,
+          description: `The match with ${match.opponent_name}`,
+        });
+        void flushOutbox();
         return match;
       },
 
@@ -283,6 +333,7 @@ export const useMatchesStore = create<MatchesState>()(
         const job = { matchId: id, payload, userId };
 
         try {
+          if (isUnsent(id)) throw new Error("The match has not reached the server yet.");
           await pushMatchUpdate(job);
           void flushOutbox();
         } catch (error) {
@@ -313,6 +364,7 @@ export const useMatchesStore = create<MatchesState>()(
         const job = { matchId: id, userId };
 
         try {
+          if (isUnsent(id)) throw new Error("The match has not reached the server yet.");
           await pushMatchDelete(job);
           void flushOutbox();
         } catch (error) {
@@ -389,6 +441,7 @@ export const useMatchesStore = create<MatchesState>()(
         };
 
         try {
+          if (isUnsent(matchId)) throw new Error("The match has not reached the server yet.");
           await pushFrameSync(job);
           void flushOutbox();
         } catch (error: any) {
@@ -446,6 +499,8 @@ export const useMatchesStore = create<MatchesState>()(
 
       hydrateMatchesForUser: async (userId) => {
         set({ isLoading: true });
+        // Taken before reading, in case one lands between the read and the answer coming back.
+        const unsent = get().matches.filter((match) => isUnsent(match.id));
         try {
           const { data: matchRows, error: matchesError } = await supabase
             .from("matches")
@@ -465,12 +520,14 @@ export const useMatchesStore = create<MatchesState>()(
 
           const frames = (frameRows ?? []).map(mapDbFrame);
           const linked = await loadLinkedMatches(userId);
+          const onPhoneOnly = unsent.filter((match) => !(matchRows ?? []).some((row) => row.id === match.id));
+          const unsentFrames = Object.fromEntries(onPhoneOnly.map((match) => [match.id, get().liveFramesByMatch[match.id] ?? []]));
 
           set({
-            matches: [...(matchRows ?? []).map(mapDbMatch), ...linked.confirmed].sort(
+            matches: [...onPhoneOnly, ...(matchRows ?? []).map(mapDbMatch), ...linked.confirmed].sort(
               (a, b) => b.date.localeCompare(a.date) || b.created_at.localeCompare(a.created_at)
             ),
-            liveFramesByMatch: { ...groupFramesByMatch(frames), ...linked.frames },
+            liveFramesByMatch: { ...groupFramesByMatch(frames), ...linked.frames, ...unsentFrames },
             linkRequests: linked.requests,
             isLoading: false,
           });

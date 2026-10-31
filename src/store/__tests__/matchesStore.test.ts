@@ -26,6 +26,8 @@ const chainFor = (table: string, op: string, payload?: any) => {
     },
     select: () => chain,
     single: () => chain,
+    order: () => chain,
+    in: () => chain,
     then: (resolve: any, reject: any) =>
       Promise.resolve(failTable === table ? { data: null, error: failWith } : { data: null, error: null }).then(
         resolve,
@@ -160,6 +162,112 @@ describe("saving a live frame", () => {
 
     await expect(useMatchesStore.getState().saveFrameRecord("m1", frame)).rejects.toThrow(/Live frame table missing/);
     expect(useOutboxStore.getState().jobs).toHaveLength(0);
+  });
+});
+
+describe("starting a match", () => {
+  const details = { ...match, user_id: "", opponent_name: "Sam", sync_status: "pending" as const };
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  const start = async (): Promise<Match> => {
+    const { id, created_at, updated_at, ...rest } = details;
+    return useMatchesStore.getState().addMatch(rest);
+  };
+
+  it("is on the scoreboard straight away, with an id the server will keep", async () => {
+    const started = await start();
+
+    expect(started.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(useMatchesStore.getState().matches[0].id).toBe(started.id);
+
+    await settle();
+    expect(writes("matches", "insert")[0].payload).toMatchObject({ id: started.id, user_id: "u1", opponent_name: "Sam" });
+    expect(useOutboxStore.getState().jobs).toHaveLength(0);
+  });
+
+  it("starts with no connection and reaches the server later", async () => {
+    failTable = "matches";
+    const started = await start();
+    await settle();
+
+    expect(useMatchesStore.getState().getMatchById(started.id)).toBeDefined();
+    expect(useOutboxStore.getState().jobs[0]).toMatchObject({ kind: "match.create", scope: "matches" });
+
+    failTable = null;
+    await flushOutbox();
+    expect(useOutboxStore.getState().jobs).toHaveLength(0);
+  });
+
+  it("sends what happens in the match after the match itself", async () => {
+    failTable = "matches";
+    const started = await start();
+    await settle();
+    recorded.length = 0;
+    failTable = null;
+
+    await useMatchesStore.getState().saveFrameRecord(started.id, frame);
+    await useMatchesStore.getState().updateMatch(started.id, { notes: "Good game" });
+    expect(recorded).toHaveLength(0);
+    expect(useOutboxStore.getState().jobs.map((job: any) => job.kind)).toEqual(["match.create", "match.frame", "match.update"]);
+
+    await flushOutbox();
+    expect(recorded.map((item) => `${item.table}.${item.op}`)).toEqual([
+      "matches.insert",
+      "match_frames.upsert",
+      "matches.update",
+      "matches.update",
+    ]);
+  });
+
+  it("deletes a match left straight away after it has landed, so no 0-0 is left behind", async () => {
+    failTable = "matches";
+    const started = await start();
+    await settle();
+    recorded.length = 0;
+    failTable = null;
+
+    await useMatchesStore.getState().deleteMatch(started.id);
+    await flushOutbox();
+    expect(recorded.map((item) => item.op)).toEqual(["insert", "delete"]);
+  });
+
+  it("does not send a match twice when the first answer was lost", async () => {
+    failTable = "matches";
+    await start();
+    await settle();
+
+    failWith = { code: "23505", message: "duplicate key" };
+    await flushOutbox();
+    expect(useOutboxStore.getState().jobs).toHaveLength(0);
+  });
+
+  it("withdraws the match and what was scored in it if the plan's limit turns it down", async () => {
+    failTable = "matches";
+    const started = await start();
+    await settle();
+    await useMatchesStore.getState().saveFrameRecord(started.id, frame);
+
+    failWith = { message: "subscription_limit_exceeded: matches" };
+    await flushOutbox();
+
+    const state = useMatchesStore.getState();
+    expect(state.getMatchById(started.id)).toBeUndefined();
+    expect(state.liveFramesByMatch[started.id]).toBeUndefined();
+    expect(state.refusedMatchId).toBe(started.id);
+    expect(useOutboxStore.getState().jobs).toHaveLength(0);
+  });
+
+  it("is not wiped by a refresh before it has reached the server", async () => {
+    failTable = "matches";
+    const started = await start();
+    await settle();
+    await useMatchesStore.getState().saveFrameRecord(started.id, frame);
+    failTable = null;
+
+    await useMatchesStore.getState().hydrateMatchesForUser("u1");
+
+    const state = useMatchesStore.getState();
+    expect(state.getMatchById(started.id)).toBeDefined();
+    expect(state.liveFramesByMatch[started.id]).toHaveLength(1);
   });
 });
 
