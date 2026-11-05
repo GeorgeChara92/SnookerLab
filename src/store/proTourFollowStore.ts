@@ -1,11 +1,9 @@
-import { Platform } from "react-native";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import * as Notifications from "expo-notifications";
-import Constants from "expo-constants";
 import { supabase } from "../api/supabase";
 import { safeStorage } from "../utils/storage";
 import { useAuthStore } from "./authStore";
+import { registerForPush } from "../features/notifications/push";
 
 type FollowState = {
   /** Pro players this person follows. Kept on the phone so it works signed out; synced to their
@@ -19,24 +17,8 @@ type FollowState = {
 
 const userId = () => useAuthStore.getState().user?.id ?? null;
 
-/** Registers this phone for push and stores its token against the signed-in account. Quietly does
- *  nothing when permission is refused, on a simulator, or signed out - following still works. */
-export const registerForProTourPush = async (ask = true): Promise<boolean> => {
-  const uid = userId();
-  if (!uid) return false;
-  try {
-    const { status } = ask ? await Notifications.requestPermissionsAsync() : await Notifications.getPermissionsAsync();
-    if (status !== "granted") return false;
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
-    const { data: token } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
-    if (!token) return false;
-    await supabase.from("push_tokens").upsert({ token, user_id: uid, platform: Platform.OS, updated_at: new Date().toISOString() }, { onConflict: "token" });
-    return true;
-  } catch (error) {
-    console.warn("pro tour push registration failed", error);
-    return false;
-  }
-};
+/** Following a player is what asks for notification permission on the pro tour side. */
+const registerForProTourPush = (ask = true) => registerForPush(userId(), ask);
 
 export const useProTourFollowStore = create<FollowState>()(
   persist(

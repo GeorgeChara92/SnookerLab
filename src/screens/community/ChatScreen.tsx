@@ -53,6 +53,7 @@ import {
   type GroupRole,
   type Message,
 } from "../../features/community/chat";
+import { setOpenConversation } from "../../features/notifications/push";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 const LightboxVideo = ({ url }: { url: string }) => {
@@ -213,12 +214,14 @@ export const ChatScreen = () => {
   useFocusEffect(
     useCallback(() => {
       focused.current = true;
+      setOpenConversation(conversationId);
       if (!isRequest) {
         void markRead(conversationId);
         markSeen(conversationId);
       }
       return () => {
         focused.current = false;
+        setOpenConversation(null);
       };
     }, [conversationId, isRequest, markSeen])
   );

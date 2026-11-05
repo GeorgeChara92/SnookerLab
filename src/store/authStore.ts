@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import * as FileSystemLegacy from "expo-file-system/legacy";
 import { safeStorage } from "../utils/storage";
 import { supabase } from "../api/supabase";
+import { forgetPushToken } from "../features/notifications/push";
 import { User, SkillLevel } from "../types";
 import { logoutBilling } from "../services/billing";
 
@@ -201,6 +202,8 @@ export const useAuthStore = create<AuthState>()(
         // Signing out must always work on this phone, even offline or if Supabase is slow: the
         // local session is cleared whatever happens to the calls around it.
         try {
+          // Take this phone off the account's notifications while still signed in to do it.
+          await Promise.race([forgetPushToken(), new Promise((resolve) => setTimeout(resolve, 2000))]);
           await Promise.race([
             supabase.auth.signOut({ scope: "local" }),
             new Promise((resolve) => setTimeout(resolve, 4000)),

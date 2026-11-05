@@ -75,7 +75,7 @@ import { UnlockQueueProvider } from "../components/achievements/UnlockQueueProvi
 import { AchievementWatcher } from "../components/achievements/AchievementWatcher";
 import { SendToChatScreen } from "../screens/community/SendToChatScreen";
 import { OnboardingHost } from "../components/onboarding/OnboardingHost";
-import { ProTourNotificationHost } from "../components/tour/ProTourNotificationHost";
+import { NotificationHost } from "../components/notifications/NotificationHost";
 import { CoachApplicationStatusHost } from "../components/onboarding/CoachApplicationStatusHost";
 
 import { useShallow } from "zustand/react/shallow";
@@ -471,7 +471,7 @@ export const AppNavigator = () => {
           !(isCoach && isDualAccount && !viewChosen) ? (
             <>
               <OnboardingHost />
-              <ProTourNotificationHost />
+              <NotificationHost />
               <CoachApplicationStatusHost />
             </>
           ) : null}

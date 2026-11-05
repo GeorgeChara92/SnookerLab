@@ -12,6 +12,11 @@ import { AppNavigator } from "./src/navigation";
 import { DialogProvider } from "./src/components/ui/DialogProvider";
 import { BreakOffSplash } from "./src/components/splash/BreakOffSplash";
 import { getThemeColors } from "./src/constants";
+import { ErrorBoundary } from "./src/components/ui/ErrorBoundary";
+import { installGlobalErrorLogging } from "./src/features/errors/errorLog";
+
+// Errors outside a screen's drawing are logged too (the error screen below covers the drawing).
+installGlobalErrorLogging();
 
 export default function App() {
   const isDark = useColorScheme() === "dark";
@@ -34,7 +39,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <DialogProvider>{fontsReady && (loadApp || !showSplash) ? <AppNavigator /> : null}</DialogProvider>
+        <DialogProvider>
+          {fontsReady && (loadApp || !showSplash) ? (
+            <ErrorBoundary>
+              <AppNavigator />
+            </ErrorBoundary>
+          ) : null}
+        </DialogProvider>
         {showSplash ? (
           <BreakOffSplash
             fontsReady={fontsReady}

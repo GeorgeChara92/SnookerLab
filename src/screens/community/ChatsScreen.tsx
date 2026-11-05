@@ -1,8 +1,9 @@
-import React, { useCallback, useLayoutEffect, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { HeaderButtons, HeaderIconButton } from "../../navigation/stackOptions";
+import { registerForPush } from "../../features/notifications/push";
 import { HelpButton } from "../../components/help/HelpButton";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
@@ -46,6 +47,12 @@ export const ChatsScreen = () => {
       void refresh();
     }, [refresh])
   );
+
+  // Opening chats is where notifications start to matter, so this is where the phone asks (once;
+  // after that iOS answers from the setting without showing anything).
+  useEffect(() => {
+    void registerForPush(me, true);
+  }, [me]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
