@@ -7,6 +7,7 @@ import type { MatchesStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { selectLapPosition, useRecordSnookerStore } from "../../store/recordSnookerStore";
 import { LapScan } from "../../components/scanSnooker/LapScan";
+import { useScanFoul } from "../../components/matches/ScanFoul";
 import { arSupport, lapAvailable } from "../../../modules/snooker-ar";
 import { BALL_LOOK, TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { type BallColour, type Point } from "../../features/scanSnooker/table";
@@ -91,6 +92,7 @@ const LapReview = ({
   const insets = useSafeAreaInsets();
   const saved = useRecordSnookerStore(selectLapPosition(matchId, frameNumber));
   const savePosition = useRecordSnookerStore((state) => state.savePosition);
+  const foul = useScanFoul(matchId, frameNumber);
 
   const [balls, setBalls] = useState<PlacedBall[]>(found?.balls ?? saved?.balls ?? []);
   const [unsure, setUnsure] = useState<string[]>(() => found?.balls.filter((ball) => ball.unsure).map((ball) => ball.id) ?? []);
@@ -230,12 +232,27 @@ const LapReview = ({
         </Pressable>
       </View>
 
-      {found ? (
-        <Pressable onPress={() => Share.share({ message: found.report })} accessibilityRole="button" hitSlop={4} style={styles.report}>
-          <MaterialCommunityIcons name="share-variant-outline" size={16} color={colors.primary} />
-          <Text style={[styles.reportText, { color: colors.primary }]}>Share the lap report</Text>
-        </Pressable>
+      {foul.available || found ? (
+        <View style={styles.links}>
+          {foul.available ? (
+            <Pressable onPress={foul.start} accessibilityRole="button" hitSlop={4} style={[styles.report, styles.link]}>
+              <MaterialCommunityIcons name="alert-octagon-outline" size={16} color={colors.primary} />
+              <Text style={[styles.reportText, { color: colors.primary }]} numberOfLines={1}>
+                {foul.label}
+              </Text>
+            </Pressable>
+          ) : null}
+          {found ? (
+            <Pressable onPress={() => Share.share({ message: found.report })} accessibilityRole="button" hitSlop={4} style={[styles.report, styles.link]}>
+              <MaterialCommunityIcons name="share-variant-outline" size={16} color={colors.primary} />
+              <Text style={[styles.reportText, { color: colors.primary }]} numberOfLines={1}>
+                Share the lap report
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
+      {foul.sheet}
     </View>
   );
 };
@@ -277,5 +294,7 @@ const styles = StyleSheet.create({
   primary: { flex: 1.3, minHeight: HIT_TARGET + 4, borderRadius: RADIUS.md, alignItems: "center", justifyContent: "center", paddingHorizontal: SPACING.sm },
   primaryText: { fontSize: 16, fontWeight: "800" },
   report: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: HIT_TARGET, marginTop: 2 },
-  reportText: { fontSize: 14, fontWeight: "700" },
+  reportText: { fontSize: 14, fontWeight: "700", flexShrink: 1 },
+  links: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", columnGap: SPACING.lg },
+  link: { flexShrink: 1 },
 });

@@ -91,9 +91,11 @@ type Props = {
    * show the balls as ghosts - only the words differ, and a routine cannot be re-scanned.
    */
   purpose?: "snooker" | "routine";
+  /** Adding a foul to the live frame while putting the balls back, when the frame is open. */
+  foul?: { label: string; onPress: () => void };
 };
 
-export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard, purpose = "snooker" }: Props) => {
+export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard, purpose = "snooker", foul }: Props) => {
   const dialog = useDialog();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -499,10 +501,21 @@ export const ARScan = ({ intent, saved, onSave, onUseDiagram, onClose, onDiscard
             those are stored in table millimetres, not AR world space, so they are untouched by a
             new frame. Only shown once there is a frame to redo. */}
         {(phase === "scan" || phase === "replace") && frame ? (
-          <Pressable onPress={redoCalibration} accessibilityRole="button" accessibilityLabel="Recalibrate the table" style={styles.chip}>
-            <MaterialCommunityIcons name="crosshairs-gps" size={16} color="#FFFFFF" />
-            <Text style={styles.chipText}>Recalibrate</Text>
-          </Pressable>
+          <View style={styles.chipRow}>
+            <Pressable onPress={redoCalibration} accessibilityRole="button" accessibilityLabel="Recalibrate the table" style={styles.chip}>
+              <MaterialCommunityIcons name="crosshairs-gps" size={16} color="#FFFFFF" />
+              <Text style={styles.chipText}>Recalibrate</Text>
+            </Pressable>
+            {/* A miss: the balls go back and the points go to the other player, from here. */}
+            {phase === "replace" && purpose === "snooker" && foul ? (
+              <Pressable onPress={foul.onPress} accessibilityRole="button" style={[styles.chip, styles.chipShrink]}>
+                <MaterialCommunityIcons name="alert-octagon-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.chipText} numberOfLines={1}>
+                  {foul.label}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
 
         {phase === "scan" || (phase === "replace" && saved) ? (
@@ -785,6 +798,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   chipText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: SPACING.sm, maxWidth: "100%" },
+  chipShrink: { flexShrink: 1 },
 
   tray: {
     flexDirection: "row",

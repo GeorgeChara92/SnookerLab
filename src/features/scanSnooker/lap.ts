@@ -119,6 +119,24 @@ export const isSnookerCloth = (cloth: LapColour) => {
   return h >= 70 && h <= 180 && s >= 0.2;
 };
 
+/** Two aims at one spot further apart than this were not both at that spot. */
+export const TWO_VIEW_LIMIT_MM = 50;
+
+/**
+ * One spot, aimed at from two sides of the table. An aim from one place lands a little beyond or
+ * short of the spot along the line of sight, whenever the cloth's height is not quite right, which
+ * is why a marker set from one side looks off from the other. Aimed at again from across the table
+ * the error points the other way, and the middle of the two is where the spot really is.
+ */
+export const combineViews = (first: WorldPoint, second: WorldPoint) => {
+  const gapMm = Math.hypot(second.x - first.x, second.z - first.z) * 1000;
+  return {
+    point: { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2, z: (first.z + second.z) / 2 },
+    gapMm,
+    agree: gapMm <= TWO_VIEW_LIMIT_MM,
+  };
+};
+
 /** Which of the stretches round the table the camera is on, the same size whichever side it is. */
 export const sectorOf = (camera: Point) => {
   const across = (camera.x - TABLE.width / 2) / (TABLE.width / 2);
@@ -315,13 +333,14 @@ export class LapTracker {
   }
 
   /** What happened on this lap, to send back when a table reads wrongly: the colours are the point. */
-  report(frame: TableFrame | null, lidar: boolean) {
+  report(frame: TableFrame | null, lidar: boolean, extra: Record<string, unknown> = {}) {
     const round = (value: number) => Math.round(value);
     const assigned = assignColours(this.confirmed());
     const doubts = this.clusters.map(doubtAbout);
     const doubted = (reason: string) => doubts.filter((doubt) => doubt === reason).length;
     return JSON.stringify({
       version: 2,
+      ...extra,
       lidar,
       scale: frame ? Number(frame.scale.toFixed(3)) : null,
       looks: this.frames,

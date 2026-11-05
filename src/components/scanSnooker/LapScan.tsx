@@ -27,7 +27,7 @@ import {
 } from "../../features/scanSnooker/table";
 import { clothFromAim, rayAtHeight, tableLines } from "../../features/scanSnooker/ar";
 import { AimStabiliser, type Stability } from "../../features/scanSnooker/stabilize";
-import { LAP_COMPLETE, LAP_SECTORS, LapTracker, type LapBall } from "../../features/scanSnooker/lap";
+import { LAP_COMPLETE, LAP_SECTORS, LapTracker, combineViews, type LapBall } from "../../features/scanSnooker/lap";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /**
@@ -35,7 +35,7 @@ import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
  * table and the balls are found along the way.
  *
  *   find      - the camera finds the cloth (Apple's own guidance shows until it does)
- *   calibrate - aim at two spots the player can see, one after the other
+ *   calibrate - aim at two spots the player can see, each from one side and then the other
  *   check     - the table is drawn over the real one; if it lines up, carry on
  *   lap       - walk round the table; a marker lands on each ball as enough views agree on it
  *
@@ -79,6 +79,10 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
   const [aim, setAim] = useState<ARAim | null>(null);
   const [landmarks, setLandmarks] = useState<[string, string]>(["black-spot", "pink-spot"]);
   const [taps, setTaps] = useState<Tap[]>([]);
+  // The spot being set, as aimed at from the first side; the second aim, from across the table, is
+  // averaged with it - see `combineViews`.
+  const [firstView, setFirstView] = useState<WorldPoint | null>(null);
+  const [gaps, setGaps] = useState<number[]>([]);
   const [pickingLandmark, setPickingLandmark] = useState<0 | 1 | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [showTip, setShowTip] = useState(true);
@@ -135,6 +139,29 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     setNotice(null);
     stabiliser.reset();
     setStability({ progress: 0, locked: null });
+    if (!firstView) {
+      setFirstView(world);
+      return;
+    }
+    const views = combineViews(firstView, world);
+    setFirstView(null);
+    if (!views.agree) {
+      setNotice(`Those two aims were ${Math.round(views.gapMm / 10)} cm apart. Set the ${current.label.toLowerCase()} again.`);
+      return;
+    }
+    setGaps((value) => [...value, Math.round(views.gapMm)]);
+    commitLandmark(views.point);
+  };
+
+  /** One side only, when the other cannot be reached - quicker, and less exact. */
+  const keepFirstViewOnly = () => {
+    if (!firstView) return;
+    commitLandmark(firstView);
+    setFirstView(null);
+  };
+
+  const commitLandmark = (world: WorldPoint) => {
+    if (!current) return;
     const next = [...taps, { landmarkId: current.id, world }];
     setTaps(next);
     if (next.length === 2) setPhase("check");
@@ -152,6 +179,8 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     stabiliser.reset();
     setStability({ progress: 0, locked: null });
     setTaps([]);
+    setFirstView(null);
+    setGaps([]);
     setNotice(null);
     setPhase("calibrate");
   };
@@ -179,7 +208,7 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     setOffCloth(!tracker.current.seeingCloth());
   };
 
-  const finish = () => onFinish(tracker.current.balls(), tracker.current.report(frame, lidar));
+  const finish = () => onFinish(tracker.current.balls(), tracker.current.report(frame, lidar, { calibrationGapsMm: gaps }));
 
   // Only set during the lap, so the camera is not looked through while calibrating.
   const lapTable = useMemo<ARLapTable | null>(
@@ -209,6 +238,8 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
       ...tap.world,
       kind: "marker",
     }));
+    // The first aim at the spot being set, in yellow, until it is averaged with the second.
+    if (firstView) markers.push({ id: `first-view-${taps.length}`, colour: "#F2C230", ...firstView, kind: "marker" });
     if (!frame || phase !== "lap") return markers;
     return [
       ...markers,
@@ -219,7 +250,7 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
         kind: "tag" as const,
       })),
     ];
-  }, [balls, frame, phase, taps]);
+  }, [balls, firstView, frame, phase, taps]);
 
   // ---------------------------------------------------------------- the words at the top
   const lapDone = walked >= LAP_COMPLETE;
@@ -229,10 +260,15 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
       case "find":
         return { title: "Find the table", tip: "Point at the cloth and move the phone slowly." };
       case "calibrate":
-        return {
-          title: `Aim at the ${current?.label.toLowerCase()}`,
-          tip: `Point ${taps.length + 1} of 2. Put the cross on its centre and tap the button. Any spot you can see will do.`,
-        };
+        return firstView
+          ? {
+              title: "Now from the other side",
+              tip: `Walk across the table and aim at the ${current?.label.toLowerCase()} again. Two sides cancel out most of the error.`,
+            }
+          : {
+              title: `Aim at the ${current?.label.toLowerCase()}`,
+              tip: `Point ${taps.length + 1} of 2. Put the cross on its centre and tap the button. Any spot you can see will do.`,
+            };
       case "check":
         return {
           title: "Does it line up?",
@@ -341,7 +377,11 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
 
       {/* ------------------------------------------------ bottom: progress and the controls */}
       <View style={[styles.bottom, { bottom: insets.bottom + SPACING.md }]} pointerEvents="box-none">
-        {phase === "calibrate" && current ? (
+        {phase === "calibrate" && firstView ? (
+          <Pressable onPress={keepFirstViewOnly} accessibilityRole="button" style={styles.chip}>
+            <Text style={styles.chipText}>Use one side only</Text>
+          </Pressable>
+        ) : phase === "calibrate" && current ? (
           <Pressable
             onPress={() => setPickingLandmark(taps.length as 0 | 1)}
             accessibilityRole="button"
@@ -428,6 +468,7 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
                   const next: [string, string] = [...landmarks] as [string, string];
                   next[pickingLandmark ?? 0] = item.id;
                   setLandmarks(next);
+                  setFirstView(null);
                   setPickingLandmark(null);
                 }}
                 accessibilityRole="button"

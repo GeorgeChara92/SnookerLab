@@ -8,6 +8,7 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { useScanSnookerStore } from "../../store/scanSnookerStore";
 import { ARScan } from "../../components/scanSnooker/ARScan";
+import { useScanFoul } from "../../components/matches/ScanFoul";
 import { arSupport } from "../../../modules/snooker-ar";
 import { BALL_LOOK, TableDiagram } from "../../components/scanSnooker/TableDiagram";
 import { BALL_LIMIT, describePosition, type BallColour } from "../../features/scanSnooker/table";
@@ -56,6 +57,8 @@ export const ScanSnookerScreen = () => {
   // Bumped to start the camera afresh, e.g. to scan again after saving.
   const [cameraRun, setCameraRun] = useState(0);
   const [intent, setIntent] = useState<"record" | "replace">(saved ? "replace" : "record");
+  const foul = useScanFoul(matchId, frameNumber);
+  const foulAction = foul.available ? { label: foul.label, onPress: foul.start } : undefined;
 
   // The camera fills the screen; the diagram keeps the header and its back button.
   const camera = view === "camera" && support.available;
@@ -65,33 +68,41 @@ export const ScanSnookerScreen = () => {
 
   if (camera) {
     return (
-      <ARScan
-        key={`${intent}-${cameraRun}`}
-        intent={intent}
-        saved={saved}
-        onSave={(balls) => {
-          savePosition(matchId, frameNumber, balls);
-          // Straight to the diagram of what was scanned, which is where it is checked and tweaked.
-          setView("diagram");
-        }}
-        onUseDiagram={() => setView("diagram")}
-        onClose={() => navigation.goBack()}
-        onDiscard={() => clearPosition(matchId, frameNumber)}
-      />
+      <>
+        <ARScan
+          key={`${intent}-${cameraRun}`}
+          intent={intent}
+          saved={saved}
+          onSave={(balls) => {
+            savePosition(matchId, frameNumber, balls);
+            // Straight to the diagram of what was scanned, which is where it is checked and tweaked.
+            setView("diagram");
+          }}
+          onUseDiagram={() => setView("diagram")}
+          onClose={() => navigation.goBack()}
+          onDiscard={() => clearPosition(matchId, frameNumber)}
+          foul={foulAction}
+        />
+        {foul.sheet}
+      </>
     );
   }
 
   return (
-    <DiagramScan
-      matchId={matchId}
-      frameNumber={frameNumber}
-      cameraAvailable={support.available}
-      onUseCamera={(next) => {
-        setIntent(next);
-        setCameraRun((value) => value + 1);
-        setView("camera");
-      }}
-    />
+    <>
+      <DiagramScan
+        matchId={matchId}
+        frameNumber={frameNumber}
+        foul={foulAction}
+        cameraAvailable={support.available}
+        onUseCamera={(next) => {
+          setIntent(next);
+          setCameraRun((value) => value + 1);
+          setView("camera");
+        }}
+      />
+      {foul.sheet}
+    </>
   );
 };
 
@@ -101,9 +112,11 @@ const DiagramScan = ({
   frameNumber,
   cameraAvailable,
   onUseCamera,
+  foul,
 }: {
   matchId: string;
   frameNumber: number;
+  foul?: { label: string; onPress: () => void };
   cameraAvailable: boolean;
   onUseCamera: (intent: "record" | "replace") => void;
 }) => {
@@ -376,6 +389,14 @@ const DiagramScan = ({
           </Pressable>
         </View>
       )}
+      {mode === "replace" && saved && foul ? (
+        <Pressable onPress={foul.onPress} accessibilityRole="button" hitSlop={4} style={styles.foul}>
+          <MaterialCommunityIcons name="alert-octagon-outline" size={16} color={colors.primary} />
+          <Text style={[styles.foulText, { color: colors.primary }]} numberOfLines={1}>
+            {foul.label}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 };
@@ -458,4 +479,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
   },
   primaryText: { fontSize: 16, fontWeight: "800" },
+  foul: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: HIT_TARGET, marginTop: 2 },
+  foulText: { fontSize: 14, fontWeight: "700", flexShrink: 1 },
 });

@@ -18,6 +18,7 @@ import { useAuthStore, useMatchesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppDialog, type DialogRequest } from "../../components/ui/AppDialog";
 import { FoulSheet } from "../../components/matches/FoulSheet";
+import { offerFouls } from "../../features/matches/foulBridge";
 import { useLiveBroadcast } from "../../features/matches/useLiveBroadcast";
 import { useSharePrefsStore } from "../../store/sharePrefsStore";
 import { HeaderButtons, HeaderIconButton } from "../../navigation/stackOptions";
@@ -539,6 +540,29 @@ export const LiveFrameScoringScreen = () => {
     setFoulNote("");
     setIsFoulOpen(true);
   };
+
+  // A scan open on top of this screen (Scan Snooker, Record a Snooker) adds its fouls through here,
+  // so the player does not have to leave it - and lose the calibration - to give the points away.
+  const foulFromScanRef = useRef<(value: 4 | 5 | 6 | 7, type: LiveFoulType, note?: string) => string>(() => "");
+  foulFromScanRef.current = (value, type, note) => {
+    const penalty = Math.max(value, getMinimumFoulValue(frameRef.current));
+    const awardedTo = frameRef.current.atTable === "user" ? opponentLabel : userLabel;
+    applyFrameMutation((state) => recordFoul(state, value, type, note), { scoreChange: true });
+    return `${FOUL_LABELS[type]}: ${penalty} to ${awardedTo}`;
+  };
+  const sidesRef = useRef({ userLabel, opponentLabel });
+  sidesRef.current = { userLabel, opponentLabel };
+  useEffect(
+    () =>
+      offerFouls(route.params.matchId, {
+        frameNumber: () => frameRef.current.frameNumber,
+        open: () => frameRef.current.phase !== "ended",
+        minimum: () => getMinimumFoulValue(frameRef.current),
+        awardedTo: () => (frameRef.current.atTable === "user" ? sidesRef.current.opponentLabel : sidesRef.current.userLabel),
+        apply: (value, type, note) => foulFromScanRef.current(value, type, note),
+      }),
+    [route.params.matchId]
+  );
 
   const applyFoul = () => {
     const penalty = Math.max(foulValue, minimumFoulValue);

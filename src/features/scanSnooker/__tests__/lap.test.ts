@@ -1,4 +1,4 @@
-import { LAP_SECTORS, LapTracker, classifyColour, isSnookerCloth, sectorOf, toHsv, type LapColour, type LapFrame } from "../lap";
+import { LAP_SECTORS, LapTracker, classifyColour, combineViews, isSnookerCloth, sectorOf, toHsv, type LapColour, type LapFrame } from "../lap";
 import { BALL_RADIUS, TABLE, tableToWorld, type BallColour, type Point, type TableFrame } from "../table";
 
 const FRAME: TableFrame = { origin: { x: 0.4, z: -0.2 }, angle: 0.3, height: 0.85, scale: 1 };
@@ -284,6 +284,21 @@ describe("not seeing balls that are not there", () => {
     );
     expect(tracker.balls()).toHaveLength(0);
     expect(JSON.parse(tracker.report(FRAME, true)).mixedColours).toBe(1);
+  });
+});
+
+describe("setting a spot from two sides", () => {
+  it("takes the middle, which cancels an aim that landed beyond the spot from each side", () => {
+    // The spot is at x = 1; each aim overshot by 2cm along its own line of sight.
+    const result = combineViews({ x: 1.02, y: 0.84, z: 0 }, { x: 0.98, y: 0.86, z: 0 });
+    expect(result.point.x).toBeCloseTo(1, 6);
+    expect(result.point.y).toBeCloseTo(0.85, 6);
+    expect(result.gapMm).toBeCloseTo(40, 6);
+    expect(result.agree).toBe(true);
+  });
+
+  it("does not agree when the two aims were at different things", () => {
+    expect(combineViews({ x: 1, y: 0.85, z: 0 }, { x: 1, y: 0.85, z: 0.08 }).agree).toBe(false);
   });
 });
 
