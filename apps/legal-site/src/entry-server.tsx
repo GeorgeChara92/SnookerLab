@@ -23,7 +23,7 @@ export function render(path: string) {
   const head = [
     `<title>${escape(meta.title)}</title>`,
     `<meta name="description" content="${escape(meta.description)}" />`,
-    path === "/404" || path.startsWith("/admin")
+    path === "/404"
       ? `<meta name="robots" content="noindex, nofollow" />`
       : `<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />\n    <link rel="canonical" href="${url}" />`,
     `<meta property="og:type" content="website" />`,

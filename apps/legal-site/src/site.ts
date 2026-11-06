@@ -74,9 +74,6 @@ export const ROUTES: RouteMeta[] = [
     description: "What data Snookered collects, why it is collected, who processes it, and the controls you have over your account and your data.",
   },
   { path: "/terms", title: "Terms of Use · Snookered", description: "The terms for using the Snookered snooker app: your account, subscriptions, acceptable use, AI coaching guidance and content ownership." },
-  // Not linked anywhere and excluded from the sitemap (see prerender.mjs) - login-gated, not
-  // secret-URL-gated, but no reason to advertise it either.
-  { path: "/admin/dashboard", title: "Admin dashboard · Snookered", description: "Admin dashboard." },
   { path: "/404", title: "Page not found · Snookered", description: "That page could not be found. Head back to the Snookered home page." },
 ];
 

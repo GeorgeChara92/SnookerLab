@@ -20,7 +20,7 @@ for (const route of ROUTES) {
 const today = new Date().toISOString().slice(0, 10);
 // The home page changes most; the legal pages barely move.
 const weight = (path) => (path === "/" ? "1.0" : path === "/privacy" || path === "/terms" ? "0.3" : "0.8");
-const urls = ROUTES.filter((route) => route.path !== "/404" && !route.path.startsWith("/admin"))
+const urls = ROUTES.filter((route) => route.path !== "/404")
   .map(
     (route) =>
       `
@@ -34,6 +34,6 @@ await writeFile(
 );
 await writeFile(
   path.join(dist, "robots.txt"),
-  "User-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: https://snookeredapp.com/sitemap.xml\n"
+  "User-agent: *\nAllow: /\nSitemap: https://snookeredapp.com/sitemap.xml\n"
 );
 await rm(path.resolve("dist-server"), { recursive: true, force: true });

@@ -10,7 +10,6 @@ import FindACoach from "./pages/FindACoach";
 import CoachDiary from "./pages/CoachDiary";
 import ScanSnooker from "./pages/ScanSnooker";
 import ProTour from "./pages/ProTour";
-import AdminDashboard from "./pages/AdminDashboard";
 import { NotFound, Plans, Privacy, Support, Terms } from "./pages/Info";
 import { metaFor } from "./site";
 import "@fontsource-variable/bricolage-grotesque";
@@ -100,7 +99,6 @@ export function App() {
           <Route path="/pro-tour" element={<ProTour />} />
           <Route path="/plans" element={<Plans />} />
           <Route path="/support" element={<Support />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="*" element={<NotFound />} />

@@ -1,0 +1,26 @@
+{
+  "name": "snookered-admin",
+  "private": true,
+  "type": "module",
+  "description": "Admin dashboard. Runs only on your own computer: npm run dev, then open http://127.0.0.1:5620. Never deployed.",
+  "scripts": {
+    "dev": "vite --open",
+    "serve": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "@supabase/supabase-js": "^2.117.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}
