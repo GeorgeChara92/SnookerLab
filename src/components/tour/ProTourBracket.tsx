@@ -79,7 +79,8 @@ export const ProTourBracket = ({
       if (focusColumn <= 0 || !treeWidth.current) return;
       const full = columns.length * COL_W + (columns.length - 1) * GAP_X + SPACING.lg;
       const x = focusColumn * (COL_W + GAP_X) - COL_W / 3;
-      tree.current?.scrollTo({ x: Math.max(0, Math.min(x, full - treeWidth.current)), animated });
+      const to = Math.max(0, Math.min(x, full - treeWidth.current));
+      requestAnimationFrame(() => tree.current?.scrollTo({ x: to, animated }));
     },
     [focusColumn, columns.length]
   );

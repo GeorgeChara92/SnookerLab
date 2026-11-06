@@ -117,12 +117,15 @@ export const ProTourTournamentScreen = () => {
   const strip = useRef({ width: 0, content: 0 });
   const currentKey = useRef<string | null>(null);
   currentKey.current = current?.key ?? null;
+  // Only once the strip, its content and the pill have all been measured (they arrive in any
+  // order), and on the next frame, so the scroll view has taken its new size before it moves.
   const showPill = useCallback((key: string | null, animated: boolean) => {
     const spot = key ? pillSpots.current.get(key) : undefined;
     const { width, content } = strip.current;
-    if (!spot || !width) return;
+    if (!spot || !width || !content) return;
     const centred = spot.x - (width - spot.width) / 2;
-    roundStrip.current?.scrollTo({ x: Math.max(0, Math.min(centred, content - width)), animated });
+    const x = Math.max(0, Math.min(centred, content - width));
+    requestAnimationFrame(() => roundStrip.current?.scrollTo({ x, animated }));
   }, []);
   useEffect(() => {
     showPill(current?.key ?? null, true);
