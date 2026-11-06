@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
@@ -38,12 +38,15 @@ export const ProTourBracket = ({
   links,
   players,
   following,
+  focusKey,
 }: {
   /** The main event's knockout rounds, in playing order, ending with the final. */
   rounds: DrawRound[];
   links: DrawLinks | null | undefined;
   players: Record<number, string>;
   following?: number[];
+  /** The round to bring into view when the bracket opens: the one being played, or the one picked. */
+  focusKey?: string | null;
 }) => {
   const { colors } = useAppTheme();
   const navigation = useNavigation<NavigationProp<CommunityStackParamList>>();
@@ -65,6 +68,22 @@ export const ProTourBracket = ({
       return { round: r, matches: numbers.map((n) => byNumber.get(n)).filter((m): m is ProTourMatch => !!m) };
     });
   }, [shown, links]);
+
+  // Open on the round that matters (say the final, while it's being played) rather than always
+  // on the first column, with the round before it still peeking in on the left.
+  const tree = useRef<ScrollView>(null);
+  const treeWidth = useRef(0);
+  const focusColumn = columns.findIndex((col) => col.round.key === focusKey);
+  const showFocus = useCallback(
+    (animated: boolean) => {
+      if (focusColumn <= 0 || !treeWidth.current) return;
+      const full = columns.length * COL_W + (columns.length - 1) * GAP_X + SPACING.lg;
+      const x = focusColumn * (COL_W + GAP_X) - COL_W / 3;
+      tree.current?.scrollTo({ x: Math.max(0, Math.min(x, full - treeWidth.current)), animated });
+    },
+    [focusColumn, columns.length]
+  );
+  useEffect(() => showFocus(true), [showFocus]);
 
   if (!columns.length) return null;
   const height = Math.max(columns[0].matches.length, 1) * SLOT;
@@ -95,7 +114,16 @@ export const ProTourBracket = ({
         </ScrollView>
       ) : null}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: SPACING.lg }}>
+      <ScrollView
+        ref={tree}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingRight: SPACING.lg }}
+        onLayout={(e) => {
+          treeWidth.current = e.nativeEvent.layout.width;
+          showFocus(false);
+        }}
+      >
         <View style={{ width: columns.length * COL_W + (columns.length - 1) * GAP_X, height: HEAD_H + height }}>
           {columns.map((col, c) => {
             const x = c * (COL_W + GAP_X);

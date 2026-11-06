@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, LayoutAnimation, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
@@ -109,6 +109,24 @@ export const ProTourTournamentScreen = () => {
   }, [roundList]);
   const [selected, setSelected] = useState<string | null>(null);
   const current = roundList.find((r) => r.key === (selected ?? defaultKey));
+
+  // Keep the chosen round's pill in view: on opening (the round being played, often far to the
+  // right, like a final) and whenever another round is picked, centred where the strip allows.
+  const roundStrip = useRef<ScrollView>(null);
+  const pillSpots = useRef(new Map<string, { x: number; width: number }>());
+  const strip = useRef({ width: 0, content: 0 });
+  const currentKey = useRef<string | null>(null);
+  currentKey.current = current?.key ?? null;
+  const showPill = useCallback((key: string | null, animated: boolean) => {
+    const spot = key ? pillSpots.current.get(key) : undefined;
+    const { width, content } = strip.current;
+    if (!spot || !width) return;
+    const centred = spot.x - (width - spot.width) / 2;
+    roundStrip.current?.scrollTo({ x: Math.max(0, Math.min(centred, content - width)), animated });
+  }, []);
+  useEffect(() => {
+    showPill(current?.key ?? null, true);
+  }, [current?.key, showPill]);
   const playedAlready = !!current && !current.matches.length && roundList.some((r) => r.round > current.round && r.matches.length > 0);
   const fixtures = useMemo(() => (current ? (current.matches.length ? current.matches : current.placeholders) : []), [current]);
   const days = useMemo(() => groupByDay(fixtures, events), [fixtures, events]);
@@ -268,9 +286,22 @@ export const ProTourTournamentScreen = () => {
             </View>
           ) : null}
         </View>
-        {showBracket ? <ProTourBracket rounds={bracketRounds} links={detail?.links} players={players} following={following} /> : null}
+        {showBracket ? <ProTourBracket rounds={bracketRounds} links={detail?.links} players={players} following={following} focusKey={current?.key ?? null} /> : null}
         {!showBracket && roundList.length ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rounds}>
+          <ScrollView
+            ref={roundStrip}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.rounds}
+            onLayout={(e) => {
+              strip.current.width = e.nativeEvent.layout.width;
+              showPill(currentKey.current, false);
+            }}
+            onContentSizeChange={(w) => {
+              strip.current.content = w;
+              showPill(currentKey.current, false);
+            }}
+          >
             {roundList.map((r) => {
               const on = r.key === current?.key;
               const hasLive = r.matches.some((m) => matchStatus(m) === "live");
@@ -278,6 +309,10 @@ export const ProTourTournamentScreen = () => {
                 <Pressable
                   key={r.key}
                   onPress={() => setSelected(r.key)}
+                  onLayout={(e) => {
+                    pillSpots.current.set(r.key, { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width });
+                    if (r.key === currentKey.current) showPill(r.key, false);
+                  }}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: on }}
                   accessibilityLabel={r.title}
