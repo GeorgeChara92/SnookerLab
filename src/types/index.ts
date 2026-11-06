@@ -1,4 +1,5 @@
 import type { MatchShare, RoutineShare } from "../features/community/chatShare";
+import type { RuleTopicId } from "../features/rules/rules";
 
 export type SkillLevel = "beginner" | "intermediate" | "advanced" | "professional";
 export type DifficultyLevel = "beginner" | "intermediate" | "advanced";
@@ -414,6 +415,9 @@ export type PracticeStackParamList = SessionsStackParamList & {
   /** Setting a routine up on the real table with the camera. */
   RoutineAR: { routineId: string };
   RoutineLeaderboard: { routineKey: string; name: string };
+  /** The rules of snooker, and one rule in full. */
+  Rules: undefined;
+  RuleTopic: { topicId: RuleTopicId };
 };
 
 export type MatchesStackParamList = {

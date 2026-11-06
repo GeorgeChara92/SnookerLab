@@ -11,7 +11,7 @@ import { summarise } from "../../features/scanSnooker/position";
 import type { CustomRoutine } from "../../features/customRoutines/customRoutine";
 import { authorsOfShared } from "../../features/community/sharedRoutines";
 import { nameOf, type PublicProfile } from "../../features/community/types";
-import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import type { PracticeStackParamList, RoutineCategory } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { getRoutineCategoryIconName } from "../../constants/routineCategoryIcons";
@@ -320,6 +320,22 @@ export const RoutineCategoriesScreen = () => {
       ListHeaderComponent={
         <View style={styles.header}>
           {tabs}
+          <Pressable
+            onPress={() => navigation.navigate("Rules")}
+            accessibilityRole="button"
+            accessibilityLabel="Rules of snooker. Fouls, the miss rule, free ball and more."
+            style={({ pressed }) => [
+              styles.rulesCard,
+              { backgroundColor: colors.board, borderColor: colors.boardRule, opacity: pressed ? 0.9 : 1 },
+            ]}
+          >
+            <View style={styles.rulesText}>
+              <Text style={[styles.rulesKicker, { color: colors.boardRule }]}>THE RULES</Text>
+              <Text style={[styles.rulesTitle, { color: colors.boardText }]}>Rules of snooker</Text>
+              <Text style={[styles.rulesSub, { color: colors.boardMuted }]}>Fouls, the miss rule, free ball and more</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.boardMuted} />
+          </Pressable>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
             Pick a category to browse routines and guides.
           </Text>
@@ -372,6 +388,21 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 12,
   },
+  rulesCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    marginTop: SPACING.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+  },
+  rulesText: { flex: 1, gap: 2 },
+  rulesKicker: { fontFamily: FONTS.board, fontSize: 12, letterSpacing: 2 },
+  rulesTitle: { fontSize: 17, fontWeight: "800" },
+  rulesSub: { fontSize: 13, lineHeight: 18 },
   title: {
     fontSize: 24,
     fontWeight: "800",

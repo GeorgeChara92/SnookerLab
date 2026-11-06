@@ -39,6 +39,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
         body: "Had a session? Rate and review your coach - it shows on their profile for the next player deciding whether to book.",
       },
       {
+        icon: "book-open-variant",
+        title: "Rules of snooker",
+        body: "Fouls, the miss rule, free ball and more, in plain words. Find it in Practice, or straight from the Foul button while you're scoring a frame.",
+      },
+      {
         icon: "message-star-outline",
         title: "Send us feedback",
         body: "A new spot in Profile to tell us what's working and what isn't, separate from a support request.",

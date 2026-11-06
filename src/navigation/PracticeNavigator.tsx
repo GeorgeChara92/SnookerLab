@@ -15,6 +15,9 @@ import { PracticePlanScreen } from "../screens/sessions/PracticePlanScreen";
 import { NewGoalScreen } from "../screens/sessions/NewGoalScreen";
 import { SessionsHomeScreen } from "../screens/sessions/SessionsHomeScreen";
 import { RoutineLeaderboardScreen } from "../screens/community/RoutineLeaderboardScreen";
+import { RulesScreen } from "../screens/rules/RulesScreen";
+import { RuleTopicScreen } from "../screens/rules/RuleTopicScreen";
+import { getRuleTopic } from "../features/rules/rules";
 import { PracticeStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 import { PlayerRootHeader } from "./PlayerRootHeader";
@@ -62,6 +65,12 @@ export const PracticeNavigator = () => {
       <Stack.Screen name="PracticePlan" component={PracticePlanScreen} options={{ title: "Your plan" }} />
       <Stack.Screen name="NewGoal" component={NewGoalScreen} options={{ title: "New goal" }} />
       <Stack.Screen name="RoutineLeaderboard" component={RoutineLeaderboardScreen} options={{ title: "Leaderboard" }} />
+      <Stack.Screen name="Rules" component={RulesScreen} options={{ title: "Rules of snooker" }} />
+      <Stack.Screen
+        name="RuleTopic"
+        component={RuleTopicScreen}
+        options={({ route }) => ({ title: getRuleTopic(route.params.topicId)?.title ?? "Rules" })}
+      />
     </Stack.Navigator>
   );
 };

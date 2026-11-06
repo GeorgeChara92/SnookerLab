@@ -371,6 +371,17 @@ export const HELP_TOPICS = {
     ],
     tips: ["Clients without a Snookered account can't see anything, so everything stays private."],
   },
+  rules: {
+    title: "Rules of snooker",
+    audience: "player",
+    purpose: "The rules in plain words, for settling a question mid-frame: fouls, the miss rule, free ball and how a frame ends.",
+    steps: [
+      "Pick a topic. Each one starts with the short answer, then the detail.",
+      "Common questions at the bottom cover the calls people argue about.",
+      "During live scoring, the Foul sheet links straight to the rule for the foul you choose.",
+    ],
+    tips: ["Clubs and leagues sometimes play their own version, especially of the miss rule. Agree before you start."],
+  },
   coachGroups: {
     title: "Groups",
     audience: "coach",
@@ -415,6 +426,8 @@ export const ROUTE_TOPICS: Partial<Record<string, HelpTopicId>> = {
   Leaderboards: "leaderboards",
   RoutineBoards: "leaderboards",
   RoutineLeaderboard: "leaderboards",
+  Rules: "rules",
+  RuleTopic: "rules",
   MatchesList: "matches",
   MatchDetail: "matches",
   OpponentMatches: "matches",
