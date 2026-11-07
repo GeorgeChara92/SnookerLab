@@ -21,6 +21,8 @@ export type LiveFrameEvent = {
   foulValue?: 4 | 5 | 6 | 7;
   foulType?: LiveFoulType;
   note?: string;
+  /** A pot of the ball nominated as a free ball: `ball` is what went in, `points` what it was worth. */
+  freeBall?: boolean;
 };
 
 export type LiveFrameState = {
@@ -208,6 +210,49 @@ export const potBall = (state: LiveFrameState, ball: LiveBall): LiveFrameState =
   }
 
   return appendEvent(next, { kind: "pot", player: state.atTable, ball, points });
+};
+
+/**
+ * A free ball is the first shot of a visit straight after the other player's foul, when it left
+ * this player snookered. Playing again after asking the offender to play again doesn't qualify,
+ * and with only the black left there is nothing else to nominate.
+ */
+export const canTakeFreeBall = (state: LiveFrameState): boolean => {
+  if (state.phase === "ended" || state.currentBreak > 0) return false;
+  if (state.phase === "reds" && state.awaitingColorAfterRed) return false;
+  if (state.phase === "colors" && state.nextColorIndex >= FINAL_BLACK_INDEX) return false;
+  const last = state.events[0];
+  return last?.kind === "foul" && !!last.player && last.player !== state.atTable;
+};
+
+/** The balls that can be nominated: any colour on the reds, any colour still to come on the colours. */
+export const freeBallChoices = (state: LiveFrameState): LiveBall[] => {
+  if (!canTakeFreeBall(state)) return [];
+  return state.phase === "reds" ? COLOR_SEQUENCE : COLOR_SEQUENCE.slice(state.nextColorIndex + 1);
+};
+
+/** What a potted free ball scores: a red's 1 on the reds, the ball on's value on the colours. */
+export const freeBallValue = (state: LiveFrameState): number =>
+  state.phase === "reds" ? BALL_POINTS.red : BALL_POINTS[COLOR_SEQUENCE[state.nextColorIndex]];
+
+/**
+ * The nominated free ball goes in. It counts as the ball on and is re-spotted, so no red comes off
+ * and the colour on stays on: on the reds the player is now on a colour, on the colours they are
+ * still on the same one.
+ */
+export const potFreeBall = (state: LiveFrameState, ball: LiveBall): LiveFrameState => {
+  if (!freeBallChoices(state).includes(ball)) return state;
+
+  const points = freeBallValue(state);
+  const scoreField = state.atTable === "user" ? "userScore" : "opponentScore";
+  const next: LiveFrameState = {
+    ...state,
+    [scoreField]: state[scoreField] + points,
+    currentBreak: state.currentBreak + points,
+  };
+  if (state.phase === "reds") next.awaitingColorAfterRed = true;
+
+  return appendEvent(next, { kind: "pot", player: state.atTable, ball, points, freeBall: true });
 };
 
 export const endVisit = (state: LiveFrameState): LiveFrameState => {

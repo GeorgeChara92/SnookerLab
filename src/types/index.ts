@@ -188,6 +188,8 @@ export interface LiveFrameEvent {
   foulValue?: 4 | 5 | 6 | 7;
   foulType?: LiveFrameFoulType;
   note?: string;
+  /** A pot of the ball nominated as a free ball. */
+  freeBall?: boolean;
 }
 
 export interface LiveFrameRecord {

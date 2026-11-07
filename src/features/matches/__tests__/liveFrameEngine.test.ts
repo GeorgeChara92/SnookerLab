@@ -6,7 +6,11 @@ import {
   getPointsRemaining,
   getSnookersRequired,
   potBall,
+  potFreeBall,
+  canTakeFreeBall,
+  freeBallChoices,
   recordFoul,
+  switchPlayer,
   type LiveBall,
   type LiveFrameState,
   lastBallFor,
@@ -192,5 +196,64 @@ describe("the ball behind each score", () => {
   it("goes back to the white after a foul", () => {
     const frame = recordFoul(potBall(createInitialLiveFrameState(1), "red"), 4, "other");
     expect(lastBallFor(frame.events, "user")).toBe("cue");
+  });
+
+  describe("free ball", () => {
+    // The user fouls, so the opponent comes to the table and may be snookered.
+    const afterFoul = (state: LiveFrameState) => recordFoul(state, 4, "other");
+
+    it("is only offered on the first shot after the other player's foul", () => {
+      const start = createInitialLiveFrameState(1);
+      expect(canTakeFreeBall(start)).toBe(false);
+      const fouled = afterFoul(start);
+      expect(canTakeFreeBall(fouled)).toBe(true);
+      // Asking the offender to play again means no free ball for them.
+      expect(canTakeFreeBall(switchPlayer(fouled))).toBe(false);
+      // Once a ball has gone in, the visit is under way.
+      expect(canTakeFreeBall(potBall(fouled, "red"))).toBe(false);
+    });
+
+    it("counts as a red on the reds, leaves every red on, and puts a colour on", () => {
+      const fouled = afterFoul(createInitialLiveFrameState(1));
+      expect(freeBallChoices(fouled)).toEqual(COLOURS);
+      const free = potFreeBall(fouled, "blue");
+      expect(free.opponentScore).toBe(4 + 1);
+      expect(free.redsRemaining).toBe(15);
+      expect(free.awaitingColorAfterRed).toBe(true);
+      expect(free.events[0]).toMatchObject({ kind: "pot", ball: "blue", points: 1, freeBall: true });
+      // Then the same colour can be played as the colour after the "red".
+      const then = potBall(free, "blue");
+      expect(then.opponentScore).toBe(4 + 1 + 5);
+      expect(then.currentBreak).toBe(6);
+    });
+
+    it("counts as the colour on during the clearance, which stays on", () => {
+      let frame = redsAndBlacks(createInitialLiveFrameState(1));
+      frame = pots(frame, ["yellow", "green"]);
+      frame = afterFoul(frame); // brown on, so the foul is worth 4
+      expect(freeBallChoices(frame)).toEqual(["blue", "pink", "black"]);
+      const free = potFreeBall(frame, "pink");
+      expect(free.opponentScore).toBe(4 + 4);
+      expect(free.nextColorIndex).toBe(frame.nextColorIndex);
+      expect(potBall(free, "brown").opponentScore).toBe(4 + 4 + 4);
+    });
+
+    it("refuses a ball that can't be nominated", () => {
+      const fouled = afterFoul(createInitialLiveFrameState(1));
+      expect(potFreeBall(fouled, "red")).toBe(fouled);
+      let colours = pots(redsAndBlacks(createInitialLiveFrameState(1)), ["yellow", "green", "brown", "blue", "pink"]);
+      colours = afterFoul(colours);
+      // Only the black is left, so there's nothing to nominate.
+      expect(canTakeFreeBall(colours)).toBe(false);
+    });
+
+    it("makes a 155 possible", () => {
+      let frame = potFreeBall(afterFoul(createInitialLiveFrameState(1, "opponent")), "green");
+      // Opponent fouled; the user takes the free ball, then the black, then the full clearance.
+      frame = potBall(frame, "black");
+      frame = pots(redsAndBlacks(frame), COLOURS);
+      expect(frame.userScore - 4).toBe(155);
+      expect(frame.highestBreakUser).toBe(155);
+    });
   });
 });

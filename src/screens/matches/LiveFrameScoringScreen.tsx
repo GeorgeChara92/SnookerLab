@@ -34,6 +34,10 @@ import {
   getPointsRemaining,
   getSnookersRequired,
   potBall,
+  potFreeBall,
+  canTakeFreeBall,
+  freeBallChoices,
+  freeBallValue,
   reRack,
   recordFoul,
   switchPlayer,
@@ -135,6 +139,8 @@ export const LiveFrameScoringScreen = () => {
   const hasRestoredFrameRef = useRef(false);
   const [undoStack, setUndoStack] = useState<LiveFrameState[]>([]);
   const [isFoulOpen, setIsFoulOpen] = useState(false);
+  // "Free ball" pressed: the next ball tapped is the one nominated as the free ball.
+  const [freeBallArmed, setFreeBallArmed] = useState(false);
   const [foulValue, setFoulValue] = useState<4 | 5 | 6 | 7>(4);
   const [foulType, setFoulType] = useState<LiveFoulType>("other");
   const [foulNote, setFoulNote] = useState("");
@@ -485,7 +491,37 @@ export const LiveFrameScoringScreen = () => {
     }
   };
 
+  const freeBallOpen = canTakeFreeBall(frame);
+  const freeBallBalls = freeBallChoices(frame);
+  useEffect(() => {
+    if (!freeBallOpen) setFreeBallArmed(false);
+  }, [freeBallOpen]);
+
+  const toggleFreeBall = () => {
+    if (freeBallArmed) {
+      setFreeBallArmed(false);
+      return;
+    }
+    setFreeBallArmed(true);
+    showPotNotice("Free ball: tap the colour that was nominated and potted.");
+  };
+
   const handlePot = (ball: LiveBall) => {
+    if (freeBallArmed) {
+      setFreeBallArmed(false);
+      if (freeBallBalls.includes(ball)) {
+        const points = freeBallValue(frame);
+        applyFrameMutation((state) => potFreeBall(state, ball), { scoreChange: true });
+        showPotNotice(
+          frame.phase === "reds"
+            ? `Free ball: the ${ball} counts as a red (+${points}). Now a colour.`
+            : `Free ball: the ${ball} counts as the ${COLOR_SEQUENCE[frame.nextColorIndex]} (+${points}).`
+        );
+        return;
+      }
+      // Not a ball that can be nominated (a red, or the ball on itself): it's an ordinary pot.
+    }
+
     if (frame.phase === "reds") {
       if (!frame.awaitingColorAfterRed && ball !== "red") {
         showPotNotice("Red on. Pot a red first.");
@@ -1004,7 +1040,7 @@ export const LiveFrameScoringScreen = () => {
                   let message = "";
 
                   if (event.kind === "pot")
-                    message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball} (+${event.points})`;
+                    message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball}${event.freeBall ? " as a free ball" : ""} (+${event.points})`;
                   if (event.kind === "foul")
                     message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType] : "foul"})`;
                   if (event.kind === "visit_end")
@@ -1058,10 +1094,19 @@ export const LiveFrameScoringScreen = () => {
                 key={ballMeta.key}
                 onPress={() => handlePot(ballMeta.key)}
                 accessibilityRole="button"
-                accessibilityLabel={`Pot the ${ballMeta.key}, ${BALL_POINTS[ballMeta.key]} points`}
+                accessibilityLabel={
+                  freeBallArmed && freeBallBalls.includes(ballMeta.key)
+                    ? `Free ball: the ${ballMeta.key}, worth ${freeBallValue(frame)}`
+                    : `Pot the ${ballMeta.key}, ${BALL_POINTS[ballMeta.key]} points`
+                }
                 style={({ pressed }) => [
                   styles.ballButton,
-                  { width: ballSize, height: ballSize, transform: [{ scale: pressed ? 0.92 : 1 }] },
+                  {
+                    width: ballSize,
+                    height: ballSize,
+                    transform: [{ scale: pressed ? 0.92 : 1 }],
+                    opacity: freeBallArmed && !freeBallBalls.includes(ballMeta.key) ? 0.35 : 1,
+                  },
                 ]}
               >
                 <LinearGradient
@@ -1128,6 +1173,28 @@ export const LiveFrameScoringScreen = () => {
           </View>
 
           <View style={styles.actionPillRow}>
+            {freeBallOpen ? (
+              <Pressable
+                style={[
+                  styles.actionPill,
+                  freeBallArmed
+                    ? { borderColor: colors.primary, backgroundColor: colors.primaryStrong }
+                    : { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt },
+                ]}
+                onPress={toggleFreeBall}
+                accessibilityRole="button"
+                accessibilityState={{ selected: freeBallArmed }}
+                accessibilityLabel={
+                  freeBallArmed
+                    ? "Cancel free ball"
+                    : "Free ball: the last foul left this player snookered. Then tap the colour nominated."
+                }
+              >
+                <Text style={[styles.actionPillText, { color: freeBallArmed ? colors.onPrimary : ui.text }]}>
+                  {freeBallArmed ? "Cancel free ball" : "Free ball"}
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
               style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
               onPress={handleOpenLapRecord}
@@ -1214,7 +1281,7 @@ export const LiveFrameScoringScreen = () => {
                   (selectedSavedFrame?.events ?? []).map((event) => {
                     let message = "";
                     if (event.kind === "pot")
-                      message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball} (+${event.points})`;
+                      message = `${event.player === "user" ? userLabel : opponentLabel} potted ${event.ball}${event.freeBall ? " as a free ball" : ""} (+${event.points})`;
                     if (event.kind === "foul")
                       message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType as LiveFoulType] : "foul"})`;
                     if (event.kind === "visit_end")

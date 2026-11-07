@@ -56,7 +56,7 @@ const getEventLabel = (event: LiveFrameEvent): string => {
   switch (event.kind) {
     case "pot":
       return event.ball
-        ? `${event.ball.charAt(0).toUpperCase() + event.ball.slice(1)} potted${event.points ? ` (${event.points})` : ""}`
+        ? `${event.ball.charAt(0).toUpperCase() + event.ball.slice(1)} potted${event.freeBall ? " as a free ball" : ""}${event.points ? ` (${event.points})` : ""}`
         : "Pot";
     case "foul":
       return `Foul${event.foulValue ? ` (${event.foulValue})` : ""}${event.note ? ` - ${event.note}` : ""}`;
