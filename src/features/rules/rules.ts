@@ -15,7 +15,12 @@ export type RuleTopicId =
   | "foul-and-miss"
   | "free-ball"
   | "touching-ball"
-  | "end-of-frame";
+  | "end-of-frame"
+  | "ball-falls-in"
+  | "ball-moved"
+  | "last-red"
+  | "off-table"
+  | "flukes";
 
 export type RuleSection = {
   heading: string;
@@ -260,6 +265,10 @@ export const RULE_TOPICS: RuleTopic[] = [
         body: "If the free ball and the ball on both go in, only the ball on scores. On the reds, each ball counts as a red, so both score.",
       },
       {
+        heading: "In live scoring",
+        body: "After a foul, Free ball appears for the next player. Tap it, then tap the colour that was nominated once it goes in, and it's scored as the ball on.",
+      },
+      {
         heading: "The 155 break",
         body: "A free ball at the start, followed by the black, then fifteen reds and blacks and all the colours, makes 155: the highest break possible.",
       },
@@ -396,10 +405,193 @@ export const RULE_TOPICS: RuleTopic[] = [
   },
 ];
 
+RULE_TOPICS.push(
+  {
+    id: "ball-falls-in",
+    title: "A ball falls in by itself",
+    icon: "arrow-down-circle-outline",
+    short:
+      "If a ball hanging over a pocket drops in without anything touching it, it's put back where it was. No foul, and the points already scored stand.",
+    sections: [
+      {
+        heading: "It drops in between shots",
+        body: "A ball that had stopped and then falls into a pocket on its own, before the next shot, is put back where it was. Nobody scores and nobody fouls, and play carries on as if it hadn't moved.",
+      },
+      {
+        heading: "It drops in during a shot",
+        points: [
+          "If nothing in the shot touched it, and nothing would have, it's still put back. It isn't part of the shot.",
+          "If a ball in the shot would have hit it, or been affected by it, every ball goes back and the shot is played again.",
+        ],
+      },
+      {
+        heading: "It wobbles, then drops",
+        body: "A ball that's hit, stops for a moment on the edge and then drops in counts as potted. It isn't put back, so whether it scores or is a foul depends on whether it was on.",
+      },
+      {
+        heading: "On a colour when a red drops",
+        body: "Say you pot a red and, while you're on a colour, a red that was hanging over a pocket falls in. If nothing touched it, the red goes back on the edge of the pocket, there's no foul, and you're still on your colour. If your shot knocked it in, even with the lightest touch, a red went in while you were on a colour: that's a foul.",
+      },
+    ],
+    diagram: {
+      caption:
+        "A red hanging over the corner pocket. If it drops in on its own, it's put back exactly here and nobody scores.",
+      balls: [...allColours(), at("red", 1744, 34), at("red", 900, 720), at("red", 1050, 820), at("cue", 1400, 1500)],
+    },
+    questions: [
+      {
+        q: "Does a ball that falls in on its own score?",
+        a: "No. It's put back, so nobody gets points for it.",
+      },
+      {
+        q: "There's no referee. Who decides where it goes back?",
+        a: "Agree it with your opponent and put it back as close as you can to where it was.",
+      },
+    ],
+    related: ["ball-moved", "fouls"],
+  },
+  {
+    id: "ball-moved",
+    title: "A ball is moved by accident",
+    icon: "hand-back-left-outline",
+    short:
+      "If anyone other than the player at the table moves a ball, it's put back with no penalty. If you move one on your turn, it's a foul.",
+    sections: [
+      {
+        heading: "Moved by someone else",
+        body: "If the referee, a spectator or anyone other than the player at the table moves a ball, still or rolling, it's put back where it was, or where it would have stopped. There's no penalty.",
+      },
+      {
+        heading: "Moved by you on your turn",
+        body: "Your turn starts as soon as the last shot ends. Touching any ball while it's your turn, even between shots or while walking round the table, is a foul.",
+      },
+      {
+        heading: "Cleaning a ball",
+        body: "Ask the referee, who marks its position, lifts it, cleans it and puts it back. Without a referee, agree it with your opponent first.",
+      },
+    ],
+    questions: [
+      {
+        q: "Can I mark a ball's position with chalk?",
+        a: "No. Using chalk or anything else to mark a position is a foul. Only the referee marks balls.",
+      },
+      {
+        q: "My opponent knocked a ball while I was down on a shot. What now?",
+        a: "It's put back where it was, with no penalty to you. Then you play your shot.",
+      },
+    ],
+    related: ["ball-falls-in", "fouls"],
+  },
+  {
+    id: "last-red",
+    title: "Fouls around the last red",
+    icon: "numeric-1-box-outline",
+    short: "Once the reds are gone, a foul or a missed colour sends the next player onto the yellow.",
+    sections: [
+      {
+        heading: "Pot the last red, miss the colour",
+        body: "You were on any colour. Miss, and the next player starts the clearance on the yellow.",
+      },
+      {
+        heading: "The last red goes in on a foul",
+        body: "It stays down and scores nothing. Your opponent gets the penalty and is on the yellow.",
+      },
+      {
+        heading: "Foul on the colour after the last red",
+        body: "The penalty is as normal. If a colour went in it's put back, and the next player is on the yellow.",
+      },
+      {
+        heading: "A free ball now",
+        body: "If the foul leaves the next player snookered on the yellow, they get a free ball as usual. It counts as the yellow and is worth 2.",
+      },
+    ],
+    questions: [
+      {
+        q: "I potted the last two reds in one shot. How many colours do I get?",
+        a: "One. Both reds score, then you pot one colour before the clearance starts on the yellow.",
+      },
+    ],
+    related: ["basics", "free-ball"],
+  },
+  {
+    id: "off-table",
+    title: "A ball leaves the table",
+    icon: "arrow-top-right-thin-circle-outline",
+    short:
+      "A ball that ends up off the cloth is a foul. Reds stay off, colours are put back on their spots, and a cue ball that went off is in hand.",
+    sections: [
+      {
+        heading: "What counts as off",
+        body: "A ball is off the table if it comes to rest anywhere other than the cloth or a pocket, such as the floor or the top of the cushion rail. It's also off if someone picks it up while it's still moving.",
+      },
+      {
+        heading: "Up and back on",
+        body: "A ball that jumps onto the cushion rail and rolls back onto the cloth is still in play. If nothing else went wrong, there's no foul.",
+      },
+      {
+        heading: "The penalty",
+        body: "The value of the ball on or of the ball that went off, whichever is more, and never less than 4.",
+      },
+      {
+        heading: "After it",
+        points: [
+          "A red stays off and scores nothing.",
+          "A colour goes back on its spot.",
+          "If the cue ball went off, the next player has it in hand and places it in the D.",
+        ],
+      },
+    ],
+    questions: [
+      {
+        q: "I potted the ball on but the cue ball flew off. Does the pot count?",
+        a: "No. It's a foul, so nothing on that shot scores, and a potted red stays down.",
+      },
+    ],
+    related: ["fouls", "ball-moved"],
+  },
+  {
+    id: "flukes",
+    title: "Flukes and odd pots",
+    icon: "auto-fix",
+    short:
+      "There's no calling the pocket in snooker. Any ball on that goes in on a fair shot counts, however it got there.",
+    sections: [
+      {
+        heading: "Flukes count",
+        body: "A red that goes in off three cushions scores the same as one you meant. Nobody has to say which pocket.",
+      },
+      {
+        heading: "Plants and cannons",
+        points: [
+          "On the reds, hit a red first and every red that goes in counts, even one knocked in by another red.",
+          "If a colour goes in while you're on a red, it's a foul, even if you hit a red first.",
+          "On a colour, the nominated colour must be hit first and be the one that goes in. Pot a different colour and it's a foul.",
+        ],
+      },
+      {
+        heading: "Doubles and sets",
+        body: "Any pot is fine as long as the ball on is hit first and nothing else breaks a rule: doubles off the cushion, plants, sets and kisses all count.",
+      },
+    ],
+    questions: [
+      {
+        q: "I hit a red and it knocked the black in. Foul?",
+        a: "Yes. The black wasn't on, so it's a 7-point foul and the black is put back.",
+      },
+      {
+        q: "I nominated the blue, hit it, and it knocked the pink in. What happens?",
+        a: "Foul, worth 6: the pink wasn't on. The pink goes back on its spot.",
+      },
+    ],
+    related: ["fouls", "basics"],
+  }
+);
+
 export const RULE_GROUPS: Array<{ title: string; topics: RuleTopicId[] }> = [
   { title: "Playing a frame", topics: ["basics", "snookers"] },
   { title: "Fouls", topics: ["fouls", "foul-and-miss", "free-ball", "touching-ball"] },
   { title: "Finishing", topics: ["end-of-frame"] },
+  { title: "Unusual situations", topics: ["ball-falls-in", "ball-moved", "last-red", "off-table", "flukes"] },
 ];
 
 export const RULES_SOURCE =

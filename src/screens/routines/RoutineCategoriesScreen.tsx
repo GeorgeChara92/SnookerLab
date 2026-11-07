@@ -323,7 +323,7 @@ export const RoutineCategoriesScreen = () => {
           <Pressable
             onPress={() => navigation.navigate("Rules")}
             accessibilityRole="button"
-            accessibilityLabel="Rules of snooker. Fouls, the miss rule, free ball and more."
+            accessibilityLabel="Rules of snooker. Fouls, the miss rule, free ball and rare situations."
             style={({ pressed }) => [
               styles.rulesCard,
               { backgroundColor: colors.board, borderColor: colors.boardRule, opacity: pressed ? 0.9 : 1 },
@@ -332,7 +332,7 @@ export const RoutineCategoriesScreen = () => {
             <View style={styles.rulesText}>
               <Text style={[styles.rulesKicker, { color: colors.boardRule }]}>THE RULES</Text>
               <Text style={[styles.rulesTitle, { color: colors.boardText }]}>Rules of snooker</Text>
-              <Text style={[styles.rulesSub, { color: colors.boardMuted }]}>Fouls, the miss rule, free ball and more</Text>
+              <Text style={[styles.rulesSub, { color: colors.boardMuted }]}>Fouls, the miss rule, free ball and rare situations</Text>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.boardMuted} />
           </Pressable>
