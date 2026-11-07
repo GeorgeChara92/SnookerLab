@@ -141,12 +141,12 @@ const LapReview = ({
   const hint = !lapReady
     ? cameraReady
       ? "This build doesn't have the lap in it yet. It needs the next development build."
-      : "Walking a lap needs an iPhone with ARKit."
+      : "Scanning the table needs an iPhone with ARKit."
     : unsure.length
       ? `${unsure.length} ${unsure.length === 1 ? "ball needs" : "balls need"} checking. Choose what the selected ball really is, or tap another.`
       : balls.length
         ? `${summarise(balls)}. Tap a ball to change it, drag to move it, or tap the table to add one.`
-        : "No balls were found. Walk another lap, or tap the table to add them.";
+        : "No balls were found. Scan again, or tap the table to add them.";
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background, paddingBottom: insets.bottom + SPACING.sm }]}>
@@ -213,7 +213,7 @@ const LapReview = ({
           style={[styles.secondary, { borderColor: colors.border, backgroundColor: colors.surface, opacity: lapReady ? 1 : 0.5 }]}
         >
           <Text style={[styles.secondaryText, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
-            Walk a new lap
+            Scan again
           </Text>
         </Pressable>
         <Pressable

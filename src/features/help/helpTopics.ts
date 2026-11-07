@@ -135,6 +135,7 @@ export const HELP_TOPICS = {
     steps: [
       "Tap the ball that was potted. The player at the table gets the points.",
       "Use Foul for a foul (choose the value), Safety after a safety shot, and End Break when a visit ends.",
+      "If a foul leaves the next player snookered, tap Free ball, then the colour they nominated once it goes in.",
       "Switch changes who's at the table, and Undo takes back the last action.",
       "Tap End frame when it's over. Re-rack replays the frame, and Abandon frame doesn't count it.",
     ],
@@ -157,13 +158,14 @@ export const HELP_TOPICS = {
   recordSnooker: {
     title: "Record a Snooker",
     audience: "player",
-    purpose: "Walk once round the table and the balls are found for you, instead of scanning each one by hand.",
+    purpose: "Point the phone at the table and the balls are found for you, instead of marking each one by hand.",
     steps: [
       "Aim at two spots to line the table up, the same as Scan Snooker.",
-      "Walk slowly all the way round with the phone tilted down at the balls.",
+      "Hold the phone steady at chest height, tilted at the balls. Each ball gets a marker once it has been in view for a moment.",
+      "Walk round the table to find balls hidden from where you stand. Seeing a ball from a second side also pins down where it is.",
       "Check what was found on the diagram, fix anything that's wrong, then save.",
     ],
-    tips: ["This is being tested, and saves separately from Scan Snooker.", "A marker lands on each ball once it has been seen from more than one side."],
+    tips: ["This is being tested, and saves separately from Scan Snooker.", "Balls at the far end take a moment longer. Step closer if one isn't marked."],
   },
   tournaments: {
     title: "Tournaments",

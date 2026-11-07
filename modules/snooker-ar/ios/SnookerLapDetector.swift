@@ -51,8 +51,10 @@ final class SnookerLapDetector {
   /// Each cell of the working grid is this many camera pixels across. A ball is about 16 cells
   /// wide from 1.2m, and every ball comes within that of someone walking round the table.
   private static let gridStep = 4
-  /// Further than this a ball is too few cells to measure, and the lap gets closer to it anyway.
-  private static let maxDistance: Float = 2.8
+  /// Far enough to see the far corner from behind the baulk cushion. A ball there is just over
+  /// two cells across in radius, still enough to measure; JavaScript allows more room along the
+  /// line of sight for these shallow views.
+  private static let maxDistance: Float = 4.2
   /// How far past the cushions to look: enough for a ball touching one, seen at a low angle.
   private static let tableMargin: Float = 0.015
   private static let ballRadius: Float = 0.02625
@@ -104,6 +106,66 @@ final class SnookerLapDetector {
         }
       }
     }
+  }
+
+  /// A ball's centre, in grid cells, measured from its top edge rather than from the middle of the
+  /// patch it makes. Under table lights a ball's shadow lies on the cloth right below it, joined to
+  /// it in the picture, so the patch's middle sits towards the shadow - on a real table that put
+  /// every ball's ring in front of the ball (seen 2026-11-06). The top of a ball is never in its
+  /// own shadow: the centre is one radius down from the top edge, and halfway between the sides
+  /// half a radius down. If anything else is joined on - a touching ball above or beside it - the
+  /// edges aren't where one ball's would be, and the patch's middle is kept.
+  ///
+  /// "Up" is the real world's up as it falls in the picture, `upward` (columns, rows). The camera's
+  /// picture is landscape whichever way the phone is held, so it is rarely the picture's own top.
+  private static func centreFromTop(
+    peak: Peak,
+    expected: Float,
+    upward: SIMD2<Float>,
+    cells: UnsafeMutablePointer<UInt8>,
+    width: Int,
+    height: Int
+  ) -> (column: Float, row: Float) {
+    let found: (column: Float, row: Float) = (column: Float(peak.column), row: Float(peak.row))
+    // Looking almost straight down, the shadow is hidden under the ball and "up" means nothing.
+    let length = (upward.x * upward.x + upward.y * upward.y).squareRoot()
+    guard length > 0.2 else { return found }
+    let up = upward / length
+    let across = SIMD2<Float>(-up.y, up.x)
+
+    let isBall = { (point: SIMD2<Float>) -> Bool in
+      let column = Int(point.x.rounded())
+      let row = Int(point.y.rounded())
+      guard column >= 0, column < width, row >= 0, row < height else { return false }
+      return cells[row * width + column] == 2
+    }
+    /// How far the ball goes from `start` along `direction`, or nil if it runs on past `limit`.
+    let extent = { (start: SIMD2<Float>, direction: SIMD2<Float>, limit: Float) -> Float? in
+      var reach: Float = 0
+      while reach < limit {
+        if !isBall(start + direction * (reach + 1)) { return reach + 0.5 }
+        reach += 1
+      }
+      return nil
+    }
+
+    let peakPoint = SIMD2<Float>(Float(peak.column), Float(peak.row))
+    var centre = peakPoint
+    for _ in 0..<2 {
+      guard isBall(centre), let toTop = extent(centre, up, expected * 2.2) else { return found }
+      let top = centre + up * toTop
+      let chord = top - up * (expected * 0.5)
+      guard
+        isBall(chord),
+        let towardsOne = extent(chord, across, expected * 1.4),
+        let towardsOther = extent(chord, -across, expected * 1.4)
+      else { return found }
+      let next = top - up * expected + across * ((towardsOne - towardsOther) / 2)
+      let shift = next - peakPoint
+      guard (shift.x * shift.x + shift.y * shift.y).squareRoot() <= expected else { return found }
+      centre = next
+    }
+    return (column: centre.x, row: centre.y)
   }
 
   private static func vector(_ value: simd_float3) -> [String: Double] {
@@ -302,6 +364,10 @@ final class SnookerLapDetector {
       if clear { kept.append(peak) }
     }
 
+    // The world's up as it falls in the picture: columns run along the camera's right, rows run
+    // against its up.
+    let upward = SIMD2<Float>(right.y, -up.y)
+
     var sightings: [[String: Any]] = []
     for peak in kept {
       // Cut off by the edge of the picture, it would look smaller and off-centre.
@@ -324,6 +390,20 @@ final class SnookerLapDetector {
       let expected = fx * ballRadius / reach / Float(step)
       let fit = peak.radius / expected
       guard fitRange.contains(fit) else { continue }
+
+      // The middle of the patch is pulled towards the ball's shadow, which is joined on below it.
+      // Measured down from the top of the ball instead, the shadow doesn't come into it.
+      let centre = SnookerLapDetector.centreFromTop(
+        peak: peak, expected: expected, upward: upward, cells: cells, width: width, height: height
+      )
+      let centreU = centre.column * Float(step) + Float(step) / 2
+      let centreV = centre.row * Float(step) + Float(step) / 2
+      let centreAcross: Float = (centreU - cx) / fx
+      let centreDown: Float = (centreV - cy) / fy
+      let centreDirection: simd_float3 = right * centreAcross - up * centreDown - back
+      guard centreDirection.y < -0.0001 else { continue }
+      let centreReach = (table.ballHeight - origin.y) / centreDirection.y
+      guard centreReach > 0 else { continue }
 
       let inner = max(1, Int(peak.radius * 0.65))
       var lumaTotal = 0
@@ -348,8 +428,8 @@ final class SnookerLapDetector {
 
       sightings.append([
         "origin": vector(origin),
-        "direction": vector(direction),
-        "distance": Double(reach * simd_length(direction)),
+        "direction": vector(centreDirection),
+        "distance": Double(centreReach * simd_length(centreDirection)),
         "fit": Double(fit),
         "y": Double(lumaTotal) / Double(samples),
         "cb": Double(blueTotal) / Double(samples),

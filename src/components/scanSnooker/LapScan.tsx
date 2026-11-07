@@ -27,7 +27,7 @@ import {
 } from "../../features/scanSnooker/table";
 import { clothFromAim, rayAtHeight, tableLines } from "../../features/scanSnooker/ar";
 import { AimStabiliser, type Stability } from "../../features/scanSnooker/stabilize";
-import { LAP_COMPLETE, LAP_SECTORS, LapTracker, combineViews, type LapBall } from "../../features/scanSnooker/lap";
+import { LAP_COMPLETE, LAP_SECTORS, LapTracker, combineAims, type AimRay, type LapBall } from "../../features/scanSnooker/lap";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /**
@@ -79,9 +79,11 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
   const [aim, setAim] = useState<ARAim | null>(null);
   const [landmarks, setLandmarks] = useState<[string, string]>(["black-spot", "pink-spot"]);
   const [taps, setTaps] = useState<Tap[]>([]);
-  // The spot being set, as aimed at from the first side; the second aim, from across the table, is
-  // averaged with it - see `combineViews`.
-  const [firstView, setFirstView] = useState<WorldPoint | null>(null);
+  // The spot being set, as aimed at from the first side, with its line of sight. The second aim,
+  // from across the table, is combined with it - see `combineAims`.
+  const [firstView, setFirstView] = useState<{ world: WorldPoint; ray?: AimRay } | null>(null);
+  // How far each spot's two aims moved the cloth's height, for the lap report.
+  const [heightShifts, setHeightShifts] = useState<number[]>([]);
   const [gaps, setGaps] = useState<number[]>([]);
   const [pickingLandmark, setPickingLandmark] = useState<0 | 1 | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -139,24 +141,26 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     setNotice(null);
     stabiliser.reset();
     setStability({ progress: 0, locked: null });
+    const ray = aim?.origin && aim.direction ? { origin: aim.origin, direction: aim.direction } : undefined;
     if (!firstView) {
-      setFirstView(world);
+      setFirstView({ world, ray });
       return;
     }
-    const views = combineViews(firstView, world);
+    const views = combineAims(firstView, { world, ray });
     setFirstView(null);
     if (!views.agree) {
       setNotice(`Those two aims were ${Math.round(views.gapMm / 10)} cm apart. Set the ${current.label.toLowerCase()} again.`);
       return;
     }
     setGaps((value) => [...value, Math.round(views.gapMm)]);
+    setHeightShifts((value) => [...value, views.heightShiftMm]);
     commitLandmark(views.point);
   };
 
   /** One side only, when the other cannot be reached - quicker, and less exact. */
   const keepFirstViewOnly = () => {
     if (!firstView) return;
-    commitLandmark(firstView);
+    commitLandmark(firstView.world);
     setFirstView(null);
   };
 
@@ -181,6 +185,7 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     setTaps([]);
     setFirstView(null);
     setGaps([]);
+    setHeightShifts([]);
     setNotice(null);
     setPhase("calibrate");
   };
@@ -208,7 +213,7 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     setOffCloth(!tracker.current.seeingCloth());
   };
 
-  const finish = () => onFinish(tracker.current.balls(), tracker.current.report(frame, lidar, { calibrationGapsMm: gaps }));
+  const finish = () => onFinish(tracker.current.balls(), tracker.current.report(frame, lidar, { calibrationGapsMm: gaps, heightShiftsMm: heightShifts }));
 
   // Only set during the lap, so the camera is not looked through while calibrating.
   const lapTable = useMemo<ARLapTable | null>(
@@ -239,7 +244,7 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
       kind: "marker",
     }));
     // The first aim at the spot being set, in yellow, until it is averaged with the second.
-    if (firstView) markers.push({ id: `first-view-${taps.length}`, colour: "#F2C230", ...firstView, kind: "marker" });
+    if (firstView) markers.push({ id: `first-view-${taps.length}`, colour: "#F2C230", ...firstView.world, kind: "marker" });
     if (!frame || phase !== "lap") return markers;
     return [
       ...markers,
@@ -278,8 +283,8 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
         return lapDone
           ? { title: "Lap done", tip: "Tap the tick to check what was found." }
           : {
-              title: "Walk round the table",
-              tip: "Go slowly, phone at chest height and tilted down at the balls, all the way round.",
+              title: "Scan the table",
+              tip: "Hold the phone at chest height, tilted at the balls, and keep it steady. Walk round to catch any that are hidden.",
             };
     }
   })();

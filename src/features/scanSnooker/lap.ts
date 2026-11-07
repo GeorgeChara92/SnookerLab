@@ -3,14 +3,15 @@ import { separate, type PlacedBall } from "./position";
 import { BALL_LIMIT, POCKETS, TABLE, distance, worldToTable, type BallColour, type Point, type TableFrame, type WorldPoint } from "./table";
 
 /**
- * Record a Snooker's lap: walk once round the table and the balls are found for you.
+ * Record a Snooker's lap: point the phone at the table and the balls are found for you. Walking
+ * round finds the ones hidden from where you stand, and sharpens where each one is.
  *
  * The camera view reports everything ball-shaped it sees, from each place it stands. One view is
- * not to be trusted - a hand, a cue or a shadow can look like a ball - but a real ball stays in
- * the same place on the table however it is looked at, so what is kept is what many views agree
- * on. Seeing a ball from opposite sides also cancels most of the error in where it is, and the
- * balls hidden from one side are found from another. The rules do the rest: there is one of each
- * colour, and at most 15 reds.
+ * not to be trusted - a hand, a cue or a shadow can look like a ball - but a real ball stays put
+ * and keeps the same colour, so what is kept is what many views agree on: held in view for a
+ * moment from one place, or seen from more than one side. Seeing a ball from opposite sides also
+ * cancels most of the error in where it is. The rules do the rest: there is one of each colour,
+ * and at most 15 reds.
  *
  * A wrong ball on the table is worse than a missing one, which takes a tap to add, so everything
  * is held to a high bar: it has to be on snooker cloth, the size of a ball from where it was seen,
@@ -41,11 +42,23 @@ export type LapBall = PlacedBall & { unsure: boolean };
 
 /** Sightings this close together are the same ball: under half a ball, so touching balls stay two. */
 const SAME_BALL_MM = 32;
+/**
+ * How far out the cloth's height might be. A ray meets the ball's height a little short or long
+ * when it is, by this times how shallow the ray is - so a ball far away, seen at a low angle,
+ * lands further along the line of sight than one close by, and is matched with more room that way.
+ */
+const HEIGHT_ERROR_MM = 8;
+const MAX_SLACK_MM = 80;
 /** Two balls cannot be closer than one ball's width, so anything this close is one ball seen twice. */
 const TOO_CLOSE_MM = 42;
-/** A real ball is seen again and again, from well apart. Four looks a second makes this 2.5s. */
-const MIN_SIGHTINGS = 10;
-const MIN_SIDES = 3;
+/**
+ * A real ball stays in view. From one place it has to be seen this often, over at least this many
+ * looks (four a second, so about 1.5s): a hand or a cue moves on long before that.
+ */
+const MIN_SIGHTINGS_ONE_SIDE = 7;
+const MIN_LOOKS_ONE_SIDE = 6;
+/** Seen from two sides, a ball has already proved it's fixed to the table, so it needs fewer. */
+const MIN_SIGHTINGS = 5;
 /** Directions a ball can be seen from, for telling whether it really was seen from more than one. */
 const SIDES = 8;
 /** A pocket is a black circle on the table, so nothing black or unknown near one counts. */
@@ -137,6 +150,69 @@ export const combineViews = (first: WorldPoint, second: WorldPoint) => {
   };
 };
 
+export type AimRay = { origin: WorldPoint; direction: WorldPoint };
+
+/** Two lines of sight further apart than this where they pass were not aimed at the same spot. */
+const RAYS_MEET_MM = 25;
+/** The cloth's height is only corrected by up to this: more means the aims were at something else. */
+const MAX_HEIGHT_SHIFT_MM = 40;
+
+/**
+ * Where two lines of sight pass closest to each other, and how close that is. Aimed at one spot
+ * from two sides, that is the spot itself, at its true height. Null when they run side by side.
+ */
+export const meetOfRays = (first: AimRay, second: AimRay) => {
+  const d1 = first.direction;
+  const d2 = second.direction;
+  const w = { x: first.origin.x - second.origin.x, y: first.origin.y - second.origin.y, z: first.origin.z - second.origin.z };
+  const dot = (u: WorldPoint, v: WorldPoint) => u.x * v.x + u.y * v.y + u.z * v.z;
+  const a = dot(d1, d1);
+  const b = dot(d1, d2);
+  const c = dot(d2, d2);
+  const d = dot(d1, w);
+  const e = dot(d2, w);
+  const den = a * c - b * b;
+  if (den < 1e-9 * a * c) return null;
+  const s = (b * e - c * d) / den;
+  const t = (a * e - b * d) / den;
+  if (s <= 0 || t <= 0) return null;
+  const p1 = { x: first.origin.x + d1.x * s, y: first.origin.y + d1.y * s, z: first.origin.z + d1.z * s };
+  const p2 = { x: second.origin.x + d2.x * t, y: second.origin.y + d2.y * t, z: second.origin.z + d2.z * t };
+  return {
+    point: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2, z: (p1.z + p2.z) / 2 },
+    gapMm: Math.hypot(p1.x - p2.x, p1.y - p2.y, p1.z - p2.z) * 1000,
+  };
+};
+
+/**
+ * One spot, aimed at from two sides, with the cloth's height put right as well.
+ *
+ * Each aim lands where its line of sight meets the surface the camera found, and if that surface
+ * sits even a centimetre above or below the real cloth, every ball found later lands short of or
+ * beyond where it is - which on a real table showed as each ball's ring sitting in front of it.
+ * The middle of the two aims (`combineViews`) fixes where the spot is across the table but not its
+ * height. Where the two lines of sight cross fixes both, so that is used when they do cross.
+ */
+export const combineAims = (
+  first: { world: WorldPoint; ray?: AimRay },
+  second: { world: WorldPoint; ray?: AimRay }
+) => {
+  const views = combineViews(first.world, second.world);
+  const meet = first.ray && second.ray ? meetOfRays(first.ray, second.ray) : null;
+  const shiftMm = meet ? (meet.point.y - views.point.y) * 1000 : 0;
+  const usable =
+    !!meet &&
+    meet.gapMm <= RAYS_MEET_MM &&
+    Math.abs(shiftMm) <= MAX_HEIGHT_SHIFT_MM &&
+    Math.hypot(meet.point.x - views.point.x, meet.point.z - views.point.z) * 1000 <= TWO_VIEW_LIMIT_MM;
+  return {
+    ...views,
+    point: usable ? meet!.point : views.point,
+    /** How far the cloth's height was moved, in millimetres; 0 when the aims couldn't be used. */
+    heightShiftMm: usable ? Math.round(shiftMm) : 0,
+  };
+};
+
 /** Which of the stretches round the table the camera is on, the same size whichever side it is. */
 export const sectorOf = (camera: Point) => {
   const across = (camera.x - TABLE.width / 2) / (TABLE.width / 2);
@@ -158,6 +234,11 @@ type Cluster = {
   y: number;
   weight: number;
   sightings: number;
+  /** The looks it was first and last seen in, to tell something that stays from something passing. */
+  firstLook: number;
+  lastLook: number;
+  /** How far along the line of sight its sightings could be out, on average. */
+  slack: number;
   /** Each sighting's squared distance from where the ball was then thought to be, for the report. */
   scatter: number;
   sides: Set<number>;
@@ -175,6 +256,9 @@ const mergeInto = (target: Cluster, other: Cluster) => {
     cb: (target.colour.cb * target.sightings + other.colour.cb * other.sightings) / (target.sightings + other.sightings),
     cr: (target.colour.cr * target.sightings + other.colour.cr * other.sightings) / (target.sightings + other.sightings),
   };
+  target.slack = (target.slack * target.sightings + other.slack * other.sightings) / (target.sightings + other.sightings);
+  target.firstLook = Math.min(target.firstLook, other.firstLook);
+  target.lastLook = Math.max(target.lastLook, other.lastLook);
   target.weight = weight;
   target.sightings += other.sightings;
   target.scatter += other.scatter;
@@ -189,7 +273,11 @@ const shareOf = (cluster: Cluster, colour: BallColour) => (cluster.votes[colour]
 
 /** Why the views have not agreed on something being a ball, or null if they have. */
 const doubtAbout = (cluster: Cluster) => {
-  if (cluster.sightings < MIN_SIGHTINGS || cluster.sides.size < MIN_SIDES) return "notSeenEnough";
+  const enough =
+    cluster.sides.size >= 2
+      ? cluster.sightings >= MIN_SIGHTINGS
+      : cluster.sightings >= MIN_SIGHTINGS_ONE_SIDE && cluster.lastLook - cluster.firstLook >= MIN_LOOKS_ONE_SIDE;
+  if (!enough) return "notSeenEnough";
   const agreeing = Math.max(0, ...Object.values(cluster.votes).map((votes) => votes ?? 0));
   if (agreeing / cluster.sightings < MIN_AGREEMENT) return "mixedColours";
   return null;
@@ -256,6 +344,7 @@ export class LapTracker {
     const camera = worldToTable(frame, look.camera);
     this.sectors.add(sectorOf(camera));
 
+    const seen: Array<{ point: Point; sighting: LapSighting; colour: BallColour | null; slack: number }> = [];
     look.sightings.forEach((sighting) => {
       if (sighting.fit < MIN_FIT || sighting.fit > MAX_FIT) {
         this.wrongSize += 1;
@@ -271,24 +360,61 @@ export class LapTracker {
         this.pockets += 1;
         return;
       }
-      this.place(point, camera, sighting, colour);
+      const { direction } = sighting;
+      const shallow = Math.hypot(direction.x, direction.z) / Math.max(-direction.y, 1e-3);
+      seen.push({ point, sighting, colour, slack: Math.min(MAX_SLACK_MM, HEIGHT_ERROR_MM * shallow) });
     });
+
+    // Every pairing of what this look saw with a ball already known, best first. Two things in
+    // one picture are two balls, so each known ball takes at most one of them: that is what keeps
+    // two touching balls apart even when one is behind the other along the line of sight.
+    const pairs: Array<{ index: number; cluster: Cluster; cost: number; gap: number }> = [];
+    seen.forEach(({ point, slack }, index) => {
+      const along = { x: point.x - camera.x, y: point.y - camera.y };
+      const length = Math.hypot(along.x, along.y) || 1;
+      const unit = { x: along.x / length, y: along.y / length };
+      this.clusters.forEach((cluster) => {
+        const dx = cluster.x - point.x;
+        const dy = cluster.y - point.y;
+        const alongGap = Math.abs(dx * unit.x + dy * unit.y);
+        const acrossGap = Math.abs(dx * unit.y - dy * unit.x);
+        const alongLimit = SAME_BALL_MM + slack + cluster.slack;
+        const acrossLimit = SAME_BALL_MM + cluster.slack / 2;
+        if (alongGap > alongLimit || acrossGap > acrossLimit) return;
+        const cost = (alongGap / alongLimit) ** 2 + (acrossGap / acrossLimit) ** 2;
+        pairs.push({ index, cluster, cost, gap: Math.hypot(dx, dy) });
+      });
+    });
+    pairs.sort((a, b) => a.cost - b.cost);
+
+    const matched = new Map<number, { cluster: Cluster; gap: number }>();
+    const taken = new Set<Cluster>();
+    pairs.forEach(({ index, cluster, gap }) => {
+      if (matched.has(index) || taken.has(cluster)) return;
+      matched.set(index, { cluster, gap });
+      taken.add(cluster);
+    });
+
+    seen.forEach((item, index) => this.place(item, camera, matched.get(index)));
+    this.tidy(taken);
   }
 
-  private place(point: Point, camera: Point, sighting: LapSighting, colour: BallColour | null) {
-    const nearest = this.clusters.reduce<{ cluster: Cluster; gap: number } | null>((best, cluster) => {
-      const gap = distance(point, cluster);
-      return gap <= SAME_BALL_MM && (!best || gap < best.gap) ? { cluster, gap } : best;
-    }, null);
-
+  private place(
+    { point, sighting, colour, slack }: { point: Point; sighting: LapSighting; colour: BallColour | null; slack: number },
+    camera: Point,
+    nearest: { cluster: Cluster; gap: number } | undefined
+  ) {
     this.nextId += nearest ? 0 : 1;
     const seen: Cluster = {
       id: `lap-${this.nextId}`,
       x: point.x,
       y: point.y,
-      // The closer the view the better it knows where the ball is.
-      weight: 1 / Math.max(sighting.distance * sighting.distance, 0.25),
+      // A steep, close view knows where the ball is better than a shallow one from far away.
+      weight: 1 / (slack * slack + 15 * 15),
       sightings: 1,
+      firstLook: this.frames,
+      lastLook: this.frames,
+      slack,
       scatter: nearest ? nearest.gap * nearest.gap : 0,
       sides: new Set([sideOf(point, camera)]),
       votes: colour ? { [colour]: 1 } : {},
@@ -297,6 +423,24 @@ export class LapTracker {
     };
     if (nearest) mergeInto(nearest.cluster, seen);
     else this.clusters.push(seen);
+  }
+
+  /**
+   * A ball first seen from far away can start out as two, until closer looks pull them together.
+   * Once two have drifted within half a ball of each other they are one, and the older keeps its
+   * id. Never two that were both seen in this look: those are two balls.
+   */
+  private tidy(updated: Set<Cluster>) {
+    updated.forEach((cluster) => {
+      if (!this.clusters.includes(cluster)) return;
+      const twin = this.clusters.find(
+        (other) => other !== cluster && !updated.has(other) && distance(cluster, other) < SAME_BALL_MM
+      );
+      if (!twin) return;
+      const [keep, drop] = twin.firstLook <= cluster.firstLook ? [twin, cluster] : [cluster, twin];
+      mergeInto(keep, drop);
+      this.clusters = this.clusters.filter((other) => other !== drop);
+    });
   }
 
   /** What the views agree on so far, one per ball. */

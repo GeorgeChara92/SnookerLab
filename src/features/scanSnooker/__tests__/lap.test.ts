@@ -1,4 +1,4 @@
-import { LAP_SECTORS, LapTracker, classifyColour, combineViews, isSnookerCloth, sectorOf, toHsv, type LapColour, type LapFrame } from "../lap";
+import { LAP_SECTORS, LapTracker, classifyColour, combineAims, combineViews, meetOfRays, isSnookerCloth, sectorOf, toHsv, type LapColour, type LapFrame } from "../lap";
 import { BALL_RADIUS, TABLE, tableToWorld, type BallColour, type Point, type TableFrame } from "../table";
 
 const FRAME: TableFrame = { origin: { x: 0.4, z: -0.2 }, angle: 0.3, height: 0.85, scale: 1 };
@@ -134,13 +134,61 @@ describe("walking a lap", () => {
     expect(tracker.balls()).toHaveLength(0);
   });
 
-  it("ignores what is only ever seen from one side", () => {
-    const tracker = new LapTracker();
-    for (let look = 0; look < 20; look += 1) {
-      const at = LAP[0];
-      tracker.add({ camera: standing(at), cloth: CLOTH, ms: 10, sightings: [sighting({ x: 900, y: 1500 }, at, "red")] }, FRAME);
+  /** Standing still at one place for a number of looks. */
+  const standStill = (balls: Array<{ at: Point; colour: BallColour }>, looks: number, at: Point = LAP[0], tracker = new LapTracker()) => {
+    for (let look = 0; look < looks; look += 1) {
+      tracker.add(
+        { camera: standing(at), cloth: CLOTH, ms: 10, sightings: balls.map((ball) => sighting(ball.at, at, ball.colour, (look % 3) * 2 - 2)) },
+        FRAME
+      );
     }
-    expect(tracker.balls()).toHaveLength(0);
+    return tracker;
+  };
+
+  it("finds the balls from where you stand, without walking", () => {
+    const found = standStill(position, 8).balls();
+    expect(found).toHaveLength(position.length);
+    position.forEach((ball) => {
+      expect(found.find((item) => Math.hypot(item.x - ball.at.x, item.y - ball.at.y) < 10)?.colour).toBe(ball.colour);
+    });
+  });
+
+  it("waits for a ball to stay in view before trusting it from one place", () => {
+    expect(standStill([{ at: { x: 900, y: 1500 }, colour: "red" }], 4).balls()).toHaveLength(0);
+  });
+
+  it("finds a ball at the far end of the table", () => {
+    // From behind the baulk cushion, the black's spot is over 3.5m away.
+    expect(standStill([{ at: { x: 889, y: 324 }, colour: "black" }], 8, { x: 900, y: 3850 }).balls()).toHaveLength(1);
+  });
+
+  it("keeps two touching balls apart when one is behind the other", () => {
+    const line = [
+      { at: { x: 889, y: 1200 }, colour: "red" as const },
+      { at: { x: 889, y: 1200 - TABLE.ball }, colour: "red" as const },
+    ];
+    expect(standStill(line, 8, { x: 889, y: 3850 }).balls()).toHaveLength(2);
+  });
+
+  it("makes one ball of a far one seen a little out from each end", () => {
+    // A cloth height a touch out puts a shallow ray's ball further along it, the opposite way
+    // from each end of the table.
+    const at = { x: 889, y: 1784 };
+    const tracker = new LapTracker();
+    [
+      { stand: { x: 889, y: 3850 }, nudge: { x: 0, y: -45 } },
+      { stand: { x: 889, y: -300 }, nudge: { x: 0, y: 45 } },
+    ].forEach(({ stand, nudge }) => {
+      for (let look = 0; look < 8; look += 1) {
+        tracker.add(
+          { camera: standing(stand), cloth: CLOTH, ms: 10, sightings: [sighting({ x: at.x + nudge.x, y: at.y + nudge.y }, stand, "blue")] },
+          FRAME
+        );
+      }
+    });
+    const found = tracker.balls();
+    expect(found).toHaveLength(1);
+    expect(Math.abs(found[0].y - at.y)).toBeLessThan(15);
   });
 
   it("does not take a pocket for the black", () => {
@@ -299,6 +347,48 @@ describe("setting a spot from two sides", () => {
 
   it("does not agree when the two aims were at different things", () => {
     expect(combineViews({ x: 1, y: 0.85, z: 0 }, { x: 1, y: 0.85, z: 0.08 }).agree).toBe(false);
+  });
+});
+
+describe("finding the cloth's true height from two aims", () => {
+  // The spot is on the cloth at 0.85m; the surface the camera found is 1cm higher than that.
+  const spot = { x: 1, y: 0.85, z: 0 };
+  const found = 0.86;
+  const aimFrom = (origin: { x: number; y: number; z: number }) => {
+    const direction = { x: spot.x - origin.x, y: spot.y - origin.y, z: spot.z - origin.z };
+    const t = (found - origin.y) / direction.y;
+    return {
+      world: { x: origin.x + direction.x * t, y: found, z: origin.z + direction.z * t },
+      ray: { origin, direction },
+    };
+  };
+  const near = aimFrom({ x: -0.3, y: 1.4, z: 0.1 });
+  const far = aimFrom({ x: 2.4, y: 1.4, z: -0.1 });
+
+  it("finds where two lines of sight cross", () => {
+    const meet = meetOfRays(near.ray, far.ray)!;
+    expect(meet.gapMm).toBeLessThan(0.01);
+    expect(meet.point.x).toBeCloseTo(spot.x, 6);
+    expect(meet.point.y).toBeCloseTo(spot.y, 6);
+  });
+
+  it("puts the spot, and the cloth, back at their real height", () => {
+    const result = combineAims(near, far);
+    expect(result.agree).toBe(true);
+    expect(result.point.y).toBeCloseTo(0.85, 4);
+    expect(result.point.x).toBeCloseTo(1, 4);
+    expect(result.heightShiftMm).toBe(-10);
+  });
+
+  it("falls back to the middle of the two aims without both lines of sight", () => {
+    const result = combineAims({ world: near.world }, far);
+    expect(result.heightShiftMm).toBe(0);
+    expect(result.point.y).toBeCloseTo(found, 6);
+  });
+
+  it("ignores lines of sight that never pass near each other", () => {
+    const wide = { ...far, ray: { ...far.ray, origin: { ...far.ray.origin, z: far.ray.origin.z + 0.3 } } };
+    expect(combineAims(near, wide).heightShiftMm).toBe(0);
   });
 });
 
