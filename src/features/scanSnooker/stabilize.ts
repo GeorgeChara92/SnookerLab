@@ -48,31 +48,72 @@ const average = (points: WorldPoint[]): WorldPoint => {
   return { x: sum.x / points.length, y: sum.y / points.length, z: sum.z / points.length };
 };
 
+/**
+ * How forgiving a hold is. The defaults are Scan Snooker's: any drift past the still radius starts
+ * the hold again.
+ */
+export type HoldOptions = {
+  /** Within this of the hold, in mm, the hold carries on filling. */
+  stillRadiusMm?: number;
+  /**
+   * Past the still radius but within this, the hold pauses instead of starting again: the fill
+   * stops where it is rather than dropping to empty, which on a real table looked like the circle
+   * filling, emptying and filling again with nothing but a hand's tremor (2026-11-07). Past this
+   * the aim has really moved, and the hold starts again. Defaults to the still radius.
+   */
+  resetRadiusMm?: number;
+  /**
+   * Only the readings from this long ago count towards where the hold is, so an aim that creeps
+   * slowly is followed instead of left behind and paused for good. Unset, the whole hold counts.
+   */
+  windowMs?: number;
+};
+
 export class AimStabiliser {
   private streak: Array<{ point: WorldPoint; t: number }> = [];
   private smoothed: WorldPoint | null = null;
+  private heldMs = 0;
+  private lastT = 0;
+  private readonly stillRadius: number;
+  private readonly resetRadius: number;
+  private readonly windowMs: number;
+
+  constructor(options: HoldOptions = {}) {
+    this.stillRadius = options.stillRadiusMm ?? STILL_RADIUS_MM;
+    this.resetRadius = Math.max(this.stillRadius, options.resetRadiusMm ?? this.stillRadius);
+    this.windowMs = options.windowMs ?? Infinity;
+  }
 
   /** Feed the latest reading, or null when the camera has nothing to aim at. Returns the new state. */
   update(point: WorldPoint | null, now: number): Stability {
     if (!point) {
-      this.streak = [];
-      this.smoothed = null;
+      this.reset();
       return STILL;
     }
 
     this.smoothed = this.smoothed ? lerp(this.smoothed, point, SMOOTHING) : point;
 
+    let held = true;
     if (this.streak.length) {
       const centre = average(this.streak.map((sample) => sample.point));
-      if (distanceMm(centre, this.smoothed) > STILL_RADIUS_MM) {
+      const drift = distanceMm(centre, this.smoothed);
+      if (drift > this.resetRadius) {
         this.streak = [];
+        this.heldMs = 0;
         this.smoothed = point;
+      } else if (drift > this.stillRadius) {
+        held = false;
       }
     }
-    this.streak.push({ point, t: now });
 
-    const heldMs = now - this.streak[0].t;
-    const progress = Math.min(1, heldMs / HOLD_MS);
+    if (held) {
+      if (this.streak.length) this.heldMs += now - this.lastT;
+      this.streak.push({ point, t: now });
+      this.streak = this.streak.filter((sample) => now - sample.t <= this.windowMs);
+    }
+    this.lastT = now;
+
+    const progress = Math.min(1, this.heldMs / HOLD_MS);
     if (progress < 1) return { progress, locked: null };
     return { progress: 1, locked: average(this.streak.map((sample) => sample.point)) };
   }
@@ -80,5 +121,6 @@ export class AimStabiliser {
   reset() {
     this.streak = [];
     this.smoothed = null;
+    this.heldMs = 0;
   }
 }

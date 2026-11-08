@@ -79,3 +79,39 @@ describe("holding the aim steady", () => {
     expect(state.locked).not.toBeNull();
   });
 });
+
+describe("a forgiving hold, for Record a Snooker", () => {
+  const options = { stillRadiusMm: 8, resetRadiusMm: 30, windowMs: 700 };
+
+  it("pauses on a wobble instead of emptying, then carries on filling", () => {
+    const s = new AimStabiliser(options);
+    s.update(P(0, 0.8, 0), 0);
+    const before = s.update(P(0, 0.8, 0), 300).progress;
+    // A 15mm twitch: past the still radius, nowhere near a real change of aim.
+    const wobble = s.update(P(0.015, 0.8, 0), 350).progress;
+    expect(wobble).toBeGreaterThanOrEqual(before);
+    const after = s.update(P(0, 0.8, 0), 450).progress;
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it("never drops back while held near the same spot", () => {
+    const s = new AimStabiliser(options);
+    let last = 0;
+    for (let t = 0; t <= 800; t += 50) {
+      const jitter = ((t / 50) % 3) * 0.006 - 0.006; // up to 6mm either way
+      const { progress } = s.update(P(jitter, 0.8, 0), t);
+      expect(progress).toBeGreaterThanOrEqual(last);
+      last = progress;
+    }
+    expect(last).toBe(1);
+  });
+
+  it("starts again when the aim really moves", () => {
+    const s = new AimStabiliser(options);
+    s.update(P(0, 0.8, 0), 0);
+    s.update(P(0, 0.8, 0), 400);
+    s.update(P(0.2, 0.8, 0), 450);
+    expect(s.update(P(0.2, 0.8, 0), 460).progress).toBeLessThan(0.1);
+  });
+});
+
