@@ -405,35 +405,46 @@ final class SnookerLapDetector {
       let centreReach = (table.ballHeight - origin.y) / centreDirection.y
       guard centreReach > 0 else { continue }
 
-      let inner = max(1, Int(peak.radius * 0.65))
-      var lumaTotal = 0
-      var blueTotal = 0
-      var redTotal = 0
-      var samples = 0
+      // The colour, read from the top half of the ball round its corrected centre. The bottom half
+      // is in the ball's own shade and next to its shadow, and read there a red came out as the
+      // black (seen 2026-11-08). The middle value of each channel, not the average, so the shine
+      // from the lights on top doesn't wash it out either.
+      let inner = max(1, Int(expected * 0.65))
+      let centreRow = Int(centre.row.rounded())
+      let centreColumn = Int(centre.column.rounded())
+      let upLength = (upward.x * upward.x + upward.y * upward.y).squareRoot()
+      var upper: [(y: Int, cb: Int, cr: Int)] = []
+      var whole: [(y: Int, cb: Int, cr: Int)] = []
       for rowOffset in -inner...inner {
         for columnOffset in -inner...inner {
           guard rowOffset * rowOffset + columnOffset * columnOffset <= inner * inner else { continue }
-          let row = peak.row + rowOffset
-          let column = peak.column + columnOffset
+          let row = centreRow + rowOffset
+          let column = centreColumn + columnOffset
           guard row >= 0, row < height, column >= 0, column < width else { continue }
           guard cells[row * width + column] == 2 else { continue }
           let chromaAt = (row * 2) * chromaStride + (column * 2) * 2
-          lumaTotal += Int(luma[(row * step + 2) * lumaStride + column * step + 2])
-          blueTotal += Int(chroma[chromaAt])
-          redTotal += Int(chroma[chromaAt + 1])
-          samples += 1
+          let sample = (
+            y: Int(luma[(row * step + 2) * lumaStride + column * step + 2]),
+            cb: Int(chroma[chromaAt]),
+            cr: Int(chroma[chromaAt + 1])
+          )
+          whole.append(sample)
+          let towardsTop = Float(columnOffset) * upward.x + Float(rowOffset) * upward.y
+          if upLength <= 0.2 || towardsTop >= 0 { upper.append(sample) }
         }
       }
-      guard samples > 0 else { continue }
+      let samples = upper.isEmpty ? whole : upper
+      guard !samples.isEmpty else { continue }
+      let middle = { (values: [Int]) -> Double in Double(values.sorted()[values.count / 2]) }
 
       sightings.append([
         "origin": vector(origin),
         "direction": vector(centreDirection),
         "distance": Double(centreReach * simd_length(centreDirection)),
         "fit": Double(fit),
-        "y": Double(lumaTotal) / Double(samples),
-        "cb": Double(blueTotal) / Double(samples),
-        "cr": Double(redTotal) / Double(samples),
+        "y": middle(samples.map { $0.y }),
+        "cb": middle(samples.map { $0.cb }),
+        "cr": middle(samples.map { $0.cr }),
       ])
     }
 

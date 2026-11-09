@@ -57,8 +57,18 @@ const TOO_CLOSE_MM = 42;
  */
 const MIN_SIGHTINGS_ONE_SIDE = 7;
 const MIN_LOOKS_ONE_SIDE = 6;
+/**
+ * Far away a ball is only a few pixels across, and a mark on the cloth or a bit of a pocket can
+ * pass for one: on a real table, reds turned up at the far end where there were none
+ * (2026-11-08). From one place, something this far off has to stay in view about twice as long.
+ */
+const FAR_METRES = 2.5;
+const MIN_SIGHTINGS_FAR = 12;
+const MIN_LOOKS_FAR = 10;
 /** Seen from two sides, a ball has already proved it's fixed to the table, so it needs fewer. */
 const MIN_SIGHTINGS = 5;
+/** A real ball has a colour. Something that's often no colour at all is a mark or a shadow. */
+const MAX_UNKNOWN_SHARE = 0.4;
 /** Directions a ball can be seen from, for telling whether it really was seen from more than one. */
 const SIDES = 8;
 /** A pocket is a black circle on the table, so nothing black or unknown near one counts. */
@@ -70,6 +80,8 @@ const MIN_FIT = 0.7;
 const MAX_FIT = 1.3;
 /** A ball is one colour, so at least this share of its sightings have to say the same one. */
 const MIN_AGREEMENT = 0.5;
+/** From one side there's less to go on, so the colour has to be clearer. */
+const MIN_AGREEMENT_ONE_SIDE = 0.6;
 /** Below this share of a ball's sightings, a colour is not worth claiming the ball for. */
 const CLAIM_SHARE = 0.35;
 /** Below this share of a ball's sightings, the colour is flagged for the player to check. */
@@ -239,6 +251,8 @@ type Cluster = {
   lastLook: number;
   /** How far along the line of sight its sightings could be out, on average. */
   slack: number;
+  /** How far away it was seen from, on average, in metres. */
+  range: number;
   /** Each sighting's squared distance from where the ball was then thought to be, for the report. */
   scatter: number;
   sides: Set<number>;
@@ -257,6 +271,7 @@ const mergeInto = (target: Cluster, other: Cluster) => {
     cr: (target.colour.cr * target.sightings + other.colour.cr * other.sightings) / (target.sightings + other.sightings),
   };
   target.slack = (target.slack * target.sightings + other.slack * other.sightings) / (target.sightings + other.sightings);
+  target.range = (target.range * target.sightings + other.range * other.sightings) / (target.sightings + other.sightings);
   target.firstLook = Math.min(target.firstLook, other.firstLook);
   target.lastLook = Math.max(target.lastLook, other.lastLook);
   target.weight = weight;
@@ -273,13 +288,18 @@ const shareOf = (cluster: Cluster, colour: BallColour) => (cluster.votes[colour]
 
 /** Why the views have not agreed on something being a ball, or null if they have. */
 const doubtAbout = (cluster: Cluster) => {
-  const enough =
-    cluster.sides.size >= 2
-      ? cluster.sightings >= MIN_SIGHTINGS
-      : cluster.sightings >= MIN_SIGHTINGS_ONE_SIDE && cluster.lastLook - cluster.firstLook >= MIN_LOOKS_ONE_SIDE;
+  const twoSides = cluster.sides.size >= 2;
+  const far = cluster.range > FAR_METRES;
+  const looks = cluster.lastLook - cluster.firstLook;
+  const enough = twoSides
+    ? cluster.sightings >= MIN_SIGHTINGS
+    : far
+      ? cluster.sightings >= MIN_SIGHTINGS_FAR && looks >= MIN_LOOKS_FAR
+      : cluster.sightings >= MIN_SIGHTINGS_ONE_SIDE && looks >= MIN_LOOKS_ONE_SIDE;
   if (!enough) return "notSeenEnough";
+  if (cluster.unknown / cluster.sightings > MAX_UNKNOWN_SHARE) return "noColour";
   const agreeing = Math.max(0, ...Object.values(cluster.votes).map((votes) => votes ?? 0));
-  if (agreeing / cluster.sightings < MIN_AGREEMENT) return "mixedColours";
+  if (agreeing / cluster.sightings < (twoSides ? MIN_AGREEMENT : MIN_AGREEMENT_ONE_SIDE)) return "mixedColours";
   return null;
 };
 
@@ -291,9 +311,12 @@ const SINGLES = (Object.keys(BALL_LIMIT) as BallColour[]).filter((colour) => BAL
  * it. Whatever is left is a red, and is flagged if it did not look much like one.
  */
 const assignColours = (clusters: Cluster[]): Array<{ cluster: Cluster; colour: BallColour; unsure: boolean }> => {
+  // A ball can only be claimed as the colour it was seen as most. Without this, a red whose dark
+  // underside read as black a third of the time was taken for the black (seen 2026-11-08).
+  const topShare = (cluster: Cluster) => Math.max(0, ...Object.values(cluster.votes).map((votes) => votes ?? 0)) / Math.max(cluster.sightings, 1);
   const claims = clusters
     .flatMap((cluster) => SINGLES.map((colour) => ({ cluster, colour, share: shareOf(cluster, colour) })))
-    .filter((claim) => claim.share >= CLAIM_SHARE)
+    .filter((claim) => claim.share >= CLAIM_SHARE && claim.share >= topShare(claim.cluster))
     .sort((a, b) => b.share - a.share);
 
   const taken = new Set<BallColour>();
@@ -415,6 +438,7 @@ export class LapTracker {
       firstLook: this.frames,
       lastLook: this.frames,
       slack,
+      range: sighting.distance,
       scatter: nearest ? nearest.gap * nearest.gap : 0,
       sides: new Set([sideOf(point, camera)]),
       votes: colour ? { [colour]: 1 } : {},
@@ -498,6 +522,7 @@ export class LapTracker {
       wrongSize: this.wrongSize,
       notSeenEnough: doubted("notSeenEnough"),
       mixedColours: doubted("mixedColours"),
+      noColour: doubted("noColour"),
       balls: assigned.map(({ cluster, colour, unsure }) => ({
         colour,
         unsure,

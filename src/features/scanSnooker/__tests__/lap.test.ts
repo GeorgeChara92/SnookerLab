@@ -146,7 +146,8 @@ describe("walking a lap", () => {
   };
 
   it("finds the balls from where you stand, without walking", () => {
-    const found = standStill(position, 8).balls();
+    // Long enough for the baulk colours, over 2.5m from here, as well as the near balls.
+    const found = standStill(position, 12).balls();
     expect(found).toHaveLength(position.length);
     position.forEach((ball) => {
       expect(found.find((item) => Math.hypot(item.x - ball.at.x, item.y - ball.at.y) < 10)?.colour).toBe(ball.colour);
@@ -159,7 +160,36 @@ describe("walking a lap", () => {
 
   it("finds a ball at the far end of the table", () => {
     // From behind the baulk cushion, the black's spot is over 3.5m away.
-    expect(standStill([{ at: { x: 889, y: 324 }, colour: "black" }], 8, { x: 900, y: 3850 }).balls()).toHaveLength(1);
+    const far = [{ at: { x: 889, y: 324 }, colour: "black" as const }];
+    const stand = { x: 900, y: 3850 };
+    // Far off and from one place, it has to stay in view for longer than a close ball does.
+    expect(standStill(far, 8, stand).balls()).toHaveLength(0);
+    expect(standStill(far, 12, stand).balls()).toHaveLength(1);
+  });
+
+  it("won't call a red the black because its dark side sometimes reads black", () => {
+    const tracker = new LapTracker();
+    const at = LAP[0];
+    for (let look = 0; look < 12; look += 1) {
+      const colour: BallColour = look % 5 < 3 ? "red" : "black"; // 60% red, 40% black
+      tracker.add({ camera: standing(at), cloth: CLOTH, ms: 10, sightings: [sighting({ x: 600, y: 900 }, at, colour)] }, FRAME);
+    }
+    const [ball] = tracker.balls();
+    expect(ball.colour).toBe("red");
+  });
+
+  it("ignores something that's mostly no colour at all, like a mark on the cloth", () => {
+    const tracker = new LapTracker();
+    const at = LAP[0];
+    const grey = { y: 110, cb: 128, cr: 128 };
+    for (let look = 0; look < 12; look += 1) {
+      const reading = look % 2 ? LOOK.red : grey;
+      tracker.add(
+        { camera: standing(at), cloth: CLOTH, ms: 10, sightings: [{ ...sighting({ x: 600, y: 900 }, at, "red"), ...reading }] },
+        FRAME
+      );
+    }
+    expect(tracker.balls()).toHaveLength(0);
   });
 
   it("keeps two touching balls apart when one is behind the other", () => {
