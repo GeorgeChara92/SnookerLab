@@ -1078,6 +1078,124 @@
   margin-top: 2px;
 }
 
+.launch-note a {
+  color: var(--chalk-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.launch-row .btn:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+/* Which phone: two quiet chips, both optional. */
+.launch-phone {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.launch-phone legend {
+  float: left;
+  margin-right: 6px;
+  padding: 0;
+  color: var(--chalk-3);
+  font-size: 13px;
+}
+
+.launch-form .launch-phone label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 14px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--rule);
+  color: var(--chalk-2);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 160ms var(--ease), color 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+
+.launch-form .launch-phone label.on {
+  background: rgba(47, 179, 127, 0.16);
+  box-shadow: inset 0 0 0 1px var(--mint);
+  color: var(--chalk);
+}
+
+.launch-phone input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.launch-phone label:has(input:focus-visible) {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
+}
+
+.launch-error {
+  margin: 12px 0 0;
+  color: #ff9b8f;
+  font-size: 14px;
+}
+
+/* Off-screen rather than display:none, so a bot still sees a field to fill. */
+.launch-trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.launch-done {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.launch-done-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--mint);
+  color: var(--baize);
+}
+
+.launch-done-mark svg {
+  width: 22px;
+  height: 22px;
+}
+
+.launch-done-title {
+  margin: 0;
+  color: var(--chalk);
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.launch-note-text {
+  margin: 6px 0 0;
+  color: var(--chalk-2);
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 860px) {
   .launch {
     grid-template-columns: 1fr;

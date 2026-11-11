@@ -9,9 +9,10 @@ import { Feedback } from "./pages/Feedback";
 import { Crashes } from "./pages/Crashes";
 import { Players } from "./pages/Players";
 import { Routines } from "./pages/Routines";
+import { LaunchList } from "./pages/LaunchList";
 
 type Status = "checking" | "signed-out" | "not-admin" | "admin";
-export type Page = "overview" | "applications" | "reports" | "feedback" | "crashes" | "players" | "routines";
+export type Page = "overview" | "applications" | "reports" | "feedback" | "crashes" | "players" | "routines" | "launch";
 
 const PAGES: Array<{ value: Page; label: string }> = [
   { value: "overview", label: "Overview" },
@@ -21,6 +22,7 @@ const PAGES: Array<{ value: Page; label: string }> = [
   { value: "crashes", label: "Crashes" },
   { value: "players", label: "Players" },
   { value: "routines", label: "Routines" },
+  { value: "launch", label: "Launch list" },
 ];
 
 const pageFromHash = (): Page => {
@@ -227,6 +229,8 @@ function Dashboard({ email }: { email: string }) {
           <Crashes />
         ) : page === "routines" ? (
           <Routines />
+        ) : page === "launch" ? (
+          <LaunchList />
         ) : (
           <Players />
         )}

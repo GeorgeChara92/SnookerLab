@@ -282,7 +282,7 @@ export function Support() {
   );
 }
 
-function Legal({ title, intro, html }: { title: string; intro: string; html: string }) {
+function Legal({ title, intro, html, updated }: { title: string; intro: string; html: string; updated: string }) {
   return (
     <>
       <section className="page-hero legal-hero">
@@ -290,7 +290,7 @@ function Legal({ title, intro, html }: { title: string; intro: string; html: str
           <p className="eyebrow">Legal</p>
           <h1 className="display-l">{title}</h1>
           <p className="lead page-hero-lead">{intro}</p>
-          <p className="updated">Last updated: September 2026</p>
+          <p className="updated">Last updated: {updated}</p>
         </div>
       </section>
       <section className="section tight">
@@ -304,11 +304,11 @@ function Legal({ title, intro, html }: { title: string; intro: string; html: str
 }
 
 export const Privacy = () => (
-  <Legal title="Privacy Policy" intro="What data we collect, why we collect it, and the controls available to you." html={privacyHtml} />
+  <Legal title="Privacy Policy" intro="What data we collect, why we collect it, and the controls available to you." html={privacyHtml} updated="November 2026" />
 );
 
 export const Terms = () => (
-  <Legal title="Terms of Use" intro="The terms for using Snookered. Please read them before you use the app." html={termsHtml} />
+  <Legal title="Terms of Use" intro="The terms for using Snookered. Please read them before you use the app." html={termsHtml} updated="September 2026" />
 );
 
 export function NotFound() {

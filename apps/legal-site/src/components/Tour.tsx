@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, Mail } from "lucide-react";
+import { ArrowRight, Check, Mail } from "lucide-react";
+import { Link } from "react-router";
+import { joinLaunchList, looksLikeEmail, type Platform } from "../launchList";
 import { Phone } from "./Phone";
 import { Reveal } from "./Blocks";
-import { SUPPORT_EMAIL, type Screen } from "../site";
+import { type Screen } from "../site";
 
 type Stop = { screen: Screen; label: string; caption: string; alt: string };
 
@@ -135,16 +137,37 @@ export function CoreLoop() {
 }
 
 /**
- * The launch list. There is no sign-up service yet, so the form opens the player's own
- * email app with the message ready: a real action rather than a pretend confirmation.
+ * The launch list: an email, and optionally which phone, saved straight to the list we email on
+ * launch day (see launchList.ts). A hidden field catches form-filling bots, which get the same
+ * "you're on the list" without anything being saved.
  */
 export function LaunchList() {
   const [email, setEmail] = useState("");
+  const [platform, setPlatform] = useState<Platform | null>(null);
+  const [trap, setTrap] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "done">("idle");
+  const [error, setError] = useState<string | null>(null);
 
-  const send = (event: FormEvent) => {
+  const send = async (event: FormEvent) => {
     event.preventDefault();
-    const body = `Add me to the Snookered launch list.${email ? `\n\nMy email: ${email}` : ""}`;
-    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Launch list")}&body=${encodeURIComponent(body)}`;
+    if (state === "sending") return;
+    if (!looksLikeEmail(email)) {
+      setError("That email address doesn't look right.");
+      return;
+    }
+    setError(null);
+    setState("sending");
+    if (trap) {
+      setState("done");
+      return;
+    }
+    try {
+      await joinLaunchList(email, platform, window.location.pathname);
+      setState("done");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Please try again.");
+      setState("idle");
+    }
   };
 
   return (
@@ -155,33 +178,89 @@ export function LaunchList() {
             <p className="eyebrow">Coming soon to iPhone</p>
             <h2 className="display-l">Your next session starts here.</h2>
             <p className="lead">
-              Matches, practice, coaching, your club - Snookered brings it all together. Be first on the table: ask for a
-              nudge and we will tell you the day it lands.
+              Matches, practice, coaching, your club - Snookered brings it all together. Be first on the table: leave
+              your email and we will tell you the day it lands.
             </p>
           </div>
-          <form className="launch-form" onSubmit={send}>
-            <label htmlFor="launch-email">Your email</label>
-            <div className="launch-row">
-              <input
-                id="launch-email"
-                type="email"
-                name="email"
-                inputMode="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-              <button type="submit" className="btn btn-primary">
-                Get notified at launch <ArrowRight aria-hidden="true" strokeWidth={2} className="arrow" />
-              </button>
+          {state === "done" ? (
+            <div className="launch-done" role="status">
+              <span className="launch-done-mark" aria-hidden="true">
+                <Check strokeWidth={2.5} />
+              </span>
+              <div>
+                <p className="launch-done-title">You're on the list.</p>
+                <p className="launch-note-text">
+                  We'll email {email.trim()} the day Snookered is out. Nothing else.
+                </p>
+              </div>
             </div>
-            <p className="launch-note">
-              <Mail aria-hidden="true" strokeWidth={1.75} />
-              This opens your email app with the message ready. We add you by hand, and use it only to tell you about the
-              launch.
-            </p>
-          </form>
+          ) : (
+            <form className="launch-form" onSubmit={send} noValidate>
+              <label htmlFor="launch-email">Your email</label>
+              <div className="launch-row">
+                <input
+                  id="launch-email"
+                  type="email"
+                  name="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "launch-error" : undefined}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    if (error) setError(null);
+                  }}
+                />
+                <button type="submit" className="btn btn-primary" disabled={state === "sending"}>
+                  {state === "sending" ? "Adding you..." : "Get notified at launch"}
+                  {state === "sending" ? null : <ArrowRight aria-hidden="true" strokeWidth={2} className="arrow" />}
+                </button>
+              </div>
+              {/* Hidden from people; a bot that fills every field fills this one too. */}
+              <div className="launch-trap" aria-hidden="true">
+                <label htmlFor="launch-website">Website</label>
+                <input
+                  id="launch-website"
+                  type="text"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={trap}
+                  onChange={(event) => setTrap(event.target.value)}
+                />
+              </div>
+              <fieldset className="launch-phone">
+                <legend>Your phone (optional)</legend>
+                {(["iphone", "android"] as const).map((value) => (
+                  <label key={value} className={platform === value ? "on" : undefined}>
+                    <input
+                      type="radio"
+                      name="platform"
+                      value={value}
+                      checked={platform === value}
+                      onChange={() => setPlatform(value)}
+                      onClick={() => platform === value && setPlatform(null)}
+                    />
+                    {value === "iphone" ? "iPhone" : "Android"}
+                  </label>
+                ))}
+              </fieldset>
+              {error ? (
+                <p className="launch-error" id="launch-error" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <p className="launch-note">
+                <Mail aria-hidden="true" strokeWidth={1.75} />
+                <span>
+                  We'll only use your email to tell you about the launch, and you can ask us to remove it at any
+                  time. See our <Link to="/privacy">Privacy Policy</Link>.
+                </span>
+              </p>
+            </form>
+          )}
         </Reveal>
       </div>
     </section>

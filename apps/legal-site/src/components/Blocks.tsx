@@ -229,6 +229,9 @@ export function Cta({
                   <small>Coming soon to</small>{" "}the App Store
                 </span>
               </span>
+              <Link className="btn btn-primary" to="/#launch">
+                Get notified at launch <Arrow />
+              </Link>
               <Link className="btn btn-ghost" to="/support">
                 Get in touch <Arrow />
               </Link>
