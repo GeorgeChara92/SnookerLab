@@ -141,6 +141,36 @@ export const linePositions = (start: Point, end: Point, spacing: number, count: 
   return Array.from({ length: n }, (_, i) => ({ x: start.x + ux * spacing * i, y: start.y + uy * spacing * i }));
 };
 
+/** The pack sizes the builder offers: full triangles of 2, 3, 4 and 5 rows. */
+export const PACK_SIZES = [3, 6, 10, 15] as const;
+
+/** Which way a pack's front ball faces: towards baulk (as racked for a frame) or towards the black. */
+export type PackFacing = "baulk" | "black";
+
+/**
+ * A triangle of touching balls, front ball first, the way a pack is racked. Each row is one ball
+ * wider and sits further from where the pack points. Neighbours are a fifth of a millimetre apart,
+ * so storing the positions as shares of the table never rounds two of them into an overlap.
+ */
+export const packPositions = (front: Point, size: number, facing: PackFacing = "baulk"): Point[] => {
+  let rows = 1;
+  while ((rows * (rows + 1)) / 2 < size) rows += 1;
+  const gap = TABLE.ball + 0.2;
+  const rowStep = (gap * Math.sqrt(3)) / 2;
+  // Facing baulk, the rows run back towards the black end, where along is smaller.
+  const back = facing === "baulk" ? -1 : 1;
+  const out: Point[] = [];
+  for (let row = 0; row < rows && out.length < size; row += 1) {
+    for (let i = 0; i <= row && out.length < size; i += 1) {
+      out.push({ x: front.x + (i - row / 2) * gap, y: front.y + back * row * rowStep });
+    }
+  }
+  return out;
+};
+
+/** Where the front ball of a full pack goes for a frame: just behind the pink, nearly touching it. */
+export const PACK_FRONT_BEHIND_PINK: Point = { x: TABLE.width / 2, y: TABLE.length / 4 - TABLE.ball - 1 };
+
 /** Pairs of balls closer than one ball-width: they'd be overlapping on a real table. */
 export const overlapping = (balls: Ball[]): Set<string> => {
   const hits = new Set<string>();

@@ -4,6 +4,8 @@ import {
   BAULK_Y,
   COLOURS,
   LOOK,
+  PACK_FRONT_BEHIND_PINK,
+  PACK_SIZES,
   POCKETS,
   RAIL,
   SPOTS,
@@ -18,10 +20,12 @@ import {
   linePositions,
   nextId,
   overlapping,
+  packPositions,
   snapPoint,
   toView,
   type Ball,
   type Colour,
+  type PackFacing,
   type Point,
   type Snapped,
   type SpotId,
@@ -37,7 +41,7 @@ export type Layout = {
   balls: Ball[];
 };
 
-type Tool = "select" | "place" | "line" | "diagonal" | "measure";
+type Tool = "select" | "place" | "line" | "diagonal" | "pack" | "measure";
 type RefMode = "above" | "overlay" | "off";
 
 const TOOLS: Array<{ value: Tool; label: string; key: string; hint: string }> = [
@@ -45,6 +49,7 @@ const TOOLS: Array<{ value: Tool; label: string; key: string; hint: string }> = 
   { value: "place", label: "Place", key: "B", hint: "Click the table to drop a ball" },
   { value: "line", label: "Line", key: "L", hint: "Drag a straight row or column of balls" },
   { value: "diagonal", label: "Diagonal", key: "D", hint: "Drag a line of balls at any angle" },
+  { value: "pack", label: "Pack", key: "P", hint: "Click the table to drop a pack of touching balls, with the click as its front ball" },
   { value: "measure", label: "Measure", key: "M", hint: "Click two points to measure between them" },
 ];
 const SPACINGS: Array<[string, string]> = [
@@ -90,6 +95,8 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
   const [spacing, setSpacing] = useState("52.5");
   const [customSpacing, setCustomSpacing] = useState("52.5");
   const [count, setCount] = useState("");
+  const [packSize, setPackSize] = useState<number>(15);
+  const [packFacing, setPackFacing] = useState<PackFacing>("baulk");
   const [zoom, setZoom] = useState(1);
   const [refMode, setRefMode] = useState<RefMode>(image ? "above" : "off");
   const [refOpacity, setRefOpacity] = useState(45);
@@ -162,6 +169,27 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
     const dy = Math.abs(end.y - start.y);
     return dx >= dy ? { x: end.x, y: start.y, guideX: null, guideY: start.y } : { x: start.x, y: end.y, guideX: start.x, guideY: null };
   };
+  const packPreview = tool === "pack" && hover && !gesture ? packPositions(hover, packSize, packFacing) : [];
+  const packFits = packPreview.every(isOnBed);
+
+  /** Drops a pack with its front ball at `front`, and selects it so it can be dragged as one. */
+  const placePack = (front: Point, facing: PackFacing = packFacing) => {
+    const points = packPositions(front, packSize, facing);
+    if (!points.every(isOnBed)) {
+      onToast("That pack runs off the table there. Move it away from the cushion.");
+      return;
+    }
+    const current = layoutRef.current.balls;
+    const taken = new Set<string>();
+    const added = points.map((p) => {
+      const id = nextId(current, colour, taken);
+      taken.add(id);
+      return { id, color: colour, x: p.x, y: p.y };
+    });
+    setBalls([...current, ...added]);
+    setSelection(new Set(added.map((b) => b.id)));
+  };
+
   const linePreview = gesture?.kind === "line" && hover ? linePositions(gesture.start, lineEnd(gesture.start, hover), lineSpacing, fixedCount).filter(isOnBed) : [];
 
   const ballAt = (target: EventTarget | null) => {
@@ -213,6 +241,10 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
       return;
     }
 
+    if (tool === "pack") {
+      placePack(resolve(raw));
+      return;
+    }
     if (tool === "place") {
       const p = resolve(raw);
       const id = nextId(balls, colour);
@@ -426,6 +458,10 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
     }
     const t = TOOLS.find((x) => x.value === tool)!;
     if (tool === "place") return `${t.hint}: ${LOOK[colour].label.toLowerCase()}. Keys 1–8 pick a colour.`;
+    if (tool === "pack") {
+      if (hover && !packFits) return "That pack runs off the table there. Move it away from the cushion.";
+      return `${t.hint}. ${packSize} ${LOOK[colour].label.toLowerCase()}${packSize === 1 ? "" : "s"}, pointing towards ${packFacing === "baulk" ? "baulk" : "the black"}. Once placed it's selected, so drag any ball in it to move the whole pack.`;
+    }
     if (tool === "line" || tool === "diagonal") return `${t.hint} in ${LOOK[colour].label.toLowerCase()}. ${fixedCount ? `Always ${fixedCount}; the drag only aims it.` : "Drag further for more balls."}`;
     return `${t.hint}. Shift adds to the selection. Arrows nudge 1 mm, Shift+arrows 10 mm.`;
   })();
@@ -540,6 +576,30 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
           </div>
 
           <div className="rb-options">
+            {tool === "pack" ? (
+              <>
+                <label className="rb-opt">
+                  <span>Size</span>
+                  <select value={packSize} onChange={(event) => setPackSize(Number(event.target.value))}>
+                    {PACK_SIZES.map((size) => (
+                      <option key={size} value={size}>
+                        {size} balls
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="rb-opt">
+                  <span>Points to</span>
+                  <select value={packFacing} onChange={(event) => setPackFacing(event.target.value as PackFacing)}>
+                    <option value="baulk">Baulk (as racked)</option>
+                    <option value="black">The black</option>
+                  </select>
+                </label>
+                <button type="button" className="btn btn-sm" onClick={() => placePack(PACK_FRONT_BEHIND_PINK, "baulk")} title="The front ball just behind the pink spot">
+                  Rack behind the pink
+                </button>
+              </>
+            ) : null}
             {tool === "line" || tool === "diagonal" ? (
               <>
                 <label className="rb-opt">
@@ -683,6 +743,11 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
               {balls.map((b) => drawBall(b, "real"))}
 
               {tool === "place" && hover && !gesture ? drawBall({ id: "ghost", color: colour, x: hover.x, y: hover.y }, "ghost") : null}
+              {packPreview.length ? (
+                <g pointerEvents="none" opacity={packFits ? 1 : 0.35}>
+                  {packPreview.map((p, i) => drawBall({ id: `pack-${i}`, color: colour, x: p.x, y: p.y }, "ghost"))}
+                </g>
+              ) : null}
               {gesture?.kind === "line" ? (
                 <g pointerEvents="none">
                   {linePreview.map((p, i) => drawBall({ id: `preview-${i}`, color: colour, x: p.x, y: p.y }, "ghost"))}

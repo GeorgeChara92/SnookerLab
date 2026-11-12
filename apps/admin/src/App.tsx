@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { configured, supabase } from "./supabase";
 import { DialogProvider } from "./dialog";
@@ -34,16 +34,23 @@ export function App() {
   const [status, setStatus] = useState<Status>("checking");
   const [session, setSession] = useState<Session | null>(null);
 
+  // Whose admin check the status belongs to. Supabase re-announces the same sign-in whenever the
+  // tab comes back into focus or the token refreshes; treating that as a new sign-in sent the
+  // dashboard back to "Checking your account…" for good (the check below only reruns for a new
+  // user), and lost whatever was open. Only a different account, or signing out, changes it now.
+  const checkedFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!configured) return;
-    void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setStatus(data.session ? "checking" : "signed-out");
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const take = (next: Session | null) => {
       setSession(next);
-      setStatus(next ? "checking" : "signed-out");
-    });
+      const id = next?.user.id ?? null;
+      if (id === checkedFor.current) return;
+      checkedFor.current = id;
+      setStatus(id ? "checking" : "signed-out");
+    };
+    void supabase.auth.getSession().then(({ data }) => take(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => take(next));
     return () => sub.subscription.unsubscribe();
   }, []);
 
