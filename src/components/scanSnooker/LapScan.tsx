@@ -28,7 +28,7 @@ import {
 } from "../../features/scanSnooker/table";
 import { clothFromAim, rayAtHeight, tableLines } from "../../features/scanSnooker/ar";
 import { AimStabiliser, type Stability } from "../../features/scanSnooker/stabilize";
-import { LAP_COMPLETE, LAP_SECTORS, LapTracker, type LapBall } from "../../features/scanSnooker/lap";
+import { LAP_COMPLETE, LAP_SECTORS, LapTracker, steadyRings, type LapBall } from "../../features/scanSnooker/lap";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /**
@@ -107,6 +107,8 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
   // A fresh tracker for each lap; what it has found is copied out for drawing as each look comes in.
   const tracker = useRef(new LapTracker());
   const [balls, setBalls] = useState<LapBall[]>([]);
+  // What's drawn on the camera view: the same balls, held steady (see steadyRings).
+  const [rings, setRings] = useState<LapBall[]>([]);
   const [walked, setWalked] = useState(0);
   const [offCloth, setOffCloth] = useState(false);
 
@@ -189,6 +191,7 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     }
     tracker.current = new LapTracker();
     setBalls([]);
+    setRings([]);
     setWalked(0);
     setOffCloth(false);
     setNotice(null);
@@ -198,7 +201,9 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
   const onLapFrame = (event: { nativeEvent: ARLapFrame }) => {
     if (phase !== "lap" || !frame) return;
     tracker.current.add(event.nativeEvent, frame);
-    setBalls(tracker.current.balls());
+    const found = tracker.current.balls();
+    setBalls(found);
+    setRings((drawn) => steadyRings(drawn, found));
     setWalked(tracker.current.coverage());
     setOffCloth(!tracker.current.seeingCloth());
   };
@@ -236,14 +241,14 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     if (!frame || phase !== "lap") return markers;
     return [
       ...markers,
-      ...balls.map((ball) => ({
+      ...rings.map((ball) => ({
         id: ball.id,
         colour: BALL_LOOK[ball.colour].fill,
         ...tableToWorld(frame, ball),
         kind: "tag" as const,
       })),
     ];
-  }, [balls, frame, phase, taps]);
+  }, [rings, frame, phase, taps]);
 
   // ---------------------------------------------------------------- the words at the top
   const lapDone = walked >= LAP_COMPLETE;

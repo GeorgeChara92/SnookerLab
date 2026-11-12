@@ -224,6 +224,20 @@ final class SnookerLapDetector {
     let origin = simd_make_float3(transform.columns.3)
 
     var payload: [String: Any] = ["camera": vector(origin), "sightings": [[String: Any]]()]
+    // Which way the camera faced and what it could see, so JavaScript can tell a recorded ball that
+    // should have been found in this picture from one that was out of shot. A ball in plain view
+    // that isn't found, look after look, isn't there (2026-11-12: rings with no ball under them).
+    payload["view"] = [
+      "right": vector(right),
+      "up": vector(up),
+      "back": vector(back),
+      "fx": Double(fx),
+      "fy": Double(fy),
+      "cx": Double(cx),
+      "cy": Double(cy),
+      "width": Double(width * step),
+      "height": Double(height * step),
+    ] as [String: Any]
 
     // 0 is off the table, 1 is cloth, 2 is something on the cloth.
     let cells = UnsafeMutablePointer<UInt8>.allocate(capacity: count)

@@ -1,6 +1,17 @@
 import { onTable, ballFromRay } from "./ar";
 import { separate, type PlacedBall } from "./position";
-import { BALL_LIMIT, POCKETS, TABLE, distance, worldToTable, type BallColour, type Point, type TableFrame, type WorldPoint } from "./table";
+import {
+  BALL_LIMIT,
+  POCKETS,
+  TABLE,
+  distance,
+  tableToWorld,
+  worldToTable,
+  type BallColour,
+  type Point,
+  type TableFrame,
+  type WorldPoint,
+} from "./table";
 
 /**
  * Record a Snooker's lap: point the phone at the table and the balls are found for you. Walking
@@ -29,8 +40,22 @@ export type LapSighting = LapColour & {
   fit: number;
 };
 
+/** Which way the camera faced, and its lens in camera pixels. Missing from builds before 18. */
+export type LapView = {
+  right: WorldPoint;
+  up: WorldPoint;
+  back: WorldPoint;
+  fx: number;
+  fy: number;
+  cx: number;
+  cy: number;
+  width: number;
+  height: number;
+};
+
 export type LapFrame = {
   camera: WorldPoint;
+  view?: LapView;
   cloth?: LapColour;
   sightings: LapSighting[];
   ms: number;
@@ -74,6 +99,16 @@ const MIN_SIGHTINGS_FAR = 12;
 const MIN_LOOKS_FAR = 10;
 /** Seen from two sides, a ball has already proved it's fixed to the table, so it needs fewer. */
 const MIN_SIGHTINGS = 5;
+/**
+ * A ball that was recorded but then isn't found this many looks running (about two seconds), while
+ * in plain view and close enough to see, isn't there: a mark, a reflection, or a ball since moved.
+ * On a real table these showed as rings with nothing under them (2026-11-11).
+ */
+const MISSES_GONE = 8;
+/** Only a look this close counts as a miss: further off, a real ball is sometimes too small to find. */
+const MISS_RANGE_M = 3;
+/** A ball found this close counts as possibly hiding it, so it isn't a miss. */
+const NEIGHBOUR_MM = 85;
 /** A real ball has a colour. Something that's often no colour at all is a mark or a shadow. */
 const MAX_UNKNOWN_SHARE = 0.4;
 /** Directions a ball can be seen from, for telling whether it really was seen from more than one. */
@@ -262,6 +297,8 @@ type Cluster = {
   range: number;
   /** Which looks saw it, to tell two balls side by side from one ball seen twice. */
   looks: Set<number>;
+  /** Looks in a row that had it in plain view and didn't find it. */
+  misses: number;
   /** Each sighting's squared distance from where the ball was then thought to be, for the report. */
   scatter: number;
   sides: Set<number>;
@@ -283,6 +320,7 @@ const mergeInto = (target: Cluster, other: Cluster) => {
   target.range = (target.range * target.sightings + other.range * other.sightings) / (target.sightings + other.sightings);
   target.firstLook = Math.min(target.firstLook, other.firstLook);
   other.looks.forEach((look) => target.looks.add(look));
+  target.misses = Math.min(target.misses, other.misses);
   target.lastLook = Math.max(target.lastLook, other.lastLook);
   target.weight = weight;
   target.sightings += other.sightings;
@@ -298,6 +336,7 @@ const shareOf = (cluster: Cluster, colour: BallColour) => (cluster.votes[colour]
 
 /** Why the views have not agreed on something being a ball, or null if they have. */
 const doubtAbout = (cluster: Cluster) => {
+  if (cluster.misses >= MISSES_GONE) return "notThere";
   const twoSides = cluster.sides.size >= 2;
   const far = cluster.range > FAR_METRES;
   const looks = cluster.lastLook - cluster.firstLook;
@@ -344,6 +383,54 @@ const assignColours = (clusters: Cluster[]): Array<{ cluster: Cluster; colour: B
     .map((cluster) => ({ cluster, colour: "red" as const, unsure: shareOf(cluster, "red") < SURE_SHARE }));
 
   return [...placed.values(), ...reds];
+};
+
+/** A ring doesn't move for less than this: the estimate settling isn't worth watching. */
+const RING_STILL_MM = 12;
+/** A ball this close to where a ring of its colour was drawn is that ring's ball. */
+const RING_FOLLOW_MM = 45;
+
+/**
+ * The rings to draw on the camera view, kept steady. A ring stays put until its ball's estimate
+ * has moved more than a centimetre, and stays with the same ball when the tracker re-sorts which
+ * readings make which ball - rather than vanishing and popping up again nearby, which is how it
+ * looked on a real table (2026-11-11). Only the drawing: what the lap records is unchanged.
+ */
+export const steadyRings = (drawn: LapBall[], found: LapBall[]): LapBall[] => {
+  const left = new Map(drawn.map((ball) => [ball.id, ball]));
+  const matched = new Map<LapBall, LapBall>();
+
+  // Same ball as before first, then the nearest ring of the same colour.
+  found.forEach((ball) => {
+    const before = left.get(ball.id);
+    if (before && before.colour === ball.colour) {
+      matched.set(ball, before);
+      left.delete(ball.id);
+    }
+  });
+  found.forEach((ball) => {
+    if (matched.has(ball)) return;
+    let best: LapBall | null = null;
+    left.forEach((ring) => {
+      if (ring.colour !== ball.colour) return;
+      const gap = distance(ring, ball);
+      if (gap < RING_FOLLOW_MM && (!best || gap < distance(best, ball))) best = ring;
+    });
+    if (best) {
+      matched.set(ball, best);
+      left.delete((best as LapBall).id);
+    }
+  });
+
+  const used = new Set<string>();
+  return found.map((ball) => {
+    const ring = matched.get(ball);
+    const still = ring && distance(ring, ball) < RING_STILL_MM;
+    let id = ring?.id ?? ball.id;
+    while (used.has(id)) id = `${id}-again`;
+    used.add(id);
+    return { ...ball, id, ...(still ? { x: ring!.x, y: ring!.y } : {}) };
+  });
 };
 
 export class LapTracker {
@@ -430,6 +517,51 @@ export class LapTracker {
 
     seen.forEach((item, index) => this.place(item, camera, matched.get(index)));
     this.tidy(taken);
+    if (look.view) this.countMisses(look, look.view, frame, taken, seen.map((item) => item.point));
+  }
+
+  /**
+   * Every ball recorded before this look that should have been in it - in shot, close enough to
+   * find, and not behind something found nearer the camera - and wasn't, gets a miss. Found
+   * again, it starts over. A hand or a cue passing in front costs a look or two, not eight.
+   */
+  private countMisses(look: LapFrame, view: LapView, frame: TableFrame, found: Set<Cluster>, spotted: Point[]) {
+    const dot = (a: WorldPoint, b: WorldPoint) => a.x * b.x + a.y * b.y + a.z * b.z;
+    const radius = TABLE.ball / 2000;
+    const nearer = look.sightings.map((sighting) => {
+      const length = Math.hypot(sighting.direction.x, sighting.direction.y, sighting.direction.z) || 1;
+      return {
+        unit: { x: sighting.direction.x / length, y: sighting.direction.y / length, z: sighting.direction.z / length },
+        distance: sighting.distance,
+      };
+    });
+
+    this.clusters.forEach((cluster) => {
+      if (found.has(cluster) || cluster.firstLook === this.frames) return;
+      // Something found right beside it: two touching balls can read as one patch, so not a miss.
+      if (spotted.some((point) => distance(point, cluster) < NEIGHBOUR_MM)) return;
+      const centre = tableToWorld(frame, cluster);
+      const offset = { x: centre.x - look.camera.x, y: centre.y - look.camera.y, z: centre.z - look.camera.z };
+      const ahead = -dot(offset, view.back);
+      const range = Math.hypot(offset.x, offset.y, offset.z);
+      if (ahead < 0.2 || range > MISS_RANGE_M) return;
+
+      // Where it lands in the picture, kept well inside the edges where the camera finds balls.
+      const u = view.cx + (view.fx * dot(offset, view.right)) / ahead;
+      const v = view.cy - (view.fy * dot(offset, view.up)) / ahead;
+      const margin = (view.fx * radius) / ahead + 24;
+      if (u < margin || u > view.width - margin || v < margin || v > view.height - margin) return;
+
+      // Hidden behind a ball found nearer the camera along much the same line.
+      const unit = { x: offset.x / range, y: offset.y / range, z: offset.z / range };
+      const hidden = nearer.some(
+        (other) =>
+          other.distance < range - radius &&
+          Math.acos(Math.min(1, Math.max(-1, dot(unit, other.unit)))) < ((radius / other.distance + radius / range) * 1.2)
+      );
+      if (hidden) return;
+      cluster.misses += 1;
+    });
   }
 
   private place(
@@ -450,6 +582,7 @@ export class LapTracker {
       slack,
       range: sighting.distance,
       looks: new Set([this.frames]),
+      misses: 0,
       scatter: nearest ? nearest.gap * nearest.gap : 0,
       sides: new Set([sideOf(point, camera)]),
       votes: colour ? { [colour]: 1 } : {},
@@ -544,6 +677,7 @@ export class LapTracker {
       notSeenEnough: doubted("notSeenEnough"),
       mixedColours: doubted("mixedColours"),
       noColour: doubted("noColour"),
+      notThere: doubted("notThere"),
       balls: assigned.map(({ cluster, colour, unsure }) => ({
         colour,
         unsure,

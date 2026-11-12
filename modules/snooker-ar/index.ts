@@ -67,8 +67,22 @@ export type ARLapSighting = ARLapColour & {
 };
 
 /** One look at the table during a lap. No `cloth` means too little of the table was in view. */
+/** Which way the camera faced for a lap frame, and its lens, in camera pixels. Missing before build 18. */
+export type ARLapView = {
+  right: ARVec3;
+  up: ARVec3;
+  back: ARVec3;
+  fx: number;
+  fy: number;
+  cx: number;
+  cy: number;
+  width: number;
+  height: number;
+};
+
 export type ARLapFrame = {
   camera: ARVec3;
+  view?: ARLapView;
   cloth?: ARLapColour;
   sightings: ARLapSighting[];
   /** How long the phone took to look at this frame. */

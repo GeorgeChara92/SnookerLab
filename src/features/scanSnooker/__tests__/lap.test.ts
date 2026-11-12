@@ -1,4 +1,4 @@
-import { LAP_SECTORS, LapTracker, classifyColour, combineAims, combineViews, meetOfRays, isSnookerCloth, sectorOf, toHsv, type LapColour, type LapFrame } from "../lap";
+import { LAP_SECTORS, LapTracker, classifyColour, combineAims, combineViews, meetOfRays, steadyRings, isSnookerCloth, sectorOf, toHsv, type LapColour, type LapFrame } from "../lap";
 import { BALL_RADIUS, TABLE, tableToWorld, type BallColour, type Point, type TableFrame } from "../table";
 
 const FRAME: TableFrame = { origin: { x: 0.4, z: -0.2 }, angle: 0.3, height: 0.85, scale: 1 };
@@ -325,6 +325,90 @@ describe("walking a lap", () => {
   });
 });
 
+describe("dropping a ball that was recorded but isn't there", () => {
+  /** A camera at `at`, pointed at `target` on the table, with a 1920 x 1440 picture. */
+  const viewTowards = (at: Point, target: Point) => {
+    const origin = standing(at);
+    const aim = tableToWorld(FRAME, target);
+    const f = { x: aim.x - origin.x, y: aim.y - origin.y, z: aim.z - origin.z };
+    const fl = Math.hypot(f.x, f.y, f.z);
+    const forward = { x: f.x / fl, y: f.y / fl, z: f.z / fl };
+    // right = forward x world-up, up = right x forward
+    const r = { x: -forward.z, y: 0, z: forward.x };
+    const rl = Math.hypot(r.x, r.z);
+    const right = { x: r.x / rl, y: 0, z: r.z / rl };
+    const up = {
+      x: right.y * forward.z - right.z * forward.y,
+      y: right.z * forward.x - right.x * forward.z,
+      z: right.x * forward.y - right.y * forward.x,
+    };
+    return {
+      camera: origin,
+      view: { right, up, back: { x: -forward.x, y: -forward.y, z: -forward.z }, fx: 1400, fy: 1400, cx: 960, cy: 720, width: 1920, height: 1440 },
+    };
+  };
+  const at = { x: -300, y: 1300 };
+  const ghost = { x: 500, y: 1300 };
+
+  const recordThen = (looksAfter: (tracker: LapTracker) => void) => {
+    const tracker = new LapTracker();
+    for (let look = 0; look < 8; look += 1) {
+      tracker.add({ ...viewTowards(at, ghost), cloth: CLOTH, ms: 10, sightings: [sighting(ghost, at, "red")] }, FRAME);
+    }
+    expect(tracker.balls()).toHaveLength(1);
+    looksAfter(tracker);
+    return tracker;
+  };
+
+  it("drops it once it's been in plain view, close by, and not found for long enough", () => {
+    const tracker = recordThen((t) => {
+      for (let look = 0; look < 8; look += 1) t.add({ ...viewTowards(at, ghost), cloth: CLOTH, ms: 10, sightings: [] }, FRAME);
+    });
+    expect(tracker.balls()).toHaveLength(0);
+    expect(JSON.parse(tracker.report(FRAME, true)).notThere).toBe(1);
+  });
+
+  it("keeps it through a hand passing in front for a moment", () => {
+    const tracker = recordThen((t) => {
+      for (let look = 0; look < 4; look += 1) t.add({ ...viewTowards(at, ghost), cloth: CLOTH, ms: 10, sightings: [] }, FRAME);
+      t.add({ ...viewTowards(at, ghost), cloth: CLOTH, ms: 10, sightings: [sighting(ghost, at, "red")] }, FRAME);
+      for (let look = 0; look < 4; look += 1) t.add({ ...viewTowards(at, ghost), cloth: CLOTH, ms: 10, sightings: [] }, FRAME);
+    });
+    expect(tracker.balls()).toHaveLength(1);
+  });
+
+  it("keeps it while it's out of shot", () => {
+    const tracker = recordThen((t) => {
+      const away = { x: 1500, y: 3300 };
+      for (let look = 0; look < 12; look += 1) t.add({ ...viewTowards(at, away), cloth: CLOTH, ms: 10, sightings: [] }, FRAME);
+    });
+    expect(tracker.balls()).toHaveLength(1);
+  });
+
+  it("keeps it while it's hidden behind a ball nearer the camera", () => {
+    // From behind the baulk cushion the view along the table is shallow: a ball 15cm nearer on
+    // the same line covers the one behind it.
+    const end = { x: 889, y: 3850 };
+    const behind = { x: 889, y: 1300 };
+    const front = { x: 889, y: 1450 };
+    const tracker = new LapTracker();
+    for (let look = 0; look < 12; look += 1) {
+      tracker.add({ ...viewTowards(end, behind), cloth: CLOTH, ms: 10, sightings: [sighting(behind, end, "red")] }, FRAME);
+    }
+    for (let look = 0; look < 12; look += 1) {
+      tracker.add({ ...viewTowards(end, behind), cloth: CLOTH, ms: 10, sightings: [sighting(front, end, "red")] }, FRAME);
+    }
+    expect(tracker.balls().some((ball) => Math.hypot(ball.x - behind.x, ball.y - behind.y) < 10)).toBe(true);
+  });
+
+  it("changes nothing on a build that doesn't say which way the camera faced", () => {
+    const tracker = recordThen((t) => {
+      for (let look = 0; look < 12; look += 1) t.add({ camera: standing(at), cloth: CLOTH, ms: 10, sightings: [] }, FRAME);
+    });
+    expect(tracker.balls()).toHaveLength(1);
+  });
+});
+
 describe("not seeing balls that are not there", () => {
   /** Everything on the surface, however solid, from every look of two laps. */
   const lapOf = (surface: LapColour, things: Array<{ at: Point; colour: BallColour }>, fit = 1) => {
@@ -436,6 +520,30 @@ describe("finding the cloth's true height from two aims", () => {
   it("ignores lines of sight that never pass near each other", () => {
     const wide = { ...far, ray: { ...far.ray, origin: { ...far.ray.origin, z: far.ray.origin.z + 0.3 } } };
     expect(combineAims(near, wide).heightShiftMm).toBe(0);
+  });
+});
+
+describe("keeping the rings steady", () => {
+  const red = (id: string, x: number, y: number) => ({ id, colour: "red" as const, x, y, unsure: false });
+
+  it("leaves a ring where it is while its ball's estimate only settles", () => {
+    const [ring] = steadyRings([red("lap-1", 500, 900)], [red("lap-1", 507, 904)]);
+    expect([ring.x, ring.y]).toEqual([500, 900]);
+  });
+
+  it("moves it once the ball's estimate has really moved", () => {
+    const [ring] = steadyRings([red("lap-1", 500, 900)], [red("lap-1", 530, 900)]);
+    expect(ring.x).toBe(530);
+  });
+
+  it("keeps the same ring when the tracker re-sorts which readings make which ball", () => {
+    const [ring] = steadyRings([red("lap-1", 500, 900)], [red("lap-7", 520, 900)]);
+    expect(ring.id).toBe("lap-1");
+  });
+
+  it("never gives two balls the same ring", () => {
+    const rings = steadyRings([red("lap-1", 500, 900)], [red("lap-2", 505, 900), red("lap-1", 560, 900)]);
+    expect(new Set(rings.map((ring) => ring.id)).size).toBe(2);
   });
 });
 
