@@ -6,8 +6,8 @@ import { useRoutinesStore, useRoutineScoresStore } from "../../store";
 import type { PracticeStackParamList, ScoringType } from "../../types";
 import { getYoutubeThumbnailUrl, getYoutubeWatchUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { getRoutinePlacedBalls, getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
-import { getGuidePlaybookByRoutineId } from "../../features/guides/guidePlaybooks";
+import { getRoutineArrows, getRoutinePlacedBalls, getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
+import { GuideDetail } from "../../components/routines/GuideDetail";
 import { RoutineProgressCard } from "../../components/routines/RoutineProgressCard";
 import { RoutineLeaderboardCard } from "../../components/community/RoutineLeaderboardCard";
 import { openSendToChat } from "../../navigation/navigationRef";
@@ -65,7 +65,6 @@ export const RoutineDetailScreen = () => {
   const referenceImage = routine ? getRoutineReferenceImageByRoutineId(routine.id) : undefined;
   const placedBalls = routine ? getRoutinePlacedBalls(routine) : null;
   const hasImageGuide = !isGuide && Boolean(referenceImage || placedBalls);
-  const guidePlaybook = routine && isGuide ? getGuidePlaybookByRoutineId(routine.id) : undefined;
 
   useEffect(() => {
     if (hasImageGuide) {
@@ -107,6 +106,8 @@ export const RoutineDetailScreen = () => {
       </View>
     );
   }
+  // A technique guide has its own layout, built from what's written for it in the dashboard.
+  if (isGuide) return <GuideDetail routine={routine} categoryName={categoryName} />;
 
   return (
     <ScrollView
@@ -187,7 +188,7 @@ export const RoutineDetailScreen = () => {
 
         {selectedGuide === "image" && placedBalls && !isGuide ? (
           <View style={[styles.thumbnail, styles.diagramWrap]}>
-            <TableDiagram balls={placedBalls} readOnly landscape />
+            <TableDiagram balls={placedBalls} arrows={getRoutineArrows(routine)} readOnly landscape enlarge />
           </View>
         ) : selectedGuide === "image" && referenceImage && !isGuide ? (
           <Image source={referenceImage} style={styles.thumbnail} contentFit="contain" />
@@ -217,119 +218,7 @@ export const RoutineDetailScreen = () => {
         ) : null}
       </View>
 
-      {isGuide ? (
-        <>
-          <View style={[styles.guideLeadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.guideLeadTitle, { color: colors.text }]}>Start Here</Text>
-            <Text style={[styles.guideLeadBody, { color: colors.textMuted }]}>
-              {guidePlaybook?.intro ?? routine.setup_instructions}
-            </Text>
-            <View
-              style={[styles.guideDisclaimer, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
-            >
-              <Text style={[styles.guideDisclaimerTitle, { color: colors.text }]}>Personal Fit Matters</Text>
-              <Text style={[styles.guideDisclaimerBody, { color: colors.textMuted }]}>
-                Fundamentals are your starting framework, not a fixed mold. Keep the core principles, then adapt details
-                to your body type, flexibility, and natural timing.
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Why This Fundamental Matters</Text>
-            {(guidePlaybook?.importance ?? []).map((item, index) => (
-              <Text key={`${routine.id}-importance-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
-                • {item}
-              </Text>
-            ))}
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Where to Start</Text>
-            {(guidePlaybook?.whereToStart ?? []).map((item, index) => (
-              <Text key={`${routine.id}-start-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
-                {index + 1}. {item}
-              </Text>
-            ))}
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Step-by-Step Practice Plan</Text>
-            {(guidePlaybook?.stepByStep ?? routine.steps ?? []).map((item, index) => (
-              <Text key={`${routine.id}-detailed-step-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
-                {index + 1}. {item}
-              </Text>
-            ))}
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Progression Path</Text>
-            {(guidePlaybook?.progression ?? []).map((item, index) => (
-              <Text key={`${routine.id}-progression-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
-                • {item}
-              </Text>
-            ))}
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Common Technique Systems</Text>
-            {(guidePlaybook?.commonTechniques ?? []).map((item, index) => (
-              <Text key={`${routine.id}-systems-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
-                • {item}
-              </Text>
-            ))}
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>What Goes Wrong If It Breaks Down</Text>
-            {(guidePlaybook?.commonIssues ?? []).map((issue, index) => (
-              <View key={`${routine.id}-issue-${index}`} style={[styles.issueRow, { borderColor: colors.border }]}>
-                <Text style={styles.issueIcon}>⚠️</Text>
-                <Text style={[styles.issueText, { color: colors.textMuted }]}>{issue}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Build Your Own Version</Text>
-            {(guidePlaybook?.adaptNotes ?? []).map((note, index) => (
-              <Text key={`${routine.id}-adapt-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
-                • {note}
-              </Text>
-            ))}
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Session Blueprint</Text>
-            <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.setup_instructions}</Text>
-            {(guidePlaybook?.sessionPlan ?? []).map((step, index) => (
-              <Text key={`${routine.id}-plan-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
-                {index + 1}. {step}
-              </Text>
-            ))}
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Self-Check Checklist</Text>
-            {(guidePlaybook?.checkpoints ?? []).map((point, index) => (
-              <Text key={`${routine.id}-checkpoint-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
-                □ {point}
-              </Text>
-            ))}
-            <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.success_criteria}</Text>
-          </View>
-
-          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>What You'll Build</Text>
-            {(routine.improves ?? []).map((tip, index) => (
-              <Text key={`${routine.id}-tip-${index}`} style={[styles.listItem, { color: colors.textMuted }]}>
-                {tip}
-              </Text>
-            ))}
-          </View>
-        </>
-      ) : (
-        <>
+      <>
           <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Setup</Text>
             <Text style={[styles.sectionContent, { color: colors.textMuted }]}>{routine.setup_instructions}</Text>
@@ -431,8 +320,7 @@ export const RoutineDetailScreen = () => {
           >
             <Text style={[styles.primaryButtonText, { color: colors.text }]}>Send in a chat</Text>
           </Pressable>
-        </>
-      )}
+      </>
     </ScrollView>
   );
 };

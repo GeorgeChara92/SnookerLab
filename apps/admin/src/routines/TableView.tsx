@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { BALL_R, BAULK_Y, LOOK, POCKETS, RAIL, SPOTS, TABLE, VIEW_H, VIEW_W, autoSpotBalls, toView, type Ball } from "./geometry";
+import { BALL_R, BAULK_Y, LOOK, POCKETS, RAIL, SPOTS, TABLE, VIEW_H, VIEW_W, arrowShape, autoSpotBalls, toView, type Ball } from "./geometry";
 import type { Layout } from "./RoutineEditor";
 
 /**
@@ -30,6 +30,15 @@ export function TableView({ layout, label, svgRef }: { layout: Layout; label: st
       {Object.values(SPOTS).map((p, i) => {
         const c = v(p);
         return <circle key={i} cx={c.x} cy={c.y} r={7} fill="rgba(255,255,255,0.55)" />;
+      })}
+      {layout.arrows.map((a) => {
+        const shape = arrowShape(v(a.from), v(a.to));
+        return (
+          <g key={a.id}>
+            <line {...shape.shaft} stroke="#FFFFFF" strokeWidth={9} strokeLinecap="round" strokeDasharray={a.dashed ? "28 22" : undefined} />
+            <polygon points={shape.head} fill="#FFFFFF" />
+          </g>
+        );
       })}
       {all.map((b) => {
         const c = v(b);

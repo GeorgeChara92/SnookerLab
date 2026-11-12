@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useDialog } from "../dialog";
-import { fromStored, toStored, type Colour, type SpotId } from "../routines/geometry";
+import { arrowFromStored, arrowToStored, fromStored, toStored, type Colour, type SpotId, type StoredArrow } from "../routines/geometry";
 import { RoutineEditor, type Layout } from "../routines/RoutineEditor";
 import { Checklist } from "../routines/Checklist";
 import { RoutineForm } from "../routines/RoutineForm";
@@ -14,6 +14,7 @@ type StoredRoutine = {
   spotMarkers: SpotId[];
   notes?: string;
   ballPlacements: Array<{ id: string; color: Colour; x: number; y: number; label?: string }>;
+  arrows?: StoredArrow[];
 };
 type FileData = { version: string; file: string; layouts: Layout[]; images: Record<string, string> };
 
@@ -36,11 +37,13 @@ const toLayout = (r: StoredRoutine): Layout => ({
   spotMarkers: r.spotMarkers,
   notes: r.notes ?? "",
   balls: r.ballPlacements.map(fromStored),
+  arrows: (r.arrows ?? []).map(arrowFromStored),
 });
 const toFile = (l: Layout): StoredRoutine => {
   const out: StoredRoutine = { routineId: l.routineId, displayName: l.displayName, category: l.category, spotMarkers: l.spotMarkers, ballPlacements: [] };
   if (l.notes.trim()) out.notes = l.notes.trim();
   out.ballPlacements = l.balls.map(toStored);
+  if (l.arrows.length) out.arrows = l.arrows.map(arrowToStored);
   return out;
 };
 /** Two layouts that would write the same file text are the same, whatever the float noise. */
@@ -174,7 +177,12 @@ export function Routines() {
         if (!raw) return;
         const kept = JSON.parse(raw) as Record<string, Layout>;
         const known = new Set(loaded.layouts.map((l) => l.routineId));
-        const drafts = Object.fromEntries(Object.entries(kept).filter(([id]) => known.has(id)));
+        // Drafts saved before arrows existed have none, rather than no list at all.
+        const drafts = Object.fromEntries(
+          Object.entries(kept)
+            .filter(([id]) => known.has(id))
+            .map(([id, draft]) => [id, { ...draft, arrows: draft.arrows ?? [] }])
+        );
         if (Object.keys(drafts).length) {
           dispatch({ type: "restore", drafts });
           setToast({ text: `Brought back unsaved changes to ${Object.keys(drafts).length} ${Object.keys(drafts).length === 1 ? "routine" : "routines"}.` });

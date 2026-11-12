@@ -25,7 +25,7 @@ export const RuleBody = ({ topic, onOpenTopic }: { topic: RuleTopic; onOpenTopic
       {topic.diagram ? (
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.diagram} accessible accessibilityLabel={`Table diagram. ${topic.diagram.caption}`}>
-            <TableDiagram balls={topic.diagram.balls} readOnly landscape />
+            <TableDiagram balls={topic.diagram.balls} readOnly landscape enlarge />
           </View>
           <Text style={[styles.caption, { color: colors.textMuted }]}>{topic.diagram.caption}</Text>
         </View>

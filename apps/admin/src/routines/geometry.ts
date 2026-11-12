@@ -141,6 +141,57 @@ export const linePositions = (start: Point, end: Point, spacing: number, count: 
   return Array.from({ length: n }, (_, i) => ({ x: start.x + ux * spacing * i, y: start.y + uy * spacing * i }));
 };
 
+/**
+ * An arrow on the table: a shot's path, say, solid for the cue ball and dashed for the object
+ * ball. In table millimetres here; stored as shares of the table like the balls.
+ */
+export type Arrow = { id: string; from: Point; to: Point; dashed?: boolean };
+export type StoredArrow = { id: string; x1: number; y1: number; x2: number; y2: number; dashed?: boolean };
+
+export const arrowFromStored = (a: StoredArrow): Arrow => ({
+  id: a.id,
+  from: { x: a.x1 * TABLE.width, y: a.y1 * TABLE.length },
+  to: { x: a.x2 * TABLE.width, y: a.y2 * TABLE.length },
+  ...(a.dashed ? { dashed: true } : {}),
+});
+export const arrowToStored = (a: Arrow): StoredArrow => {
+  const share = (value: number, of: number) => Math.round(Math.min(1, Math.max(0, value / of)) * 100000) / 100000;
+  const out: StoredArrow = { id: a.id, x1: share(a.from.x, TABLE.width), y1: share(a.from.y, TABLE.length), x2: share(a.to.x, TABLE.width), y2: share(a.to.y, TABLE.length) };
+  if (a.dashed) out.dashed = true;
+  return out;
+};
+
+/** Shorter than this, an arrow drag was a click. */
+export const MIN_ARROW_MM = 40;
+
+/** A fresh arrow id (arrow-1, arrow-2...). */
+export const nextArrowId = (arrows: Arrow[]) => {
+  let n = arrows.reduce((max, a) => Math.max(max, Number(/-(\d+)$/.exec(a.id)?.[1] ?? 0)), 0);
+  let id: string;
+  do {
+    n += 1;
+    id = `arrow-${n}`;
+  } while (arrows.some((a) => a.id === id));
+  return id;
+};
+
+/**
+ * The shaft and head of an arrow in the drawing's coordinates: the shaft stops where the head
+ * begins, so a thick line doesn't poke through the point.
+ */
+export const arrowShape = (from: Point, to: Point, head = 64) => {
+  const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+  const ux = (to.x - from.x) / length;
+  const uy = (to.y - from.y) / length;
+  const size = Math.min(head, length * 0.6);
+  const base = { x: to.x - ux * size, y: to.y - uy * size };
+  const half = size * 0.45;
+  return {
+    shaft: { x1: from.x, y1: from.y, x2: base.x, y2: base.y },
+    head: `${to.x},${to.y} ${base.x - uy * half},${base.y + ux * half} ${base.x + uy * half},${base.y - ux * half}`,
+  };
+};
+
 /** The pack sizes the builder offers: full triangles of 2, 3, 4 and 5 rows. */
 export const PACK_SIZES = [3, 6, 10, 15] as const;
 

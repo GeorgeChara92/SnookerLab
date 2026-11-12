@@ -4,6 +4,7 @@ import {
   BAULK_Y,
   COLOURS,
   LOOK,
+  MIN_ARROW_MM,
   PACK_FRONT_BEHIND_PINK,
   PACK_SIZES,
   POCKETS,
@@ -13,16 +14,19 @@ import {
   TABLE,
   VIEW_H,
   VIEW_W,
+  arrowShape,
   autoSpotBalls,
   fmt,
   fromView,
   isOnBed,
   linePositions,
+  nextArrowId,
   nextId,
   overlapping,
   packPositions,
   snapPoint,
   toView,
+  type Arrow,
   type Ball,
   type Colour,
   type PackFacing,
@@ -39,9 +43,10 @@ export type Layout = {
   spotMarkers: SpotId[];
   notes: string;
   balls: Ball[];
+  arrows: Arrow[];
 };
 
-type Tool = "select" | "place" | "line" | "diagonal" | "pack" | "measure";
+type Tool = "select" | "place" | "line" | "diagonal" | "pack" | "arrow" | "measure";
 type RefMode = "above" | "overlay" | "off";
 
 const TOOLS: Array<{ value: Tool; label: string; key: string; hint: string }> = [
@@ -50,6 +55,7 @@ const TOOLS: Array<{ value: Tool; label: string; key: string; hint: string }> = 
   { value: "line", label: "Line", key: "L", hint: "Drag a straight row or column of balls" },
   { value: "diagonal", label: "Diagonal", key: "D", hint: "Drag a line of balls at any angle" },
   { value: "pack", label: "Pack", key: "P", hint: "Click the table to drop a pack of touching balls, with the click as its front ball" },
+  { value: "arrow", label: "Arrow", key: "A", hint: "Drag from where the arrow starts to where it points. It snaps to balls" },
   { value: "measure", label: "Measure", key: "M", hint: "Click two points to measure between them" },
 ];
 const SPACINGS: Array<[string, string]> = [
@@ -71,7 +77,8 @@ const SNAP_PX = 8;
 type Gesture =
   | { kind: "drag"; ids: string[]; grabId: string; start: Point; origin: Record<string, Point>; moved: boolean; pointer: number }
   | { kind: "marquee"; start: Point; now: Point; add: boolean; pointer: number }
-  | { kind: "line"; start: Snapped; pointer: number };
+  | { kind: "line"; start: Snapped; pointer: number }
+  | { kind: "arrow"; start: Snapped; pointer: number };
 
 type Props = {
   layout: Layout;
@@ -97,6 +104,7 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
   const [count, setCount] = useState("");
   const [packSize, setPackSize] = useState<number>(15);
   const [packFacing, setPackFacing] = useState<PackFacing>("baulk");
+  const [arrowDashed, setArrowDashed] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [refMode, setRefMode] = useState<RefMode>(image ? "above" : "off");
   const [refOpacity, setRefOpacity] = useState(45);
@@ -122,6 +130,7 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
   layoutRef.current = layout;
 
   const balls = layout.balls;
+  const arrows = layout.arrows;
   const autos = useMemo(() => autoSpotBalls(balls, layout.spotMarkers), [balls, layout.spotMarkers]);
   const clashes = useMemo(() => overlapping([...balls, ...autos]), [balls, autos]);
   const offBed = useMemo(() => new Set(balls.filter((b) => !isOnBed(b)).map((b) => b.id)), [balls]);
@@ -192,6 +201,11 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
 
   const linePreview = gesture?.kind === "line" && hover ? linePositions(gesture.start, lineEnd(gesture.start, hover), lineSpacing, fixedCount).filter(isOnBed) : [];
 
+  const arrowAt = (target: EventTarget | null) => {
+    const el = (target as Element | null)?.closest?.("[data-arrow]");
+    return el ? el.getAttribute("data-arrow") : null;
+  };
+
   const ballAt = (target: EventTarget | null) => {
     const el = (target as Element | null)?.closest?.("[data-ball]");
     return el ? el.getAttribute("data-ball") : null;
@@ -210,6 +224,22 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
     }
     if (tool === "line" || tool === "diagonal") {
       setGesture({ kind: "line", start: resolve(raw), pointer: event.pointerId });
+      return;
+    }
+    if (tool === "arrow") {
+      setGesture({ kind: "arrow", start: resolve(raw), pointer: event.pointerId });
+      setHover(resolve(raw));
+      return;
+    }
+    // An arrow is picked up by clicking it with Select; Shift adds it to what's selected.
+    const arrowId = tool === "select" ? arrowAt(event.target) : null;
+    if (arrowId && !ballAt(event.target)) {
+      if (event.shiftKey) {
+        const next = new Set(selection);
+        if (next.has(arrowId)) next.delete(arrowId);
+        else next.add(arrowId);
+        setSelection(next);
+      } else setSelection(new Set([arrowId]));
       return;
     }
 
@@ -288,6 +318,10 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
       setHover(raw as Snapped);
       return;
     }
+    if (gesture?.kind === "arrow") {
+      setHover(resolve(raw));
+      return;
+    }
     setHover(tool === "select" ? null : resolve(raw));
   };
 
@@ -311,6 +345,16 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
         setSelection(new Set(added.map((b) => b.id)));
       }
     }
+    if (gesture?.kind === "arrow" && hover) {
+      const end = { x: hover.x, y: hover.y };
+      const start = { x: gesture.start.x, y: gesture.start.y };
+      if (Math.hypot(end.x - start.x, end.y - start.y) >= MIN_ARROW_MM) {
+        const current = layoutRef.current.arrows;
+        const id = nextArrowId(current);
+        update({ arrows: [...current, { id, from: start, to: end, ...(arrowDashed ? { dashed: true } : {}) }] });
+        setSelection(new Set([id]));
+      }
+    }
     if (gesture?.kind === "marquee") {
       const { start, now, add } = gesture;
       const [x1, x2] = [Math.min(start.x, now.x), Math.max(start.x, now.x)];
@@ -327,7 +371,8 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
   // ------------------------------------------------------------ actions
   const removeSelected = () => {
     if (!selection.size) return;
-    setBalls(balls.filter((b) => !selection.has(b.id)));
+    const cur = layoutRef.current;
+    update({ balls: cur.balls.filter((b) => !selection.has(b.id)), arrows: cur.arrows.filter((a) => !selection.has(a.id)) });
     setSelection(new Set());
   };
   const nudge = (along: number, across: number) => {
@@ -366,8 +411,8 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
   };
   const allSpots = (on: boolean) => update({ spotMarkers: on ? SPOT_COLOURS.map((s) => `spot-${s}` as SpotId) : [] });
   const clearAll = () => {
-    if (!balls.length) return;
-    setBalls([]);
+    if (!balls.length && !arrows.length) return;
+    update({ balls: [], arrows: [] });
     setSelection(new Set());
     onToast("Cleared the table. Ctrl+Z brings it all back.");
   };
@@ -458,6 +503,13 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
     }
     const t = TOOLS.find((x) => x.value === tool)!;
     if (tool === "place") return `${t.hint}: ${LOOK[colour].label.toLowerCase()}. Keys 1–8 pick a colour.`;
+    if (tool === "arrow") {
+      if (gesture?.kind === "arrow" && hover) {
+        const length = Math.hypot(hover.x - gesture.start.x, hover.y - gesture.start.y);
+        return length < MIN_ARROW_MM ? "Keep dragging to where the arrow points." : `${fmt(length)} mm long. Let go to place it, Esc to cancel.`;
+      }
+      return `${t.hint}. ${arrowDashed ? "Dashed" : "Solid"} line. Click an arrow with Select, then Delete, to remove it.`;
+    }
     if (tool === "pack") {
       if (hover && !packFits) return "That pack runs off the table there. Move it away from the cushion.";
       return `${t.hint}. ${packSize} ${LOOK[colour].label.toLowerCase()}${packSize === 1 ? "" : "s"}, pointing towards ${packFacing === "baulk" ? "baulk" : "the black"}. Once placed it's selected, so drag any ball in it to move the whole pack.`;
@@ -480,9 +532,27 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
       : null;
   const measureLive = tool === "measure" && measure.length === 1 && hover ? [measure[0], hover] : measure;
   const single = selected.length === 1 ? selected[0] : null;
+  const selectedArrows = arrows.filter((a) => selection.has(a.id));
+  const setArrows = (change: (a: Arrow) => Arrow) => update({ arrows: layoutRef.current.arrows.map((a) => (selection.has(a.id) ? change(a) : a)) });
   const inset = refInset;
   const overlay = image && refMode === "overlay";
   const empty = balls.length === 0;
+
+  const drawArrow = (a: Arrow, selected: boolean, preview = false) => {
+    const shape = arrowShape(v(a.from), v(a.to));
+    return (
+      <g key={a.id} data-arrow={preview ? undefined : a.id} className={tool === "select" && !preview ? "rb-ball" : ""}>
+        {preview ? null : <title>{`${a.dashed ? "Dashed" : "Solid"} arrow. Click to select it, then Delete to remove it.`}</title>}
+        {selected ? (
+          <line {...shape.shaft} stroke={GUIDE} strokeWidth={26} strokeLinecap="round" opacity={0.55} />
+        ) : null}
+        <line {...shape.shaft} stroke="#FFFFFF" strokeWidth={9} strokeLinecap="round" strokeDasharray={a.dashed ? "28 22" : undefined} />
+        <polygon points={shape.head} fill="#FFFFFF" />
+        {/* A wide, invisible hit area, so a thin arrow is easy to click. */}
+        {preview ? null : <line {...shape.shaft} stroke="transparent" strokeWidth={40} />}
+      </g>
+    );
+  };
 
   const drawBall = (b: Ball, kind: "real" | "auto" | "ghost") => {
     const c = v(b);
@@ -529,7 +599,7 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
               <button type="button" className="btn btn-sm" onClick={revert} disabled={!dirty} title="Back to what's saved in the app">
                 Revert
               </button>
-              <button type="button" className="btn btn-sm btn-danger-ghost" onClick={clearAll} disabled={empty}>
+              <button type="button" className="btn btn-sm btn-danger-ghost" onClick={clearAll} disabled={empty && !arrows.length}>
                 Clear
               </button>
             </div>
@@ -576,6 +646,15 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
           </div>
 
           <div className="rb-options">
+            {tool === "arrow" ? (
+              <label className="rb-opt">
+                <span>Line</span>
+                <select value={arrowDashed ? "dashed" : "solid"} onChange={(event) => setArrowDashed(event.target.value === "dashed")}>
+                  <option value="solid">Solid (cue ball)</option>
+                  <option value="dashed">Dashed (object ball)</option>
+                </select>
+              </label>
+            ) : null}
             {tool === "pack" ? (
               <>
                 <label className="rb-opt">
@@ -739,6 +818,12 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
                 </g>
               ) : null}
 
+              {arrows.map((a) => drawArrow(a, selection.has(a.id)))}
+              {gesture?.kind === "arrow" && hover ? (
+                <g pointerEvents="none" opacity={0.75}>
+                  {drawArrow({ id: "arrow-preview", from: gesture.start, to: hover, dashed: arrowDashed }, false, true)}
+                </g>
+              ) : null}
               {autos.map((b) => drawBall(b, "auto"))}
               {balls.map((b) => drawBall(b, "real"))}
 
@@ -800,7 +885,17 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
 
       <aside className="rb-side">
         <section className="card rb-panel">
-          <h3 className="section-title">{single ? LOOK[single.color].label : selected.length ? `${selected.length} balls` : "Selection"}</h3>
+          <h3 className="section-title">
+            {single
+              ? LOOK[single.color].label
+              : selected.length
+                ? `${selected.length} balls`
+                : selectedArrows.length
+                  ? selectedArrows.length === 1
+                    ? "Arrow"
+                    : `${selectedArrows.length} arrows`
+                  : "Selection"}
+          </h3>
           {single ? (
             <>
               <div className="rb-xy">
@@ -857,7 +952,29 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
               </dl>
               <p className="rb-hint">Distances are to the ball's centre, in mm.</p>
             </>
-          ) : selected.length ? null : (
+          ) : selected.length ? null : selectedArrows.length ? (
+            <>
+              <div className="rb-arrow-actions">
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => {
+                    const dashed = !selectedArrows.every((a) => a.dashed);
+                    setArrows((a) => ({ ...a, dashed: dashed || undefined }));
+                  }}
+                >
+                  {selectedArrows.every((a) => a.dashed) ? "Make solid" : "Make dashed"}
+                </button>
+                <button type="button" className="btn btn-sm" onClick={() => setArrows((a) => ({ ...a, from: a.to, to: a.from }))}>
+                  Flip direction
+                </button>
+                <button type="button" className="btn btn-sm btn-danger-ghost" onClick={removeSelected}>
+                  Delete
+                </button>
+              </div>
+              <p className="rb-hint">Solid for the cue ball's path, dashed for the object ball's. To move an arrow, delete it and draw it again.</p>
+            </>
+          ) : (
             <p className="rb-hint">Click a ball to see exactly where it is, or drag a box around several to move them together.</p>
           )}
           {selected.length ? (

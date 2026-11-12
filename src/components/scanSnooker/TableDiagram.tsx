@@ -20,6 +20,7 @@ import {
   type Point,
 } from "../../features/scanSnooker/table";
 import { pointsAlongLine, snapPoint, type PlacedBall, type SnapGuides } from "../../features/scanSnooker/position";
+import { spreadForDisplay } from "../../features/scanSnooker/displaySpread";
 
 /**
  * A full-size table seen from above, drawn to scale, black end at the top. Positions go in and
@@ -53,6 +54,18 @@ const SPOT = "rgba(255,255,255,0.45)";
 const RAIL_SHARE = 0.055;
 /** At full view balls are drawn a touch larger than scale so they can be seen and pressed. */
 const BALL_SCALE = 1.35;
+/**
+ * With `enlarge`, a picture of a routine: every ball the size the diagram uses anyway when nothing
+ * is touching (BALL_SCALE times life size, at least 9px). Twice life size was tried on 2026-11-12
+ * and was too big; the point is only that a routine with a touching pack gets the same size as
+ * every other, instead of being shrunk to true size.
+ */
+const ENLARGE = BALL_SCALE;
+const ENLARGED_MIN_PX = 9;
+const ARROW = "rgba(255,255,255,0.92)";
+
+/** An arrow on the table, in table millimetres: a shot's path, say. */
+export type TableArrow = { id: string; from: Point; to: Point; dashed?: boolean };
 /**
  * How close a touch must be to a ball to pick it up: on the ball, or just round its edge. Any
  * wider and a tap meant to place a ball beside another picked up the other one instead.
@@ -104,7 +117,16 @@ type Props = {
    * (place/move/line) is not rotated to match, so this is for `readOnly` display only.
    */
   landscape?: boolean;
+  /** Arrows to draw on the cloth, under the balls. */
+  arrows?: TableArrow[];
+  /**
+   * A picture, not a board to play with: balls drawn well bigger than life so they can be seen,
+   * with any group of touching balls spread just enough that they still only touch. Read-only.
+   */
+  enlarge?: boolean;
 };
+
+const NO_ARROWS: TableArrow[] = [];
 
 export const TableDiagram = ({
   balls,
@@ -119,6 +141,8 @@ export const TableDiagram = ({
   onLine,
   snap = false,
   landscape = false,
+  arrows = NO_ARROWS,
+  enlarge = false,
 }: Props) => {
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View2>(FULL_VIEW);
@@ -168,6 +192,13 @@ export const TableDiagram = ({
     return closest;
   }, [balls]);
 
+  // With `enlarge`: how many times life size, and where each ball is drawn once groups are spread.
+  const enlargeBy = enlarge && base ? Math.max(ENLARGE, ENLARGED_MIN_PX / (TABLE.ball * base.scale)) : 1;
+  const shownBalls = useMemo(
+    () => (enlargeBy > 1 ? spreadForDisplay(balls, TABLE.ball * enlargeBy) : balls),
+    [balls, enlargeBy]
+  );
+
   /** Where the table is on screen for a given zoom and pan. */
   const layoutFor = (current: View2) => {
     if (!base) return null;
@@ -183,7 +214,10 @@ export const TableDiagram = ({
       bedW: (landscape ? TABLE.length : TABLE.width) * scale,
       bedL: (landscape ? TABLE.width : TABLE.length) * scale,
       // Enlarged for visibility, capped by the closest gap, and never below true size.
-      d: Math.max(TABLE.ball * scale, Math.min(Math.max(9, TABLE.ball * scale * ballScale), closestMm * scale)),
+      d:
+        enlargeBy > 1
+          ? TABLE.ball * scale * enlargeBy
+          : Math.max(TABLE.ball * scale, Math.min(Math.max(9, TABLE.ball * scale * ballScale), closestMm * scale)),
     };
   };
 
@@ -658,8 +692,51 @@ export const TableDiagram = ({
             </>
           ) : null}
 
+          {/* ------------------------------------------------ arrows, under the balls */}
+          {arrows.length ? (
+            <Svg style={StyleSheet.absoluteFill} width={box.width} height={box.height} pointerEvents="none">
+              {arrows.map((arrow) => {
+                // An end on a ball follows that ball if it was spread apart for drawing.
+                const shownAt = (point: Point) => {
+                  const index = balls.findIndex((ball) => distance(ball, point) < 1);
+                  return index >= 0 ? { at: shownBalls[index], onBall: true } : { at: point, onBall: false };
+                };
+                const start = shownAt(arrow.from);
+                const end = shownAt(arrow.to);
+                const a = toPx(start.at);
+                const b = toPx(end.at);
+                const length = Math.hypot(b.x - a.x, b.y - a.y);
+                if (length < 4) return null;
+                const ux = (b.x - a.x) / length;
+                const uy = (b.y - a.y) / length;
+                // Pointing at a ball, the arrow stops at its edge so the head isn't hidden under it.
+                const tipBack = end.onBall ? fit.d / 2 + 1.5 : 0;
+                const tip = { x: b.x - ux * tipBack, y: b.y - uy * tipBack };
+                const head = Math.min(Math.max(7, fit.d * 0.8), (length - tipBack) * 0.6);
+                const neck = { x: tip.x - ux * head, y: tip.y - uy * head };
+                const half = head * 0.45;
+                const width = Math.max(1.5, fit.d * 0.16);
+                return (
+                  <React.Fragment key={arrow.id}>
+                    <Path
+                      d={`M ${a.x} ${a.y} L ${neck.x} ${neck.y}`}
+                      stroke={ARROW}
+                      strokeWidth={width}
+                      strokeLinecap="round"
+                      strokeDasharray={arrow.dashed ? `${width * 3} ${width * 2.4}` : undefined}
+                    />
+                    <Path
+                      d={`M ${tip.x} ${tip.y} L ${neck.x - uy * half} ${neck.y + ux * half} L ${neck.x + uy * half} ${neck.y - ux * half} Z`}
+                      fill={ARROW}
+                    />
+                  </React.Fragment>
+                );
+              })}
+            </Svg>
+          ) : null}
+
           {/* ------------------------------------------------ the balls */}
-          {balls.map((ball) => {
+          {shownBalls.map((ball) => {
             const isDragged = dragging?.id === ball.id;
             const at = isDragged ? dragging.point : ball;
             const p = toPx(at);

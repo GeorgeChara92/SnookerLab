@@ -36,6 +36,19 @@ export function validateRoutines(data) {
       }
       if (ball.label !== undefined && typeof ball.label !== "string") throw new Error(`${routine.routineId}: ${ball.id} label must be text.`);
     }
+    if (routine.arrows !== undefined) {
+      if (!Array.isArray(routine.arrows)) throw new Error(`${routine.routineId} arrows must be a list.`);
+      const arrowIds = new Set();
+      for (const arrow of routine.arrows) {
+        if (!arrow || typeof arrow.id !== "string" || !arrow.id) throw new Error(`${routine.routineId} has an arrow with no id.`);
+        if (arrowIds.has(arrow.id)) throw new Error(`${routine.routineId} has two arrows called ${arrow.id}.`);
+        arrowIds.add(arrow.id);
+        for (const key of ["x1", "y1", "x2", "y2"]) {
+          if (!isNumber(arrow[key]) || arrow[key] < 0 || arrow[key] > 1) throw new Error(`${routine.routineId}: ${arrow.id} runs off the table.`);
+        }
+        if (arrow.dashed !== undefined && typeof arrow.dashed !== "boolean") throw new Error(`${routine.routineId}: ${arrow.id} dashed must be true or false.`);
+      }
+    }
   });
 }
 
@@ -58,6 +71,13 @@ export function formatRoutinesFile(data) {
       return `        { ${parts.join(", ")} }`;
     });
     lines.push(balls.length ? `      "ballPlacements": [\n${balls.join(",\n")}\n      ]` : `      "ballPlacements": []`);
+    // Only written when there are some, so routines without arrows keep exactly the text they had.
+    const arrows = (routine.arrows ?? []).map((arrow) => {
+      const parts = [`"id": ${json(arrow.id)}`, ...["x1", "y1", "x2", "y2"].map((key) => `"${key}": ${round5(arrow[key])}`)];
+      if (arrow.dashed) parts.push(`"dashed": true`);
+      return `        { ${parts.join(", ")} }`;
+    });
+    if (arrows.length) lines.push(`      "arrows": [\n${arrows.join(",\n")}\n      ]`);
     return `    {\n${lines.join(",\n")}\n    }`;
   });
   return `{\n  "routines": [\n${blocks.join(",\n")}\n  ]\n}\n`;

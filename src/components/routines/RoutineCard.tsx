@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { Routine } from "../../types";
 import { getYoutubeThumbnailUrl } from "../../utils/youtube";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { getRoutinePlacedBalls, getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
+import { getRoutineArrows, getRoutinePlacedBalls, getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
 import { TableDiagram } from "../scanSnooker/TableDiagram";
 
 interface RoutineCardProps {
@@ -30,7 +30,7 @@ export const RoutineCard = ({ routine, categoryName, categoryColor, onPress }: R
     <Pressable style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={onPress}>
       {placedBalls ? (
         <View style={[styles.previewImage, styles.diagramWrap]}>
-          <TableDiagram balls={placedBalls} readOnly landscape />
+          <TableDiagram balls={placedBalls} arrows={getRoutineArrows(routine)} readOnly landscape enlarge />
         </View>
       ) : imageSource ? (
         <View>

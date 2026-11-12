@@ -16,6 +16,12 @@ export type NormalizedBallPlacement = {
   label?: string;
 };
 
+/** An arrow drawn on a routine's table, as shares of the table like the balls. */
+export type NormalizedArrow = { id: string; x1: number; y1: number; x2: number; y2: number; dashed?: boolean };
+
+/** An arrow ready to draw, in table millimetres. */
+export type TableArrow = { id: string; from: Point; to: Point; dashed?: boolean };
+
 export type RoutineLayoutDefinition = {
   routineId: string;
   displayName: string;
@@ -23,6 +29,7 @@ export type RoutineLayoutDefinition = {
   anchorSystem: "black_pink";
   spotMarkers: SpotId[];
   ballPlacements: NormalizedBallPlacement[];
+  arrows?: NormalizedArrow[];
   referenceImage?: any;
   notes?: string;
 };
@@ -124,6 +131,9 @@ const toBallColour = (color: BallColor): BallColour => (color === "white" ? "cue
  */
 export const getRoutinePlacedBalls = (routine: Routine | undefined): PlacedBall[] | null => {
   if (!routine) return null;
+  // A technique guide is taught from its photo. A stray placeholder ball in its layout used to
+  // draw an empty table in place of the photo (Cueing Action, Cue Ball Control: 2026-11-12).
+  if (routine.content_type === "guide") return null;
   const definition = byRoutineId.get(routine.id);
   if (!definition || definition.ballPlacements.length === 0) return null;
   const balls: PlacedBall[] = definition.ballPlacements.map((placement) => ({
@@ -154,4 +164,16 @@ export const getRoutinePlacedBalls = (routine: Routine | undefined): PlacedBall[
     ] as const
   ).filter((ball): ball is PlacedBall => ball !== null);
   return [...balls, ...spotBalls];
+};
+
+/** The arrows drawn on a routine's table, if it has any. Guides are taught from a photo, so none. */
+export const getRoutineArrows = (routine: Routine | undefined): TableArrow[] => {
+  if (!routine || routine.content_type === "guide") return [];
+  const definition = byRoutineId.get(routine.id);
+  return (definition?.arrows ?? []).map((arrow) => ({
+    id: arrow.id,
+    from: { x: arrow.x1 * TABLE.width, y: arrow.y1 * TABLE.length },
+    to: { x: arrow.x2 * TABLE.width, y: arrow.y2 * TABLE.length },
+    ...(arrow.dashed ? { dashed: true } : {}),
+  }));
 };
