@@ -423,6 +423,43 @@
         { "id": "red-line-206", "color": "red", "x": 0.50337, "y": 0.5884 },
         { "id": "brown-208", "color": "brown", "x": 0.50337, "y": 0.7935 }
       ]
+    },
+    {
+      "routineId": "routine-black-spot-builder-level-1",
+      "displayName": "Black Spot Builder: Level 1",
+      "category": "break-building",
+      "spotMarkers": ["spot-black"],
+      "ballPlacements": [
+        { "id": "red-1", "color": "red", "x": 0.68335, "y": 0.09078 },
+        { "id": "red-2", "color": "red", "x": 0.33183, "y": 0.09078 },
+        { "id": "white-12", "color": "white", "x": 0.44646, "y": 0.15078 }
+      ]
+    },
+    {
+      "routineId": "routine-black-spot-builder-level-2",
+      "displayName": "Black Spot Builder: Level 2",
+      "category": "break-building",
+      "spotMarkers": ["spot-pink","spot-black"],
+      "ballPlacements": [
+        { "id": "red-14", "color": "red", "x": 0.65523, "y": 0.09078 },
+        { "id": "red-22", "color": "red", "x": 0.35152, "y": 0.09078 },
+        { "id": "red-23", "color": "red", "x": 0.5, "y": 0.20734 },
+        { "id": "white-32", "color": "white", "x": 0.4162, "y": 0.1471 }
+      ]
+    },
+    {
+      "routineId": "routine-black-spot-builder-level-3",
+      "displayName": "Black Spot Builder: Level 3",
+      "category": "break-building",
+      "spotMarkers": ["spot-black","spot-pink","spot-blue","spot-brown","spot-green","spot-yellow"],
+      "ballPlacements": [
+        { "id": "red-4", "color": "red", "x": 0.66423, "y": 0.09078 },
+        { "id": "red-5", "color": "red", "x": 0.33577, "y": 0.09078 },
+        { "id": "white-14", "color": "white", "x": 0.43871, "y": 0.14092 },
+        { "id": "red-15", "color": "red", "x": 0.5, "y": 0.18913 },
+        { "id": "red-16", "color": "red", "x": 0.48518, "y": 0.17634 },
+        { "id": "red-17", "color": "red", "x": 0.51482, "y": 0.17634 }
+      ]
     }
   ]
 }

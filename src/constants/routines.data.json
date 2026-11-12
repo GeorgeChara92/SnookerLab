@@ -1127,6 +1127,90 @@
         "title": "Snooker Side Spin On The Blue - Snooker Training",
         "channel": "BartonSnooker"
       }
+    },
+    {
+      "id": "routine-black-spot-builder-level-1",
+      "inApp": true,
+      "category_id": "cat-break-building",
+      "name": "Black Spot Builder: Level 1",
+      "icon": "⚫",
+      "difficulty": "beginner",
+      "summary": "Two reds either side of the black. Clear them using stun and screw, without the white touching a cushion.",
+      "description": "This is the first of three levels that build your breaks one step at a time. Everything happens around the black spot, so it’s all about short, controlled cue ball movement. Using stun and screw, you keep the white in a small area and always leave yourself the next pot. The best clearances never let the white touch a cushion. Once you can clear it within 5 attempts, move on to Level 2.",
+      "setup_instructions": "Black on its spot, with a red either side of it on the same line, a little under halfway to each side cushion. Put the white slightly to the right of the black and about 25 cm up the table, towards the pink.",
+      "steps": [
+        "Pot a red into a corner pocket, using stun or screw to stop the white near the black.",
+        "Pot the black, controlling the white so you’re on the other red.",
+        "Pot the second red, then the black again.",
+        "Finish by potting the black as the last colour, for 23.",
+        "Keep the white within a short distance of the black spot. The challenge is never touching a cushion."
+      ],
+      "success_criteria": "Log your best attempt out of 5. Note how many attempts it took to clear the table, and move on to Level 2 when you clear it within 5.",
+      "improves": [
+        "Stun control",
+        "Screw control",
+        "Cue ball control",
+        "Break building"
+      ],
+      "scoring_type": "points",
+      "max_score": 23,
+      "estimated_duration_minutes": 20
+    },
+    {
+      "id": "routine-black-spot-builder-level-2",
+      "inApp": true,
+      "category_id": "cat-break-building",
+      "name": "Black Spot Builder: Level 2",
+      "icon": "⚫",
+      "difficulty": "intermediate",
+      "summary": "A third red joins, between the pink and the black. Getting position on it is the key shot.",
+      "description": "Level 2 adds one red, and that red changes how you play the black. Hard stun or screw won’t get you onto it. You need a soft stun that lets the white drift on past the red and stop in position. It teaches you to control how far the white travels, not just whether it stops. Once you can clear it within 5 attempts, move on to Level 3.",
+      "setup_instructions": "Same as Level 1: black on its spot, a red either side of it, and the white slightly right of the black, about 25 cm up the table.\nPlus a red just below the pink spot, on the line between the pink and the black.",
+      "steps": [
+        "Start on either red beside the black.",
+        "For the red below the pink, pot the black with a soft stun and let the white drift past that red into position.",
+        "Take the black after each red where you can.",
+        "Finish by potting the black as the last colour.",
+        "If the white gets stuck behind a ball, reset and count it as an attempt."
+      ],
+      "success_criteria": "Log your best attempt out of 31. Note how many attempts it took to clear the table, and move on to Level 3 when you clear it within 5. An attempt ends when you miss or foul. 31 is three lots of red 1 + black 7 (24), then the last black 7.",
+      "improves": [
+        "Soft stun",
+        "Positional play",
+        "Cue ball control",
+        "Break building"
+      ],
+      "scoring_type": "points",
+      "max_score": 31,
+      "estimated_duration_minutes": 20
+    },
+    {
+      "id": "routine-black-spot-builder-level-3",
+      "inApp": true,
+      "category_id": "cat-break-building",
+      "name": "Black Spot Builder: Level 3",
+      "icon": "⚫",
+      "difficulty": "advanced",
+      "summary": "Five reds and all the colours. Split the reds early so your break keeps going.",
+      "description": "Level 3 is the closest to a real frame. Three of the reds are touching just below the pink, so you have to open them up to keep scoring. The skill is planning ahead: split the reds early with the black, and keep a red beside the black as a backup in case the split doesn’t leave you on a red. You don’t have to take the black every time. The aim is the biggest break you can make, and a total clearance is 67.",
+      "setup_instructions": "All the colours on their spots.\nThree touching reds just below the pink, between the pink and the black.\nA red either side of the black, as in Level 1.\nThe white slightly right of the black, about 25 cm up the table.",
+      "steps": [
+        "Open with a red beside the black, and use the black to split the three reds below the pink.",
+        "Keep the other red beside the black as a backup, in case you don’t land on one of the split reds.",
+        "Take whichever colour keeps the break going. It doesn’t have to be the black every time.",
+        "Once the reds are gone, clear the colours in order: yellow, green, brown, blue, pink, black.",
+        "Play for 20–30 minutes, resetting after each break."
+      ],
+      "success_criteria": "Log your highest break from the session, out of 67. Note how many full clearances you made. A break ends when you miss or foul. 67 is five lots of red 1 + black 7 (40), then the colours 2 + 3 + 4 + 5 + 6 + 7 (27).",
+      "improves": [
+        "Break building",
+        "Developing the reds",
+        "Shot selection",
+        "Cue ball control"
+      ],
+      "scoring_type": "points",
+      "max_score": 67,
+      "estimated_duration_minutes": 20
     }
   ]
 }
