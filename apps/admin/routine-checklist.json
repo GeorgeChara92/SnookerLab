@@ -12,6 +12,15 @@
     "routine-black-off-spot": {
       "done": "2026-11-06"
     },
+    "routine-black-spot-builder-level-1": {
+      "done": "2026-11-12"
+    },
+    "routine-black-spot-builder-level-2": {
+      "done": "2026-11-12"
+    },
+    "routine-black-spot-builder-level-3": {
+      "done": "2026-11-12"
+    },
     "routine-blue-ball-control": {
       "done": "2026-11-06"
     },
@@ -24,6 +33,9 @@
     "routine-bridge-grip-stance": {
       "done": "2026-11-06"
     },
+    "routine-colours-clearance-starting-from-blue": {
+      "done": "2026-11-12"
+    },
     "routine-cue-ball-control": {
       "done": "2026-11-06"
     },
@@ -32,6 +44,9 @@
     },
     "routine-cueing-secret-session": {
       "done": "2026-11-06"
+    },
+    "routine-deep-screw": {
+      "done": "2026-11-12"
     },
     "routine-head-position-fundamentals": {
       "done": "2026-11-06"
@@ -45,8 +60,14 @@
     "routine-long-potting-classic": {
       "done": "2026-11-06"
     },
+    "routine-mercedes": {
+      "done": "2026-11-12"
+    },
     "routine-pink-ball-routine": {
       "done": "2026-11-06"
+    },
+    "routine-pink-reds-middle-pocket-practice": {
+      "done": "2026-11-12"
     },
     "routine-potting-fundamentals": {
       "done": "2026-11-06"
@@ -60,14 +81,32 @@
     "routine-rest-shot-fundamentals": {
       "done": "2026-11-06"
     },
+    "routine-screw-back": {
+      "done": "2026-11-12"
+    },
+    "routine-side-spin-control": {
+      "done": "2026-11-12"
+    },
     "routine-straight-cueing-fundamentals-guide": {
       "done": "2026-11-06"
     },
     "routine-straight-cueing-line": {
       "done": "2026-11-06"
     },
+    "routine-stun-line": {
+      "done": "2026-11-12"
+    },
+    "routine-stun-run-through": {
+      "done": "2026-11-12"
+    },
     "routine-t-routine": {
       "done": "2026-11-06"
+    },
+    "routine-the-break-off": {
+      "done": "2026-11-12"
+    },
+    "routine-top-spin-control": {
+      "done": "2026-11-12"
     }
   }
 }

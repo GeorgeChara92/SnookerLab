@@ -131,7 +131,7 @@
     },
     {
       "routineId": "routine-around-colours",
-      "displayName": "Around The Colours",
+      "displayName": "Mastering The Colours",
       "category": "break-building",
       "spotMarkers": ["spot-black","spot-pink","spot-blue","spot-brown","spot-green","spot-yellow"],
       "ballPlacements": [
@@ -274,12 +274,14 @@
     },
     {
       "routineId": "routine-long-blue-straight-cue",
-      "displayName": "Potting Long Blues",
+      "displayName": "Long Blues",
       "category": "long-potting",
       "spotMarkers": ["spot-blue"],
       "ballPlacements": [
         { "id": "blue-534", "color": "blue", "x": 0.5, "y": 0.5 },
-        { "id": "cue-line-540", "color": "white", "x": 0.31435, "y": 0.65035 }
+        { "id": "white-555", "color": "white", "x": 0.43875, "y": 0.56325 },
+        { "id": "white-557", "color": "white", "x": 0.36082, "y": 0.64251 },
+        { "id": "white-560", "color": "white", "x": 0.24392, "y": 0.7614 }
       ]
     },
     {
@@ -311,73 +313,93 @@
       "category": "cue-ball-control",
       "spotMarkers": ["spot-blue"],
       "ballPlacements": [
-        { "id": "cue-518", "color": "white", "x": 0.31777, "y": 0.5 },
-        { "id": "blue-523", "color": "blue", "x": 0.5, "y": 0.42449 },
-        { "id": "black-524", "color": "black", "x": 0.88583, "y": 0.42449 },
-        { "id": "pink-525", "color": "pink", "x": 0.75647, "y": 0.42449 },
-        { "id": "brown-526", "color": "brown", "x": 0.62148, "y": 0.42449 },
-        { "id": "green-530", "color": "green", "x": 0.31777, "y": 0.42449 },
+        { "id": "cue-518", "color": "white", "x": 0.26716, "y": 0.5 },
         { "id": "red-532", "color": "red", "x": 0.5, "y": 0.5 },
-        { "id": "yellow-533", "color": "yellow", "x": 0.17435, "y": 0.42449 }
+        { "id": "black-546", "color": "black", "x": 0.88583, "y": 0.46792 },
+        { "id": "pink-547", "color": "pink", "x": 0.73116, "y": 0.46792 },
+        { "id": "blue-548", "color": "blue", "x": 0.57649, "y": 0.46792 },
+        { "id": "brown-549", "color": "brown", "x": 0.42183, "y": 0.46792 },
+        { "id": "green-550", "color": "green", "x": 0.26716, "y": 0.46792 },
+        { "id": "yellow-551", "color": "yellow", "x": 0.11249, "y": 0.46792 }
       ]
     },
     {
       "routineId": "routine-stun-run-through",
       "displayName": "Stun Run Through",
       "category": "cue-ball-control",
-      "spotMarkers": ["spot-blue"],
+      "spotMarkers": [],
       "ballPlacements": [
-        { "id": "stun-cue", "color": "white", "x": 0.5, "y": 0.56 }
+        { "id": "stun-cue", "color": "white", "x": 0.30934, "y": 0.5 },
+        { "id": "blue-5", "color": "blue", "x": 0.5, "y": 0.5 },
+        { "id": "red-6", "color": "red", "x": 0.61811, "y": 0.4455 }
       ]
     },
     {
       "routineId": "routine-top-spin-control",
       "displayName": "Top Spin Control",
-      "category": "spin",
-      "spotMarkers": ["spot-blue"],
+      "category": "cue-ball-control",
+      "spotMarkers": [],
       "ballPlacements": [
-        { "id": "top-spin-cue", "color": "white", "x": 0.53, "y": 0.58 }
+        { "id": "top-spin-cue", "color": "white", "x": 0.3937, "y": 0.5 },
+        { "id": "blue-2", "color": "blue", "x": 0.5, "y": 0.5 }
+      ],
+      "arrows": [
+        { "id": "arrow-1", "x1": 0.38245, "y1": 0.47772, "x2": 0.89708, "y2": 0.47913 }
       ]
     },
     {
       "routineId": "routine-side-spin-control",
       "displayName": "Side Spin Control",
-      "category": "spin",
-      "spotMarkers": ["spot-blue"],
+      "category": "cue-ball-control",
+      "spotMarkers": [],
       "ballPlacements": [
-        { "id": "side-spin-cue", "color": "white", "x": 0.57, "y": 0.58 }
+        { "id": "side-spin-cue", "color": "white", "x": 0.34589, "y": 0.52396 },
+        { "id": "blue-2", "color": "blue", "x": 0.5, "y": 0.5 }
       ]
     },
     {
       "routineId": "routine-stun-line",
-      "displayName": "Stun Line",
-      "category": "spin",
-      "spotMarkers": ["spot-blue"],
+      "displayName": "Mastering Stun Shots",
+      "category": "cue-ball-control",
+      "spotMarkers": [],
       "ballPlacements": [
-        { "id": "stun-line-cue", "color": "white", "x": 0.5, "y": 0.6 }
+        { "id": "white-1", "color": "white", "x": 0.37683, "y": 0.5 },
+        { "id": "white-2", "color": "white", "x": 0.27559, "y": 0.5 },
+        { "id": "white-3", "color": "white", "x": 0.19123, "y": 0.5 },
+        { "id": "white-4", "color": "white", "x": 0.10124, "y": 0.5 },
+        { "id": "blue-5", "color": "blue", "x": 0.5, "y": 0.5 }
       ]
     },
     {
       "routineId": "routine-screw-back",
-      "displayName": "Screw Back",
-      "category": "spin",
-      "spotMarkers": ["spot-blue"],
+      "displayName": "Soft Screw Drill",
+      "category": "cue-ball-control",
+      "spotMarkers": [],
       "ballPlacements": [
-        { "id": "screw-cue", "color": "white", "x": 0.5, "y": 0.6 }
+        { "id": "screw-cue", "color": "white", "x": 0.32621, "y": 0.5 },
+        { "id": "red-1", "color": "red", "x": 0.32621, "y": 0.46512 },
+        { "id": "blue-2", "color": "blue", "x": 0.5, "y": 0.5 }
+      ],
+      "arrows": [
+        { "id": "arrow-1", "x1": 0.5, "y1": 0.53376, "x2": 0.29809, "y2": 0.53376 }
       ]
     },
     {
       "routineId": "routine-deep-screw",
-      "displayName": "Deep Screw",
-      "category": "spin",
-      "spotMarkers": ["spot-blue"],
+      "displayName": "Deep Screw Drill",
+      "category": "cue-ball-control",
+      "spotMarkers": [],
       "ballPlacements": [
-        { "id": "deep-screw-cue", "color": "white", "x": 0.5, "y": 0.64 }
+        { "id": "deep-screw-cue", "color": "white", "x": 0.29246, "y": 0.5 },
+        { "id": "blue-1", "color": "blue", "x": 0.50619, "y": 0.5 }
+      ],
+      "arrows": [
+        { "id": "arrow-1", "x1": 0.5, "y1": 0.53236, "x2": 0.03375, "y2": 0.53236 }
       ]
     },
     {
       "routineId": "routine-long-potting-classic",
-      "displayName": "Potting Long Reds",
+      "displayName": "Long Reds – The Pink Opener",
       "category": "long-potting",
       "spotMarkers": ["spot-black","spot-pink","spot-blue","spot-brown","spot-green","spot-yellow"],
       "ballPlacements": [
@@ -451,14 +473,111 @@
       "routineId": "routine-black-spot-builder-level-3",
       "displayName": "Black Spot Builder: Level 3",
       "category": "break-building",
-      "spotMarkers": ["spot-black","spot-pink","spot-blue","spot-brown","spot-green","spot-yellow"],
+      "spotMarkers": ["spot-green","spot-brown","spot-blue","spot-pink","spot-black"],
       "ballPlacements": [
         { "id": "red-4", "color": "red", "x": 0.66423, "y": 0.09078 },
         { "id": "red-5", "color": "red", "x": 0.33577, "y": 0.09078 },
         { "id": "white-14", "color": "white", "x": 0.43871, "y": 0.14092 },
         { "id": "red-15", "color": "red", "x": 0.5, "y": 0.18913 },
         { "id": "red-16", "color": "red", "x": 0.48518, "y": 0.17634 },
-        { "id": "red-17", "color": "red", "x": 0.51482, "y": 0.17634 }
+        { "id": "red-17", "color": "red", "x": 0.51482, "y": 0.17634 },
+        { "id": "yellow-22", "color": "yellow", "x": 0.66423, "y": 0.7935 },
+        { "id": "brown-25", "color": "brown", "x": 0.5, "y": 0.7935 },
+        { "id": "green-26", "color": "green", "x": 0.33577, "y": 0.7935 },
+        { "id": "blue-27", "color": "blue", "x": 0.5, "y": 0.5 },
+        { "id": "pink-28", "color": "pink", "x": 0.5, "y": 0.25 },
+        { "id": "black-29", "color": "black", "x": 0.5, "y": 0.09078 }
+      ]
+    },
+    {
+      "routineId": "routine-the-break-off",
+      "displayName": "The Break Off",
+      "category": "safety",
+      "spotMarkers": [],
+      "ballPlacements": [
+        { "id": "yellow-1", "color": "yellow", "x": 0.66423, "y": 0.7935 },
+        { "id": "brown-2", "color": "brown", "x": 0.5, "y": 0.7935 },
+        { "id": "green-3", "color": "green", "x": 0.33577, "y": 0.7935 },
+        { "id": "blue-4", "color": "blue", "x": 0.5, "y": 0.49874 },
+        { "id": "pink-5", "color": "pink", "x": 0.5, "y": 0.24937 },
+        { "id": "black-6", "color": "black", "x": 0.5, "y": 0.08966 },
+        { "id": "red-7", "color": "red", "x": 0.5, "y": 0.22695 },
+        { "id": "red-8", "color": "red", "x": 0.48518, "y": 0.21417 },
+        { "id": "red-9", "color": "red", "x": 0.51482, "y": 0.21417 },
+        { "id": "red-10", "color": "red", "x": 0.47036, "y": 0.20138 },
+        { "id": "red-11", "color": "red", "x": 0.5, "y": 0.20138 },
+        { "id": "red-12", "color": "red", "x": 0.52964, "y": 0.20138 },
+        { "id": "red-13", "color": "red", "x": 0.45554, "y": 0.18859 },
+        { "id": "red-14", "color": "red", "x": 0.48518, "y": 0.18859 },
+        { "id": "red-15", "color": "red", "x": 0.51482, "y": 0.18859 },
+        { "id": "red-16", "color": "red", "x": 0.54446, "y": 0.18859 },
+        { "id": "red-17", "color": "red", "x": 0.44072, "y": 0.1758 },
+        { "id": "red-18", "color": "red", "x": 0.47036, "y": 0.1758 },
+        { "id": "red-19", "color": "red", "x": 0.5, "y": 0.1758 },
+        { "id": "red-20", "color": "red", "x": 0.52964, "y": 0.1758 },
+        { "id": "red-21", "color": "red", "x": 0.55928, "y": 0.1758 },
+        { "id": "white-22", "color": "white", "x": 0.45554, "y": 0.7935 },
+        { "id": "white-23", "color": "white", "x": 0.54446, "y": 0.7935 }
+      ]
+    },
+    {
+      "routineId": "routine-pink-reds-middle-pocket-practice",
+      "displayName": "Pink & Reds – Middle Pocket Practice",
+      "category": "break-building",
+      "spotMarkers": [],
+      "ballPlacements": [
+        { "id": "pink-1", "color": "pink", "x": 0.5, "y": 0.25 },
+        { "id": "red-2", "color": "red", "x": 0.5, "y": 0.27739 },
+        { "id": "red-3", "color": "red", "x": 0.5, "y": 0.30681 },
+        { "id": "red-4", "color": "red", "x": 0.5, "y": 0.33623 },
+        { "id": "red-5", "color": "red", "x": 0.5, "y": 0.36565 },
+        { "id": "red-6", "color": "red", "x": 0.5, "y": 0.39507 },
+        { "id": "red-7", "color": "red", "x": 0.5, "y": 0.42449 },
+        { "id": "white-10", "color": "white", "x": 0.39089, "y": 0.24377 }
+      ]
+    },
+    {
+      "routineId": "routine-colours-clearance-starting-from-blue",
+      "displayName": "Colours Clearance – Starting from Blue",
+      "category": "break-building",
+      "spotMarkers": [],
+      "ballPlacements": [
+        { "id": "yellow-1", "color": "yellow", "x": 0.66423, "y": 0.7935 },
+        { "id": "brown-2", "color": "brown", "x": 0.5, "y": 0.7935 },
+        { "id": "green-3", "color": "green", "x": 0.33577, "y": 0.7935 },
+        { "id": "blue-4", "color": "blue", "x": 0.5, "y": 0.5 },
+        { "id": "pink-5", "color": "pink", "x": 0.5, "y": 0.25 },
+        { "id": "black-6", "color": "black", "x": 0.5, "y": 0.09078 },
+        { "id": "white-7", "color": "white", "x": 0.33577, "y": 0.47772 }
+      ]
+    },
+    {
+      "routineId": "routine-mercedes",
+      "displayName": "Mercedes",
+      "category": "break-building",
+      "spotMarkers": [],
+      "ballPlacements": [
+        { "id": "yellow-1", "color": "yellow", "x": 0.66423, "y": 0.7935 },
+        { "id": "brown-2", "color": "brown", "x": 0.5, "y": 0.7935 },
+        { "id": "green-3", "color": "green", "x": 0.33577, "y": 0.7935 },
+        { "id": "blue-4", "color": "blue", "x": 0.5, "y": 0.5 },
+        { "id": "pink-5", "color": "pink", "x": 0.5, "y": 0.25 },
+        { "id": "black-6", "color": "black", "x": 0.5, "y": 0.09078 },
+        { "id": "red-7", "color": "red", "x": 0.5, "y": 0.27739 },
+        { "id": "red-8", "color": "red", "x": 0.5, "y": 0.30681 },
+        { "id": "red-9", "color": "red", "x": 0.5, "y": 0.33623 },
+        { "id": "red-10", "color": "red", "x": 0.5, "y": 0.36565 },
+        { "id": "red-11", "color": "red", "x": 0.5, "y": 0.39507 },
+        { "id": "red-17", "color": "red", "x": 0.54837, "y": 0.23676 },
+        { "id": "red-18", "color": "red", "x": 0.585, "y": 0.21369 },
+        { "id": "red-19", "color": "red", "x": 0.62164, "y": 0.19061 },
+        { "id": "red-20", "color": "red", "x": 0.65827, "y": 0.16754 },
+        { "id": "red-21", "color": "red", "x": 0.69491, "y": 0.14446 },
+        { "id": "red-22", "color": "red", "x": 0.45838, "y": 0.23676 },
+        { "id": "red-23", "color": "red", "x": 0.42013, "y": 0.21434 },
+        { "id": "red-24", "color": "red", "x": 0.38189, "y": 0.19193 },
+        { "id": "red-25", "color": "red", "x": 0.34364, "y": 0.16951 },
+        { "id": "red-26", "color": "red", "x": 0.30539, "y": 0.1471 }
       ]
     }
   ]

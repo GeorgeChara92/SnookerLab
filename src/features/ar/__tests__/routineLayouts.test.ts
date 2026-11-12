@@ -26,7 +26,7 @@ const EXPECTED: Record<string, { count: number; colours: readonly string[] | nul
   "routine-pink-ball-routine": { count: 9, colours: null },
   "routine-baulk-safety": { count: 12, colours: null },
   "routine-straight-cueing-line": { count: 15, colours: [] },
-  "routine-long-blue-straight-cue": { count: 2, colours: ["blue"] },
+  "routine-long-blue-straight-cue": { count: 4, colours: ["blue"] },
   "routine-cueing-secret-session": { count: 15, colours: [] },
   "routine-cue-ball-control": { count: 8, colours: null },
   "routine-blue-ball-control": { count: 12, colours: null },
