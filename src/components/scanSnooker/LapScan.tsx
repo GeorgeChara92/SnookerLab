@@ -20,6 +20,7 @@ import {
   TABLE,
   calibrationQuality,
   describeScale,
+  distance,
   frameFromLandmarks,
   tableToWorld,
   type TableFrame,
@@ -77,7 +78,11 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
   const [phase, setPhase] = useState<Phase>("find");
   const [tracking, setTracking] = useState<ARTracking>({ state: "limited", reason: "initializing" });
   const [aim, setAim] = useState<ARAim | null>(null);
-  const [landmarks, setLandmarks] = useState<[string, string]>(["black-spot", "pink-spot"]);
+  // The black and brown spots, 2.5m apart. With the black and pink, under 60cm apart, a fraction of
+  // a degree out turned into several centimetres at the baulk end: the rings there sat in front of
+  // the balls and swung as the phone corrected the spots (2026-11-11). Further apart, the same
+  // error is a quarter of the size or less.
+  const [landmarks, setLandmarks] = useState<[string, string]>(["black-spot", "brown-spot"]);
   const [taps, setTaps] = useState<Tap[]>([]);
   const [pickingLandmark, setPickingLandmark] = useState<0 | 1 | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -242,6 +247,8 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
 
   // ---------------------------------------------------------------- the words at the top
   const lapDone = walked >= LAP_COMPLETE;
+  // Under 1.2m apart, a small error in the two spots grows to centimetres at the other end.
+  const spotsClose = distance(landmark(landmarks[0]).point, landmark(landmarks[1]).point) < 1200;
   const quality = frame ? calibrationQuality(frame.scale) : null;
   const step = (() => {
     switch (phase) {
@@ -250,7 +257,10 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
       case "calibrate":
         return {
           title: `Aim at the ${current?.label.toLowerCase()}`,
-          tip: `Point ${taps.length + 1} of 2. Put the cross on its centre and hold still while the circle fills, then tap the button.`,
+          tip:
+            taps.length === 0
+              ? "Point 1 of 2. Put the cross on its centre and hold still while the circle fills, then tap the button."
+              : "Point 2 of 2. Two spots far apart line the whole table up best, so it's worth the walk to the other end.",
         };
       case "check":
         return {
@@ -273,7 +283,9 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     notice ??
     trackingProblem ??
     (phase === "check" && quality
-      ? `${QUALITY_TEXT[quality]} · ${describeScale(frame!.scale)}${lidar ? "" : " · no LiDAR"}`
+      ? `${QUALITY_TEXT[quality]} · ${describeScale(frame!.scale)}${lidar ? "" : " · no LiDAR"}${
+          spotsClose ? " · Spots close together: far balls may sit a little off" : ""
+        }`
       : showTip
         ? step.tip
         : null);

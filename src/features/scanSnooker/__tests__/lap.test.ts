@@ -167,6 +167,23 @@ describe("walking a lap", () => {
     expect(standStill(far, 12, stand).balls()).toHaveLength(1);
   });
 
+  it("shows one ring for a ball seen a little apart from two places, never both at once", () => {
+    // The same red, read 45mm apart from two standing places: once two clusters, one ring.
+    const tracker = new LapTracker();
+    const red = { x: 700, y: 1200 };
+    standStill([{ at: red, colour: "red" }], 8, LAP[0], tracker);
+    standStill([{ at: { x: red.x + 45, y: red.y }, colour: "red" }], 8, LAP[4], tracker);
+    expect(tracker.balls()).toHaveLength(1);
+  });
+
+  it("still shows two touching reds that are seen together", () => {
+    const pair = [
+      { at: { x: 700, y: 1200 }, colour: "red" as const },
+      { at: { x: 700 + TABLE.ball, y: 1200 }, colour: "red" as const },
+    ];
+    expect(standStill(pair, 8, LAP[1]).balls()).toHaveLength(2);
+  });
+
   it("won't call a red the black because its dark side sometimes reads black", () => {
     const tracker = new LapTracker();
     const at = LAP[0];

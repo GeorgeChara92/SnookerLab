@@ -52,6 +52,13 @@ const MAX_SLACK_MM = 80;
 /** Two balls cannot be closer than one ball's width, so anything this close is one ball seen twice. */
 const TOO_CLOSE_MM = 42;
 /**
+ * Two balls of the same colour this close that have never once been in the same picture are one
+ * ball seen from two places, a little apart - on a real table, one red near the camera wore two
+ * rings (2026-11-11). Two real balls this close are side by side and nearly always in view
+ * together, so as soon as one look sees both, they show as two again.
+ */
+const TWIN_MM = 65;
+/**
  * A real ball stays in view. From one place it has to be seen this often, over at least this many
  * looks (four a second, so about 1.5s): a hand or a cue moves on long before that.
  */
@@ -253,6 +260,8 @@ type Cluster = {
   slack: number;
   /** How far away it was seen from, on average, in metres. */
   range: number;
+  /** Which looks saw it, to tell two balls side by side from one ball seen twice. */
+  looks: Set<number>;
   /** Each sighting's squared distance from where the ball was then thought to be, for the report. */
   scatter: number;
   sides: Set<number>;
@@ -273,6 +282,7 @@ const mergeInto = (target: Cluster, other: Cluster) => {
   target.slack = (target.slack * target.sightings + other.slack * other.sightings) / (target.sightings + other.sightings);
   target.range = (target.range * target.sightings + other.range * other.sightings) / (target.sightings + other.sightings);
   target.firstLook = Math.min(target.firstLook, other.firstLook);
+  other.looks.forEach((look) => target.looks.add(look));
   target.lastLook = Math.max(target.lastLook, other.lastLook);
   target.weight = weight;
   target.sightings += other.sightings;
@@ -439,6 +449,7 @@ export class LapTracker {
       lastLook: this.frames,
       slack,
       range: sighting.distance,
+      looks: new Set([this.frames]),
       scatter: nearest ? nearest.gap * nearest.gap : 0,
       sides: new Set([sideOf(point, camera)]),
       votes: colour ? { [colour]: 1 } : {},
@@ -471,12 +482,22 @@ export class LapTracker {
   private confirmed() {
     const kept = this.clusters
       .filter((cluster) => doubtAbout(cluster) === null)
-      .map((cluster) => ({ ...cluster, sides: new Set(cluster.sides), votes: { ...cluster.votes } }))
+      .map((cluster) => ({ ...cluster, sides: new Set(cluster.sides), looks: new Set(cluster.looks), votes: { ...cluster.votes } }))
       .sort((a, b) => b.sightings - a.sightings);
 
+    const top = (cluster: Cluster) =>
+      (Object.entries(cluster.votes) as Array<[BallColour, number]>).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const seenTogether = (a: Cluster, b: Cluster) => [...a.looks].some((look) => b.looks.has(look));
+
+    // Only for showing: the clusters underneath are untouched, so a pair merged here comes apart
+    // again the moment one look sees both.
     const merged: Cluster[] = [];
     kept.forEach((cluster) => {
-      const same = merged.find((other) => distance(cluster, other) < TOO_CLOSE_MM);
+      const same = merged.find(
+        (other) =>
+          distance(cluster, other) < TOO_CLOSE_MM ||
+          (distance(cluster, other) < TWIN_MM && top(cluster) === top(other) && !seenTogether(cluster, other))
+      );
       if (same) mergeInto(same, cluster);
       else merged.push(cluster);
     });
