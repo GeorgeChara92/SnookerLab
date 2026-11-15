@@ -32,6 +32,7 @@ args.add_argument("--name", default="You", help="display name to set on the acco
 args.add_argument("--show-handle", default=None, help="handle to switch to (default: keep --handle)")
 args.add_argument("--no-friends", action="store_true", help="don't link or touch any other account")
 args.add_argument("--comp", action="store_true", help="Century and the Coach plan, free")
+args.add_argument("--link", default=None, help="two existing handles, comma-separated, to link as friends without changing them")
 args.add_argument("--out", default="demo_account.sql")
 ARGS = args.parse_args()
 
@@ -43,6 +44,13 @@ DEMO_NAME = ARGS.name
 DEMO_HANDLE = ARGS.show_handle or ("alexmarsh" if ARGS.handle == "georgechara_test" else ARGS.handle)
 FRIEND_NAME = "Danny Hale"
 FRIEND_HANDLE = "__no_friend__" if ARGS.no_friends else "dannyhale"
+# --link: real accounts (the demo ones, say) become friends, group members, a chat and clients,
+# but are never renamed, never made coaches and never have any of their own data cleared.
+LINK_ONLY = bool(ARGS.link)
+if LINK_ONLY:
+    FRIENDS = [handle.strip() for handle in ARGS.link.split(",")][:2] + ["__no_second_friend__"]
+    FRIENDS = FRIENDS[:2]
+    FRIEND_HANDLE = FRIENDS[0]
 
 OPPONENTS = ["Dave Wilson", "Mark Ellis", "Ryan Cole", "Jamie Barker", "Chris Hale", "Tom Price"]
 
@@ -181,16 +189,18 @@ w("  -- Screenshot names. Both handles are changed too - georgechara_test showin
 w("  -- Find a Coach search looked like a test artifact, and 'Danny Hale' next to handle")
 w("  -- @georgechara on Community looked like two different things happened to line up.")
 w(f"  update public.profiles set display_name = {q(DEMO_NAME)}, handle = {q(DEMO_HANDLE)} where id = demo;")
-w(f"  if pal is not null then update public.profiles set display_name = {q(FRIEND_NAME)}, handle = {q(FRIEND_HANDLE)} where id = pal; end if;")
+if not LINK_ONLY:
+    w(f"  if pal is not null then update public.profiles set display_name = {q(FRIEND_NAME)}, handle = {q(FRIEND_HANDLE)} where id = pal; end if;")
 w("")
 w("  -- A clean slate for the demo account only.")
-w("  delete from public.live_scores where user_id in (demo, pal);")
-w("  delete from public.matches where notes = 'seed:live' and user_id in (demo, pal);")
+FRIEND_SCOPE = "demo" if LINK_ONLY else "demo, pal"
+w(f"  delete from public.live_scores where user_id in ({FRIEND_SCOPE});")
+w(f"  delete from public.matches where notes = 'seed:live' and user_id in ({FRIEND_SCOPE});")
 w("  delete from public.tournament_fixture_frames where fixture_id in (")
 w("    select id from public.tournament_fixtures where tournament_id in (select id from public.tournaments where user_id = demo));")
 w("  delete from public.tournament_fixtures where tournament_id in (select id from public.tournaments where user_id = demo);")
 w("  delete from public.tournaments where user_id = demo;")
-w("  delete from public.activity where user_id = demo or (dedupe_key like 'seed:%' and user_id in (pal, pal2));")
+w("  delete from public.activity where user_id = demo" + ("" if LINK_ONLY else " or (dedupe_key like 'seed:%' and user_id in (pal, pal2))") + ";")
 w("  delete from public.groups where owner = demo;")
 w("  delete from public.conversations where kind = 'direct' and (pair_low = demo or pair_high = demo);")
 w("  delete from public.matches where user_id = demo or (opponent_id = demo and user_id in (pal, pal2));")
@@ -415,6 +425,8 @@ feed = [
     ("pal", "personal_best", "New best on Potting The Black Ball", "21", 50),
     ("pal2", "achievement", "Unlocked Dedicated Player", "Practise on 20 different days", 70),
 ]
+if LINK_ONLY:
+    feed = [item for item in feed if item[0] == "demo"]
 for n, (who, kind, title, detail, hours) in enumerate(feed):
     guard = "" if who == "demo" else f"if {who} is not null then "
     end = "" if who == "demo" else " end if;"
@@ -428,11 +440,14 @@ w("")
 # these fields are only set if they still look untouched, and restore_names.sql clears them back.
 w("  -- Coach mode. The friend becomes a bookable coach; the demo becomes one too, so flipping to")
 w("  -- coach view on the same login shows a populated diary. restore_names.sql undoes all of it.")
-w("  delete from public.coach_bookings where coach_id in (demo, pal) or player_id in (demo, pal);")
-w("  delete from public.coach_availability where coach_id in (demo, pal);")
+w(f"  delete from public.coach_bookings where coach_id in ({FRIEND_SCOPE}) or player_id in ({FRIEND_SCOPE})" + (" and coach_id = demo" if LINK_ONLY else "") + ";")
+w(f"  delete from public.coach_availability where coach_id in ({FRIEND_SCOPE});")
 w("  delete from public.coach_group_members where group_id in (select id from public.coach_groups where coach_id = demo);")
 w("  delete from public.coach_groups where coach_id = demo;")
 w("")
+_write = w
+if LINK_ONLY:
+    w = lambda *_: None  # noqa: E731 - skip this block for linked accounts
 w("  if pal is not null then")
 w("    update public.profiles set is_coach = true,")
 w(f"        bio = coalesce(nullif(bio, ''), {q('WPBSA-accredited coach, 12 years at The Cue Club. I focus on cue action and safety play.')}),")
@@ -453,6 +468,8 @@ w("    insert into public.coach_availability (coach_id, starts_at, ends_at) valu
 w("      (pal, (current_date + 6) + time '19:00', (current_date + 6) + time '20:00'),")
 w("      (pal, (current_date + 9) + time '10:00', (current_date + 9) + time '11:00');")
 w("  end if;")
+w = _write
+
 w("")
 w("  -- The demo's own diary: the friend as a returning real client, and a walk-in with no account.")
 w(f"  update public.profiles set is_coach = true, bio = coalesce(nullif(bio, ''), {q('Club coach at The Cue Club. Cue action, safety and match temperament.')}),")
@@ -525,6 +542,9 @@ w("")
 # the friend (pal), against someone unlinked, so it reads as a match happening elsewhere rather
 # than one demo is themselves part of - marked with notes='seed:live' so restore_names.sql (and a
 # rerun of this script) can find and remove just this one row.
+_write = w
+if LINK_ONLY:
+    w = lambda *_: None  # noqa: E731
 w("  -- A friend's match live right now, for the 'follow a friend live' screenshot.")
 w("  if pal is not null then")
 w("    insert into public.matches (user_id, opponent_name, opponent_id, date, location, match_type, format,")
@@ -544,6 +564,8 @@ w(f"      values (m, pal, null, {q('Ryan Cole')}, 7, 1, 1, 3, 45, 28, 18, {q('us
 w("        '[{\"n\":1,\"u\":68,\"o\":22,\"w\":\"user\"},{\"n\":2,\"u\":19,\"o\":64,\"w\":\"opponent\"}]'::jsonb,")
 w(f"        {q('live')}, now() - interval '18 minutes', now() - interval '20 seconds');")
 w("  end if;")
+w = _write
+
 w("")
 
 # A knockout tournament, quarter-finals played and semi-finals drawn, for the bracket screenshot.
