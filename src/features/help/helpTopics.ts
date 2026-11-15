@@ -134,9 +134,9 @@ export const HELP_TOPICS = {
     purpose: "Score a frame ball by ball. Snookered keeps the score, the break and the points left on the table.",
     steps: [
       "Tap the ball that was potted. The player at the table gets the points.",
-      "Use Foul for a foul (choose the value), Safety after a safety shot, and End Break when a visit ends.",
+      "Use Miss when a pot is missed, Safety after a safety shot, and Foul for a foul (choose the value).",
       "If a foul leaves the next player snookered, tap Free ball, then the colour they nominated once it goes in.",
-      "Switch changes who's at the table, and Undo takes back the last action.",
+      "Swap player, under the buttons, puts the right player at the table: for a mistake, or when the fouler is asked to play again. Undo takes back the last action.",
       "Tap End frame when it's over. Re-rack replays the frame, and Abandon frame doesn't count it.",
     ],
     tips: [
@@ -164,6 +164,7 @@ export const HELP_TOPICS = {
       "Hold the phone steady at chest height, tilted at the balls. Each ball gets a marker once it has been in view for a moment.",
       "Walk round the table to find balls hidden from where you stand. Seeing a ball from a second side also pins down where it is.",
       "Check what was found on the diagram, fix anything that's wrong, then save.",
+      "After a foul and a miss, open it again for that frame and tap Put the balls back. Mark the two spots, and a ghost shows where each ball goes. Choose a colour and aim at the real ball to see which way to move it.",
     ],
     tips: ["This is being tested, and saves separately from Scan Snooker.", "Balls at the far end take a moment longer. Step closer if one isn't marked."],
   },

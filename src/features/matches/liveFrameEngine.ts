@@ -23,6 +23,8 @@ export type LiveFrameEvent = {
   note?: string;
   /** A pot of the ball nominated as a free ball: `ball` is what went in, `points` what it was worth. */
   freeBall?: boolean;
+  /** Why a visit ended: a missed pot or a safety shot. Missing on visits logged before 2026-11-15. */
+  reason?: "miss" | "safety";
 };
 
 export type LiveFrameState = {
@@ -255,11 +257,11 @@ export const potFreeBall = (state: LiveFrameState, ball: LiveBall): LiveFrameSta
   return appendEvent(next, { kind: "pot", player: state.atTable, ball, points, freeBall: true });
 };
 
-export const endVisit = (state: LiveFrameState): LiveFrameState => {
+export const endVisit = (state: LiveFrameState, reason?: "miss" | "safety"): LiveFrameState => {
   if (state.phase === "ended") return state;
   const next = finalizeCurrentBreak(state, "visit_end");
   next.atTable = otherSide(state.atTable);
-  return appendEvent(next, { kind: "visit_end", player: state.atTable });
+  return appendEvent(next, { kind: "visit_end", player: state.atTable, ...(reason ? { reason } : {}) });
 };
 
 export const switchPlayer = (state: LiveFrameState): LiveFrameState => {

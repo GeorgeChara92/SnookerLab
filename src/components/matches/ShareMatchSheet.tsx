@@ -21,13 +21,15 @@ import { matchHighlights, type Highlight } from "../../features/matches/highligh
 import { canShareImages, shareText, shareViewAsImage } from "../../features/share/shareImage";
 import { CARD_RATIO, MatchResultCard } from "./MatchResultCard";
 import { CARD_THEMES, ThemeBackground, themeById } from "./cardThemes";
-import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { matchShareFor } from "../../features/community/matchShare";
+import { openSendToChat } from "../../navigation/navigationRef";
+import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 /** The size of the shared picture: 1080 wide, the width Instagram and WhatsApp keep. */
 const OUTPUT = { width: 1080, height: Math.round(1080 * CARD_RATIO) };
-const SWATCH = { width: 56, height: 70 };
-/** Room the sheet needs around the card: header, swatches, options and the share button. */
-const CHROME_HEIGHT = 330;
+const SWATCH = 46;
+/** Room the sheet needs around the card: header, backgrounds, options and the two buttons. */
+const CHROME_HEIGHT = 390;
 
 /** Highlights that already say what the high break was. */
 const BREAK_KINDS: Highlight["kind"][] = ["maximum", "century", "personal-best", "fifties"];
@@ -100,26 +102,28 @@ export const ShareMatchSheet = ({
     }
   };
 
-  const Toggle = ({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) => (
+  const sendInChat = () => {
+    onClose();
+    openSendToChat(matchShareFor(match, matches, liveFramesByMatch));
+  };
+
+  const Toggle = ({ label, icon, on, onPress }: { label: string; icon: string; on: boolean; onPress: () => void }) => (
     <Pressable
       onPress={onPress}
       accessibilityRole="switch"
       accessibilityState={{ checked: on }}
+      accessibilityLabel={label}
       style={({ pressed }) => [
         styles.toggle,
         {
-          borderColor: on ? colors.primary : colors.border,
-          backgroundColor: on ? colors.primary + "22" : colors.surface,
+          borderColor: on ? colors.boardRule : "rgba(255,255,255,0.14)",
+          backgroundColor: on ? "rgba(255,255,255,0.08)" : "transparent",
           opacity: pressed ? 0.8 : 1,
         },
       ]}
     >
-      <MaterialCommunityIcons
-        name={on ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"}
-        size={18}
-        color={on ? colors.primary : colors.textMuted}
-      />
-      <Text style={[styles.toggleText, { color: colors.text }]}>{label}</Text>
+      <MaterialCommunityIcons name={icon as any} size={16} color={on ? colors.boardRule : colors.boardMuted} />
+      <Text style={[styles.toggleText, { color: on ? colors.boardText : colors.boardMuted }]}>{label}</Text>
     </Pressable>
   );
 
@@ -128,88 +132,106 @@ export const ShareMatchSheet = ({
       <View
         style={[
           styles.screen,
-          { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom + SPACING.md },
+          { backgroundColor: colors.board, paddingTop: insets.top, paddingBottom: insets.bottom + SPACING.md },
         ]}
       >
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Share result</Text>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" style={styles.close}>
-            <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+          <View style={styles.headerText}>
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.kicker, { color: colors.boardRule }]}>
+              SHARE
+            </Text>
+            <Text accessibilityRole="header" style={[styles.title, { color: colors.boardText }]}>
+              Your result
+            </Text>
+          </View>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={6}
+            style={({ pressed }) => [styles.close, { opacity: pressed ? 0.7 : 1 }]}
+          >
+            <MaterialCommunityIcons name="close" size={22} color={colors.boardText} />
           </Pressable>
         </View>
 
-        <View style={styles.cardWrap}>
-          <MatchResultCard
-            ref={cardRef}
-            id="share-card"
-            match={match}
-            playerName={username || "You"}
-            bestOf={bestOfFor(match)}
-            frames={card.frames}
-            highUser={card.highUser}
-            highOpponent={card.highOpponent}
-            width={cardWidth}
-            theme={theme}
-            options={{ frames: prefs.frames, highBreaks: prefs.highBreaks, highlights: showHighlights }}
-            highlights={highlights}
-          />
+        <View style={styles.stage}>
+          <View style={styles.cardShadow}>
+            <MatchResultCard
+              ref={cardRef}
+              id="share-card"
+              match={match}
+              playerName={username || "You"}
+              bestOf={bestOfFor(match)}
+              frames={card.frames}
+              highUser={card.highUser}
+              highOpponent={card.highOpponent}
+              width={cardWidth}
+              theme={theme}
+              options={{ frames: prefs.frames, highBreaks: prefs.highBreaks, highlights: showHighlights }}
+              highlights={highlights}
+            />
+          </View>
         </View>
 
         <View style={styles.controls}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.swatches}
-            accessibilityRole="radiogroup"
-          >
-            {CARD_THEMES.map((option) => {
-              const selected = option.id === theme.id;
-              return (
-                <Pressable
-                  key={option.id}
-                  onPress={() => {
-                    setPickedHere(option.id);
-                    prefs.set({ themeId: option.id });
-                  }}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={`${option.name} background`}
-                  style={styles.swatchItem}
-                >
-                  <View style={[styles.swatch, { borderColor: selected ? colors.primary : "transparent" }]}>
-                    <ThemeBackground
-                      theme={option}
-                      width={SWATCH.width}
-                      height={SWATCH.height}
-                      id={`swatch-${option.id}`}
-                    />
-                  </View>
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.swatchName, { color: selected ? colors.text : colors.textMuted }]}
+          <View style={styles.backgroundRow}>
+            <Text maxFontSizeMultiplier={DISPLAY_TEXT_SCALE} style={[styles.label, { color: colors.boardMuted }]}>
+              {theme.name.toUpperCase()}
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.swatches}
+              accessibilityRole="radiogroup"
+              accessibilityLabel="Background"
+            >
+              {CARD_THEMES.map((option) => {
+                const selected = option.id === theme.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => {
+                      setPickedHere(option.id);
+                      prefs.set({ themeId: option.id });
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${option.name} background`}
+                    hitSlop={4}
+                    style={[styles.swatchRing, { borderColor: selected ? colors.boardRule : "transparent" }]}
                   >
-                    {option.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                    <View style={styles.swatch}>
+                      <ThemeBackground theme={option} width={SWATCH} height={SWATCH} id={`swatch-${option.id}`} />
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
 
           {hasFrames || hasHighs || highlights.length ? (
             <View style={styles.toggles}>
               {highlights.length ? (
                 <Toggle
                   label="Highlights"
+                  icon="star-four-points-outline"
                   on={showHighlights}
                   onPress={() => prefs.set({ highlights: !showHighlights })}
                 />
               ) : null}
               {hasFrames ? (
-                <Toggle label="Frame scores" on={prefs.frames} onPress={() => prefs.set({ frames: !prefs.frames })} />
+                <Toggle
+                  label="Frame scores"
+                  icon="view-grid-outline"
+                  on={prefs.frames}
+                  onPress={() => prefs.set({ frames: !prefs.frames })}
+                />
               ) : null}
               {hasHighs ? (
                 <Toggle
                   label="High breaks"
+                  icon="fire"
                   on={prefs.highBreaks}
                   onPress={() => prefs.set({ highBreaks: !prefs.highBreaks })}
                 />
@@ -217,26 +239,37 @@ export const ShareMatchSheet = ({
             </View>
           ) : null}
 
-          <Pressable
-            onPress={share}
-            disabled={sharing}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.share,
-              { backgroundColor: colors.primary, opacity: pressed || sharing ? 0.85 : 1 },
-            ]}
-          >
-            {sharing ? (
-              <ActivityIndicator color={colors.onPrimary} />
-            ) : (
-              <MaterialCommunityIcons name="export-variant" size={20} color={colors.onPrimary} />
-            )}
-            <Text style={[styles.shareText, { color: colors.onPrimary }]}>
-              {images ? "Share picture" : "Share as text"}
-            </Text>
-          </Pressable>
+          <View style={styles.actions}>
+            <Pressable
+              onPress={share}
+              disabled={sharing}
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.share,
+                { backgroundColor: colors.boardText, opacity: pressed || sharing ? 0.85 : 1 },
+              ]}
+            >
+              {sharing ? (
+                <ActivityIndicator color={colors.board} />
+              ) : (
+                <MaterialCommunityIcons name="export-variant" size={20} color={colors.board} />
+              )}
+              <Text style={[styles.shareText, { color: colors.board }]}>{images ? "Share picture" : "Share as text"}</Text>
+            </Pressable>
+            <Pressable
+              onPress={sendInChat}
+              accessibilityRole="button"
+              accessibilityHint="Sends this result to a friend or a group in Snookered"
+              style={({ pressed }) => [styles.chat, { borderColor: colors.boardRule, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <MaterialCommunityIcons name="chat-outline" size={20} color={colors.boardText} />
+              <Text style={[styles.chatText, { color: colors.boardText }]} numberOfLines={1} adjustsFontSizeToFit>
+                Send in a chat
+              </Text>
+            </Pressable>
+          </View>
           {!images ? (
-            <Text style={[styles.note, { color: colors.textMuted }]}>
+            <Text style={[styles.note, { color: colors.boardMuted }]}>
               Sharing the picture comes with the next app build. Until then it shares the result as text.
             </Text>
           ) : null}
@@ -253,43 +286,77 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: SPACING.lg,
-    minHeight: 52,
+    paddingTop: SPACING.sm,
+    minHeight: 60,
   },
-  title: { fontSize: 20, fontWeight: "800" },
-  close: { minWidth: HIT_TARGET, minHeight: HIT_TARGET, alignItems: "flex-end", justifyContent: "center" },
-  cardWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+  headerText: { gap: 2 },
+  kicker: { fontFamily: FONTS.board, fontSize: 13, letterSpacing: 2.4 },
+  title: { fontSize: 22, fontWeight: "800" },
+  close: {
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderRadius: HIT_TARGET / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  stage: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: SPACING.md },
+  // The card sits on the table like a printed card: lifted, with a soft shadow under it.
+  cardShadow: {
+    borderRadius: RADIUS.lg,
+    shadowColor: "#000000",
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 14,
+  },
   controls: { gap: SPACING.md, paddingHorizontal: SPACING.lg },
-  swatches: { gap: SPACING.md, paddingVertical: 2 },
-  swatchItem: { alignItems: "center", gap: 4, width: SWATCH.width + 12 },
-  swatch: {
-    width: SWATCH.width + 6,
-    height: SWATCH.height + 6,
-    borderRadius: RADIUS.md,
-    borderWidth: 3,
-    overflow: "hidden",
+  backgroundRow: { gap: SPACING.sm },
+  label: { fontFamily: FONTS.boardLabel, fontSize: 13, letterSpacing: 1.6 },
+  swatches: { gap: SPACING.sm, paddingVertical: 2 },
+  swatchRing: {
+    width: SWATCH + 8,
+    height: SWATCH + 8,
+    borderRadius: (SWATCH + 8) / 2,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  swatchName: { fontSize: 12, fontWeight: "700" },
+  swatch: { width: SWATCH, height: SWATCH, borderRadius: SWATCH / 2, overflow: "hidden" },
   toggles: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
   toggle: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    minHeight: 40,
+    minHeight: 38,
     paddingHorizontal: SPACING.md,
     borderWidth: 1,
     borderRadius: RADIUS.pill,
   },
   toggleText: { fontSize: 14, fontWeight: "700" },
+  actions: { flexDirection: "row", gap: SPACING.sm },
   share: {
+    flex: 1.4,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: SPACING.sm,
     minHeight: HIT_TARGET + 8,
     borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm,
   },
   shareText: { fontSize: 16, fontWeight: "800" },
+  chat: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: HIT_TARGET + 8,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.sm,
+  },
+  chatText: { fontSize: 15, fontWeight: "700" },
   note: { fontSize: 12, lineHeight: 17, textAlign: "center" },
 });

@@ -190,6 +190,8 @@ export interface LiveFrameEvent {
   note?: string;
   /** A pot of the ball nominated as a free ball. */
   freeBall?: boolean;
+  /** Why a visit ended: a missed pot or a safety shot. */
+  reason?: "miss" | "safety";
 }
 
 export interface LiveFrameRecord {

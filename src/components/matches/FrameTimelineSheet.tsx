@@ -61,7 +61,7 @@ const getEventLabel = (event: LiveFrameEvent): string => {
     case "foul":
       return `Foul${event.foulValue ? ` (${event.foulValue})` : ""}${event.note ? ` - ${event.note}` : ""}`;
     case "visit_end":
-      return "End of visit";
+      return event.reason === "miss" ? "Missed" : event.reason === "safety" ? "Safety" : "End of visit";
     case "switch":
       return "Switch";
     case "frame_saved":

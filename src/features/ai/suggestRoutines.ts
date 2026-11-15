@@ -177,10 +177,20 @@ export const suggestRoutines = (
     return true;
   };
 
+  // The hand-picked routines for each part of the game, then any other drill in the library that
+  // says it works on it - so a routine added later is suggested without anyone listing it here.
+  const forTopic = (topic: Topic) => [
+    ...topic.routines,
+    ...library
+      .filter((routine) => routine.content_type !== "guide" && !topic.routines.includes(routine.id))
+      .filter((routine) => topic.words.test([routine.name, routine.summary, ...(routine.improves ?? [])].filter(Boolean).join(" ")))
+      .map((routine) => routine.id),
+  ];
+
   // One routine for each part of the game first, so three suggestions cover three things...
-  ranked.forEach((row) => row.topic.routines.some((id) => take(id, row.topic.label, row.because)));
+  ranked.forEach((row) => forTopic(row.topic).some((id) => take(id, row.topic.label, row.because)));
   // ...then more for the most talked-about ones if there is room.
-  ranked.forEach((row) => row.topic.routines.forEach((id) => take(id, row.topic.label, row.because)));
+  ranked.forEach((row) => forTopic(row.topic).forEach((id) => take(id, row.topic.label, row.because)));
 
   if (chosen.length === 0) take(FOR_FOCUS[analysisType] ?? FOR_FOCUS.technique, "Your focus");
   return chosen;

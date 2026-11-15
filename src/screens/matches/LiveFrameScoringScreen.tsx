@@ -1044,7 +1044,7 @@ export const LiveFrameScoringScreen = () => {
                   if (event.kind === "foul")
                     message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType] : "foul"})`;
                   if (event.kind === "visit_end")
-                    message = `${event.player === "user" ? userLabel : opponentLabel} ended visit`;
+                    message = `${event.player === "user" ? userLabel : opponentLabel} ${event.reason === "miss" ? "missed" : event.reason === "safety" ? "played safe" : "ended visit"}`;
                   if (event.kind === "switch")
                     message = `Turn switched from ${event.player === "user" ? userLabel : opponentLabel}`;
                   if (event.kind === "re_rack") message = "Frame re-racked";
@@ -1143,7 +1143,9 @@ export const LiveFrameScoringScreen = () => {
             </Pressable>
             <Pressable
               style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
-              onPress={() => applyFrameMutation((state) => endVisit(state))}
+              onPress={() => applyFrameMutation((state) => endVisit(state, "safety"))}
+              accessibilityRole="button"
+              accessibilityLabel="Safety: the visit ends on a safety shot"
             >
               <Text style={[styles.actionPillText, { color: ui.text }]}>Safety</Text>
             </Pressable>
@@ -1152,15 +1154,11 @@ export const LiveFrameScoringScreen = () => {
           <View style={styles.actionPillRow}>
             <Pressable
               style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
-              onPress={() => applyFrameMutation((state) => endVisit(state))}
+              onPress={() => applyFrameMutation((state) => endVisit(state, "miss"))}
+              accessibilityRole="button"
+              accessibilityLabel="Miss: the pot was missed and the visit ends"
             >
-              <Text style={[styles.actionPillText, { color: ui.text }]}>End Break</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
-              onPress={() => applyFrameMutation((state) => switchPlayer(state))}
-            >
-              <Text style={[styles.actionPillText, { color: ui.text }]}>Switch</Text>
+              <Text style={[styles.actionPillText, { color: ui.text }]}>Miss</Text>
             </Pressable>
             <Pressable
               style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
@@ -1218,6 +1216,16 @@ export const LiveFrameScoringScreen = () => {
           </Pressable>
 
           <View style={styles.quietRow}>
+            {/* Not a shot: for putting the wrong player right, or "play again" after a foul. */}
+            <Pressable
+              onPress={() => applyFrameMutation((state) => switchPlayer(state))}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Swap who's at the table, to correct a mistake or after a play again"
+            >
+              <Text style={[styles.quietAction, { color: ui.textMuted }]}>Swap player</Text>
+            </Pressable>
+            <Text style={[styles.quietDot, { color: ui.textMuted }]}>·</Text>
             <Pressable
               onPress={handleReRack}
               hitSlop={8}
@@ -1285,7 +1293,7 @@ export const LiveFrameScoringScreen = () => {
                     if (event.kind === "foul")
                       message = `${event.player === "user" ? userLabel : opponentLabel} foul ${event.foulValue} (${event.foulType ? FOUL_LABELS[event.foulType as LiveFoulType] : "foul"})`;
                     if (event.kind === "visit_end")
-                      message = `${event.player === "user" ? userLabel : opponentLabel} ended visit`;
+                      message = `${event.player === "user" ? userLabel : opponentLabel} ${event.reason === "miss" ? "missed" : event.reason === "safety" ? "played safe" : "ended visit"}`;
                     if (event.kind === "switch")
                       message = `Turn switched from ${event.player === "user" ? userLabel : opponentLabel}`;
                     if (event.kind === "re_rack") message = "Frame re-racked";

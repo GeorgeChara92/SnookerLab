@@ -7,6 +7,7 @@ import type { Routine, SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { pickSessionRoutines } from "../../features/practice/sessionPicks";
 
 import { useShallow } from "zustand/react/shallow";
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -97,6 +98,7 @@ const CATEGORY_WEIGHTS: Record<PracticeFocus, { categoryId: string; weight: numb
 
 const STEP_TITLES = ["Focus", "Length", "Detail", "Review"];
 
+
 export const GuidedSessionBuilder = () => {
   const navigation = useNavigation<NavigationProp<SessionsStackParamList>>();
   const { categories, routines } = useRoutinesStore(useShallow((state) => ({ categories: state.categories, routines: state.routines })));
@@ -125,35 +127,13 @@ export const GuidedSessionBuilder = () => {
       .filter((tag) => selectedTags.includes(tag.id))
       .flatMap((tag) => tag.keywords);
 
-    const scored = CATEGORY_WEIGHTS[practiceFocus]
-      .flatMap(({ categoryId, weight }) =>
-        routines
-          .filter((routine) => routine.category_id === categoryId && routine.content_type !== "guide")
-          .map((routine) => {
-            const haystack = [routine.name, routine.summary, routine.success_criteria, ...(routine.improves ?? [])]
-              .filter(Boolean)
-              .join(" ")
-              .toLowerCase();
-
-            // A chosen detail lifts anything that mentions it, so step 3 changes the answer.
-            const matches = tagKeywords.filter((keyword) => haystack.includes(keyword)).length;
-
-            return { routine, score: weight + matches * 0.5 + ((routine.id.charCodeAt(0) + shuffleSeed) % 7) * 0.01 };
-          })
-      )
-      .sort((a, b) => b.score - a.score);
-
-    const seen = new Set<string>();
-    const picked: Routine[] = [];
-
-    for (const entry of scored) {
-      if (seen.has(entry.routine.id)) continue;
-      seen.add(entry.routine.id);
-      picked.push(entry.routine);
-      if (picked.length === targetCount) break;
-    }
-
-    return picked;
+    return pickSessionRoutines({
+      routines,
+      sections: CATEGORY_WEIGHTS[practiceFocus],
+      keywords: tagKeywords,
+      count: targetCount,
+      seed: shuffleSeed,
+    });
   }, [practiceFocus, sessionLength, selectedTags, routines, shuffleSeed]);
 
   const totalMinutes = useMemo(
