@@ -165,8 +165,15 @@
   background: var(--mint);
 }
 
-/* Seven links on one line need about 1000px; below that, the menu. */
-@media (max-width: 1000px) {
+/* Eight links, tightened a little, still want about 1100px; below that, the menu. */
+@media (max-width: 1240px) {
+  .header-link {
+    padding: 0 11px;
+    font-size: 14.5px;
+  }
+}
+
+@media (max-width: 1100px) {
   .header-nav {
     display: none;
   }
@@ -176,7 +183,7 @@
   }
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1180px) {
   .header-cta {
     display: none;
   }

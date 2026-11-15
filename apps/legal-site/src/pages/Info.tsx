@@ -40,10 +40,11 @@ function PlanCard({
 
   return (
     <Reveal delay={delay} className={`plan ${variant === "featured" ? "featured" : ""} ${variant === "coach" ? "plan-coach" : ""}`}>
-      {tag && <p className="plan-tag">{tag}</p>}
+      {/* Every card keeps the tag's space, so the names and prices line up across the row. */}
+      {tag ? <p className="plan-tag">{tag}</p> : <p className="plan-tag plan-tag-empty" aria-hidden="true">&nbsp;</p>}
       <h2>{plan.name}</h2>
       <div className="plan-price">
-        <span className="plan-price-amount">{isFree ? "Free" : gbp(price!)}</span>
+        <span className="plan-price-amount">{isFree ? "£0" : gbp(price!)}</span>
         {!isFree && <span className="plan-price-period">/ {billing === "monthly" ? "month" : "year"}</span>}
       </div>
       {saving ? <p className="plan-saving">Save {saving}% vs paying monthly</p> : <p className="plan-saving plan-saving-empty" aria-hidden="true" />}

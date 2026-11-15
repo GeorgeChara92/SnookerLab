@@ -15,7 +15,7 @@ import { AppButton } from "../../components/ui/AppButton";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { TIER_LABELS, planLine } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { usePlanUsage } from "../../hooks/usePlanUsage";
 import { useAuthStore } from "../../store";
 import {
   addBillingCustomerInfoListener,
@@ -88,7 +88,7 @@ export const SubscriptionPlansScreen = () => {
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const { user, setUser } = useAuthStore(useShallow((state) => ({ user: state.user, setUser: state.setUser })));
-  const subscription = useSubscriptionAccess();
+  const { subscription, rows: usageRows } = usePlanUsage();
 
   const [offerings, setOfferings] = useState<BillingOfferings | null>(null);
   const [billingState, setBillingState] = useState<BillingSubscriptionState | null>(null);
@@ -328,15 +328,6 @@ export const SubscriptionPlansScreen = () => {
     return endsOn ? `Billed ${cadence}. Renews on ${endsOn}.` : `Billed ${cadence}.`;
   }, [billingState, currentTier]);
 
-  const usageRows = useMemo(
-    () => [
-      { label: "Matches", used: subscription.usage.matches, limit: subscription.limits.matchesPerPeriod },
-      { label: "Tournaments", used: subscription.usage.tournaments, limit: subscription.limits.tournamentsPerPeriod },
-      { label: "AI analyses", used: subscription.usage.aiAnalyses, limit: subscription.limits.aiAnalysesPerPeriod },
-    ],
-    [subscription]
-  );
-
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: colors.background }]}
@@ -353,12 +344,12 @@ export const SubscriptionPlansScreen = () => {
             <View key={row.label} style={styles.usageRow}>
               <Text style={[styles.usageLabel, { color: colors.textMuted }]}>{row.label}</Text>
               <Text style={[styles.usageValue, { color: colors.text }]}>
-                {row.used} / {row.limit ?? "∞"}
+                {row.limit === null ? (row.note ? `Unlimited · ${row.note}` : "Unlimited") : `${row.used} / ${row.limit}`}
               </Text>
             </View>
           ))}
           <Text style={[styles.usageCaption, { color: colors.textMuted }]}>
-            Used since {formatDate(subscription.periodStart.toISOString()) ?? "the start of this period"}
+            Monthly counts since {formatDate(subscription.periodStart.toISOString()) ?? "the start of this period"}. Routines and sessions are how many you have now.
           </Text>
         </View>
       </View>

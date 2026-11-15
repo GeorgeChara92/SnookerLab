@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { Link } from "react-router";
-import { AnimatePresence, motion, useInView } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Check, Minus, Plus } from "lucide-react";
 import { Phone } from "./Phone";
 import type { Screen } from "../site";
@@ -100,14 +100,9 @@ export type Story = {
   visual?: ReactNode;
 };
 
-function StoryStep({ story, onActive }: { story: Story; onActive: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: "-45% 0px -45% 0px" });
-  useEffect(() => {
-    if (inView) onActive();
-  }, [inView, onActive]);
+function StoryStep({ story, stepRef }: { story: Story; stepRef: (node: HTMLElement | null) => void }) {
   return (
-    <article ref={ref} className="story-step" id={story.id}>
+    <article ref={stepRef} className="story-step" id={story.id}>
       <p className="eyebrow">{story.kicker}</p>
       <h2 className="display-l">{story.title}</h2>
       <p className="story-body">{story.body}</p>
@@ -126,31 +121,87 @@ function StoryStep({ story, onActive }: { story: Story; onActive: () => void }) 
   );
 }
 
-/** Feature story: the copy scrolls while the phone beside it stays put and changes screen. */
+/**
+ * Feature story: the copy scrolls while the phone beside it stays put and changes screen.
+ *
+ * The screen shown is the step whose middle is nearest the middle of the window. Switching on a
+ * step's edge instead made scrolling up feel late: the earlier step's text was back in view for
+ * half a screen before its edge reached the trigger line.
+ */
 export function FeatureStory({ stories }: { stories: Story[] }) {
   const [active, setActive] = useState(0);
+  // +1 scrolling down the page, -1 scrolling up, so the screens slide the way the page moves.
+  const [direction, setDirection] = useState(1);
+  const steps = useRef<(HTMLElement | null)[]>([]);
   const current = stories[active];
+
+  useEffect(() => {
+    let frame = 0;
+    const pick = () => {
+      frame = 0;
+      const middle = window.innerHeight / 2;
+      let best = 0;
+      let bestDistance = Infinity;
+      steps.current.forEach((step, index) => {
+        if (!step) return;
+        const box = step.getBoundingClientRect();
+        const distance = Math.abs(box.top + box.height / 2 - middle);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = index;
+        }
+      });
+      setActive((previous) => {
+        if (previous !== best) setDirection(best > previous ? 1 : -1);
+        return best;
+      });
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(pick);
+    };
+    pick();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [stories.length]);
+
   return (
     <section className="section story">
       <div className="wrap story-grid">
         <div className="story-steps">
           {stories.map((story, index) => (
-            <StoryStep key={story.id} story={story} onActive={() => setActive(index)} />
+            <StoryStep
+              key={story.id}
+              story={story}
+              stepRef={(node) => {
+                steps.current[index] = node;
+              }}
+            />
           ))}
         </div>
         <div className="story-stage" aria-hidden="true">
           <div className="story-sticky">
             <div className="story-panel">
-              <AnimatePresence mode="popLayout" initial={false}>
+              <AnimatePresence mode="popLayout" initial={false} custom={direction}>
                 <motion.div
                   key={current.id}
                   className="story-visual"
-                  initial={{ opacity: 0, y: 24, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -16, scale: 0.98, transition: { duration: 0.2 } }}
-                  transition={{ type: "spring", duration: 0.5, bounce: 0 }}
+                  custom={direction}
+                  variants={{
+                    enter: (dir: number) => ({ opacity: 0, y: 24 * dir, scale: 0.98 }),
+                    shown: { opacity: 1, y: 0, scale: 1 },
+                    leave: (dir: number) => ({ opacity: 0, y: -16 * dir, scale: 0.98, transition: { duration: 0.18 } }),
+                  }}
+                  initial="enter"
+                  animate="shown"
+                  exit="leave"
+                  transition={{ type: "spring", duration: 0.45, bounce: 0 }}
                 >
-                  {current.visual ?? (current.screen && <Phone screen={current.screen} alt="" sizes="340px" />)}
+                  {current.visual ?? (current.screen && <Phone screen={current.screen} alt="" sizes="340px" eager />)}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -161,6 +212,20 @@ export function FeatureStory({ stories }: { stories: Story[] }) {
             </div>
           </div>
         </div>
+      </div>
+      {/* Every screen fetched up front (out of sight), so none has to load mid-scroll. */}
+      <div className="story-preload" aria-hidden="true">
+        {stories.map((story) =>
+          story.screen ? (
+            <link
+              key={story.id}
+              rel="preload"
+              as="image"
+              imageSrcSet={[360, 560, 820, 1206].map((width) => `/screens/sized/${story.screen}-${width}.webp ${width}w`).join(", ")}
+              imageSizes="340px"
+            />
+          ) : null
+        )}
       </div>
     </section>
   );

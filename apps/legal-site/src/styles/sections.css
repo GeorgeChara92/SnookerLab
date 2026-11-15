@@ -413,7 +413,8 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  align-items: start;
+  /* Every card the height of the tallest, so the row reads as one set. */
+  align-items: stretch;
 }
 
 .plan-price {
@@ -459,11 +460,18 @@
 }
 
 .plan-cta {
-  margin-top: 24px;
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.plan-tag-empty {
+  visibility: hidden;
 }
 
 .plan {
   position: relative;
+  display: flex;
+  flex-direction: column;
   padding: 28px 22px;
   border-radius: 28px;
   background: var(--card);
@@ -482,6 +490,7 @@
 
 .plan-tag {
   display: inline-flex;
+  align-self: flex-start;
   margin: 0 0 16px;
   padding: 3px 10px;
   border-radius: 999px;
@@ -514,7 +523,7 @@
 .plan ul {
   display: grid;
   gap: 12px;
-  margin: 0;
+  margin: 0 0 24px;
   padding: 24px 0 0;
   list-style: none;
   font-size: 15px;

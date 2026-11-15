@@ -1,4 +1,4 @@
-import { Cta, Faq, FeatureStory, PageHero, Strip, type Story } from "../components/Blocks";
+import { Cta, Faq, FeatureStory, PageHero, Reveal, Strip, type Story } from "../components/Blocks";
 import { TourFollow, TourLiveCard, TourMatchCentre } from "../components/ProTour";
 
 export default function ProTour() {
@@ -84,7 +84,12 @@ export default function ProTour() {
         aside={<TourLiveCard />}
       />
       <FeatureStory stories={stories} />
-      <Faq
+      <section className="section tight alt">
+        <div className="wrap narrow-grid">
+          <Reveal className="section-head">
+            <h2 className="display-l">Questions.</h2>
+          </Reveal>
+          <Faq
         items={[
           {
             q: "Which tournaments are covered?",
@@ -104,6 +109,8 @@ export default function ProTour() {
           },
         ]}
       />
+        </div>
+      </section>
       <Cta title="Follow the tour your way." body="Snookered is coming to iPhone. Want to know when it lands, or have a question about the pro tour? Get in touch." />
     </>
   );

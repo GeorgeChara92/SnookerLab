@@ -7,7 +7,7 @@ import { useAuthStore, useRoutinesStore } from "../../store";
 import { useCommunityStore } from "../../store/communityStore";
 import { useUiModeStore } from "../../store/uiModeStore";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { usePlanUsage, usageText } from "../../hooks/usePlanUsage";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { PlayerAvatar } from "../../components/profile/PlayerAvatar";
 import { SubscriberBadge } from "../../components/community/SubscriberBadge";
@@ -39,7 +39,7 @@ export const ProfileScreen = () => {
   const categories = useRoutinesStore((state) => state.categories);
   const { colors } = useAppTheme();
   const dialog = useDialog();
-  const subscription = useSubscriptionAccess();
+  const { subscription, rows: usage } = usePlanUsage();
   const { stats, unlocked, level, nextGoal } = usePlayerProgress();
   const applicationStatus = useMyCoachApplicationStore((state) => state.application?.status ?? null);
   const refreshApplication = useMyCoachApplicationStore((state) => state.refresh);
@@ -104,12 +104,6 @@ export const ProfileScreen = () => {
         setTimeout(() => void signOut(), 350);
       },
     });
-
-  const usage = [
-    { label: "Matches", used: subscription.usage.matches, limit: subscription.limits.matchesPerPeriod },
-    { label: "Tournaments", used: subscription.usage.tournaments, limit: subscription.limits.tournamentsPerPeriod },
-    { label: "AI analyses", used: subscription.usage.aiAnalyses, limit: subscription.limits.aiAnalysesPerPeriod },
-  ];
 
   const Row = ({
     icon,
@@ -416,7 +410,7 @@ export const ProfileScreen = () => {
             <View style={styles.usageLine}>
               <Text style={[styles.usageLabel, { color: colors.text }]}>{item.label}</Text>
               <Text style={[styles.usageValue, { color: colors.textMuted }]}>
-                {item.limit === null ? "Unlimited" : `${item.used} of ${item.limit} this month`}
+                {usageText(item)}
               </Text>
             </View>
             {item.limit !== null ? (

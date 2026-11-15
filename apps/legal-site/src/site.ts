@@ -99,6 +99,7 @@ export const NAV = [
   { to: "/community", label: "Community" },
   { to: "/pro-tour", label: "Pro Tour" },
   { to: "/plans", label: "Plans" },
+  { to: "/features", label: "All features" },
 ];
 
 /** In the menu and the footer, not the top bar: the pages behind Coaching, and the rest. */
@@ -106,7 +107,6 @@ export const MORE_NAV = [
   { to: "/coach", label: "Snookered Coach" },
   { to: "/find-a-coach", label: "Find a Coach" },
   { to: "/coach-diary", label: "Coach Diary" },
-  { to: "/features", label: "All features" },
   { to: "/support", label: "Support" },
 ];
 
