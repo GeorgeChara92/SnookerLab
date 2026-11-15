@@ -24,6 +24,9 @@ import { CARD_THEMES, ThemeBackground, themeById } from "./cardThemes";
 import { matchShareFor } from "../../features/community/matchShare";
 import { openSendToChat } from "../../navigation/navigationRef";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { TierPaywallModal } from "../subscription/TierPaywallModal";
+import { useNavigation } from "@react-navigation/native";
 
 /** The size of the shared picture: 1080 wide, the width Instagram and WhatsApp keep. */
 const OUTPUT = { width: 1080, height: Math.round(1080 * CARD_RATIO) };
@@ -82,7 +85,20 @@ export const ShareMatchSheet = ({
   // moment. Picking another here still wins.
   const special = highlights.some((item) => item.kind === "maximum" || item.kind === "century");
   const [pickedHere, setPickedHere] = useState<string | null>(null);
-  const theme = themeById(pickedHere ?? (special ? "century" : (prefs.themeId ?? undefined)));
+  const subscription = useSubscriptionAccess();
+  const [paywall, setPaywall] = useState(false);
+  const navigation = useNavigation<any>();
+  // The plans open behind this full-screen sheet, so it closes first.
+  const seePlans = () => {
+    setPaywall(false);
+    onClose();
+    setTimeout(() => navigation.navigate("ProfileModal", { screen: "SubscriptionPlans" }), 350);
+  };
+  // The gold card opens by itself on any plan for a century or a maximum: that's the moment. A
+  // background picked before a plan changed, and no longer on it, falls back to the first one.
+  const allowed = (id: string) => subscription.canUseShareTheme(id) || (special && id === "century");
+  const wanted = pickedHere ?? (special ? "century" : (prefs.themeId ?? undefined));
+  const theme = themeById(wanted && allowed(wanted) ? wanted : CARD_THEMES[0].id);
   const showHighlights = prefs.highlights !== false;
   const cardWidth = Math.max(
     200,
@@ -122,8 +138,15 @@ export const ShareMatchSheet = ({
         },
       ]}
     >
-      <MaterialCommunityIcons name={icon as any} size={16} color={on ? colors.boardRule : colors.boardMuted} />
-      <Text style={[styles.toggleText, { color: on ? colors.boardText : colors.boardMuted }]}>{label}</Text>
+      <MaterialCommunityIcons name={icon as any} size={15} color={on ? colors.boardRule : colors.boardMuted} />
+      <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        style={[styles.toggleText, { color: on ? colors.boardText : colors.boardMuted }]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 
@@ -188,21 +211,31 @@ export const ShareMatchSheet = ({
             >
               {CARD_THEMES.map((option) => {
                 const selected = option.id === theme.id;
+                const locked = !allowed(option.id);
                 return (
                   <Pressable
                     key={option.id}
                     onPress={() => {
+                      if (locked) {
+                        setPaywall(true);
+                        return;
+                      }
                       setPickedHere(option.id);
                       prefs.set({ themeId: option.id });
                     }}
                     accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={`${option.name} background`}
+                    accessibilityState={{ selected, disabled: locked }}
+                    accessibilityLabel={`${option.name} background${locked ? ", on a bigger plan" : ""}`}
                     hitSlop={4}
                     style={[styles.swatchRing, { borderColor: selected ? colors.boardRule : "transparent" }]}
                   >
                     <View style={styles.swatch}>
                       <ThemeBackground theme={option} width={SWATCH} height={SWATCH} id={`swatch-${option.id}`} />
+                      {locked ? (
+                        <View style={styles.lock}>
+                          <MaterialCommunityIcons name="lock" size={16} color="#FFFFFF" />
+                        </View>
+                      ) : null}
                     </View>
                   </Pressable>
                 );
@@ -222,7 +255,7 @@ export const ShareMatchSheet = ({
               ) : null}
               {hasFrames ? (
                 <Toggle
-                  label="Frame scores"
+                  label="Frames"
                   icon="view-grid-outline"
                   on={prefs.frames}
                   onPress={() => prefs.set({ frames: !prefs.frames })}
@@ -230,7 +263,7 @@ export const ShareMatchSheet = ({
               ) : null}
               {hasHighs ? (
                 <Toggle
-                  label="High breaks"
+                  label="Breaks"
                   icon="fire"
                   on={prefs.highBreaks}
                   onPress={() => prefs.set({ highBreaks: !prefs.highBreaks })}
@@ -268,6 +301,15 @@ export const ShareMatchSheet = ({
               </Text>
             </Pressable>
           </View>
+          <TierPaywallModal
+            visible={paywall}
+            onClose={() => setPaywall(false)}
+            currentTier={subscription.tier}
+            featureLabel="Result card backgrounds"
+            feature="shareThemes"
+            onUnlock={seePlans}
+            title="More backgrounds come with a bigger plan"
+          />
           {!images ? (
             <Text style={[styles.note, { color: colors.boardMuted }]}>
               Sharing the picture comes with the next app build. Until then it shares the result as text.
@@ -323,17 +365,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   swatch: { width: SWATCH, height: SWATCH, borderRadius: SWATCH / 2, overflow: "hidden" },
-  toggles: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.sm },
+  lock: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)" },
+  // Always one line: three equal pills, the labels shrinking a touch on the narrowest phones.
+  toggles: { flexDirection: "row", gap: SPACING.sm },
   toggle: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    minHeight: 38,
-    paddingHorizontal: SPACING.md,
+    justifyContent: "center",
+    gap: 5,
+    minHeight: 40,
+    paddingHorizontal: SPACING.sm,
     borderWidth: 1,
     borderRadius: RADIUS.pill,
   },
-  toggleText: { fontSize: 14, fontWeight: "700" },
+  toggleText: { flexShrink: 1, fontSize: 13, fontWeight: "700" },
   actions: { flexDirection: "row", gap: SPACING.sm },
   share: {
     flex: 1.4,

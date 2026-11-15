@@ -133,7 +133,7 @@ export const MatchResultCard = forwardRef<View, Props>(
                 <Text
                   allowFontScaling={false}
                   numberOfLines={1}
-                  style={[styles.bannerText, { fontSize: u(18), letterSpacing: u(1.5) }]}
+                  style={[styles.bannerText, { fontSize: u(18), letterSpacing: u(1.5), color: theme.onAccent }]}
                 >
                   {"\u2605 "}
                   {lead.label}
@@ -142,7 +142,7 @@ export const MatchResultCard = forwardRef<View, Props>(
                   <Text
                     allowFontScaling={false}
                     numberOfLines={1}
-                    style={[styles.bannerMore, { fontSize: u(10), letterSpacing: u(1.2) }]}
+                    style={[styles.bannerMore, { fontSize: u(10), letterSpacing: u(1.2), color: theme.onAccent }]}
                   >
                     {others
                       .slice(0, 2)

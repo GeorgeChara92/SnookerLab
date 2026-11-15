@@ -123,6 +123,7 @@ export const CoachClientsScreen = () => {
       keyExtractor={(row) => row.client.key}
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + SPACING.xl }]}
+      ItemSeparatorComponent={ClientGap}
       ListHeaderComponent={
         rows.length ? (
           <View style={styles.header}>
@@ -294,6 +295,9 @@ export const CoachClientsScreen = () => {
     />
   );
 };
+
+/** Room between client cards, so each reads as its own card. */
+const ClientGap = () => <View style={{ height: SPACING.md }} />;
 
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
