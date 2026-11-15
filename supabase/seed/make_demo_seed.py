@@ -12,6 +12,7 @@ data the first time the demo account signs in.
 import argparse
 import json
 import random
+import uuid
 from pathlib import Path
 
 random.seed(147)
@@ -131,6 +132,13 @@ TEMPLATES = [
     ("Break building night", ["routine-line-up", "routine-3-reds-colours", "routine-around-colours"],
      "10000000-0000-4000-8000-000000000002"),
 ]
+# Template ids are primary keys shared across accounts, so any account other than the screenshot
+# demo gets its own (stable per handle, so a rerun replaces rather than duplicates).
+if DEMO != "georgechara_test":
+    TEMPLATES = [
+        (name, routines, str(uuid.uuid5(uuid.NAMESPACE_URL, f"snookered-seed/{DEMO}/template/{index}")))
+        for index, (name, routines, _) in enumerate(TEMPLATES)
+    ]
 
 # Sessions: (days ago, template index, scores in the template's routine order)
 SESSIONS = [
@@ -160,6 +168,15 @@ w("  bk uuid;")
 w("begin")
 w(f"  if demo is null then raise exception 'No profile with the handle {DEMO} or {DEMO_HANDLE}. Create the account in the app and pick that handle first.'; end if;")
 w("")
+if ARGS.comp:
+    w("  -- Century and the Coach plan, free, set first so the plan limits let the season below in.")
+    w("  -- comp_tier and comp_coach are kept by every plan check.")
+    w("  update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object(")
+    w("      'comp_tier', 'century', 'comp_coach', true, 'subscription_tier', 'century', 'coach_subscription_active', true)")
+    w("    where id = demo;")
+    w("  update public.profiles set subscription_tier = 'century' where id = demo;")
+    w("")
+
 w("  -- Screenshot names. Both handles are changed too - georgechara_test showing up in its own")
 w("  -- Find a Coach search looked like a test artifact, and 'Danny Hale' next to handle")
 w("  -- @georgechara on Community looked like two different things happened to line up.")
@@ -563,14 +580,6 @@ w("  insert into public.tournament_fixtures (tournament_id, round_number, fixtur
 w("      best_of_frames, status)")
 w(f"    values (t, 3, 0, {q('TBD')}, {q('TBD')}, 5, 'pending');")
 w("")
-
-if ARGS.comp:
-    w("  -- Century and the Coach plan, free. comp_tier and comp_coach are kept by every plan check.")
-    w("  update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object(")
-    w("      'comp_tier', 'century', 'comp_coach', true, 'subscription_tier', 'century', 'coach_subscription_active', true)")
-    w("    where id = demo;")
-    w("  update public.profiles set subscription_tier = 'century' where id = demo;")
-    w("")
 
 w("end")
 w("$$;")
