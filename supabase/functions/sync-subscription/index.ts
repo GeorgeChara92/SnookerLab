@@ -184,6 +184,8 @@ const applyTier = async (admin, userId, tier, anchor, hasCoach) => {
 
   const appMetadata = { ...(existing?.user?.app_metadata ?? {}) };
   tier = withComp(tier, appMetadata.comp_tier);
+  // A complimentary Coach plan (app_metadata.comp_coach), set from the SQL editor like comp_tier.
+  if (appMetadata.comp_coach === true) hasCoach = true;
   if (onHold(appMetadata)) {
     tier = "free";
     hasCoach = false;

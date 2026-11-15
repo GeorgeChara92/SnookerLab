@@ -9,20 +9,39 @@ Dates are relative to the day the SQL runs (current_date - n), so the data alway
 Achievements, XP, leaderboards and the feed's own posts are worked out by the app from this
 data the first time the demo account signs in.
 """
+import argparse
 import json
 import random
 from pathlib import Path
 
 random.seed(147)
 
-DEMO = "georgechara_test"
-FRIENDS = ["georgechara", "__no_second_friend__"]
+# The defaults are the screenshot demo account. Another account (a tester's, say) gets the same
+# season with its own handle and name:
+#
+#   python supabase/seed/make_demo_seed.py --handle phil --name "Phil" --no-friends --comp --out phil_account.sql
+#
+# --no-friends leaves every other account alone: the friend lookups find nobody, so nothing of
+# anyone else's is renamed or cleared, and the coach diary is filled with walk-in clients only.
+# --comp gives the account Century and the Coach plan free (comp_tier / comp_coach), which survive
+# every check with RevenueCat.
+args = argparse.ArgumentParser(description="Write a season of demo data for one account.")
+args.add_argument("--handle", default="georgechara_test", help="the account's handle as it is now")
+args.add_argument("--name", default="You", help="display name to set on the account")
+args.add_argument("--show-handle", default=None, help="handle to switch to (default: keep --handle)")
+args.add_argument("--no-friends", action="store_true", help="don't link or touch any other account")
+args.add_argument("--comp", action="store_true", help="Century and the Coach plan, free")
+args.add_argument("--out", default="demo_account.sql")
+ARGS = args.parse_args()
+
+DEMO = ARGS.handle
+FRIENDS = ["__no_friend__", "__no_second_friend__"] if ARGS.no_friends else ["georgechara", "__no_second_friend__"]
 # Shown while screenshots are taken. Put back afterwards with restore_names.sql, which already
 # restores the demo account's handle to DEMO above regardless of what this is set to.
-DEMO_NAME = "You"
-DEMO_HANDLE = "alexmarsh"
+DEMO_NAME = ARGS.name
+DEMO_HANDLE = ARGS.show_handle or ("alexmarsh" if ARGS.handle == "georgechara_test" else ARGS.handle)
 FRIEND_NAME = "Danny Hale"
-FRIEND_HANDLE = "dannyhale"
+FRIEND_HANDLE = "__no_friend__" if ARGS.no_friends else "dannyhale"
 
 OPPONENTS = ["Dave Wilson", "Mark Ellis", "Ryan Cole", "Jamie Barker", "Chris Hale", "Tom Price"]
 
@@ -515,14 +534,14 @@ w("")
 # app), so the semi-final and final rows are filled in by hand exactly as recomputeKnockoutTree
 # would leave them: semis carry the real quarter-final winners, the final still says TBD.
 w("  -- A knockout tournament: quarter-finals played, semi-finals drawn, for the bracket screenshot.")
-TOURNAMENT_PARTICIPANTS = ["You", "Danny Hale", "Dave Wilson", "Mark Ellis", "Ryan Cole", "Jamie Barker", "Chris Hale", "Tom Price"]
+TOURNAMENT_PARTICIPANTS = [DEMO_NAME, "Danny Hale", "Dave Wilson", "Mark Ellis", "Ryan Cole", "Jamie Barker", "Chris Hale", "Tom Price"]
 QUARTERS = [
-    ("You", "Dave Wilson", 3, 1, [(68, 45, "a"), (30, 72, "b"), (81, 19, "a"), (55, 38, "a")]),
+    (DEMO_NAME, "Dave Wilson", 3, 1, [(68, 45, "a"), (30, 72, "b"), (81, 19, "a"), (55, 38, "a")]),
     ("Danny Hale", "Mark Ellis", 3, 2, [(70, 12, "a"), (28, 66, "b"), (64, 51, "a"), (19, 77, "b"), (73, 40, "a")]),
     ("Ryan Cole", "Jamie Barker", 3, 0, [(66, 20, "a"), (58, 44, "a"), (71, 15, "a")]),
     ("Chris Hale", "Tom Price", 3, 2, [(52, 61, "b"), (74, 22, "a"), (33, 69, "b"), (60, 48, "a"), (77, 31, "a")]),
 ]
-SEMIS = [("You", "Danny Hale"), ("Ryan Cole", "Chris Hale")]
+SEMIS = [(DEMO_NAME, "Danny Hale"), ("Ryan Cole", "Chris Hale")]
 participants_array = "array[" + ", ".join(q(name) for name in TOURNAMENT_PARTICIPANTS) + "]"
 w("  insert into public.tournaments (user_id, name, tournament_type, entry_mode, pairing_mode, best_of_frames,")
 w("      participants, status, created_at, updated_at)")
@@ -545,8 +564,16 @@ w("      best_of_frames, status)")
 w(f"    values (t, 3, 0, {q('TBD')}, {q('TBD')}, 5, 'pending');")
 w("")
 
+if ARGS.comp:
+    w("  -- Century and the Coach plan, free. comp_tier and comp_coach are kept by every plan check.")
+    w("  update auth.users set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object(")
+    w("      'comp_tier', 'century', 'comp_coach', true, 'subscription_tier', 'century', 'coach_subscription_active', true)")
+    w("    where id = demo;")
+    w("  update public.profiles set subscription_tier = 'century' where id = demo;")
+    w("")
+
 w("end")
 w("$$;")
 
-Path(__file__).with_name("demo_account.sql").write_text("\n".join(out) + "\n", encoding="utf-8")
+Path(__file__).with_name(ARGS.out).write_text("\n".join(out) + "\n", encoding="utf-8")
 print(f"wrote {len(out)} lines")

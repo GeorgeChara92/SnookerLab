@@ -209,6 +209,8 @@ Deno.serve(async (request) => {
 
     const appMetadata = { ...(existing.user.app_metadata ?? {}) };
     let tier = withComp(fromStore, appMetadata.comp_tier);
+    // A complimentary Coach plan (app_metadata.comp_coach), set from the SQL editor like comp_tier.
+    if (appMetadata.comp_coach === true) hasCoach = true;
     if (onHold(appMetadata)) {
       tier = "free";
       hasCoach = false;
