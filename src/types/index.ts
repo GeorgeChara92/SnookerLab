@@ -468,7 +468,7 @@ export type SessionsStackParamList = {
 };
 
 export type CommunityStackParamList = {
-  CommunityHome: undefined;
+  CommunityHome: { segment?: "friends" | "requests" | "find" } | undefined;
   PlayerProfile: { userId: string };
   /** A coach's profile, reached from Find a Coach - bio, qualifications and booking, not the
    * general player profile's friends/stats/routines. */

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, type NavigationProp } from "@react-navigation/native";
+import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useAuthStore } from "../../store";
 import { useCommunityStore } from "../../store/communityStore";
@@ -12,6 +12,7 @@ import { NewsRow } from "../../components/tour/NewsRow";
 import { LiveNow } from "../../components/matches/LiveNow";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { useDialog } from "../../components/ui/DialogProvider";
+import { registerForPush } from "../../features/notifications/push";
 import { nameOf, relationTo, type PublicProfile, type Relation } from "../../features/community/types";
 import type { CommunityStackParamList } from "../../types";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
@@ -27,9 +28,19 @@ export const CommunityHomeScreen = () => {
   const { colors } = useAppTheme();
   const dialog = useDialog();
   const userId = useAuthStore((state) => state.user?.id ?? null);
+  // Friend requests and invites arrive as notifications, so this is where to ask for them if the
+  // player hasn't been asked yet (the system shows its prompt once; after that this only refreshes).
+  useEffect(() => {
+    void registerForPush(userId, true);
+  }, [userId]);
   const { me, loaded, friendships, profiles, blocked, hydrate, search, sendRequest, accept, removeFriendship } =
     useCommunityStore();
   const [segment, setSegment] = useState<Segment>("friends");
+  // A friend request notification opens straight onto Requests.
+  const asked = useRoute<RouteProp<CommunityStackParamList, "CommunityHome">>().params?.segment;
+  useEffect(() => {
+    if (asked) setSegment(asked);
+  }, [asked]);
   const badges = splitBadges(useChatBadges());
   const tourNews = useTourNewsStore((state) => state.items);
   const refreshNews = useTourNewsStore((state) => state.refresh);

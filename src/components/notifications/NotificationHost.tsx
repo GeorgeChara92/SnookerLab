@@ -20,6 +20,18 @@ const conversationIdOf = (notification: Notifications.Notification): string | nu
   return typeof id === "string" && id ? id : null;
 };
 
+/** The social and coaching notifications the server sends (20261115_0002_more_push.sql). */
+type Kind = "friendRequest" | "friendAccepted" | "matchConfirm" | "matchAnswered" | "groupInvite" | "coachBooking";
+const KINDS: Kind[] = ["friendRequest", "friendAccepted", "matchConfirm", "matchAnswered", "groupInvite", "coachBooking"];
+const kindOf = (notification: Notifications.Notification): Kind | null => {
+  const kind = dataOf(notification).kind;
+  return typeof kind === "string" && (KINDS as string[]).includes(kind) ? (kind as Kind) : null;
+};
+const textOf = (notification: Notifications.Notification, key: string): string | null => {
+  const value = dataOf(notification)[key];
+  return typeof value === "string" && value ? value : null;
+};
+
 // With the app open, a followed player's match starting or finishing shows as a banner, and so do
 // a new report (for admins) and a chat message, unless that chat is the one on screen. Anything
 // else stays quiet.
@@ -29,6 +41,7 @@ Notifications.setNotificationHandler({
     const show =
       matchIdOf(notification) != null ||
       isAdminReport(notification) ||
+      kindOf(notification) != null ||
       (conversationId != null && !isConversationOpen(conversationId));
     return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
   },
@@ -55,6 +68,49 @@ const openChat = (conversationId: string) => {
   const chat = { screen: "Chat", params: { conversationId }, initial: false };
   navigationRef.navigate("Main", inCoachView() ? { screen: "CoachChats", params: chat } : { screen: "Community", params: chat });
   return true;
+};
+
+/** Somewhere in the player's tabs: Community, Matches or Coaching. */
+const openPlayerTab = (tab: "Community" | "Matches" | "Coaching", screen?: string, params?: object) => {
+  if (!mainReady()) return false;
+  if (inCoachView()) useUiModeStore.getState().setViewMode("player");
+  navigationRef.navigate("Main", screen ? { screen: tab, params: { screen, params, initial: false } } : { screen: tab });
+  return true;
+};
+
+/** A coach's own booking: the day's sessions in coach view, switching to it if need be. */
+const openCoachToday = () => {
+  if (!mainReady()) return false;
+  if (!inCoachView()) {
+    useUiModeStore.getState().setViewMode("coach");
+    return false; // coach view mounts on the next frame; the retry below opens the tab
+  }
+  navigationRef.navigate("Main", { screen: "CoachToday" });
+  return true;
+};
+
+/** Where each kind of notification leads when tapped. */
+const openKind = (notification: Notifications.Notification): (() => boolean) | null => {
+  switch (kindOf(notification)) {
+    case "friendRequest":
+      return () => openPlayerTab("Community", "CommunityHome", { segment: "requests" });
+    case "friendAccepted": {
+      const userId = textOf(notification, "userId");
+      return () => (userId ? openPlayerTab("Community", "PlayerProfile", { userId }) : openPlayerTab("Community"));
+    }
+    case "matchConfirm":
+      return () => openPlayerTab("Matches", "MatchesList");
+    case "matchAnswered": {
+      const matchId = textOf(notification, "matchId");
+      return () => (matchId ? openPlayerTab("Matches", "MatchDetail", { matchId }) : openPlayerTab("Matches"));
+    }
+    case "groupInvite":
+      return () => openPlayerTab("Community", "Groups");
+    case "coachBooking":
+      return textOf(notification, "side") === "coach" ? openCoachToday : () => openPlayerTab("Coaching");
+    default:
+      return null;
+  }
 };
 
 /** Reports live under Community in the player's view; it is where an admin reviews them. */
@@ -85,7 +141,7 @@ export const NotificationHost = () => {
           ? () => openChat(conversationId)
           : isAdminReport(last.notification)
             ? openReports
-            : null;
+            : openKind(last.notification);
     if (!go) return;
     // Cleared only once it has opened: clearing changes `last`, which would cancel the retry.
     const open = () => {
@@ -93,10 +149,16 @@ export const NotificationHost = () => {
       void Notifications.clearLastNotificationResponseAsync?.();
       return true;
     };
-    // The navigator may still be mounting on a cold start; try again shortly.
+    // The navigator may still be mounting on a cold start (or switching view); try again shortly.
     if (!open()) {
-      const timer = setTimeout(open, 800);
-      return () => clearTimeout(timer);
+      const first = setTimeout(() => {
+        if (!open()) second = setTimeout(open, 900);
+      }, 800);
+      let second: ReturnType<typeof setTimeout> | undefined;
+      return () => {
+        clearTimeout(first);
+        if (second) clearTimeout(second);
+      };
     }
   }, [last]);
   return null;

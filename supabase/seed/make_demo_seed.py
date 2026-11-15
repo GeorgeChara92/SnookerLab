@@ -33,6 +33,9 @@ args.add_argument("--show-handle", default=None, help="handle to switch to (defa
 args.add_argument("--no-friends", action="store_true", help="don't link or touch any other account")
 args.add_argument("--comp", action="store_true", help="Century and the Coach plan, free")
 args.add_argument("--link", default=None, help="two existing handles, comma-separated, to link as friends without changing them")
+args.add_argument("--club", default=None, help="the club the season is played at, in place of The Cue Club")
+args.add_argument("--live-demo", default=None,
+                  help="two existing handles, comma-separated: the first is shown mid-frame against the second, live")
 args.add_argument("--out", default="demo_account.sql")
 ARGS = args.parse_args()
 
@@ -46,6 +49,7 @@ FRIEND_NAME = "Danny Hale"
 FRIEND_HANDLE = "__no_friend__" if ARGS.no_friends else "dannyhale"
 # --link: real accounts (the demo ones, say) become friends, group members, a chat and clients,
 # but are never renamed, never made coaches and never have any of their own data cleared.
+CLUB = ARGS.club or "The Cue Club"
 LINK_ONLY = bool(ARGS.link)
 if LINK_ONLY:
     FRIENDS = [handle.strip() for handle in ARGS.link.split(",")][:2] + ["__no_second_friend__"]
@@ -202,14 +206,22 @@ w("  delete from public.tournament_fixtures where tournament_id in (select id fr
 w("  delete from public.tournaments where user_id = demo;")
 w("  delete from public.activity where user_id = demo" + ("" if LINK_ONLY else " or (dedupe_key like 'seed:%' and user_id in (pal, pal2))") + ";")
 w("  delete from public.groups where owner = demo;")
-w("  delete from public.conversations where kind = 'direct' and (pair_low = demo or pair_high = demo);")
+# Linked accounts: only the chats and friendships this script makes are cleared, so anyone the
+# person has added themselves (George, say) stays a friend and keeps their messages.
+if LINK_ONLY:
+    w("  delete from public.conversations where kind = 'direct' and ((pair_low = demo and pair_high in (pal, pal2)) or (pair_high = demo and pair_low in (pal, pal2)));")
+else:
+    w("  delete from public.conversations where kind = 'direct' and (pair_low = demo or pair_high = demo);")
 w("  delete from public.matches where user_id = demo or (opponent_id = demo and user_id in (pal, pal2));")
 w("  delete from public.routine_score_entries where user_id = demo;")
 w("  delete from public.session_logs where user_id = demo;")
 w("  delete from public.session_templates where user_id = demo;")
 w("  delete from public.practice_plans where user_id = demo;")
 w("  delete from public.routine_bests where user_id = demo;")
-w("  delete from public.friendships where requester = demo or addressee = demo;")
+if LINK_ONLY:
+    w("  delete from public.friendships where (requester = demo and addressee in (pal, pal2)) or (addressee = demo and requester in (pal, pal2));")
+else:
+    w("  delete from public.friendships where requester = demo or addressee = demo;")
 w("")
 
 # friends
@@ -603,8 +615,72 @@ w("      best_of_frames, status)")
 w(f"    values (t, 3, 0, {q('TBD')}, {q('TBD')}, 5, 'pending');")
 w("")
 
+if ARGS.live_demo:
+    player, opponent = [handle.strip() for handle in ARGS.live_demo.split(",")][:2]
+    # Marked notes='seed:live-demo' so a rerun replaces it, and the keep-alive job (written after
+    # this block) can find it. A live score counts as stale after 30 minutes without an update
+    # (STALE_MS in the app), so without that job it would drop out of Live now before anyone films.
+    frames = [(71, 12, "user"), (24, 66, "opponent"), (58, 41, "user")]
+    frames_json = json.dumps([{"n": n, "u": u, "o": o, "w": who} for n, (u, o, who) in enumerate(frames, start=1)],
+                             separators=(",", ":"))
+    w("  -- Two friends of this account, live mid-frame, for the 'follow a friend live' part of a video.")
+    w("  declare")
+    w(f"    a uuid := (select id from public.profiles where handle = {q(player)});")
+    w(f"    b uuid := (select id from public.profiles where handle = {q(opponent)});")
+    w("    lm uuid;")
+    w("  begin")
+    w("    if a is not null and b is not null then")
+    w("      delete from public.matches where notes = 'seed:live-demo' and user_id = a;")
+    w("      -- The two are friends, so the match is linked and shows both their names and faces.")
+    w("      if not public.are_friends(a, b) then")
+    w("        insert into public.friendships (requester, addressee, status, created_at, responded_at)")
+    w("          values (a, b, 'accepted', now() - interval '25 days', now() - interval '25 days');")
+    w("      end if;")
+    w("      insert into public.matches (user_id, opponent_name, opponent_id, date, location, match_type, format,")
+    w("          target_frames, frames_played, recording_mode, user_score, opponent_score, result, notes, created_at, updated_at)")
+    w(f"        values (a, (select coalesce(display_name, handle) from public.profiles where id = b), b, current_date, {q(CLUB)},")
+    w(f"          'league', 'best_of', 7, 3, 'live', 2, 1, 'win', 'seed:live-demo', now() - interval '52 minutes', now() - interval '1 minute')")
+    w("        returning id into lm;")
+    for n, (u, o, who) in enumerate(frames, start=1):
+        w("      insert into public.match_frames (user_id, match_id, frame_number, user_score, opponent_score, winner,")
+        w("          highest_break_user, highest_break_opponent, breaks, events, created_at, updated_at)")
+        w(f"        values (a, lm, {n}, {u}, {o}, {q(who)}, {u if who == 'user' else 38}, {o if who == 'opponent' else 12}, '[]'::jsonb, '[]'::jsonb,")
+        w(f"          now() - interval '{52 - n * 13} minutes', now() - interval '{52 - n * 13} minutes');")
+    w("      insert into public.live_scores (match_id, user_id, opponent_id, opponent_name, best_of, frames_user, frames_opponent,")
+    w("          frame_number, points_user, points_opponent, current_break, at_table, remaining, high_break_user, high_break_opponent,")
+    w("          frames, status, started_at, updated_at)")
+    w("        values (lm, a, b, (select coalesce(display_name, handle) from public.profiles where id = b), 7, 2, 1,")
+    w(f"          4, 47, 23, 18, 'user', 59, 71, 66, {q(frames_json)}::jsonb, 'live', now() - interval '52 minutes', now() - interval '20 seconds');")
+    w("    end if;")
+    w("  end;")
+    w("")
+
 w("end")
 w("$$;")
+
+if ARGS.live_demo:
+    w("")
+    w("-- Keeps the live match above fresh (it would count as stale after 30 minutes otherwise), every")
+    w("-- five minutes until the end of the year, then does nothing. Remove it sooner with:")
+    w("--   select cron.unschedule('demo-live-keepalive');")
+    w("select cron.unschedule(jobid) from cron.job where jobname = 'demo-live-keepalive';")
+    w("select cron.schedule('demo-live-keepalive', '*/5 * * * *', $job$")
+    w("  update public.live_scores set updated_at = now()")
+    w("  where now() < timestamptz '2027-01-01'")
+    w("    and match_id in (select id from public.matches where notes = 'seed:live-demo');")
+    w("$job$);")
+
+if ARGS.club:
+    # Phil's season is played at his own club rather than The Cue Club.
+    swaps = [
+        ("at The Cue Club", f"at the {ARGS.club}"),
+        ("The Cue Club, Manchester", ARGS.club),
+        ("The Cue Club Knockout", f"{ARGS.club} Knockout"),
+        ("Cue Club Socials", "Academy Socials" if "Academy" in ARGS.club else f"{ARGS.club} Socials"),
+        ("The Cue Club", ARGS.club),
+    ]
+    for old, new in swaps:
+        out = [line.replace(old, new) for line in out]
 
 Path(__file__).with_name(ARGS.out).write_text("\n".join(out) + "\n", encoding="utf-8")
 print(f"wrote {len(out)} lines")

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +17,16 @@ import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { TierPaywallModal } from "../../components/subscription/TierPaywallModal";
 import { claimRecordSnooker, recordSnookerUsesSince } from "../../features/scanSnooker/recordAllowance";
+import { useDialog } from "../../components/ui/DialogProvider";
+import { safeStorage } from "../../utils/storage";
+
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookeredapp.com";
+/** Set once the "still being tuned" note has been shown on this phone. */
+const TUNING_NOTE_KEY = "record-snooker-tuning-note";
+
+/** Feedback on Record a Snooker, by email, with the subject filled in. */
+const sendRecordFeedback = () =>
+  void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Record a Snooker feedback")}`).catch(() => undefined);
 
 /**
  * Record a Snooker: walk once round the table and the balls are found for you, then check what was
@@ -31,6 +41,31 @@ export const RecordSnookerScreen = () => {
   const navigation = useNavigation();
   const { matchId, frameNumber } = route.params;
   const support = useMemo(() => ({ camera: arSupport().available, lap: lapAvailable() }), []);
+  const dialog = useDialog();
+  // Record a Snooker is still being tuned (and will be through launch): say so the first time, so
+  // nobody expects every ball to the millimetre, and ask for feedback.
+  useEffect(() => {
+    if (!support.lap) return;
+    let live = true;
+    void safeStorage.getItem(TUNING_NOTE_KEY).then((seen) => {
+      if (!live || seen) return;
+      void safeStorage.setItem(TUNING_NOTE_KEY, "1");
+      dialog.confirm({
+        title: "Still being tuned",
+        message:
+          "Record a Snooker is new, and we're improving it all the time. A ball can land a few centimetres out, so check the diagram before you save. If something looks wrong, tell us: it helps us make it better.",
+        icon: "tune-variant",
+        confirmLabel: "Got it",
+        cancelLabel: "Send feedback",
+        onCancel: sendRecordFeedback,
+      });
+    });
+    return () => {
+      live = false;
+    };
+    // Once, on the way in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const saved = useRecordSnookerStore(selectLapPosition(matchId, frameNumber));
   const subscription = useSubscriptionAccess();
   const monthly = subscription.limits.recordSnookerPerPeriod;
@@ -236,6 +271,18 @@ const LapReview = ({
   return (
     <View style={[styles.screen, { backgroundColor: colors.background, paddingBottom: insets.bottom + SPACING.sm }]}>
       <Text style={[styles.hint, { color: notice ? colors.danger : colors.textMuted }]}>{notice ?? hint}</Text>
+      {lapReady ? (
+        <Text style={[styles.tuning, { color: colors.textSubtle }]}>
+          Still being tuned: positions can be a few cm out.{" "}
+          <Text
+            onPress={sendRecordFeedback}
+            accessibilityRole="link"
+            style={{ color: colors.primary, fontWeight: "700" }}
+          >
+            Send feedback
+          </Text>
+        </Text>
+      ) : null}
 
       <View style={styles.table}>
         <TableDiagram
@@ -364,6 +411,7 @@ const LapReview = ({
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm },
   hint: { fontSize: 13, lineHeight: 18, marginBottom: SPACING.xs },
+  tuning: { fontSize: 12, lineHeight: 16, marginBottom: SPACING.xs },
   table: { flex: 1, marginVertical: SPACING.xs },
 
   detail: {

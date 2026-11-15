@@ -8,6 +8,7 @@ import { RELEASE_NOTES, unseenNotes } from "../../constants/releaseNotes";
 import { navigationRef } from "../../navigation/navigationRef";
 import { WelcomeTour, type TourChoice } from "./WelcomeTour";
 import { WhatsNewSheet } from "./WhatsNewSheet";
+import { registerForPush } from "../../features/notifications/push";
 
 export const APP_VERSION = Constants.expoConfig?.version ?? "1.0.0";
 
@@ -73,6 +74,7 @@ export const OnboardingHost = () => {
     const audience = open.audience;
     finishTour(user?.id ?? null, audience, APP_VERSION);
     rememberOnAccount(audience);
+    void registerForPush(user?.id ?? null, true);
     if (!choice || !navigationRef.isReady()) return;
     // Once the tour has gone, take them where they chose.
     setTimeout(() => {
