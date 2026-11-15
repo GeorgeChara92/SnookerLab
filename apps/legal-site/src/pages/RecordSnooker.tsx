@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Crosshair, Footprints, LayoutGrid, Undo2 } from "lucide-react";
+import { Crosshair, Footprints, LayoutGrid, Scale, Trophy, Undo2, Users } from "lucide-react";
 import { ScanDemo } from "../components/Showcase";
 import { Phone } from "../components/Phone";
 import { Arrow, Cta, Faq, PageHero, Reveal, Strip } from "../components/Blocks";
@@ -28,12 +28,30 @@ const STEPS = [
   },
 ];
 
+const WHY = [
+  {
+    icon: Trophy,
+    title: "A miss decides frames",
+    body: "Put a ball back an inch out and the snooker your opponent laid is gone, or a better one appears. Over a frame that's points; over a match it can be the result.",
+  },
+  {
+    icon: Users,
+    title: "Most clubs have no referee",
+    body: "In league nights and club matches it's two players and a memory. Record a Snooker is the referee's notebook in your pocket.",
+  },
+  {
+    icon: Scale,
+    title: "No more arguments",
+    body: "The table shows where every ball was, so both players can see it's right. Nobody has to give way, and nobody has to guess.",
+  },
+];
+
 export default function RecordSnooker() {
   return (
     <>
       <PageHero
-        eyebrow="Record a Snooker"
-        title="Put the balls back properly."
+        eyebrow="Record a Snooker · new to club snooker"
+        title="Put the balls back. Exactly."
         lead="With no referee, putting the balls back after a foul and a miss is guesswork, and it costs frames. Walk round the table before you play the snooker and Snookered remembers where everything was."
         strip={
           <Strip label="Record a snooker: five balls found" tag="Record">
@@ -50,6 +68,29 @@ export default function RecordSnooker() {
           />
         }
       />
+
+      <section className="section tight">
+        <div className="wrap">
+          <Reveal className="section-head split">
+            <h2 className="display-l">Why it matters.</h2>
+            <p className="lead">
+              The foul and a miss rule only works if the balls go back where they were. With a referee, they do. Without one,
+              it's guesswork.
+            </p>
+          </Reveal>
+          <div className="extras">
+            {WHY.map((item, index) => (
+              <Reveal key={item.title} delay={index * 0.05} className="extra">
+                <span className="extra-icon">
+                  <item.icon aria-hidden="true" strokeWidth={1.75} />
+                </span>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="section tight alt">
         <div className="wrap">

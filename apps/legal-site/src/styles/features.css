@@ -1277,3 +1277,49 @@
 .plan.featured .plan-who {
   color: var(--chalk-3);
 }
+
+/* ------------------------------------------------------------------ coaching: two ways, side by side */
+.coaching-ways {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.coaching-way {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 24px;
+  align-items: center;
+  padding: 28px;
+  border-radius: 24px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+.coaching-way-copy {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.coaching-way-copy p:not(.eyebrow) {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+@media (max-width: 1000px) {
+  .coaching-ways {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .coaching-way {
+    grid-template-columns: 1fr;
+    padding: 22px;
+  }
+  .coaching-way .phone {
+    max-width: 220px;
+    justify-self: center;
+  }
+}

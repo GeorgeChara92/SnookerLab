@@ -1,11 +1,11 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { motion, useScroll, useTransform, useReducedMotion } from "motion/react";
-import { Medal, ScanLine, Trophy, Users, WifiOff, Bell } from "lucide-react";
+import { WifiOff } from "lucide-react";
 import { Phone } from "../components/Phone";
 import { LiveBoard } from "../components/Scoreboard";
 import { Scorer } from "../components/Scorer";
-import { AppTour, CoreLoop, LaunchList } from "../components/Tour";
+import { AppTour, LaunchList } from "../components/Tour";
 import { AppleLogo, Arrow, Reveal } from "../components/Blocks";
 import { PLANS, type Screen } from "../site";
 
@@ -28,8 +28,8 @@ function Hero() {
           </Reveal>
           <Reveal delay={0.08}>
             <p className="lead">
-              Score your matches. Practise with a plan. Track how you're improving. When you want more, get feedback from
-              your own game, book a coach, or take on your mates.
+              Score your matches, and put the balls back properly after a miss. Practise with a plan and track how you're
+              improving. When you want more, get feedback on your own game, book a coach, or take on your mates.
             </p>
           </Reveal>
           <Reveal delay={0.16} className="hero-actions">
@@ -163,63 +163,20 @@ function Scoring() {
   );
 }
 
-const SECONDARY: { icon: typeof Trophy; title: string; body: string; to?: string; soon?: boolean }[] = [
-  { icon: Trophy, title: "Tournaments", body: "Knockouts and leagues for your club, with the draw, fixtures and results kept for you." },
-  { icon: ScanLine, title: "Record a Snooker", body: "Walk round the table before a snooker, then put every ball back after a miss.", to: "/record-snooker" },
-  { icon: Users, title: "Groups and boards", body: "A group for your league, with chat, a feed of results and pinned routines.", to: "/community" },
-  { icon: Bell, title: "Follow the pros", body: "Follow your favourite players and get a notification when their match starts and finishes.", to: "/pro-tour" },
-  { icon: Medal, title: "Achievements", body: "Level up for the things that matter: centuries, streaks, wins and practice." },
-  { icon: WifiOff, title: "Offline scoring", body: "Frames save on the phone and sync later, so a dead signal never stops a match." },
-];
-
-function Secondary() {
+function More() {
   return (
     <section className="section tight alt">
       <div className="wrap">
         <Reveal className="section-head split">
           <div>
-            <p className="eyebrow">More for your game</p>
-            <h2 className="display-l">And there’s more.</h2>
+            <p className="eyebrow">Plans</p>
+            <h2 className="display-l">Free to start.</h2>
           </div>
-          <p className="lead">The parts you meet once you are in: club nights, your league, and the bits that make a season.</p>
+          <p className="lead">
+            Every routine, guide and video, the Pro Tour and the community are free for everyone. Pay only if you want more
+            matches, coach reviews and recorded snookers.
+          </p>
         </Reveal>
-        <div className="extras">
-          {SECONDARY.map((item, index) => {
-            const inner = (
-              <>
-                <span className="extra-icon">
-                  <item.icon aria-hidden="true" strokeWidth={1.75} />
-                </span>
-                <h3>
-                  {item.title}
-                  {item.soon && <span className="soon">In development</span>}
-                </h3>
-                <p>{item.body}</p>
-                {item.to && (
-                  <span className="bento-go">
-                    Read more <Arrow />
-                  </span>
-                )}
-              </>
-            );
-            return (
-              <Reveal key={item.title} delay={(index % 3) * 0.05} className="extra">
-                {item.to ? (
-                  <Link to={item.to} className="extra-link">
-                    {inner}
-                  </Link>
-                ) : (
-                  inner
-                )}
-              </Reveal>
-            );
-          })}
-        </div>
-        <p className="all-features">
-          <Link className="btn btn-ghost" to="/features">
-            See every feature <Arrow />
-          </Link>
-        </p>
         <div className="plan-strip">
           {PLANS.map((plan) => (
             <Link key={plan.name} to="/plans" className={plan.tag ? "featured" : ""}>
@@ -228,6 +185,11 @@ function Secondary() {
             </Link>
           ))}
         </div>
+        <p className="all-features">
+          <Link className="btn btn-ghost" to="/features">
+            See every feature <Arrow />
+          </Link>
+        </p>
       </div>
     </section>
   );
@@ -311,8 +273,48 @@ export default function Home() {
     <>
       <Hero />
       <Film />
-      <CoreLoop />
       <AppTour />
+      <Scoring />
+      <Feature
+        id="record"
+        tone="alt"
+        eyebrow="Record a Snooker · new to club snooker"
+        title="Put the balls back. Exactly."
+        body="With no referee, replacing the balls after a foul and a miss is guesswork, and it decides frames. Walk round the table before you play the snooker and the camera finds every ball. After the miss, a ring on the cloth shows where each one goes back, and tells you when it's right."
+        points={[
+          "One tap from live scoring",
+          "Each ball gets a ring as it's found",
+          "Tells you when every ball is back in place",
+        ]}
+        visual={
+          <Phone
+            screen="record-snooker"
+            alt="Record a Snooker in the camera, with a ring on each ball as it's found and the count of balls found"
+            sizes="(max-width: 900px) 74vw, 300px"
+          />
+        }
+        link={{ to: "/record-snooker", label: "How Record a Snooker works" }}
+      />
+      <Feature
+        id="practice"
+        flip
+        eyebrow="Practice"
+        title="Practice with a point to it."
+        body="Build a routine around the part of your game that needs it, or run one from the library. Each has a score to beat, your progress over time, and a leaderboard."
+        points={[
+          "Place the balls yourself and set the target",
+          "A personal best and progress on every routine",
+          "A weekly plan and a streak, so you know what tonight is for",
+        ]}
+        visual={
+          <Phone
+            screen="routine-builder"
+            alt="The routine builder: balls placed on a table diagram, with the ball palette below"
+            sizes="(max-width: 900px) 74vw, 300px"
+          />
+        }
+        link={{ to: "/practice", label: "Explore practice" }}
+      />
       <Feature
         id="coach"
         tone="dark"
@@ -339,49 +341,8 @@ export default function Home() {
         }
       />
       <Feature
-        id="practice"
-        tone="alt"
-        flip
-        eyebrow="Practice"
-        title="Practice with a point to it."
-        body="Build a routine around the part of your game that needs it, or run one from the library. Each has a score to beat, your progress over time, and a leaderboard."
-        points={[
-          "Place the balls yourself and set the target",
-          "A personal best and progress on every routine",
-          "A weekly plan and a streak, so you know what tonight is for",
-        ]}
-        visual={
-          <Phone
-            screen="routine-builder"
-            alt="The routine builder: balls placed on a table diagram, with the ball palette below"
-            sizes="(max-width: 900px) 74vw, 300px"
-          />
-        }
-        link={{ to: "/practice", label: "Explore practice" }}
-      />
-      <Scoring />
-      <Feature
-        id="record"
-        tone="alt"
-        eyebrow="Record a Snooker"
-        title="Put the balls back properly."
-        body="With no referee, replacing the balls after a foul and a miss is guesswork. Walk round the table before you play the snooker and the camera finds every ball. After the miss, a ring on the cloth shows where each one goes back."
-        points={[
-          "One tap from live scoring",
-          "Each ball gets a ring as it's found",
-          "Tells you when every ball is back in place",
-        ]}
-        visual={
-          <Phone
-            screen="record-snooker"
-            alt="Record a Snooker in the camera, with a ring on each ball as it's found and the count of balls found"
-            sizes="(max-width: 900px) 74vw, 300px"
-          />
-        }
-        link={{ to: "/record-snooker", label: "How Record a Snooker works" }}
-      />
-      <Feature
         id="stats"
+        tone="alt"
         flip
         eyebrow="Stats"
         title="The numbers that actually matter."
@@ -393,7 +354,6 @@ export default function Home() {
       />
       <Feature
         id="community"
-        tone="alt"
         eyebrow="Community & Competition"
         title="Play the people you know."
         body="Add the friend you played and the match counts for both of you once they confirm it. Follow their frames live, enter a knockout, or run a group for your league with its own chat, feed and leaderboards."
@@ -413,6 +373,7 @@ export default function Home() {
       <Feature
         id="pro-tour"
         tone="dark"
+        flip
         eyebrow="Pro Tour"
         title="The pro tour, live in your pocket."
         body="Live scores, fixtures and results from every professional tournament, in your own time zone. The full draw and bracket, money rankings, a profile for every player, and a notification when the players you follow start and finish."
@@ -431,8 +392,8 @@ export default function Home() {
       />
       <Feature
         id="for-coaches"
-        flip
-        eyebrow="For coaches"
+        tone="alt"
+        eyebrow="Coaching"
         title="A better way to coach."
         body="Run your coaching like a proper diary, not just a booking inbox: manage every client, keep private notes on each session, and post drills to everyone at once."
         points={[
@@ -447,10 +408,10 @@ export default function Home() {
             sizes="(max-width: 900px) 74vw, 300px"
           />
         }
-        link={{ to: "/find-a-coach", label: "See the coaching tools" }}
+        link={{ to: "/coaching", label: "Find a coach, or coach yourself" }}
       />
       <Gallery />
-      <Secondary />
+      <More />
       <LaunchList />
     </>
   );

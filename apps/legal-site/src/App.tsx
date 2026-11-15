@@ -6,6 +6,7 @@ import { TableSprite } from "./components/Table";
 import Home from "./pages/Home";
 import { Community, Practice, Scoring } from "./pages/Features";
 import Coach from "./pages/Coach";
+import Coaching from "./pages/Coaching";
 import FindACoach from "./pages/FindACoach";
 import CoachDiary from "./pages/CoachDiary";
 import RecordSnooker from "./pages/RecordSnooker";
@@ -92,6 +93,7 @@ export function App() {
           <Route path="/" element={<Home />} />
           <Route path="/scoring" element={<Scoring />} />
           <Route path="/practice" element={<Practice />} />
+          <Route path="/coaching" element={<Coaching />} />
           <Route path="/coach" element={<Coach />} />
           <Route path="/find-a-coach" element={<FindACoach />} />
           <Route path="/coach-diary" element={<CoachDiary />} />

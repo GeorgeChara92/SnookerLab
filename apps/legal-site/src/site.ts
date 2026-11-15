@@ -17,10 +17,22 @@ export const ROUTES: RouteMeta[] = [
       "Live snooker scoring on your phone: points remaining, snookers required, fouls and breaks worked out as you play, with a match overview and share card at the end.",
   },
   {
+    path: "/record-snooker",
+    title: "Record a Snooker: put the balls back exactly after a miss · Snookered",
+    description:
+      "Walk round the table before you play a snooker and the camera finds every ball. After a foul and a miss, a ring on the cloth shows where each one goes back.",
+  },
+  {
     path: "/practice",
     title: "Snooker practice routines, routine builder and AI coach · Snookered",
     description:
       "Snooker practice that counts: build your own routines, run the line-up and more with a personal best on each, keep a weekly plan and streak, and get AI coaching from a clip.",
+  },
+  {
+    path: "/coaching",
+    title: "Snooker coaching: AI feedback or a real coach · Snookered",
+    description:
+      "Two ways to get coached in Snookered: feedback on your technique from a clip of your own game, or book a verified coach near you. Coaches can run their whole diary in the app.",
   },
   {
     path: "/coach",
@@ -39,12 +51,6 @@ export const ROUTES: RouteMeta[] = [
     title: "Coach Diary: booking calendar, clients and session notes · Snookered",
     description:
       "Run your coaching business from Snookered: a booking calendar, a client list including walk-ins with no account, broadcast groups for drills, and private session notes. £4.99 a month.",
-  },
-  {
-    path: "/record-snooker",
-    title: "Record a Snooker: put the balls back after a miss · Snookered",
-    description:
-      "Walk round the table before you play a snooker and the camera finds every ball. After a foul and a miss, a ring on the cloth shows where each one goes back.",
   },
   {
     path: "/features",
@@ -86,19 +92,20 @@ export const ROUTES: RouteMeta[] = [
 export const metaFor = (path: string) => ROUTES.find((route) => route.path === path) ?? ROUTES[ROUTES.length - 1];
 
 export const NAV = [
-  { to: "/practice", label: "Practice" },
-  { to: "/coach", label: "Snookered Coach" },
-  { to: "/find-a-coach", label: "Find a Coach" },
   { to: "/scoring", label: "Scoring" },
+  { to: "/record-snooker", label: "Record a Snooker" },
+  { to: "/practice", label: "Practice" },
+  { to: "/coaching", label: "Coaching" },
   { to: "/community", label: "Community" },
   { to: "/pro-tour", label: "Pro Tour" },
   { to: "/plans", label: "Plans" },
 ];
 
-/** In the menu and the footer, not the top bar: it is a feature, not a section of the site. */
+/** In the menu and the footer, not the top bar: the pages behind Coaching, and the rest. */
 export const MORE_NAV = [
+  { to: "/coach", label: "Snookered Coach" },
+  { to: "/find-a-coach", label: "Find a Coach" },
   { to: "/coach-diary", label: "Coach Diary" },
-  { to: "/record-snooker", label: "Record a Snooker" },
   { to: "/features", label: "All features" },
   { to: "/support", label: "Support" },
 ];

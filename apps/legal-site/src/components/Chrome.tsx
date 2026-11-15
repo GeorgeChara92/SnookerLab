@@ -104,16 +104,20 @@ export function Footer() {
         <nav className="footer-cols" aria-label="Footer">
           <div>
             <h2>The app</h2>
-            <Link to="/practice">Practice</Link>
-            <Link to="/coach">Snookered Coach</Link>
-            <Link to="/find-a-coach">Find a Coach</Link>
-            <Link to="/coach-diary">Coach Diary</Link>
             <Link to="/scoring">Scoring</Link>
-            <Link to="/community">Community</Link>
             <Link to="/record-snooker">Record a Snooker</Link>
+            <Link to="/practice">Practice</Link>
+            <Link to="/community">Community</Link>
             <Link to="/pro-tour">Pro Tour</Link>
             <Link to="/plans">Plans</Link>
             <Link to="/features">All features</Link>
+          </div>
+          <div>
+            <h2>Coaching</h2>
+            <Link to="/coaching">Coaching</Link>
+            <Link to="/coach">Snookered Coach</Link>
+            <Link to="/find-a-coach">Find a Coach</Link>
+            <Link to="/coach-diary">Coach Diary</Link>
           </div>
           <div>
             <h2>Help</h2>

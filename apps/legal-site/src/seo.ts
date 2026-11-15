@@ -126,6 +126,7 @@ export function structuredData(path: string) {
     const names: Record<string, string> = {
       "/scoring": "Scoring",
       "/practice": "Practice",
+      "/coaching": "Coaching",
       "/coach": "Snookered Coach",
       "/find-a-coach": "Find a Coach",
       "/record-snooker": "Record a Snooker",
