@@ -17,7 +17,7 @@ Before a screenshot goes in:
 | File                  | Screen                                          |
 | --------------------- | ----------------------------------------------- |
 | dashboard.png         | Home                                            |
-| live-scoring.png      | Live scoring, mid-frame (retake: old buttons)   |
+| live-scoring.png      | Live scoring, mid-frame                         |
 | match-overview.png    | Match details                                   |
 | share-card.png        | The share card, gold Century background         |
 | record-snooker.png    | Record a Snooker in the camera                  |
