@@ -184,6 +184,43 @@ describe("walking a lap", () => {
     expect(standStill(pair, 8, LAP[1]).balls()).toHaveLength(2);
   });
 
+  it("ignores a 'ball' in the far pocket seen only from the other end of the table", () => {
+    // The far corner pocket's leather, read as a red from behind the baulk cushion, over 3.5m away.
+    const jaws = [{ at: { x: 60, y: 60 }, colour: "red" as const }];
+    expect(standStill(jaws, 14, { x: 900, y: 3850 }).balls()).toHaveLength(0);
+  });
+
+  it("still finds a ball on the cushion once it's been looked at from nearer", () => {
+    const onCushion = [{ at: { x: 40, y: 1500 }, colour: "red" as const }];
+    const tracker = standStill(onCushion, 14, { x: 900, y: 3850 });
+    expect(tracker.balls()).toHaveLength(0);
+    standStill(onCushion, 8, { x: -300, y: 1300 }, tracker);
+    expect(tracker.balls()).toHaveLength(1);
+  });
+
+  it("gives the cue ball to the ball seen as white most often", () => {
+    const tracker = new LapTracker();
+    const at = LAP[0];
+    const real = { x: 400, y: 900 };
+    const phantom = { x: 1300, y: 1700 };
+    // The real cue ball: white 24 times, red 16 (60% white). The phantom: white 6 of 9 (67%).
+    for (let look = 0; look < 40; look += 1) {
+      const sightings = [sighting(real, at, look % 5 < 3 ? "cue" : "red")];
+      if (look < 9) sightings.push(sighting(phantom, at, look % 3 < 2 ? "cue" : "red"));
+      tracker.add({ camera: standing(at), cloth: CLOTH, ms: 10, sightings }, FRAME);
+    }
+    const cue = tracker.balls().find((ball) => ball.colour === "cue");
+    expect(cue && Math.hypot(cue.x - real.x, cue.y - real.y)).toBeLessThan(10);
+  });
+
+  it("shows one ring for a brown that read as red from one place", () => {
+    const tracker = new LapTracker();
+    const brown = { x: 889, y: 2832 };
+    standStill([{ at: brown, colour: "brown" }], 10, LAP[2], tracker);
+    standStill([{ at: { x: brown.x + 50, y: brown.y }, colour: "red" }], 8, LAP[5], tracker);
+    expect(tracker.balls()).toHaveLength(1);
+  });
+
   it("won't call a red the black because its dark side sometimes reads black", () => {
     const tracker = new LapTracker();
     const at = LAP[0];

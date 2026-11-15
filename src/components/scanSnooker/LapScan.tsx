@@ -19,14 +19,18 @@ import {
   LANDMARKS,
   TABLE,
   calibrationQuality,
+  describeCorrection,
   describeScale,
   distance,
   frameFromLandmarks,
   tableToWorld,
+  type BallColour,
+  type Point,
   type TableFrame,
   type WorldPoint,
 } from "../../features/scanSnooker/table";
-import { clothFromAim, rayAtHeight, tableLines } from "../../features/scanSnooker/ar";
+import { ballFromRay, clothFromAim, rayAtHeight, tableLines } from "../../features/scanSnooker/ar";
+import type { PlacedBall } from "../../features/scanSnooker/position";
 import { AimStabiliser, type Stability } from "../../features/scanSnooker/stabilize";
 import { LAP_COMPLETE, LAP_SECTORS, LapTracker, steadyRings, type LapBall } from "../../features/scanSnooker/lap";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
@@ -39,12 +43,18 @@ import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
  *   calibrate - aim at two spots the player can see, each from one side and then the other
  *   check     - the table is drawn over the real one; if it lines up, carry on
  *   lap       - walk round the table; a marker lands on each ball as enough views agree on it
+ *   putBack   - instead of a lap: ghosts show where each saved ball was; aim at a real ball to
+ *               see which way to move it, after a foul and a miss
  *
  * This is apart from `ARScan` on purpose, while the lap is being tested. The balls come out as
  * table millimetres, the same as a scanned position, for the player to check and correct.
  */
 
-type Phase = "find" | "calibrate" | "check" | "lap";
+type Phase = "find" | "calibrate" | "check" | "lap" | "putBack";
+
+/** Close enough to its ghost to count as back in place. */
+const IN_PLACE_MM = 15;
+const COLOUR_ORDER: BallColour[] = ["cue", "red", "yellow", "green", "brown", "blue", "pink", "black"];
 type Tap = { landmarkId: string; world: WorldPoint };
 
 const QUALITY_TEXT = {
@@ -68,9 +78,14 @@ type Props = {
   /** The lap is over: what it found, and the report of how it went. */
   onFinish: (balls: LapBall[], report: string) => void;
   onClose: () => void;
+  /**
+   * A saved position to put back, instead of walking a lap: after the two spots, each ball shows
+   * as a ghost where it was, and aiming at a real ball says which way to move it.
+   */
+  putBack?: PlacedBall[];
 };
 
-export const LapScan = ({ onFinish, onClose }: Props) => {
+export const LapScan = ({ onFinish, onClose, putBack }: Props) => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const lidar = useMemo(() => arSupport().lidar, []);
@@ -141,6 +156,28 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     setStability(stabiliser.update(world, Date.now()));
   };
 
+  // ---------------------------------------------------------------- putting the balls back
+  const colours = useMemo(
+    () => COLOUR_ORDER.filter((colour) => (putBack ?? []).some((ball) => ball.colour === colour)),
+    [putBack]
+  );
+  const [checking, setChecking] = useState<BallColour>(colours[0] ?? "cue");
+  // Where the cross is, at the height of a ball's centre: aimed at a real ball, that's the ball.
+  const aimedBall: Point | null =
+    phase === "putBack" && frame && aim?.ok && aim.origin && aim.direction
+      ? ballFromRay(frame, { origin: aim.origin, direction: aim.direction })
+      : null;
+  // The ghost being lined up: the saved ball of the chosen colour nearest the cross.
+  const putBackTarget = useMemo(() => {
+    if (!aimedBall) return null;
+    return (
+      (putBack ?? [])
+        .filter((ball) => ball.colour === checking)
+        .sort((a, b) => distance(a, aimedBall) - distance(b, aimedBall))[0] ?? null
+    );
+  }, [aimedBall, checking, putBack]);
+  const inPlace = aimedBall && putBackTarget ? distance(aimedBall, putBackTarget) <= IN_PLACE_MM : false;
+
   // ---------------------------------------------------------------- calibrating
   const setLandmark = () => {
     if (!current) return;
@@ -189,12 +226,16 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
       setNotice("That fit is too far out to find balls. Redo it, aiming at each centre.");
       return;
     }
+    setNotice(null);
+    if (putBack) {
+      setPhase("putBack");
+      return;
+    }
     tracker.current = new LapTracker();
     setBalls([]);
     setRings([]);
     setWalked(0);
     setOffCloth(false);
-    setNotice(null);
     setPhase("lap");
   };
 
@@ -238,6 +279,18 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
       ...tap.world,
       kind: "marker",
     }));
+    if (frame && phase === "putBack") {
+      return [
+        ...markers,
+        ...(putBack ?? []).map((ball) => ({
+          id: `ghost-${ball.id}`,
+          colour: BALL_LOOK[ball.colour].fill,
+          ...tableToWorld(frame, ball),
+          kind: "ghost" as const,
+          highlighted: ball.id === putBackTarget?.id,
+        })),
+      ];
+    }
     if (!frame || phase !== "lap") return markers;
     return [
       ...markers,
@@ -248,7 +301,7 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
         kind: "tag" as const,
       })),
     ];
-  }, [rings, frame, phase, taps]);
+  }, [rings, frame, phase, taps, putBack, putBackTarget?.id]);
 
   // ---------------------------------------------------------------- the words at the top
   const lapDone = walked >= LAP_COMPLETE;
@@ -272,6 +325,11 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
           title: "Does it line up?",
           tip: "The white lines should sit on the cushions, the baulk line and the D.",
         };
+      case "putBack":
+        return {
+          title: "Put the balls back",
+          tip: "Place a real ball in each ghost. Choose a colour below, then aim the cross at that ball to see which way to move it.",
+        };
       default:
         return lapDone
           ? { title: "Lap done", tip: "Tap the tick to check what was found." }
@@ -284,9 +342,19 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
 
   const trackingProblem =
     tracking.state !== "normal" && phase !== "find" ? TRACKING_TEXT[tracking.reason] : phase === "lap" && offCloth ? OFF_CLOTH_TEXT : null;
+  const label = BALL_LOOK[checking].label;
+  const putBackLine =
+    phase !== "putBack"
+      ? null
+      : !aimedBall || !putBackTarget
+        ? `Aim the cross at the real ${label.toLowerCase()}`
+        : inPlace
+          ? `${label} in place`
+          : `Move it ${describeCorrection(aimedBall, putBackTarget) ?? "a touch"}`;
   const subline =
     notice ??
     trackingProblem ??
+    putBackLine ??
     (phase === "check" && quality
       ? `${QUALITY_TEXT[quality]} · ${describeScale(frame!.scale)}${lidar ? "" : " · no LiDAR"}${
           spotsClose ? " · Spots close together: far balls may sit a little off" : ""
@@ -297,6 +365,10 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
   const sublineTone =
     notice || trackingProblem
       ? "#F2C230"
+      : phase === "putBack"
+        ? inPlace
+          ? QUALITY_COLOUR.good
+          : "#FFFFFF"
       : phase === "check" && quality
         ? QUALITY_COLOUR[quality]
         : "rgba(255,255,255,0.8)";
@@ -305,10 +377,12 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
     phase === "calibrate"
       ? { icon: "crosshairs-gps" as const, label: `Set the ${current?.label.toLowerCase()}`, onPress: setLandmark }
       : phase === "check"
-        ? { icon: "check" as const, label: "The lines line up, start the lap", onPress: startLap }
+        ? { icon: "check" as const, label: putBack ? "The lines line up, show where the balls go" : "The lines line up, start the lap", onPress: startLap }
         : phase === "lap"
           ? { icon: "check" as const, label: "Finish the lap", onPress: finish }
-          : null;
+          : phase === "putBack"
+            ? { icon: "check" as const, label: "All the balls are back", onPress: onClose }
+            : null;
 
   if (!SnookerARView) return null;
 
@@ -327,7 +401,7 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
       />
 
       {/* ------------------------------------------------ the crosshair, for the two spots */}
-      {phase === "calibrate" ? (
+      {phase === "calibrate" || phase === "putBack" ? (
         <View pointerEvents="none" style={styles.crosshairWrap}>
           <View style={[styles.crosshair, { borderColor: aim?.hit ? "#FFFFFF" : "rgba(255,255,255,0.45)" }]} />
           <Animated.View
@@ -385,6 +459,27 @@ export const LapScan = ({ onFinish, onClose }: Props) => {
             <Text style={styles.chipText}>{current.label}</Text>
             <MaterialCommunityIcons name="chevron-down" size={18} color="#FFFFFF" />
           </Pressable>
+        ) : null}
+
+        {phase === "putBack" ? (
+          <View style={styles.colourRow} accessibilityRole="radiogroup" accessibilityLabel="Which ball to line up">
+            {colours.map((colour) => {
+              const on = colour === checking;
+              return (
+                <Pressable
+                  key={colour}
+                  onPress={() => setChecking(colour)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={BALL_LOOK[colour].label}
+                  hitSlop={4}
+                  style={[styles.colourChip, { borderColor: on ? "#FFFFFF" : "transparent" }]}
+                >
+                  <View style={[styles.colourDot, { backgroundColor: BALL_LOOK[colour].fill }]} />
+                </Pressable>
+              );
+            })}
+          </View>
         ) : null}
 
         {phase === "lap" ? (
@@ -527,6 +622,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
   },
+  colourRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+    alignSelf: "center",
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: RADIUS.pill,
+    backgroundColor: GLASS,
+  },
+  colourChip: { width: HIT_TARGET, height: HIT_TARGET, borderRadius: HIT_TARGET / 2, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  colourDot: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: "rgba(0,0,0,0.35)" },
   progressCount: { color: "#FFFFFF", fontFamily: FONTS.board, fontSize: 34, minWidth: 40, textAlign: "center" },
   progressBody: { flex: 1, gap: 6 },
   progressLabel: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },

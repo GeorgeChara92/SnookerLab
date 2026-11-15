@@ -109,6 +109,20 @@ const MISSES_GONE = 8;
 const MISS_RANGE_M = 3;
 /** A ball found this close counts as possibly hiding it, so it isn't a miss. */
 const NEIGHBOUR_MM = 85;
+/**
+ * Along the cushions and round the pockets, the jaws, the leather and the cushion's edge can pass
+ * for a ball from far off: on a real table, a row of "reds" sat on the far corner pocket
+ * (2026-11-12). There, something seen only from one side has to have been looked at from closer
+ * than this before it counts. A real ball on the cushion is found as soon as you walk nearer.
+ */
+const EDGE_MM = 70;
+const POCKET_ZONE_MM = 110;
+const CLOSE_ENOUGH_M = 1.8;
+/** Colours one ball can read as from different places: a brown under the lights can read red. */
+const LOOKALIKES: Array<[BallColour, BallColour]> = [
+  ["red", "brown"],
+  ["red", "pink"],
+];
 /** A real ball has a colour. Something that's often no colour at all is a mark or a shadow. */
 const MAX_UNKNOWN_SHARE = 0.4;
 /** Directions a ball can be seen from, for telling whether it really was seen from more than one. */
@@ -299,6 +313,8 @@ type Cluster = {
   looks: Set<number>;
   /** Looks in a row that had it in plain view and didn't find it. */
   misses: number;
+  /** The closest it was ever seen from, in metres. */
+  nearest: number;
   /** Each sighting's squared distance from where the ball was then thought to be, for the report. */
   scatter: number;
   sides: Set<number>;
@@ -321,6 +337,7 @@ const mergeInto = (target: Cluster, other: Cluster) => {
   target.firstLook = Math.min(target.firstLook, other.firstLook);
   other.looks.forEach((look) => target.looks.add(look));
   target.misses = Math.min(target.misses, other.misses);
+  target.nearest = Math.min(target.nearest, other.nearest);
   target.lastLook = Math.max(target.lastLook, other.lastLook);
   target.weight = weight;
   target.sightings += other.sightings;
@@ -335,8 +352,16 @@ const mergeInto = (target: Cluster, other: Cluster) => {
 const shareOf = (cluster: Cluster, colour: BallColour) => (cluster.votes[colour] ?? 0) / Math.max(cluster.sightings, 1);
 
 /** Why the views have not agreed on something being a ball, or null if they have. */
+const nearEdgeOrPocket = (point: Point) =>
+  point.x < EDGE_MM ||
+  point.x > TABLE.width - EDGE_MM ||
+  point.y < EDGE_MM ||
+  point.y > TABLE.length - EDGE_MM ||
+  Object.values(POCKETS).some((pocket) => distance(point, pocket) <= POCKET_ZONE_MM);
+
 const doubtAbout = (cluster: Cluster) => {
   if (cluster.misses >= MISSES_GONE) return "notThere";
+  if (cluster.sides.size < 2 && cluster.nearest > CLOSE_ENOUGH_M && nearEdgeOrPocket(cluster)) return "needsCloser";
   const twoSides = cluster.sides.size >= 2;
   const far = cluster.range > FAR_METRES;
   const looks = cluster.lastLook - cluster.firstLook;
@@ -366,7 +391,10 @@ const assignColours = (clusters: Cluster[]): Array<{ cluster: Cluster; colour: B
   const claims = clusters
     .flatMap((cluster) => SINGLES.map((colour) => ({ cluster, colour, share: shareOf(cluster, colour) })))
     .filter((claim) => claim.share >= CLAIM_SHARE && claim.share >= topShare(claim.cluster))
-    .sort((a, b) => b.share - a.share);
+    // Most sightings of that colour first, not the highest share: a phantom seen as white three
+    // times out of five took the cue ball from the real one, seen white forty times out of sixty,
+    // which was then drawn as a red (2026-11-12).
+    .sort((a, b) => (b.cluster.votes[b.colour] ?? 0) - (a.cluster.votes[a.colour] ?? 0) || b.share - a.share);
 
   const taken = new Set<BallColour>();
   const placed = new Map<Cluster, { cluster: Cluster; colour: BallColour; unsure: boolean }>();
@@ -583,6 +611,7 @@ export class LapTracker {
       range: sighting.distance,
       looks: new Set([this.frames]),
       misses: 0,
+      nearest: sighting.distance,
       scatter: nearest ? nearest.gap * nearest.gap : 0,
       sides: new Set([sideOf(point, camera)]),
       votes: colour ? { [colour]: 1 } : {},
@@ -621,6 +650,8 @@ export class LapTracker {
     const top = (cluster: Cluster) =>
       (Object.entries(cluster.votes) as Array<[BallColour, number]>).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
     const seenTogether = (a: Cluster, b: Cluster) => [...a.looks].some((look) => b.looks.has(look));
+    const sameBall = (a: BallColour | null, b: BallColour | null) =>
+      a === b || (!!a && !!b && LOOKALIKES.some(([one, other]) => (a === one && b === other) || (a === other && b === one)));
 
     // Only for showing: the clusters underneath are untouched, so a pair merged here comes apart
     // again the moment one look sees both.
@@ -629,7 +660,7 @@ export class LapTracker {
       const same = merged.find(
         (other) =>
           distance(cluster, other) < TOO_CLOSE_MM ||
-          (distance(cluster, other) < TWIN_MM && top(cluster) === top(other) && !seenTogether(cluster, other))
+          (distance(cluster, other) < TWIN_MM && sameBall(top(cluster), top(other)) && !seenTogether(cluster, other))
       );
       if (same) mergeInto(same, cluster);
       else merged.push(cluster);
@@ -678,6 +709,7 @@ export class LapTracker {
       mixedColours: doubted("mixedColours"),
       noColour: doubted("noColour"),
       notThere: doubted("notThere"),
+      needsCloser: doubted("needsCloser"),
       balls: assigned.map(({ cluster, colour, unsure }) => ({
         colour,
         unsure,

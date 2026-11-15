@@ -33,11 +33,27 @@ export const RecordSnookerScreen = () => {
   const [found, setFound] = useState<{ balls: LapBall[]; report: string } | null>(null);
   // Bumped to start the camera afresh for another lap.
   const [lapRun, setLapRun] = useState(0);
+  // The camera is open to put the saved balls back, after a foul and a miss, rather than to scan.
+  const [puttingBack, setPuttingBack] = useState(false);
 
   const camera = view === "camera" && support.lap;
   useEffect(() => {
     navigation.setOptions({ title: `Record a snooker · Frame ${frameNumber}`, headerShown: !camera });
   }, [camera, frameNumber, navigation]);
+
+  if (camera && puttingBack && saved) {
+    return (
+      <LapScan
+        key={`put-back-${lapRun}`}
+        putBack={saved.balls}
+        onFinish={() => undefined}
+        onClose={() => {
+          setPuttingBack(false);
+          setView("review");
+        }}
+      />
+    );
+  }
 
   if (camera) {
     return (
@@ -66,6 +82,15 @@ export const RecordSnookerScreen = () => {
         setView("camera");
       }}
       onDone={() => navigation.goBack()}
+      onPutBack={
+        saved && support.lap
+          ? () => {
+              setLapRun((value) => value + 1);
+              setPuttingBack(true);
+              setView("camera");
+            }
+          : undefined
+      }
     />
   );
 };
@@ -79,6 +104,7 @@ const LapReview = ({
   cameraReady,
   onNewLap,
   onDone,
+  onPutBack,
 }: {
   matchId: string;
   frameNumber: number;
@@ -87,6 +113,8 @@ const LapReview = ({
   cameraReady: boolean;
   onNewLap: () => void;
   onDone: () => void;
+  /** Opens the camera to put the saved position back; only when there is one. */
+  onPutBack?: () => void;
 }) => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -204,6 +232,20 @@ const LapReview = ({
         })}
       </View>
 
+      {onPutBack && !found ? (
+        <Pressable
+          onPress={onPutBack}
+          accessibilityRole="button"
+          accessibilityHint="Shows each saved ball as a ghost on the real table, to put the balls back after a miss"
+          style={({ pressed }) => [styles.putBack, { backgroundColor: colors.board, borderColor: colors.boardRule, opacity: pressed ? 0.85 : 1 }]}
+        >
+          <MaterialCommunityIcons name="target" size={20} color={colors.boardText} />
+          <Text style={[styles.putBackText, { color: colors.boardText }]} numberOfLines={1} adjustsFontSizeToFit>
+            Put the balls back
+          </Text>
+        </Pressable>
+      ) : null}
+
       <View style={styles.actions}>
         <Pressable
           onPress={onNewLap}
@@ -281,6 +323,18 @@ const styles = StyleSheet.create({
   trayCount: { fontFamily: FONTS.boardLabel, fontSize: 12 },
 
   actions: { flexDirection: "row", gap: SPACING.sm },
+  putBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: HIT_TARGET + 4,
+    borderRadius: RADIUS.md,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingHorizontal: SPACING.md,
+  },
+  putBackText: { fontSize: 16, fontWeight: "800" },
   secondary: {
     flex: 1,
     minHeight: HIT_TARGET + 4,
