@@ -163,6 +163,11 @@ const hasCoachFromTokens = (tokens) => tokens.some((token) => COACH_IDS.includes
 const TIER_RANK = { free: 0, half_century: 1, century: 2 };
 const withComp = (tier, comp) => ((TIER_RANK[comp] ?? 0) > (TIER_RANK[tier] ?? 0) ? comp : tier);
 
+// A plan hold: app_metadata.plan_hold = "free", set only from the SQL editor, keeps an account on
+// Free with no Coach plan whatever RevenueCat says - for taking screenshots of what a free player
+// sees from an account with live sandbox purchases. Remove the key and the next check restores it.
+const onHold = (appMetadata) => appMetadata?.plan_hold === "free";
+
 
 const anchorFromCustomerState = (state, now = Date.now()) => {
   const starts = (state?.subscriptions ?? [])
@@ -179,6 +184,10 @@ const applyTier = async (admin, userId, tier, anchor, hasCoach) => {
 
   const appMetadata = { ...(existing?.user?.app_metadata ?? {}) };
   tier = withComp(tier, appMetadata.comp_tier);
+  if (onHold(appMetadata)) {
+    tier = "free";
+    hasCoach = false;
+  }
   appMetadata.subscription_tier = tier;
   appMetadata.coach_subscription_active = hasCoach;
   // Keep the first anchor seen for a continuing subscription so the quota window is stable.
@@ -197,7 +206,7 @@ const applyTier = async (admin, userId, tier, anchor, hasCoach) => {
   // problem, not a reason to fail the whole sync.
   const { error: profileError } = await admin.from("profiles").update({ subscription_tier: tier }).eq("id", userId);
   if (profileError) console.warn("subscription badge sync failed", { message: profileError.message });
-  return tier;
+  return { tier, hasCoach };
 };
 
 Deno.serve(async (request) => {
@@ -221,10 +230,11 @@ Deno.serve(async (request) => {
     const hasCoach = hasCoachFromTokens(tokens);
     const anchor = anchorFromCustomerState(state);
 
-    const tier = await applyTier(admin, caller.user.id, fromStore, anchor, hasCoach);
-    console.log("sync-subscription", { tokens, fromStore, tier, hasCoach });
+    const applied = await applyTier(admin, caller.user.id, fromStore, anchor, hasCoach);
+    const tier = applied.tier;
+    console.log("sync-subscription", { tokens, fromStore, tier, hasCoach: applied.hasCoach });
 
-    return json({ tier, coach_subscription_active: hasCoach });
+    return json({ tier, coach_subscription_active: applied.hasCoach });
   } catch (error) {
     console.error("sync-subscription failed", { message: error?.message });
     return json({ error: "sync_failed" }, 502);

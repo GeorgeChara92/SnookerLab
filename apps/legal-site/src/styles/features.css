@@ -1251,14 +1251,23 @@
   height: 20px;
 }
 
+/* A linked card fills its grid cell, and "Read more" sits on the card's bottom edge, so every
+   card in a row has it in the same place however long its list is. */
+.extra:has(> .extra-link) {
+  display: flex;
+}
+
 .extra-link {
-  display: grid;
-  gap: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   text-decoration: none;
 }
 
 .extra-link .bento-go {
-  margin-top: 14px;
+  align-self: flex-start;
+  margin-top: auto;
+  padding-top: 14px;
 }
 
 .bento-go {

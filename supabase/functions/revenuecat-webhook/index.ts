@@ -156,6 +156,11 @@ const liveTokens = (state, catalog, now = Date.now()) => {
 const TIER_RANK = { free: 0, half_century: 1, century: 2 };
 const withComp = (tier, comp) => ((TIER_RANK[comp] ?? 0) > (TIER_RANK[tier] ?? 0) ? comp : tier);
 
+// A plan hold: app_metadata.plan_hold = "free", set only from the SQL editor, keeps an account on
+// Free with no Coach plan whatever RevenueCat says - for taking screenshots of what a free player
+// sees from an account with live sandbox purchases. Remove the key and the next check restores it.
+const onHold = (appMetadata) => appMetadata?.plan_hold === "free";
+
 const tierFromTokens = (tokens) => {
   if (tokens.some((token) => CENTURY_IDS.includes(token))) return "century";
   if (tokens.some((token) => HALF_CENTURY_IDS.includes(token))) return "half_century";
@@ -195,7 +200,7 @@ Deno.serve(async (request) => {
     const [state, catalog] = await Promise.all([loadCustomerState(appUserId), loadCatalog()]);
     const tokens = liveTokens(state, catalog);
     const fromStore = tierFromTokens(tokens);
-    const hasCoach = hasCoachFromTokens(tokens);
+    let hasCoach = hasCoachFromTokens(tokens);
     const anchor = anchorFromCustomerState(state);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -203,7 +208,11 @@ Deno.serve(async (request) => {
     if (readError || !existing?.user) return json({ ok: true, skipped: "unknown_user" });
 
     const appMetadata = { ...(existing.user.app_metadata ?? {}) };
-    const tier = withComp(fromStore, appMetadata.comp_tier);
+    let tier = withComp(fromStore, appMetadata.comp_tier);
+    if (onHold(appMetadata)) {
+      tier = "free";
+      hasCoach = false;
+    }
     appMetadata.subscription_tier = tier;
     appMetadata.coach_subscription_active = hasCoach;
     if (tier === "free") {

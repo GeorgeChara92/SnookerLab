@@ -81,8 +81,13 @@ export const CoachSubscriptionScreen = () => {
         setOfferings(nextOfferings);
         setSubscribed(hasCoachEntitlement(info));
 
+        // The server checks the purchase with RevenueCat too, and its answer is the one that
+        // unlocks the diary, so it has the last word on what this screen shows.
         const updatedUser = await syncSubscriptionWithServer();
-        if (updatedUser) setUser(updatedUser);
+        if (updatedUser) {
+          setUser(updatedUser);
+          setSubscribed(useAuthStore.getState().user?.coach_subscription_active === true);
+        }
         setStatus("ready");
       } catch (error) {
         console.warn("Coach billing refresh failed:", { message: (error as any)?.message, code: (error as any)?.code });
