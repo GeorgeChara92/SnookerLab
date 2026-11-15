@@ -141,7 +141,7 @@ export const HELP_TOPICS = {
     ],
     tips: [
       "Scores save on your phone and sync later, so a bad signal never stops a match.",
-      "Use Scan snooker before a snooker, so you can put the balls back after a foul and a miss.",
+      "Use Record a snooker before a snooker, so you can put the balls back after a foul and a miss.",
     ],
   },
   scanSnooker: {
@@ -160,13 +160,13 @@ export const HELP_TOPICS = {
     audience: "player",
     purpose: "Point the phone at the table and the balls are found for you, instead of marking each one by hand.",
     steps: [
-      "Aim at two spots to line the table up, the same as Scan Snooker.",
+      "Aim at two spots to line the table up: the black and brown are best, as they're far apart.",
       "Hold the phone steady at chest height, tilted at the balls. Each ball gets a marker once it has been in view for a moment.",
       "Walk round the table to find balls hidden from where you stand. Seeing a ball from a second side also pins down where it is.",
       "Check what was found on the diagram, fix anything that's wrong, then save.",
       "After a foul and a miss, open it again for that frame and tap Put the balls back. Mark the two spots, and a ghost shows where each ball goes. Choose a colour and aim at the real ball to see which way to move it.",
     ],
-    tips: ["This is being tested, and saves separately from Scan Snooker.", "Balls at the far end take a moment longer. Step closer if one isn't marked."],
+    tips: ["Needs an iPhone with ARKit.", "Balls at the far end take a moment longer. Step closer if one isn't marked."],
   },
   tournaments: {
     title: "Tournaments",

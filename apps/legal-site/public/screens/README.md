@@ -1,36 +1,39 @@
 # App screenshots for the website
 
-Drop full-screen iPhone screenshots (dark mode) in here with the names below, then run
-`npm run build` — the build makes each one in three sizes as WebP and the site picks the
-right one per slot. Reference a screen in code with `<Phone screen="routine" … />`.
+Drop full-screen iPhone screenshots (dark mode, 1206x2622) in here, then run `npm run build`:
+the build makes each one in four sizes as WebP and the site picks the right one per slot.
+Reference a screen in code with `<Phone screen="routine" … />` (add the name to `Screen` in
+`src/site.ts` first).
 
-## In use now
+Before a screenshot goes in:
 
-| File               | Screen                            |
-| ------------------ | --------------------------------- |
-| dashboard.png      | Home                              |
-| live-scoring.png   | Live scoring, mid-frame           |
-| match-overview.png | Match overview                    |
-| share-card.png     | The share card                    |
-| routine.png        | A routine: progress, leaderboard  |
-| stats.png          | Stats                             |
-| community.png      | Community home                    |
-| group.png          | A group (Feed or Boards)          |
-| live-match.png     | Following a live match            |
+- Cover the status bar (the time, signal and battery) with the screen's own background.
+- Blur any clip thumbnail from the AI coach, so nobody in it can be recognised.
+- Swap real pro players' photos for the app's initials badges. A real face on a marketing page
+  can read as an endorsement, and the photos' licence needs a credit. Names and results are fine.
 
-## Wanted next
+## In use
 
-These slots use a drawn graphic or a "screenshot coming soon" placeholder until the real
-screenshot lands. Add the file, then swap the placeholder for `<Phone screen="…" />`.
-
-| File               | Screen                                              | Where it goes           |
-| ------------------ | --------------------------------------------------- | ----------------------- |
-| routine-builder.png| The routine builder with balls placed on the table   | Home, Practice          |
-| ai-coach.png       | An AI coach report, with the findings               | Home, Practice          |
-| scan-snooker.png   | Scan a Snooker in the camera, ghosts on the table     | Home, Scan a Snooker page |
-| ar-routine.png     | A routine being set up in AR                        | Scan a Snooker page     |
-| chat.png           | A group chat with a match or routine shared into it | Community               |
-| tournament.png     | A tournament draw or league table                   | Home ("everything else")|
-
-Keep copyrighted content out of shots (for example the Pro Tour news thumbnails), and
-avoid real players' names.
+| File                  | Screen                                          |
+| --------------------- | ----------------------------------------------- |
+| dashboard.png         | Home                                            |
+| live-scoring.png      | Live scoring, mid-frame (retake: old buttons)   |
+| match-overview.png    | Match details                                   |
+| share-card.png        | The share card, gold Century background         |
+| record-snooker.png    | Record a Snooker in the camera                  |
+| routine.png           | A routine drawn on the table                    |
+| guide.png             | A guide (Stance and Balance)                     |
+| rules.png             | Rules of snooker                                |
+| routine-builder.png   | The routine builder                             |
+| ai-coach.png          | AI coach report, top (thumbnail blurred)        |
+| ai-coach-plan.png     | AI coach report: what to work on, routines      |
+| stats.png             | Stats                                           |
+| community.png         | Community home                                  |
+| group.png, chat.png   | A group feed and chat                           |
+| live-match.png        | Following a friend's match live                 |
+| tournament.png        | A club tournament bracket                       |
+| pro-tour-live.png     | Pro Tour: Live & results                        |
+| pro-tour-bracket.png  | Pro Tour: a tournament's live final and bracket |
+| rankings.png          | Pro Tour: money rankings                        |
+| player-season.png     | Pro Tour: a player's season                     |
+| coach-*.png, find-coach.png, session-notes.png | Coaching pages         |

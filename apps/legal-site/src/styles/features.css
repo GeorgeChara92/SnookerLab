@@ -707,6 +707,19 @@
   margin-top: 16px;
 }
 
+.all-features {
+  display: flex;
+  justify-content: center;
+  margin: 28px 0 8px;
+}
+
+/* The all-features page: each card lists what the section does. */
+.extra .checks {
+  margin: 4px 0 16px;
+  gap: 8px;
+  font-size: 0.95rem;
+}
+
 .plan-strip a {
   display: flex;
   align-items: baseline;
@@ -1246,6 +1259,13 @@
 
 .extra-link .bento-go {
   margin-top: 14px;
+}
+
+.bento-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
 }
 
 .plan-who {

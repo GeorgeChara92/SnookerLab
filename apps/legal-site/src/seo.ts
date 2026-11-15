@@ -88,11 +88,11 @@ const SUPPORT_FAQ: [string, string][] = [
   ["Where is my data kept?", "See the Privacy Policy for what we collect, why, and the controls you have."],
 ];
 
-const SCAN_FAQ: [string, string][] = [
-  ["Do I need the newest iPhone?", "No. Any iPhone that runs the app can scan. Phones with LiDAR are more accurate, and every phone can use the table diagram."],
-  ["What if the balls hide the spots?", "Calibration only needs two landmarks, and pockets count, so there is almost always a pair you can see."],
-  ["Can I use it without the camera?", "Yes. Place the balls on the table diagram instead: same positions, same replace step, no AR."],
-  ["When will it be ready?", "Scan a Snooker is in testing now and will arrive in an update."],
+export const RECORD_FAQ: [string, string][] = [
+  ["Which iPhones does it work on?", "Any iPhone that supports ARKit, which is every iPhone from the last several years. Phones with LiDAR find the balls a little more precisely."],
+  ["What if the balls hide the spots?", "You only aim at two spots to line the table up. The black and brown work best, as they are far apart, and you can use others if those are covered."],
+  ["Do I have to walk all the way round?", "Go as far round as you need for every ball to be marked. Balls at the far end can take a moment longer, and stepping closer helps."],
+  ["How many can I record?", "Three a month on the free plan, and as many as you like on Half-Century or Century."],
 ];
 
 const COACH_FAQ: [string, string][] = [
@@ -128,7 +128,9 @@ export function structuredData(path: string) {
       "/practice": "Practice",
       "/coach": "Snookered Coach",
       "/find-a-coach": "Find a Coach",
-      "/scan-snooker": "Scan a Snooker",
+      "/record-snooker": "Record a Snooker",
+      "/features": "All features",
+      "/pro-tour": "Pro Tour",
       "/community": "Community",
       "/plans": "Plans",
       "/support": "Support",
@@ -140,7 +142,7 @@ export function structuredData(path: string) {
     graph.push(crumbs(path, name));
     if (path === "/plans") graph.push(faq(PLAN_FAQ));
     if (path === "/support") graph.push(faq(SUPPORT_FAQ));
-    if (path === "/scan-snooker") graph.push(faq(SCAN_FAQ));
+    if (path === "/record-snooker") graph.push(faq(RECORD_FAQ));
     if (path === "/coach") graph.push(faq(COACH_FAQ));
     if (path === "/find-a-coach") graph.push(faq(FIND_A_COACH_FAQ));
   }

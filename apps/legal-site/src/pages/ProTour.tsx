@@ -1,5 +1,5 @@
 import { Cta, Faq, FeatureStory, PageHero, Strip, type Story } from "../components/Blocks";
-import { TourBracket, TourFollow, TourLiveCard, TourMatchCentre, TourRankings } from "../components/ProTour";
+import { TourFollow, TourLiveCard, TourMatchCentre } from "../components/ProTour";
 
 export default function ProTour() {
   const stories: Story[] = [
@@ -14,7 +14,8 @@ export default function ProTour() {
         "A link to watch, where the match is streamed",
         "Coming up and results, tournament by tournament",
       ],
-      visual: <TourLiveCard />,
+      screen: "pro-tour-live",
+      alt: "Live & results: the players you follow pinned at the top, and the final live",
     },
     {
       id: "draw",
@@ -27,11 +28,8 @@ export default function ProTour() {
         "Slots still to fill read “Winner of” - not just “TBD”",
         "The prize fund, round by round",
       ],
-      visual: (
-        <div className="board-panel">
-          <TourBracket />
-        </div>
-      ),
+      screen: "pro-tour-bracket",
+      alt: "A tournament's bracket from the quarter-finals, with the final live above it",
     },
     {
       id: "match",
@@ -53,9 +51,19 @@ export default function ProTour() {
       id: "rankings",
       kicker: "Rankings & news",
       title: "Know the tour inside out.",
-      body: "The money rankings for this season and last, a profile for every player with their story, titles and season so far, and the latest news from the World Snooker Tour and BBC Sport.",
-      points: ["Money rankings, searchable, with player photos", "Player profiles: ranking, titles, 147s and biography", "News from WST and BBC Sport in one feed"],
-      visual: <TourRankings />,
+      body: "The money rankings for this season and last, searchable, with the top three on a podium. And the latest news from the World Snooker Tour and BBC Sport in one feed.",
+      points: ["Money rankings, searchable", "This season and last", "News from WST and BBC Sport in one feed"],
+      screen: "rankings",
+      alt: "The money rankings, with the top three on a podium and the rest listed below",
+    },
+    {
+      id: "players",
+      kicker: "Players",
+      title: "Every player, in depth.",
+      body: "A profile for every player on the tour: their ranking, prize money, titles and 147s, their story, and how their season is going, with what's coming up next.",
+      points: ["Ranking, prize money, titles and 147s", "Their season: won-lost, frames and recent form", "Coming up and recent results"],
+      screen: "player-season",
+      alt: "A player's season: won-lost and form, their next matches and recent results",
     },
   ];
   return (

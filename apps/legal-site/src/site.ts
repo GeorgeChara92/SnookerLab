@@ -41,10 +41,16 @@ export const ROUTES: RouteMeta[] = [
       "Run your coaching business from Snookered: a booking calendar, a client list including walk-ins with no account, broadcast groups for drills, and private session notes. £4.99 a month.",
   },
   {
-    path: "/scan-snooker",
-    title: "Scan a Snooker: replace the balls after a miss in AR · Snookered",
+    path: "/record-snooker",
+    title: "Record a Snooker: put the balls back after a miss · Snookered",
     description:
-      "Scan the table before you play a snooker, then put every ball back exactly where it was after a foul and a miss, using AR ghosts on the real table.",
+      "Walk round the table before you play a snooker and the camera finds every ball. After a foul and a miss, a ring on the cloth shows where each one goes back.",
+  },
+  {
+    path: "/features",
+    title: "Every feature in the Snookered snooker app",
+    description:
+      "Everything Snookered does, in one place: live scoring with free balls and the rules, Record a Snooker, practice routines and guides, the AI coach, stats, friends and groups, the pro tour and the coaching diary.",
   },
   {
     path: "/community",
@@ -56,7 +62,7 @@ export const ROUTES: RouteMeta[] = [
     path: "/pro-tour",
     title: "Live snooker scores, fixtures and results in your time zone · Snookered",
     description:
-      "Follow the professional snooker tour live: scores, fixtures and results in your own time zone, the full draw and bracket, head-to-heads, money rankings and notifications for the players you follow.",
+      "Follow the professional snooker tour live: scores, fixtures and results in your own time zone, the full draw and bracket, money rankings, player profiles and notifications for the players you follow.",
   },
   {
     path: "/plans",
@@ -92,7 +98,8 @@ export const NAV = [
 /** In the menu and the footer, not the top bar: it is a feature, not a section of the site. */
 export const MORE_NAV = [
   { to: "/coach-diary", label: "Coach Diary" },
-  { to: "/scan-snooker", label: "Scan a Snooker" },
+  { to: "/record-snooker", label: "Record a Snooker" },
+  { to: "/features", label: "All features" },
   { to: "/support", label: "Support" },
 ];
 
@@ -118,7 +125,15 @@ export type Screen =
   | "coach-group"
   | "coach-message"
   | "coach-dashboard"
-  | "session-notes";
+  | "session-notes"
+  | "record-snooker"
+  | "guide"
+  | "rules"
+  | "pro-tour-live"
+  | "pro-tour-bracket"
+  | "rankings"
+  | "player-season"
+  | "ai-coach-plan";
 
 /** monthly/annual are null for Free - there is nothing to charge, so no price to show. */
 export const PLANS: Array<{

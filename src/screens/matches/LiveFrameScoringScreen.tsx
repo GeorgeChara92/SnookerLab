@@ -62,6 +62,13 @@ const BALL_META: Array<{ key: LiveBall; color: string; textColor: string }> = [
   { key: "black", color: "#1E1E1E", textColor: "#FFFFFF" },
 ];
 
+/**
+ * Scan a Snooker is hidden while Record a Snooker takes over its job (2026-11-15): finding the
+ * balls for you, and putting them back after a miss. Its screen and saved positions are still
+ * there; set this to true to bring the button back.
+ */
+const SHOW_SCAN_SNOOKER = false;
+
 const FOUL_OPTIONS: Array<{ value: 4 | 5 | 6 | 7; label: string }> = [
   { value: 4, label: "4" },
   { value: 5, label: "5" },
@@ -1160,16 +1167,27 @@ export const LiveFrameScoringScreen = () => {
             >
               <Text style={[styles.actionPillText, { color: ui.text }]}>Miss</Text>
             </Pressable>
+            {SHOW_SCAN_SNOOKER ? (
+              <Pressable
+                style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
+                onPress={handleOpenTableCapture}
+                accessibilityRole="button"
+                accessibilityLabel="Scan snooker: record the position before a snooker, or replace the balls after a miss"
+              >
+                <Text style={[styles.actionPillText, { color: ui.text }]}>Scan snooker</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
-              onPress={handleOpenTableCapture}
+              onPress={handleOpenLapRecord}
               accessibilityRole="button"
-              accessibilityLabel="Scan snooker: record the position before a snooker, or replace the balls after a miss"
+              accessibilityLabel="Record a snooker: scan the table and the balls are found for you, then put them back after a miss"
             >
-              <Text style={[styles.actionPillText, { color: ui.text }]}>Scan snooker</Text>
+              <Text style={[styles.actionPillText, { color: ui.text }]}>Record a snooker</Text>
             </Pressable>
           </View>
 
+          {freeBallOpen ? (
           <View style={styles.actionPillRow}>
             {freeBallOpen ? (
               <Pressable
@@ -1193,15 +1211,8 @@ export const LiveFrameScoringScreen = () => {
                 </Text>
               </Pressable>
             ) : null}
-            <Pressable
-              style={[styles.actionPill, { borderColor: ui.borderStrong, backgroundColor: ui.panelAlt }]}
-              onPress={handleOpenLapRecord}
-              accessibilityRole="button"
-              accessibilityLabel="Record a snooker: walk round the table and the balls are found for you"
-            >
-              <Text style={[styles.actionPillText, { color: ui.text }]}>Record a snooker</Text>
-            </Pressable>
           </View>
+          ) : null}
 
           <Pressable
             style={[styles.saveButton, { backgroundColor: colors.primaryStrong, borderColor: colors.primary }]}

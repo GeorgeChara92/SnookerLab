@@ -21,7 +21,7 @@ const STOPS: Stop[] = [
     screen: "routine",
     label: "Practice",
     caption: "Practice with a point to it.",
-    alt: "A routine with its progress chart, personal best and leaderboard",
+    alt: "A routine drawn on the table, with its setup written out",
   },
   {
     screen: "stats",

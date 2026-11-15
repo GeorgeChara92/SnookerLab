@@ -206,7 +206,7 @@ export const RULE_TOPICS: RuleTopic[] = [
       },
       {
         heading: "In club and league games",
-        body: "Many leagues play the miss rule loosely or not at all, and without a referee it's rarely called. Agree how you're playing it before you start. In live scoring, Scan snooker records where the balls are so you can put them back after a miss.",
+        body: "Many leagues play the miss rule loosely or not at all, and without a referee it's rarely called. Agree how you're playing it before you start. In live scoring, Record a snooker saves where the balls are, and shows you where to put them back after a miss.",
       },
     ],
     diagram: {

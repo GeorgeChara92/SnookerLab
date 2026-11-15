@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Route, Routes, useLocation } from "react-router";
+import { Navigate, Route, Routes, useLocation } from "react-router";
 import { MotionConfig } from "motion/react";
 import { Footer, Header, ScrollToTop } from "./components/Chrome";
 import { TableSprite } from "./components/Table";
@@ -8,7 +8,8 @@ import { Community, Practice, Scoring } from "./pages/Features";
 import Coach from "./pages/Coach";
 import FindACoach from "./pages/FindACoach";
 import CoachDiary from "./pages/CoachDiary";
-import ScanSnooker from "./pages/ScanSnooker";
+import RecordSnooker from "./pages/RecordSnooker";
+import AllFeatures from "./pages/AllFeatures";
 import ProTour from "./pages/ProTour";
 import { NotFound, Plans, Privacy, Support, Terms } from "./pages/Info";
 import { metaFor } from "./site";
@@ -94,7 +95,9 @@ export function App() {
           <Route path="/coach" element={<Coach />} />
           <Route path="/find-a-coach" element={<FindACoach />} />
           <Route path="/coach-diary" element={<CoachDiary />} />
-          <Route path="/scan-snooker" element={<ScanSnooker />} />
+          <Route path="/record-snooker" element={<RecordSnooker />} />
+          <Route path="/scan-snooker" element={<Navigate to="/record-snooker" replace />} />
+          <Route path="/features" element={<AllFeatures />} />
           <Route path="/community" element={<Community />} />
           <Route path="/pro-tour" element={<ProTour />} />
           <Route path="/plans" element={<Plans />} />

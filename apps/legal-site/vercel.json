@@ -62,5 +62,12 @@
       "source": "/auth/reset/:path*",
       "destination": "/reset"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/scan-snooker",
+      "destination": "/record-snooker",
+      "permanent": true
+    }
   ]
 }

@@ -1,7 +1,6 @@
 import { Link } from "react-router";
 import { Check, LineChart, Target, Upload, Video, Wand2 } from "lucide-react";
 import { Phone } from "../components/Phone";
-import { CoachReport } from "../components/Showcase";
 import { Arrow, Faq, PageHero, Reveal, Strip } from "../components/Blocks";
 import { LaunchList } from "../components/Tour";
 
@@ -87,7 +86,11 @@ export default function Coach() {
             <p className="note">Coaching is guidance, not a substitute for a qualified coach.</p>
           </Reveal>
           <Reveal delay={0.1} className="feature-visual">
-            <CoachReport />
+            <Phone
+              screen="ai-coach-plan"
+              alt="A coaching report: what to work on, a drill to take to the table, and three routines to practise next"
+              sizes="(max-width: 900px) 72vw, 300px"
+            />
           </Reveal>
         </div>
       </section>

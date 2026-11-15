@@ -110,8 +110,10 @@ export function Footer() {
             <Link to="/coach-diary">Coach Diary</Link>
             <Link to="/scoring">Scoring</Link>
             <Link to="/community">Community</Link>
-            <Link to="/scan-snooker">Scan a Snooker</Link>
+            <Link to="/record-snooker">Record a Snooker</Link>
+            <Link to="/pro-tour">Pro Tour</Link>
             <Link to="/plans">Plans</Link>
+            <Link to="/features">All features</Link>
           </div>
           <div>
             <h2>Help</h2>

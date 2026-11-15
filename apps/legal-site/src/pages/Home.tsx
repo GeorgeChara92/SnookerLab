@@ -7,7 +7,6 @@ import { LiveBoard } from "../components/Scoreboard";
 import { Scorer } from "../components/Scorer";
 import { AppTour, CoreLoop, LaunchList } from "../components/Tour";
 import { AppleLogo, Arrow, Reveal } from "../components/Blocks";
-import { TourBracket, TourLiveCard } from "../components/ProTour";
 import { PLANS, type Screen } from "../site";
 
 function Hero() {
@@ -166,7 +165,7 @@ function Scoring() {
 
 const SECONDARY: { icon: typeof Trophy; title: string; body: string; to?: string; soon?: boolean }[] = [
   { icon: Trophy, title: "Tournaments", body: "Knockouts and leagues for your club, with the draw, fixtures and results kept for you." },
-  { icon: ScanLine, title: "Scan a Snooker", body: "Scan the table before a snooker, then put every ball back in AR after a miss.", to: "/scan-snooker", soon: true },
+  { icon: ScanLine, title: "Record a Snooker", body: "Walk round the table before a snooker, then put every ball back after a miss.", to: "/record-snooker" },
   { icon: Users, title: "Groups and boards", body: "A group for your league, with chat, a feed of results and pinned routines.", to: "/community" },
   { icon: Bell, title: "Follow the pros", body: "Follow your favourite players and get a notification when their match starts and finishes.", to: "/pro-tour" },
   { icon: Medal, title: "Achievements", body: "Level up for the things that matter: centuries, streaks, wins and practice." },
@@ -216,6 +215,11 @@ function Secondary() {
             );
           })}
         </div>
+        <p className="all-features">
+          <Link className="btn btn-ghost" to="/features">
+            See every feature <Arrow />
+          </Link>
+        </p>
         <div className="plan-strip">
           {PLANS.map((plan) => (
             <Link key={plan.name} to="/plans" className={plan.tag ? "featured" : ""}>
@@ -232,10 +236,13 @@ function Secondary() {
 const GALLERY: { screen: Screen; alt: string; caption: string }[] = [
   { screen: "match-overview", alt: "A match overview with the scoreboard, high breaks and match statistics", caption: "Every match, frame by frame." },
   { screen: "routine-builder", alt: "The routine builder, with balls placed on a table diagram", caption: "Build the routine you need." },
-  { screen: "share-card", alt: "The share card for a result, leading with a 77 break", caption: "A result card led by the big moment." },
+  { screen: "share-card", alt: "The share card for a win with three 50+ breaks, on the gold Century background", caption: "A result card led by the big moment." },
+  { screen: "rules", alt: "The rules of snooker in the app: ball values and what a foul costs", caption: "The rules, in plain English." },
+  { screen: "guide", alt: "A guide to stance and balance, with a photo and the write-up", caption: "Guides to the fundamentals." },
   { screen: "tournament", alt: "A tournament bracket: quarter-finals and semi-finals", caption: "Club knockouts, drawn for you." },
   { screen: "chat", alt: "A group chat, sorting out who's playing when", caption: "Your club, in one thread." },
   { screen: "live-match", alt: "Following a friend's match live", caption: "Friends' matches, followed live." },
+  { screen: "player-season", alt: "A pro player's season: won-lost, form, coming up and recent results", caption: "Every pro's season so far." },
 ];
 
 function Gallery() {
@@ -270,7 +277,7 @@ function Film() {
             <p className="eyebrow">See it in action</p>
             <h2 className="display-l">Snookered in 25 seconds.</h2>
           </div>
-          <p className="lead">Live scoring, practice, Scan a Snooker and the coaching side, in one short film.</p>
+          <p className="lead">Live scoring, practice, AR at the table and the coaching side, in one short film.</p>
         </Reveal>
         <Reveal delay={0.08}>
           <div className="film">
@@ -354,6 +361,26 @@ export default function Home() {
       />
       <Scoring />
       <Feature
+        id="record"
+        tone="alt"
+        eyebrow="Record a Snooker"
+        title="Put the balls back properly."
+        body="With no referee, replacing the balls after a foul and a miss is guesswork. Walk round the table before you play the snooker and the camera finds every ball. After the miss, a ring on the cloth shows where each one goes back."
+        points={[
+          "One tap from live scoring",
+          "Each ball gets a ring as it's found",
+          "Tells you when every ball is back in place",
+        ]}
+        visual={
+          <Phone
+            screen="record-snooker"
+            alt="Record a Snooker in the camera, with a ring on each ball as it's found and the count of balls found"
+            sizes="(max-width: 900px) 74vw, 300px"
+          />
+        }
+        link={{ to: "/record-snooker", label: "How Record a Snooker works" }}
+      />
+      <Feature
         id="stats"
         flip
         eyebrow="Stats"
@@ -388,18 +415,16 @@ export default function Home() {
         tone="dark"
         eyebrow="Pro Tour"
         title="The pro tour, live in your pocket."
-        body="Live scores, fixtures and results from every professional tournament, in your own time zone. The full draw and bracket, head-to-heads, money rankings, and a notification when the players you follow start and finish."
+        body="Live scores, fixtures and results from every professional tournament, in your own time zone. The full draw and bracket, money rankings, a profile for every player, and a notification when the players you follow start and finish."
         points={[
           "Every session time shown in your local time",
           "A link to watch, where the match is streamed",
           "Follow players and get notified when they're on",
         ]}
         visual={
-          <div className="tour-duo">
-            <TourLiveCard />
-            <div className="board-panel">
-              <TourBracket />
-            </div>
+          <div className="phones-duo">
+            <Phone screen="pro-tour-bracket" alt="A live tournament: the final's score and the bracket from the quarter-finals" sizes="(max-width: 860px) 42vw, 250px" />
+            <Phone screen="rankings" alt="The money rankings, with the top three on a podium" sizes="(max-width: 860px) 42vw, 250px" />
           </div>
         }
         link={{ to: "/pro-tour", label: "Explore the pro tour" }}
