@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -224,7 +224,9 @@ const LapReview = ({
   const hint = !lapReady
     ? cameraReady
       ? "This build doesn't have the lap in it yet. It needs the next development build."
-      : "Scanning the table needs an iPhone with ARKit."
+      : Platform.OS === "android"
+        ? "The camera scan comes to Android in a later version. For now, tap the table to mark where each ball is."
+        : "Scanning the table needs an iPhone with ARKit. Tap the table to mark where each ball is."
     : unsure.length
       ? `${unsure.length} ${unsure.length === 1 ? "ball needs" : "balls need"} checking. Choose what the selected ball really is, or tap another.`
       : balls.length

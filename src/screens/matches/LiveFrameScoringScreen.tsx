@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  Platform,
 } from "react-native";
 import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,6 +18,7 @@ import type { LiveFrameEvent as SavedLiveFrameEvent, MatchesStackParamList } fro
 import { useAuthStore, useMatchesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppDialog, type DialogRequest } from "../../components/ui/AppDialog";
+import { lapAvailable } from "../../../modules/snooker-ar";
 import { FoulSheet } from "../../components/matches/FoulSheet";
 import { offerFouls } from "../../features/matches/foulBridge";
 import { useLiveBroadcast } from "../../features/matches/useLiveBroadcast";
@@ -728,7 +730,24 @@ export const LiveFrameScoringScreen = () => {
 
   const handleOpenLapRecord = () => {
     if (!match) return;
-    navigation.navigate("RecordSnooker" as any, { matchId: match.id, frameNumber: frame.frameNumber });
+    const open = () => navigation.navigate("RecordSnooker" as any, { matchId: match.id, frameNumber: frame.frameNumber });
+    if (lapAvailable()) {
+      open();
+      return;
+    }
+    // No camera scan here (all of Android for now, and the odd iPhone without ARKit): say so up
+    // front, rather than dropping the player on a diagram with no explanation.
+    setDialog({
+      title: Platform.OS === "android" ? "The camera scan is coming to Android" : "The camera scan needs ARKit",
+      message:
+        Platform.OS === "android"
+          ? "Scanning the table with the camera is iPhone-only for now, and comes to Android in a later version. Until then, tap the table diagram to mark where each ball is, and use it to put them back after a miss."
+          : "This phone can't scan the table with the camera. Tap the table diagram to mark where each ball is, and use it to put them back after a miss.",
+      icon: "cellphone-information",
+      confirmLabel: "Use the diagram",
+      cancelLabel: "Not now",
+      onConfirm: open,
+    });
   };
 
   useEffect(() => {

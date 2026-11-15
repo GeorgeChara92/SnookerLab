@@ -39,7 +39,12 @@ export const faceXml = (seed: string, body: string) => {
   })
     .toString()
     // The metadata block carries licence details in RDF, which the SVG renderer does not need.
-    .replace(/<metadata[\s\S]*?<\/metadata>/, "");
+    .replace(/<metadata[\s\S]*?<\/metadata>/, "")
+    // The face sits inside a mask the size of the whole picture, with square corners, so it
+    // changes nothing - but on Android react-native-svg draws masked content as blank, which
+    // left every avatar an empty circle. Without it the face draws the same on both platforms.
+    .replace(/<mask id="viewboxMask">[\s\S]*?<\/mask>/, "")
+    .replace(/<g mask="url\(#viewboxMask\)">/, "<g>");
 
   faceCache.set(key, xml);
   return xml;
