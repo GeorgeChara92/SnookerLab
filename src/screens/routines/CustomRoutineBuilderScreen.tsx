@@ -33,6 +33,8 @@ import {
 } from "../../features/scanSnooker/position";
 import { DESCRIPTION_MAX, NAME_MAX, cleanDraft, validateDraft } from "../../features/customRoutines/customRoutine";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { TierPaywallModal } from "../../components/subscription/TierPaywallModal";
 
 /**
  * Building a routine, in two steps:
@@ -45,11 +47,33 @@ import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
  * will not show a dialog from the app's own root DialogProvider while a modal sits on top of it.
  * Harmless when reached the normal way, nested in the Practice tab - it just shadows the outer one.
  */
-export const CustomRoutineBuilderScreen = () => (
-  <DialogProvider>
-    <CustomRoutineBuilderScreenContent />
-  </DialogProvider>
-);
+export const CustomRoutineBuilderScreen = () => {
+  const route = useRoute<any>();
+  const navigation = useNavigation<any>();
+  const subscription = useSubscriptionAccess();
+  // Decided once, on the way in: saving the routine that reaches the limit mustn't swap the screen
+  // for the upgrade prompt halfway through. Editing a routine is always allowed.
+  const [blocked] = useState(() => !route.params?.routineId && !subscription.canBuildRoutine);
+  if (blocked) {
+    return (
+      <View style={{ flex: 1 }}>
+        <TierPaywallModal
+          visible
+          onClose={() => navigation.goBack()}
+          currentTier={subscription.tier}
+          featureLabel="Building routines"
+          feature="customRoutines"
+          title={`You've built ${subscription.limits.customRoutines} routines, the most on ${subscription.tierLabel}`}
+        />
+      </View>
+    );
+  }
+  return (
+    <DialogProvider>
+      <CustomRoutineBuilderScreenContent />
+    </DialogProvider>
+  );
+};
 
 const CustomRoutineBuilderScreenContent = () => {
   const navigation = useNavigation<any>();

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +14,9 @@ import { type BallColour, type Point } from "../../features/scanSnooker/table";
 import type { LapBall } from "../../features/scanSnooker/lap";
 import { countOf, moveBall, placeBall, removeBall, summarise, type PlacedBall } from "../../features/scanSnooker/position";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { TierPaywallModal } from "../../components/subscription/TierPaywallModal";
+import { claimRecordSnooker, recordSnookerUsesSince } from "../../features/scanSnooker/recordAllowance";
 
 /**
  * Record a Snooker: walk once round the table and the balls are found for you, then check what was
@@ -29,7 +32,31 @@ export const RecordSnookerScreen = () => {
   const { matchId, frameNumber } = route.params;
   const support = useMemo(() => ({ camera: arSupport().available, lap: lapAvailable() }), []);
   const saved = useRecordSnookerStore(selectLapPosition(matchId, frameNumber));
-  const [view, setView] = useState<"camera" | "review">(support.lap && !saved ? "camera" : "review");
+  const subscription = useSubscriptionAccess();
+  const monthly = subscription.limits.recordSnookerPerPeriod;
+  const [paywall, setPaywall] = useState(false);
+  // A new scan on Free first checks this month's allowance, so nobody scans a table for nothing.
+  const [view, setView] = useState<"camera" | "review" | "checking">(
+    support.lap && !saved ? (monthly === null ? "camera" : "checking") : "review"
+  );
+  const openNewScan = async (then: () => void) => {
+    if (monthly === null) {
+      then();
+      return;
+    }
+    const used = await recordSnookerUsesSince(subscription.periodStart);
+    if (used !== null && used >= monthly) {
+      setView("review");
+      setPaywall(true);
+      return;
+    }
+    then();
+  };
+  useEffect(() => {
+    if (view === "checking") void openNewScan(() => setView("camera"));
+    // Only on the way in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [found, setFound] = useState<{ balls: LapBall[]; report: string } | null>(null);
   // Bumped to start the camera afresh for another lap.
   const [lapRun, setLapRun] = useState(0);
@@ -40,6 +67,25 @@ export const RecordSnookerScreen = () => {
   useEffect(() => {
     navigation.setOptions({ title: `Record a snooker · Frame ${frameNumber}`, headerShown: !camera });
   }, [camera, frameNumber, navigation]);
+
+  const limitPrompt = (
+    <TierPaywallModal
+      visible={paywall}
+      onClose={() => setPaywall(false)}
+      currentTier={subscription.tier}
+      featureLabel="Record a Snooker"
+      feature="recordSnooker"
+      title={`You've recorded ${monthly ?? 0} snookers this month, the most on ${subscription.tierLabel}`}
+    />
+  );
+
+  if (view === "checking") {
+    return (
+      <View style={[styles.screen, { alignItems: "center", justifyContent: "center" }]}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
 
   if (camera && puttingBack && saved) {
     return (
@@ -69,29 +115,35 @@ export const RecordSnookerScreen = () => {
   }
 
   return (
-    <LapReview
-      key={lapRun}
-      matchId={matchId}
-      frameNumber={frameNumber}
-      found={found}
-      lapReady={support.lap}
-      cameraReady={support.camera}
-      onNewLap={() => {
-        setFound(null);
-        setLapRun((value) => value + 1);
-        setView("camera");
-      }}
-      onDone={() => navigation.goBack()}
-      onPutBack={
-        saved && support.lap
-          ? () => {
-              setLapRun((value) => value + 1);
-              setPuttingBack(true);
-              setView("camera");
-            }
-          : undefined
-      }
-    />
+    <>
+      <LapReview
+        key={lapRun}
+        matchId={matchId}
+        frameNumber={frameNumber}
+        found={found}
+        lapReady={support.lap}
+        cameraReady={support.camera}
+        onNewLap={() =>
+          void openNewScan(() => {
+            setFound(null);
+            setLapRun((value) => value + 1);
+            setView("camera");
+          })
+        }
+        onDone={() => navigation.goBack()}
+        onLimit={() => setPaywall(true)}
+        onPutBack={
+          saved && support.lap
+            ? () => {
+                setLapRun((value) => value + 1);
+                setPuttingBack(true);
+                setView("camera");
+              }
+            : undefined
+        }
+      />
+      {limitPrompt}
+    </>
   );
 };
 
@@ -105,6 +157,7 @@ const LapReview = ({
   onNewLap,
   onDone,
   onPutBack,
+  onLimit,
 }: {
   matchId: string;
   frameNumber: number;
@@ -115,6 +168,8 @@ const LapReview = ({
   onDone: () => void;
   /** Opens the camera to put the saved position back; only when there is one. */
   onPutBack?: () => void;
+  /** This month's allowance turned out to be used up when saving. */
+  onLimit: () => void;
 }) => {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -259,7 +314,12 @@ const LapReview = ({
           </Text>
         </Pressable>
         <Pressable
-          onPress={() => {
+          onPress={async () => {
+            // A new scan uses one of the month's allowance; fixing a saved position doesn't.
+            if (found && (await claimRecordSnooker()) === "limit") {
+              onLimit();
+              return;
+            }
             savePosition(matchId, frameNumber, balls);
             onDone();
           }}

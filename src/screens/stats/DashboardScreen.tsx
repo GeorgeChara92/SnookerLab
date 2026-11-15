@@ -21,6 +21,7 @@ import { WeekTrack } from "../../components/stats/WeekTrack";
 import { RhythmBars } from "../../components/stats/RhythmBars";
 
 import { useShallow } from "zustand/react/shallow";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 type SegmentKey = "overview" | "training" | "matches";
 
 const SEGMENTS: { key: SegmentKey; label: string }[] = [
@@ -186,9 +187,19 @@ const generateInsights = (data: {
 };
 
 export const DashboardScreen = () => {
-  const { logs } = useSessionsStore(useShallow((state) => ({ logs: state.logs })));
-  const { matches } = useMatchesStore(useShallow((state) => ({ matches: state.matches })));
-  const { entries } = useRoutineScoresStore(useShallow((state) => ({ entries: state.entries })));
+  const { logs: allLogs } = useSessionsStore(useShallow((state) => ({ logs: state.logs })));
+  const { matches: allMatches } = useMatchesStore(useShallow((state) => ({ matches: state.matches })));
+  const { entries: allEntries } = useRoutineScoresStore(useShallow((state) => ({ entries: state.entries })));
+  // On Free, the page looks back over the last 30 days; the rest is kept, and shows on upgrading.
+  const subscription = useSubscriptionAccess();
+  const since = subscription.statsSince;
+  const sinceKey = since?.toISOString().slice(0, 10) ?? null;
+  const logs = useMemo(() => (sinceKey ? allLogs.filter((log) => log.date >= sinceKey) : allLogs), [allLogs, sinceKey]);
+  const matches = useMemo(() => (sinceKey ? allMatches.filter((match) => match.date >= sinceKey) : allMatches), [allMatches, sinceKey]);
+  const entries = useMemo(
+    () => (sinceKey ? allEntries.filter((entry) => entry.recorded_at >= sinceKey) : allEntries),
+    [allEntries, sinceKey]
+  );
   const { routines } = useRoutinesStore(useShallow((state) => ({ routines: state.routines })));
   const { colors } = useAppTheme();
   const navigation = useNavigation<any>();
@@ -740,6 +751,21 @@ export const DashboardScreen = () => {
         })}
       </View>
 
+      {since ? (
+        <Pressable
+          onPress={() => navigation.navigate("ProfileModal", { screen: "SubscriptionPlans" })}
+          accessibilityRole="button"
+          accessibilityHint="Opens the plans"
+          style={({ pressed }) => [styles.historyNote, { backgroundColor: colors.accentWash, borderColor: colors.border, opacity: pressed ? 0.85 : 1 }]}
+        >
+          <MaterialCommunityIcons name="history" size={18} color={colors.accent} />
+          <Text style={[styles.historyText, { color: colors.text }]}>
+            Showing your last {subscription.limits.statsHistoryDays} days. Your full history comes with Half-Century.
+          </Text>
+          <Text style={[styles.historyLink, { color: colors.accent }]}>See plans</Text>
+        </Pressable>
+      ) : null}
+
       <Animated.View style={[styles.body, { opacity: contentOpacity, transform: [{ translateY: contentShift }] }]}>
         {activeSegment === "overview"
           ? renderOverview()
@@ -756,6 +782,18 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
   body: { gap: SPACING.md },
+  historyNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  historyText: { flex: 1, minWidth: 180, fontSize: 13, lineHeight: 18 },
+  historyLink: { fontSize: 13, fontWeight: "800" },
 
   tabs: {
     flexDirection: "row",

@@ -25,7 +25,9 @@ import { useRoutinesStore, useSessionsStore } from "../../store";
 import type { Routine, ScoringType, SessionsStackParamList } from "../../types";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
-import { HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
+import { HIT_TARGET, RADIUS, SCRIM, SPACING, isSubscriptionLimitError } from "../../constants";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { TierPaywallModal } from "../../components/subscription/TierPaywallModal";
 
 import { useShallow } from "zustand/react/shallow";
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -68,6 +70,8 @@ export const SessionSetupScreen = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const subscription = useSubscriptionAccess();
+  const [showPaywall, setShowPaywall] = useState(false);
   const [sessionName, setSessionName] = useState(existing?.name ?? "");
   const [sessionNotes, setSessionNotes] = useState(existing?.notes ?? "");
 
@@ -159,6 +163,11 @@ export const SessionSetupScreen = () => {
         return;
       }
 
+      if (!subscription.canSaveSession) {
+        setShowSaveModal(false);
+        setShowPaywall(true);
+        return;
+      }
       const newTemplateId = await createTemplate({
         name: sessionName,
         notes: sessionNotes,
@@ -167,6 +176,11 @@ export const SessionSetupScreen = () => {
       setShowSaveModal(false);
       navigation.navigate("SessionTemplateDetail", { templateId: newTemplateId });
     } catch (error) {
+      if (isSubscriptionLimitError(error)) {
+        setShowSaveModal(false);
+        setShowPaywall(true);
+        return;
+      }
       dialog.alert({
         title: "Save failed",
         message: "Could not save your session. Check your connection and try again.",
@@ -485,6 +499,15 @@ export const SessionSetupScreen = () => {
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
+
+      <TierPaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        currentTier={subscription.tier}
+        featureLabel="Saving practice sessions"
+        feature="savedSessions"
+        title={`You've saved ${subscription.limits.savedSessions ?? 0} practice ${subscription.limits.savedSessions === 1 ? "session" : "sessions"}, the most on ${subscription.tierLabel}`}
+      />
     </KeyboardAvoidingView>
   );
 };

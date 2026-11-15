@@ -2,7 +2,7 @@ import React from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useAppTheme } from "../../hooks/useAppTheme";
-import { RADIUS, SCRIM, SPACING, SUBSCRIPTION_LIMITS, TIER_LABELS } from "../../constants";
+import { RADIUS, SCRIM, SPACING, TIER_LABELS, planLine, type PlanFeature } from "../../constants";
 import type { SubscriptionTier } from "../../types";
 
 type TierPaywallModalProps = {
@@ -11,9 +11,13 @@ type TierPaywallModalProps = {
   currentTier: SubscriptionTier;
   featureLabel: string;
   onUnlock?: () => void;
+  /** What was hit, so each plan shows what it gets of that; without it, the monthly limits. */
+  feature?: PlanFeature;
+  /** Replaces the usual "is limited on your plan" heading. */
+  title?: string;
 };
 
-export const TierPaywallModal = ({ visible, onClose, currentTier, featureLabel, onUnlock }: TierPaywallModalProps) => {
+export const TierPaywallModal = ({ visible, onClose, currentTier, featureLabel, onUnlock, feature, title }: TierPaywallModalProps) => {
   const { colors } = useAppTheme();
   const navigation = useNavigation<any>();
 
@@ -39,14 +43,14 @@ export const TierPaywallModal = ({ visible, onClose, currentTier, featureLabel, 
 
           <View style={styles.body}>
             <Text style={[styles.kicker, { color: colors.accent }]}>UNLOCK FEATURE</Text>
-            <Text style={[styles.title, { color: colors.text }]}>{featureLabel} is limited on your plan</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{title ?? `${featureLabel} is limited on your plan`}</Text>
             <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-              You are on {TIER_LABELS[currentTier]}. A bigger plan gives you more each month.
+              You are on {TIER_LABELS[currentTier]}. {feature ? "Here's what each plan gets." : "A bigger plan gives you more each month."}
             </Text>
 
             {(["free", "half_century", "century"] as SubscriptionTier[]).map((tier) => {
-              const limits = SUBSCRIPTION_LIMITS[tier];
               const active = tier === currentTier;
+              const lines: PlanFeature[] = feature ? [feature] : ["matches", "tournaments", "aiAnalyses"];
 
               return (
                 <View
@@ -61,15 +65,11 @@ export const TierPaywallModal = ({ visible, onClose, currentTier, featureLabel, 
                 >
                   <View style={styles.tierInfo}>
                     <Text style={[styles.tierName, { color: colors.text }]}>{TIER_LABELS[tier]}</Text>
-                    <Text style={[styles.tierMeta, { color: colors.textMuted }]}>
-                      Matches: {limits.matchesPerPeriod ?? "Unlimited"} a month
-                    </Text>
-                    <Text style={[styles.tierMeta, { color: colors.textMuted }]}>
-                      Tournaments: {limits.tournamentsPerPeriod ?? "Unlimited"} a month
-                    </Text>
-                    <Text style={[styles.tierMeta, { color: colors.textMuted }]}>
-                      AI analyses: {limits.aiAnalysesPerPeriod ?? "Unlimited"} a month
-                    </Text>
+                    {lines.map((line) => (
+                      <Text key={line} style={[styles.tierMeta, { color: colors.textMuted }]}>
+                        {planLine(line, tier)}
+                      </Text>
+                    ))}
                   </View>
                   {active ? <Text style={[styles.currentBadge, { color: colors.primary }]}>Current</Text> : null}
                 </View>

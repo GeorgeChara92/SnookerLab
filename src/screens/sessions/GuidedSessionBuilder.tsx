@@ -8,6 +8,9 @@ import { useAppTheme } from "../../hooks/useAppTheme";
 import { useDialog } from "../../components/ui/DialogProvider";
 import { HIT_TARGET, RADIUS, SPACING } from "../../constants";
 import { pickSessionRoutines } from "../../features/practice/sessionPicks";
+import { isSubscriptionLimitError } from "../../constants";
+import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
+import { TierPaywallModal } from "../../components/subscription/TierPaywallModal";
 
 import { useShallow } from "zustand/react/shallow";
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -111,6 +114,8 @@ export const GuidedSessionBuilder = () => {
   const [sessionLength, setSessionLength] = useState<SessionLength | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const subscription = useSubscriptionAccess();
+  const [showPaywall, setShowPaywall] = useState(false);
   /** Bumped by the shuffle button, so the picks only change when the player asks. */
   const [shuffleSeed, setShuffleSeed] = useState(0);
 
@@ -147,6 +152,10 @@ export const GuidedSessionBuilder = () => {
 
   const handleSave = async () => {
     if (!practiceFocus || !sessionLength || !suggestedRoutines.length) return;
+    if (!subscription.canSaveSession) {
+      setShowPaywall(true);
+      return;
+    }
 
     const focusOption = PRACTICE_OPTIONS.find((option) => option.id === practiceFocus);
     const lengthOption = SESSION_LENGTHS.find((option) => option.id === sessionLength);
@@ -164,6 +173,10 @@ export const GuidedSessionBuilder = () => {
 
       navigation.navigate("SessionTemplateDetail", { templateId });
     } catch (error) {
+      if (isSubscriptionLimitError(error)) {
+        setShowPaywall(true);
+        return;
+      }
       dialog.alert({
         title: "Could not save this session",
         message: "The session was not created. Check your connection and try again.",
@@ -441,6 +454,14 @@ export const GuidedSessionBuilder = () => {
           </Text>
         </Pressable>
       </View>
+      <TierPaywallModal
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        currentTier={subscription.tier}
+        featureLabel="Saving practice sessions"
+        feature="savedSessions"
+        title={`You've saved ${subscription.limits.savedSessions ?? 0} practice ${subscription.limits.savedSessions === 1 ? "session" : "sessions"}, the most on ${subscription.tierLabel}`}
+      />
     </View>
   );
 };

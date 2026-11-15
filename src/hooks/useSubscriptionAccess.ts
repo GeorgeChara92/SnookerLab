@@ -1,6 +1,13 @@
 import { useMemo } from "react";
-import { SUBSCRIPTION_LIMITS, TIER_LABELS } from "../constants";
-import { useAIAnalysesStore, useAuthStore, useMatchesStore, useTournamentsStore } from "../store";
+import { SHARE_THEMES, SUBSCRIPTION_LIMITS, TIER_LABELS } from "../constants";
+import {
+  useAIAnalysesStore,
+  useAuthStore,
+  useCustomRoutinesStore,
+  useMatchesStore,
+  useSessionsStore,
+  useTournamentsStore,
+} from "../store";
 import type { SubscriptionTier } from "../types";
 
 const toDate = (value?: string) => {
@@ -61,10 +68,13 @@ export const useSubscriptionAccess = () => {
   const matches = useMatchesStore((state) => state.matches);
   const tournaments = useTournamentsStore((state) => state.tournaments);
   const analyses = useAIAnalysesStore((state) => state.analyses);
+  const customRoutines = useCustomRoutinesStore((state) => state.routines);
+  const templates = useSessionsStore((state) => state.templates);
 
   return useMemo(() => {
     const tier = resolveTier(user?.subscription_tier);
     const limits = SUBSCRIPTION_LIMITS[tier];
+    const coach = user?.coach_subscription_active === true;
     const periodStart = periodStartFromAnchor(user?.subscription_anchor_date ?? user?.created_at);
     const periodEnd = periodEndFromStart(periodStart);
 
@@ -72,6 +82,9 @@ export const useSubscriptionAccess = () => {
       matches: countInPeriod(matches.map((item) => item.created_at), periodStart, periodEnd),
       tournaments: countInPeriod(tournaments.map((item) => item.created_at), periodStart, periodEnd),
       aiAnalyses: countInPeriod(analyses.map((item) => item.created_at), periodStart, periodEnd),
+      // Routines the player built, not ones saved from the community.
+      customRoutines: customRoutines.filter((routine) => !routine.sourceSharedId).length,
+      savedSessions: templates.length,
     };
 
     const remaining = {
@@ -91,6 +104,13 @@ export const useSubscriptionAccess = () => {
       canCreateMatch: remaining.matches === null || remaining.matches > 0,
       canCreateTournament: remaining.tournaments === null || remaining.tournaments > 0,
       canUseAI: remaining.aiAnalyses === null || remaining.aiAnalyses > 0,
+      // A coach on the Coach plan builds routines and sessions for clients, so has no limit on them.
+      canBuildRoutine: coach || limits.customRoutines === null || usage.customRoutines < limits.customRoutines,
+      canSaveSession: coach || limits.savedSessions === null || usage.savedSessions < limits.savedSessions,
+      /** The oldest date the Stats page shows on this plan, or null for everything. */
+      statsSince: limits.statsHistoryDays === null ? null : new Date(Date.now() - limits.statsHistoryDays * 86_400_000),
+      /** Whether a result card background can be picked on this plan. */
+      canUseShareTheme: (themeId: string) => SHARE_THEMES[tier] === null || SHARE_THEMES[tier]!.includes(themeId),
     };
-  }, [analyses, matches, tournaments, user?.created_at, user?.subscription_anchor_date, user?.subscription_tier]);
+  }, [analyses, customRoutines, matches, templates, tournaments, user?.created_at, user?.subscription_anchor_date, user?.subscription_tier, user?.coach_subscription_active]);
 };

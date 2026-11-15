@@ -13,7 +13,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { AppButton } from "../../components/ui/AppButton";
 import { useDialog } from "../../components/ui/DialogProvider";
-import { SUBSCRIPTION_LIMITS, TIER_LABELS } from "../../constants";
+import { TIER_LABELS, planLine } from "../../constants";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { useSubscriptionAccess } from "../../hooks/useSubscriptionAccess";
 import { useAuthStore } from "../../store";
@@ -50,36 +50,32 @@ const TIER_RANK: Record<SubscriptionTier, number> = { free: 0, half_century: 1, 
 /** How much cheaper the annual price works out per year, vs paying monthly for 12 months. */
 const annualSaving = (monthlyPrice: number, annualPrice: number) => Math.round((1 - annualPrice / (monthlyPrice * 12)) * 100);
 
-const limitText = (value: number | null, noun: string) =>
-  value === null ? `Unlimited ${noun}` : `${value} ${noun} a month`;
-
+/** What every plan has: the routine library and its videos, the rules, the Pro Tour and the community. */
 const PLANS: Array<{ tier: SubscriptionTier; tagline: string; extras: string[] }> = [
   {
     tier: "free",
-    tagline: "Track your practice and see where you stand.",
-    extras: ["Practice routines and sessions", "Basic stats"],
+    tagline: "Everything you need to start, free.",
+    extras: ["Every routine, guide and video", "The Pro Tour, rules and community"],
   },
   {
     tier: "half_century",
-    tagline: "For players practising every week.",
-    extras: ["Advanced performance tracking", "Full routine library"],
+    tagline: "For players at the table every week.",
+    extras: ["A subscriber badge in chat and community"],
   },
   {
     tier: "century",
     tagline: "Everything, for players chasing centuries.",
-    extras: ["Full analytics suite", "Early access to new features"],
+    extras: ["An exclusive app icon", "Early access to new features"],
   },
 ];
 
-const planFeatures = (tier: SubscriptionTier, extras: string[]) => {
-  const limits = SUBSCRIPTION_LIMITS[tier];
-  return [
-    limitText(limits.matchesPerPeriod, "matches"),
-    limitText(limits.tournamentsPerPeriod, "tournaments"),
-    limitText(limits.aiAnalysesPerPeriod, "AI analyses"),
-    ...extras,
-  ];
-};
+/** The plan's limits in words, from the same numbers the app and the server go by. */
+const planFeatures = (tier: SubscriptionTier, extras: string[]) => [
+  ...(["matches", "tournaments", "aiAnalyses", "recordSnooker", "customRoutines", "savedSessions", "statsHistory", "shareThemes"] as const).map(
+    (feature) => planLine(feature, tier)
+  ),
+  ...extras,
+];
 
 const formatDate = (value: string | null) => {
   if (!value) return null;
