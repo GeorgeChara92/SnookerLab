@@ -25,12 +25,12 @@ begin
 
   -- A clean slate for the demo account only.
   delete from public.live_scores where user_id in (demo, pal);
-  delete from public.matches where notes = 'seed:live';
+  delete from public.matches where notes = 'seed:live' and user_id in (demo, pal);
   delete from public.tournament_fixture_frames where fixture_id in (
     select id from public.tournament_fixtures where tournament_id in (select id from public.tournaments where user_id = demo));
   delete from public.tournament_fixtures where tournament_id in (select id from public.tournaments where user_id = demo);
   delete from public.tournaments where user_id = demo;
-  delete from public.activity where user_id = demo or dedupe_key like 'seed:%';
+  delete from public.activity where user_id = demo or (dedupe_key like 'seed:%' and user_id in (pal, pal2));
   delete from public.groups where owner = demo;
   delete from public.conversations where kind = 'direct' and (pair_low = demo or pair_high = demo);
   delete from public.matches where user_id = demo or (opponent_id = demo and user_id in (pal, pal2));
