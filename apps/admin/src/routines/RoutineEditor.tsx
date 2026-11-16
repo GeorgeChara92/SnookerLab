@@ -95,11 +95,11 @@ type Props = {
   onRedo: () => void;
   onSave: () => void;
   onToast: (text: string) => void;
-  /** Copy this routine into a new draft; only offered once the layout is saved. */
-  onDuplicate?: () => void;
+  /** Copy this table (balls, arrows, spotted colours) onto another routine, chosen next. */
+  onCopyTo?: () => void;
 };
 
-export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, onChange, onUndo, onRedo, onSave, onToast, onDuplicate }: Props) {
+export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, onChange, onUndo, onRedo, onSave, onToast, onCopyTo }: Props) {
   const [tool, setTool] = useState<Tool>("select");
   const [colour, setColour] = useState<Colour>("red");
   const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -629,15 +629,15 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
               <button type="button" className="btn btn-sm btn-danger-ghost" onClick={clearAll} disabled={empty && !arrows.length}>
                 Clear
               </button>
-              {onDuplicate ? (
+              {onCopyTo ? (
                 <button
                   type="button"
                   className="btn btn-sm"
-                  onClick={onDuplicate}
-                  disabled={dirty}
-                  title={dirty ? "Save the layout first: the copy is made from what's saved" : "Copy this routine and its table into a new draft, for the next level"}
+                  onClick={onCopyTo}
+                  disabled={empty && !arrows.length}
+                  title="Copy these balls (and arrows) onto another routine, then adjust them there"
                 >
-                  Duplicate
+                  Copy balls to…
                 </button>
               ) : null}
             </div>

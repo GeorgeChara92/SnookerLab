@@ -130,6 +130,9 @@ const go = (path: string) => {
  */
 export function Routines() {
   const dialog = useDialog();
+  // The builder's "Copy balls to…" picker: the routine being copied from, and the one chosen.
+  const [copyFrom, setCopyFrom] = useState<string | null>(null);
+  const [copyTarget, setCopyTarget] = useState("");
   const [file, setFile] = useState<FileData | null>(null);
   const [library, setLibrary] = useState<Library | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -340,6 +343,30 @@ export function Routines() {
       setToast({ text: error instanceof Error ? error.message : String(error), tone: "warn" });
     }
     setBusyId(null);
+  };
+
+  /**
+   * The builder's "Copy balls to…": this table - balls, arrows and which colours sit on their
+   * spots - onto another routine, as an unsaved change there (so Undo, Revert and Save all work as
+   * usual), then the builder opens that routine to adjust and save.
+   */
+  const copyBallsTo = (fromId: string, toId: string) => {
+    const source = state.drafts[fromId] ?? savedById.get(fromId);
+    const targetBase = savedById.get(toId);
+    if (!source || !targetBase) return;
+    const target = state.drafts[toId] ?? targetBase;
+    const next: Layout = {
+      ...target,
+      balls: source.balls.map((b) => ({ ...b })),
+      arrows: source.arrows.map((a) => ({ ...a })),
+      spotMarkers: [...source.spotMarkers],
+    };
+    dispatch({ type: "change", id: toId, base: targetBase, next, record: true });
+    setCopyFrom(null);
+    go(encodeURIComponent(toId));
+    setToast({
+      text: `Copied ${source.balls.length} ${source.balls.length === 1 ? "ball" : "balls"} from ${source.displayName} to ${target.displayName}. Adjust them, then save.`,
+    });
   };
 
   /** A copy of a routine as a new draft (the next level of it), then straight into its details. */
@@ -593,8 +620,61 @@ export function Routines() {
             onRedo={() => dispatch({ type: "redo", id: currentId, base })}
             onSave={() => void save()}
             onToast={(text) => setToast({ text })}
-            onDuplicate={library.routines.some((r) => r.id === currentId) ? () => void duplicate(currentId) : undefined}
+            onCopyTo={() => {
+              setCopyTarget("");
+              setCopyFrom(currentId);
+            }}
           />
+        </div>
+      ) : null}
+
+      {copyFrom ? (
+        <div className="overlay" onClick={() => setCopyFrom(null)}>
+          <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="copy-title" onClick={(event) => event.stopPropagation()}>
+            <h2 id="copy-title">Copy the balls to another routine</h2>
+            <p className="muted">
+              The balls, arrows and spotted colours from {(state.drafts[copyFrom] ?? savedById.get(copyFrom))?.displayName} go onto the routine you
+              pick, as an unsaved change you can adjust, undo or save.
+            </p>
+            <label className="field">
+              <span>Copy them to</span>
+              <select value={copyTarget} onChange={(event) => setCopyTarget(event.target.value)} autoFocus>
+                <option value="" disabled>
+                  Choose a routine
+                </option>
+                {groups.map((g) => (
+                  <optgroup key={g.cat} label={CATEGORY_LABEL[g.cat] ?? g.cat}>
+                    {g.items
+                      .filter((l) => l.routineId !== copyFrom)
+                      .map((l) => {
+                        const placed = (state.drafts[l.routineId] ?? l).balls.length;
+                        return (
+                          <option key={l.routineId} value={l.routineId}>
+                            {l.displayName}
+                            {draftIds.has(l.routineId) ? " (draft)" : ""}
+                            {placed ? ` · ${placed} placed` : " · empty"}
+                          </option>
+                        );
+                      })}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            {copyTarget && (state.drafts[copyTarget] ?? savedById.get(copyTarget))?.balls.length ? (
+              <p className="muted">
+                {(state.drafts[copyTarget] ?? savedById.get(copyTarget))?.displayName} already has{" "}
+                {(state.drafts[copyTarget] ?? savedById.get(copyTarget))?.balls.length} balls. They'll be replaced; Undo or Revert there brings them back.
+              </p>
+            ) : null}
+            <div className="row-actions">
+              <button type="button" className="btn" onClick={() => setCopyFrom(null)}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-primary" disabled={!copyTarget} onClick={() => copyBallsTo(copyFrom, copyTarget)}>
+                Copy balls
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 
