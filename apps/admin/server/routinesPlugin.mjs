@@ -101,6 +101,24 @@ async function layouts() {
   return { text, data, ts, images: readImageMap(ts) };
 }
 const routines = async () => (await readJson(ROUTINES_FILE, { routines: [] })).data.routines;
+
+/**
+ * The name for a copy: the next level when the name ends in one ("Black Spot Builder: Level 2"
+ * becomes "... Level 3", skipping any level that already exists), otherwise "... (copy)".
+ */
+export function nextLevelName(name, takenLower) {
+  const level = /^(.*?\bLevel\s+)(\d+)\s*$/i.exec(name);
+  if (level) {
+    for (let n = Number(level[2]) + 1; ; n++) {
+      const candidate = `${level[1]}${n}`;
+      if (!takenLower.has(candidate.toLowerCase())) return candidate;
+    }
+  }
+  for (let n = 1; ; n++) {
+    const candidate = n === 1 ? `${name} (copy)` : `${name} (copy ${n})`;
+    if (!takenLower.has(candidate.toLowerCase())) return candidate;
+  }
+}
 const checklist = async () => (await readJson(CHECKLIST_FILE, { routines: {} })).data.routines ?? {};
 
 /** The app's sections and the paused count, loaded through Vite so the TypeScript just works. */
@@ -212,6 +230,43 @@ async function handle(server, req, res, next) {
         const layoutsText = formatRoutinesFile(nextLayouts);
         if (layoutsText !== table.text) await writeAtomic(LAYOUTS_FILE, layoutsText);
         return send(res, 200, { routine: clean });
+      });
+    }
+
+    // A copy of a routine, for a new level of it: its write-up, its table (balls, arrows, which
+    // colours sit on their spots) and its picture, as a new draft placed right after the original,
+    // so the levels sit together. "... Level 2" becomes "... Level 3"; anything else "... (copy)".
+    // It starts out of the app and unsigned, like any new routine.
+    if (url.pathname === "/__admin/routine-duplicate" && req.method === "POST") {
+      dashboardOnly(req);
+      const { id } = await readJsonBody(req);
+      return await serially(async () => {
+        const [list, table] = await Promise.all([routines(), layouts()]);
+        const index = list.findIndex((r) => r.id === id);
+        if (index < 0) throw new Refused(404, "That routine isn't in the file any more. Reload the page.");
+        const source = list[index];
+        const name = nextLevelName(source.name, new Set(list.map((r) => r.name.toLowerCase())));
+        const taken = new Set([...list.map((r) => r.id), ...table.data.routines.map((r) => r.routineId)]);
+        const copy = cleanRoutine({ ...structuredClone(source), id: idFromName(name, taken), name, builtIn: false, inApp: false });
+        validateRoutine(copy);
+
+        const sourceLayout = table.data.routines.find((r) => r.routineId === id);
+        const category = SECTIONS[copy.category_id];
+        const copyLayout = sourceLayout
+          ? { ...structuredClone(sourceLayout), routineId: copy.id, displayName: name, category }
+          : { routineId: copy.id, displayName: name, category, spotMarkers: copy.content_type === "guide" ? [] : [...SPOT_IDS], ballPlacements: [] };
+        const layoutIndex = table.data.routines.findIndex((r) => r.routineId === id);
+        const nextLayouts = { routines: [...table.data.routines] };
+        nextLayouts.routines.splice(layoutIndex < 0 ? nextLayouts.routines.length : layoutIndex + 1, 0, copyLayout);
+        validateRoutines(nextLayouts);
+
+        const nextList = [...list];
+        nextList.splice(index + 1, 0, copy);
+        await writeAtomic(ROUTINES_FILE, formatRoutinesDataFile({ routines: nextList }));
+        await writeAtomic(LAYOUTS_FILE, formatRoutinesFile(nextLayouts));
+        // The same picture to start with; a new one can be uploaded for the copy later.
+        if (table.images[id]) await writeAtomic(LAYOUTS_TS, setImageInMap(table.ts, copy.id, table.images[id]));
+        return send(res, 200, { routine: copy });
       });
     }
 

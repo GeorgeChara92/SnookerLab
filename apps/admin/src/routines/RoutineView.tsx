@@ -14,6 +14,8 @@ type Props = {
   onBack: () => void;
   onEdit: () => void;
   onOpenBuilder: () => void;
+  /** A copy as a new draft, for the next level of this routine. */
+  onDuplicate: () => void;
   onSignOff: (done: boolean) => void;
   onNote: (note: string) => void;
   onPutInApp: () => void;
@@ -24,7 +26,7 @@ const MARK: Record<Part["state"], string> = { ok: "✓", missing: "✕", warn: "
 const STATUS = { done: { label: "Done", tone: "pill-good" }, ready: { label: "Ready to check", tone: "pill-brass" }, todo: { label: "Still to do", tone: "pill-bad" } };
 
 /** One routine, everything about it: the write-up as players read it, its picture and its checks. */
-export function RoutineView({ entry, section, savedLayout, pictureStamp, busy, onBack, onEdit, onOpenBuilder, onSignOff, onNote, onPutInApp, onPicture }: Props) {
+export function RoutineView({ entry, section, savedLayout, pictureStamp, busy, onBack, onEdit, onOpenBuilder, onDuplicate, onSignOff, onNote, onPutInApp, onPicture }: Props) {
   const r = entry.routine;
   const [enlarged, setEnlarged] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -91,6 +93,15 @@ export function RoutineView({ entry, section, savedLayout, pictureStamp, busy, o
               {entry.parts[0].state === "missing" ? "Place the balls" : "Open in builder"}
             </button>
           ) : null}
+          <button
+            type="button"
+            className="btn"
+            onClick={onDuplicate}
+            disabled={busy}
+            title="Copy this routine, its table and picture into a new draft - for the next level of it"
+          >
+            Duplicate
+          </button>
           <button type="button" className="btn btn-primary" onClick={onEdit}>
             Edit details
           </button>

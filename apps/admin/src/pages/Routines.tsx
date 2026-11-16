@@ -342,6 +342,25 @@ export function Routines() {
     setBusyId(null);
   };
 
+  /** A copy of a routine as a new draft (the next level of it), then straight into its details. */
+  const duplicate = async (id: string) => {
+    const source = library?.routines.find((r) => r.id === id);
+    setBusyId(id);
+    try {
+      const res = await fetch("/__admin/routine-duplicate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? `Couldn't copy it (${res.status}).`);
+      await Promise.all([loadLibrary(), load()]);
+      go(`edit/${encodeURIComponent(body.routine.id)}`);
+      setToast({
+        text: `Copied ${source?.name ?? "the routine"} as ${body.routine.name}, a draft. Change what's different, then adjust its table in the builder.`,
+      });
+    } catch (error) {
+      setToast({ text: error instanceof Error ? error.message : String(error), tone: "warn" });
+    }
+    setBusyId(null);
+  };
+
   /** A new photo or reference picture, saved into assets/routines and pointed at from the app. */
   const uploadPicture = async (id: string, picture: File) => {
     try {
@@ -464,6 +483,7 @@ export function Routines() {
             onBack={() => go("")}
             onEdit={() => go(`edit/${encodeURIComponent(viewing.id)}`)}
             onOpenBuilder={() => go(encodeURIComponent(viewing.id))}
+            onDuplicate={() => void duplicate(viewing.id)}
             onSignOff={(yes) => signOff(viewing.id, yes)}
             onNote={(note) => saveNote(viewing.id, note)}
             onPutInApp={() => void putInApp(viewing.id)}
@@ -573,6 +593,7 @@ export function Routines() {
             onRedo={() => dispatch({ type: "redo", id: currentId, base })}
             onSave={() => void save()}
             onToast={(text) => setToast({ text })}
+            onDuplicate={library.routines.some((r) => r.id === currentId) ? () => void duplicate(currentId) : undefined}
           />
         </div>
       ) : null}

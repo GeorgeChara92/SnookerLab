@@ -95,9 +95,11 @@ type Props = {
   onRedo: () => void;
   onSave: () => void;
   onToast: (text: string) => void;
+  /** Copy this routine into a new draft; only offered once the layout is saved. */
+  onDuplicate?: () => void;
 };
 
-export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, onChange, onUndo, onRedo, onSave, onToast }: Props) {
+export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, onChange, onUndo, onRedo, onSave, onToast, onDuplicate }: Props) {
   const [tool, setTool] = useState<Tool>("select");
   const [colour, setColour] = useState<Colour>("red");
   const [selection, setSelection] = useState<Set<string>>(new Set());
@@ -627,6 +629,17 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
               <button type="button" className="btn btn-sm btn-danger-ghost" onClick={clearAll} disabled={empty && !arrows.length}>
                 Clear
               </button>
+              {onDuplicate ? (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={onDuplicate}
+                  disabled={dirty}
+                  title={dirty ? "Save the layout first: the copy is made from what's saved" : "Copy this routine and its table into a new draft, for the next level"}
+                >
+                  Duplicate
+                </button>
+              ) : null}
             </div>
           </div>
 
