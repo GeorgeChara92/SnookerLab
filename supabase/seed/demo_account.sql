@@ -863,7 +863,7 @@ begin
     insert into public.conversations (kind, pair_low, pair_high, created_at)
       values ('direct', least(demo, pal), greatest(demo, pal), now() - interval '20 days') returning id into c;
     insert into public.conversation_members (conversation_id, user_id, status, last_read_at) values
-      (c, demo, 'active', now()), (c, pal, 'active', now());
+      (c, demo, 'active', now() - interval '0 hours'), (c, pal, 'active', now());
     insert into public.messages (conversation_id, sender, body, created_at) values (c, pal, 'Rematch Saturday? I want that frame back.', now() - interval '30 hours');
     insert into public.messages (conversation_id, sender, body, created_at) values (c, demo, 'Go on then. Best of five, winner buys.', now() - interval '29 hours');
     insert into public.messages (conversation_id, sender, body, created_at) values (c, pal, 'Good game last night. That black to win it was brutal.', now() - interval '5 hours');

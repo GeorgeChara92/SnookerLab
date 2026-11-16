@@ -415,16 +415,67 @@ w("  if pal is not null then")
 w("    insert into public.conversations (kind, pair_low, pair_high, created_at)")
 w("      values ('direct', least(demo, pal), greatest(demo, pal), now() - interval '20 days') returning id into c;")
 w("    insert into public.conversation_members (conversation_id, user_id, status, last_read_at) values")
-w("      (c, demo, 'active', now()), (c, pal, 'active', now());")
+w("      (c, demo, 'active', now() - interval '" + ("3 hours" if LINK_ONLY else "0 hours") + "'), (c, pal, 'active', now());")
 direct = [
     ("pal", 30, "Rematch Saturday? I want that frame back."),
     ("demo", 29, "Go on then. Best of five, winner buys."),
     ("pal", 5, "Good game last night. That black to win it was brutal."),
     ("demo", 4, "Pure luck, I'll take it."),
 ]
+if LINK_ONLY:
+    direct.append(("pal", 1, "Fancy another one at the academy Thursday? Loser buys the drinks."))
 for who, hours, body in direct:
     w(f"    insert into public.messages (conversation_id, sender, body, created_at) values (c, {who}, {q(body)}, now() - interval '{hours} hours');")
 w("  end if;")
+if LINK_ONLY:
+    # A second direct chat, with the other friend, also waiting on a reply.
+    w("  if pal2 is not null then")
+    w("    insert into public.conversations (kind, pair_low, pair_high, created_at)")
+    w("      values ('direct', least(demo, pal2), greatest(demo, pal2), now() - interval '9 days') returning id into c;")
+    w("    insert into public.conversation_members (conversation_id, user_id, status, last_read_at) values")
+    w("      (c, demo, 'active', now() - interval '30 hours'), (c, pal2, 'active', now());")
+    for who, hours, body in [
+        ("pal2", 50, "Loved the long pot drill you posted. Doing it every night this week."),
+        ("demo", 48, "Good stuff. Keep your head down on the long ones and it'll come."),
+        ("pal2", 2, "Could I grab a session with you next week? My cue action's gone a bit wobbly again."),
+    ]:
+        w(f"    insert into public.messages (conversation_id, sender, body, created_at) values (c, {who}, {q(body)}, now() - interval '{hours} hours');")
+    w("  end if;")
+
+if ARGS.club:
+    # The club's own group, with everyone this account plays with in it and a chat that reads
+    # like the members actually use it. It ends on two questions for this account, unread.
+    w("")
+    w("  -- The club's group: every friend of this account in it, and a busy chat.")
+    w("  insert into public.groups (owner, name, description, emoji, colour, visibility, who_can_post, who_can_invite, created_at)")
+    w(f"    values (demo, {q(ARGS.club)}, {q('The members of the ' + ARGS.club + ': table bookings, coaching, results and the odd century.')}, '🎓',")
+    w("      '#C9A44C', 'public', 'everyone', 'everyone', now() - interval '60 days') returning id into g;")
+    w("  insert into public.group_members (group_id, user_id, role, joined_at) values (g, demo, 'owner', now() - interval '60 days');")
+    w("  insert into public.group_members (group_id, user_id, role, joined_at)")
+    w("    select g, case when f.requester = demo then f.addressee else f.requester end, 'member', now() - interval '50 days'")
+    w("    from public.friendships f where (f.requester = demo or f.addressee = demo) and f.status = 'accepted'")
+    w("    on conflict do nothing;")
+    w("  update public.group_members set role = 'admin' where group_id = g and user_id = pal;")
+    w("  insert into public.conversations (kind, group_id, created_at) values ('group', g, now() - interval '60 days') returning id into c;")
+    academy_chat = [
+        ("demo", 75, "Welcome to the academy group, everyone. Bookings, results and drills all in here from now on."),
+        ("pal", 74, "Brilliant, about time we had somewhere for all this."),
+        ("pal2", 52, "Tables 3 and 4 are free Thursday night if anyone wants a frame."),
+        ("demo", 51, "I'll have table 4 from 7. Pinned the line-up for anyone wanting a warm-up."),
+        ("pal", 30, "Made a 68 on the line-up last night. Finally."),
+        ("pal2", 29, "Get in! My best is still 41, I'm coming for you."),
+        ("demo", 26, "That's the stuff. Clearance night next Tuesday, I'll set it up as a knockout in the app."),
+        ("pal2", 6, "Bracket's up for Tuesday, I'm in the top half."),
+        ("pal", 3, "Phil, are you filming the coaching session on Saturday? Happy to be in it."),
+        ("pal2", 1, "Same here. And can we get the long-pot drill on the board for this week?"),
+    ]
+    for who, hours, body in academy_chat:
+        guard = "" if who == "demo" else f"if {who} is not null then "
+        end = "" if who == "demo" else " end if;"
+        w(f"  {guard}insert into public.messages (conversation_id, sender, body, created_at) values (c, {who}, {q(body)}, now() - interval '{hours} hours');{end}")
+    w("  insert into public.group_routines (group_id, routine_key, name, added_by) values (g, 'routine-line-up', 'The Snooker Line Up', demo);")
+    w("  insert into public.group_routines (group_id, routine_key, name, added_by) values (g, 'routine-long-potting-classic', 'Potting Long Reds', demo);")
+
 w("")
 w("  -- What the group's feed shows.")
 feed = [
