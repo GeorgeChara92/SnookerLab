@@ -815,6 +815,18 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
                   {hover.guideY !== null && hover.guideY !== undefined ? (
                     <line x1={v({ x: 0, y: hover.guideY }).x} x2={v({ x: 0, y: hover.guideY }).x} y1={RAIL} y2={RAIL + TABLE.width} stroke={GUIDE} strokeWidth={3} strokeDasharray="14 12" />
                   ) : null}
+                  {hover.guideLine ? (
+                    // Lined up on a diagonal: through two other balls, or 45 degrees from one.
+                    <line
+                      x1={v(hover.guideLine.from).x}
+                      y1={v(hover.guideLine.from).y}
+                      x2={v(hover.guideLine.to).x}
+                      y2={v(hover.guideLine.to).y}
+                      stroke={GUIDE}
+                      strokeWidth={3}
+                      strokeDasharray="14 12"
+                    />
+                  ) : null}
                 </g>
               ) : null}
 

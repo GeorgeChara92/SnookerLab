@@ -92,11 +92,78 @@ export const autoSpotBalls = (balls: Ball[], spotMarkers: SpotId[]): Ball[] => {
   }));
 };
 
-export type Snapped = Point & { guideX: number | null; guideY: number | null };
+/** A guide drawn at an angle, as the stretch of it that lies on the bed. */
+export type GuideLine = { from: Point; to: Point };
+
+export type Snapped = Point & { guideX: number | null; guideY: number | null; guideLine?: GuideLine | null };
+
+/** The part of the infinite line through `a` and `b` that crosses the bed (Liang-Barsky clipping). */
+export const lineAcrossBed = (a: Point, b: Point): GuideLine | null => {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (Math.hypot(dx, dy) < 1e-6) return null;
+  let t0 = -Infinity;
+  let t1 = Infinity;
+  const edges: Array<[number, number, number, number]> = [
+    [dx, a.x, 0, TABLE.width],
+    [dy, a.y, 0, TABLE.length],
+  ];
+  for (const [d, start, min, max] of edges) {
+    if (Math.abs(d) < 1e-9) {
+      if (start < min || start > max) return null;
+      continue;
+    }
+    const ta = (min - start) / d;
+    const tb = (max - start) / d;
+    t0 = Math.max(t0, Math.min(ta, tb));
+    t1 = Math.min(t1, Math.max(ta, tb));
+  }
+  if (t0 > t1) return null;
+  return { from: { x: a.x + dx * t0, y: a.y + dy * t0 }, to: { x: a.x + dx * t1, y: a.y + dy * t1 } };
+};
+
+/** Lines closer than this to straight along or across are left to the along/across guides. */
+const NEAR_AXIS = Math.sin((3 * Math.PI) / 180);
+
+type Diagonal = { point: Point; distance: number; a: Point; b: Point };
 
 /**
- * Where a pointer lands: lined up with another ball's along or across position when it's within
- * `threshold` mm of one (a guide line shows it), otherwise on the grid if one is set.
+ * The nearest diagonal a point could sit on: the line through any two other balls (lining a ball
+ * up for a plant, or on a pot line), or a true 45 degrees from any one ball. Lines that are nearly
+ * straight along or across the table are skipped, since those guides already exist.
+ */
+const nearestDiagonal = (raw: Point, others: Point[], threshold: number): Diagonal | null => {
+  let best: Diagonal | null = null;
+  const consider = (a: Point, ux: number, uy: number) => {
+    const length = Math.hypot(ux, uy);
+    const nx = ux / length;
+    const ny = uy / length;
+    if (Math.abs(nx) < NEAR_AXIS || Math.abs(ny) < NEAR_AXIS) return;
+    const t = (raw.x - a.x) * nx + (raw.y - a.y) * ny;
+    const point = { x: a.x + nx * t, y: a.y + ny * t };
+    const distance = Math.hypot(raw.x - point.x, raw.y - point.y);
+    if (distance < threshold && (!best || distance < best.distance)) {
+      best = { point, distance, a, b: { x: a.x + nx, y: a.y + ny } };
+    }
+  };
+  for (let i = 0; i < others.length; i++) {
+    const a = others[i];
+    // Between two balls: only when they aren't touching, or the line is meaningless.
+    for (let j = i + 1; j < others.length; j++) {
+      const b = others[j];
+      if (Math.hypot(b.x - a.x, b.y - a.y) > TABLE.ball * 1.5) consider(a, b.x - a.x, b.y - a.y);
+    }
+    consider(a, 1, 1);
+    consider(a, 1, -1);
+  }
+  return best;
+};
+
+/**
+ * Where a pointer lands: lined up with another ball's along or across position, or on a diagonal
+ * (through two other balls, or 45 degrees from one), when it's within `threshold` mm of one - a
+ * guide line shows which - otherwise on the grid if one is set. The nearest line wins, so the
+ * along/across guides behave exactly as before unless a diagonal is closer.
  */
 export const snapPoint = (raw: Point, others: Point[], threshold: number, grid: number | null): Snapped => {
   let x = raw.x;
@@ -119,12 +186,22 @@ export const snapPoint = (raw: Point, others: Point[], threshold: number, grid: 
       guideY = o.y;
     }
   }
+
+  const diagonal = nearestDiagonal(raw, others, threshold);
+  const nearestStraight = Math.min(guideX !== null ? bestX : Infinity, guideY !== null ? bestY : Infinity);
+  if (diagonal && diagonal.distance < nearestStraight) {
+    const onBed = clampToBed(diagonal.point);
+    // A clamp would pull the ball off the line, so only show the guide when it really sits on it.
+    const exact = onBed.x === diagonal.point.x && onBed.y === diagonal.point.y;
+    return { ...onBed, guideX: null, guideY: null, guideLine: exact ? lineAcrossBed(diagonal.a, diagonal.b) : null };
+  }
+
   if (grid) {
     if (guideX === null) x = Math.round(raw.x / grid) * grid;
     if (guideY === null) y = Math.round(raw.y / grid) * grid;
   }
   const clamped = clampToBed({ x, y });
-  return { ...clamped, guideX: clamped.x === x ? guideX : null, guideY: clamped.y === y ? guideY : null };
+  return { ...clamped, guideX: clamped.x === x ? guideX : null, guideY: clamped.y === y ? guideY : null, guideLine: null };
 };
 
 /**
