@@ -48,6 +48,9 @@
     "routine-deep-screw": {
       "done": "2026-11-12"
     },
+    "routine-escape-science": {
+      "done": "2026-11-16"
+    },
     "routine-head-position-fundamentals": {
       "done": "2026-11-06"
     },
@@ -107,6 +110,9 @@
     },
     "routine-top-spin-control": {
       "done": "2026-11-12"
+    },
+    "routine-two-cushion-escape": {
+      "done": "2026-11-16"
     }
   }
 }

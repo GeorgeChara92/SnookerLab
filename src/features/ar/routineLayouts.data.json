@@ -204,49 +204,80 @@
     },
     {
       "routineId": "routine-baulk-safety",
-      "displayName": "Snooker Safety Shots off Reds",
+      "displayName": "Figure of 8 Safety Practice",
       "category": "safety",
       "spotMarkers": ["spot-black","spot-pink","spot-blue","spot-brown","spot-green","spot-yellow"],
       "ballPlacements": [
-        { "id": "red-line-211", "color": "red", "x": 0.08718, "y": 0.25 },
-        { "id": "red-line-212", "color": "red", "x": 0.08718, "y": 0.22058 },
-        { "id": "red-line-213", "color": "red", "x": 0.08718, "y": 0.19116 },
-        { "id": "red-line-214", "color": "red", "x": 0.08718, "y": 0.16174 },
-        { "id": "red-215", "color": "red", "x": 0.08718, "y": 0.28159 },
+        { "id": "red-line-211", "color": "red", "x": 0.69179, "y": 0.08966 },
+        { "id": "red-line-212", "color": "red", "x": 0.64398, "y": 0.08966 },
+        { "id": "red-line-213", "color": "red", "x": 0.59899, "y": 0.08966 },
+        { "id": "red-line-214", "color": "red", "x": 0.55118, "y": 0.08966 },
+        { "id": "red-215", "color": "red", "x": 0.74241, "y": 0.08966 },
         { "id": "black-217", "color": "black", "x": 0.5, "y": 0.08966 },
         { "id": "pink-218", "color": "pink", "x": 0.5, "y": 0.25 },
         { "id": "blue-219", "color": "blue", "x": 0.5, "y": 0.5 },
         { "id": "yellow-220", "color": "yellow", "x": 0.66423, "y": 0.7935 },
         { "id": "brown-221", "color": "brown", "x": 0.5, "y": 0.7935 },
         { "id": "green-222", "color": "green", "x": 0.34027, "y": 0.7935 },
-        { "id": "cue-223", "color": "white", "x": 0.5, "y": 0.11768 }
+        { "id": "cue-223", "color": "white", "x": 0.55118, "y": 0.7935 }
       ]
     },
     {
       "routineId": "routine-escape-science",
-      "displayName": "Escape Science",
+      "displayName": "Thin Safety – Baulk Line Challenge",
       "category": "safety",
-      "spotMarkers": ["spot-blue","spot-brown","spot-green","spot-yellow"],
+      "spotMarkers": [],
       "ballPlacements": [
-        { "id": "escape-cue", "color": "white", "x": 0.5, "y": 0.62482 }
+        { "id": "escape-cue", "color": "white", "x": 0.5, "y": 0.62482 },
+        { "id": "yellow-1", "color": "yellow", "x": 0.66423, "y": 0.7935 },
+        { "id": "brown-2", "color": "brown", "x": 0.5, "y": 0.7935 },
+        { "id": "green-3", "color": "green", "x": 0.33577, "y": 0.7935 },
+        { "id": "blue-4", "color": "blue", "x": 0.49982, "y": 0.49967 },
+        { "id": "pink-5", "color": "pink", "x": 0.50478, "y": 0.25238 },
+        { "id": "black-6", "color": "black", "x": 0.49982, "y": 0.09078 },
+        { "id": "red-7", "color": "red", "x": 0.47625, "y": 0.23817 },
+        { "id": "red-8", "color": "red", "x": 0.44493, "y": 0.22257 },
+        { "id": "red-9", "color": "red", "x": 0.41361, "y": 0.20696 },
+        { "id": "red-10", "color": "red", "x": 0.38229, "y": 0.19136 },
+        { "id": "red-11", "color": "red", "x": 0.35098, "y": 0.17576 },
+        { "id": "red-12", "color": "red", "x": 0.31966, "y": 0.16016 },
+        { "id": "white-13", "color": "white", "x": 0.25969, "y": 0.87164 }
       ]
     },
     {
       "routineId": "routine-two-cushion-escape",
-      "displayName": "Two Cushion Escape",
+      "displayName": "Quarter-Ball Safety – The Shot to Nothing",
       "category": "safety",
-      "spotMarkers": ["spot-brown","spot-green","spot-yellow"],
+      "spotMarkers": ["spot-pink"],
       "ballPlacements": [
-        { "id": "two-cushion-cue", "color": "white", "x": 0.2, "y": 0.82 }
+        { "id": "red-1", "color": "red", "x": 0.61077, "y": 0.14596 },
+        { "id": "red-2", "color": "red", "x": 0.61077, "y": 0.17538 },
+        { "id": "red-3", "color": "red", "x": 0.61077, "y": 0.2048 },
+        { "id": "red-4", "color": "red", "x": 0.61077, "y": 0.23422 },
+        { "id": "red-5", "color": "red", "x": 0.61077, "y": 0.26364 },
+        { "id": "red-6", "color": "red", "x": 0.61077, "y": 0.29306 },
+        { "id": "red-7", "color": "red", "x": 0.61077, "y": 0.32248 },
+        { "id": "white-8", "color": "white", "x": 0.77334, "y": 0.80275 },
+        { "id": "yellow-9", "color": "yellow", "x": 0.66423, "y": 0.7935 },
+        { "id": "brown-10", "color": "brown", "x": 0.5, "y": 0.7935 },
+        { "id": "green-11", "color": "green", "x": 0.33577, "y": 0.7935 },
+        { "id": "blue-12", "color": "blue", "x": 0.5, "y": 0.5 },
+        { "id": "black-13", "color": "black", "x": 0.5, "y": 0.09078 }
       ]
     },
     {
       "routineId": "routine-three-cushion-escape",
-      "displayName": "Three Cushion Escape",
+      "displayName": "Advanced Yellow Safety – The Two-Cushion Return",
       "category": "safety",
-      "spotMarkers": ["spot-brown","spot-green","spot-yellow"],
+      "spotMarkers": [],
       "ballPlacements": [
-        { "id": "three-cushion-cue", "color": "white", "x": 0.8, "y": 0.82 }
+        { "id": "three-cushion-cue", "color": "white", "x": 0.73397, "y": 0.80695 },
+        { "id": "yellow-1", "color": "yellow", "x": 0.29616, "y": 0.00736 },
+        { "id": "brown-2", "color": "brown", "x": 0.5, "y": 0.7935 },
+        { "id": "green-3", "color": "green", "x": 0.33577, "y": 0.7935 },
+        { "id": "blue-4", "color": "blue", "x": 0.5, "y": 0.5 },
+        { "id": "pink-5", "color": "pink", "x": 0.5, "y": 0.25 },
+        { "id": "black-6", "color": "black", "x": 0.5, "y": 0.09078 }
       ]
     },
     {

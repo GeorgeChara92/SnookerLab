@@ -604,132 +604,129 @@
       "inApp": true,
       "builtIn": true,
       "category_id": "cat-safety",
-      "name": "Snooker Safety Shots off Reds",
-      "icon": "🧱",
-      "difficulty": "advanced",
-      "summary": "Touch-based safety drill off reds to leave the cue-ball safe in baulk.",
-      "description": "Practise thin safety contacts that send the cue-ball back to baulk while nudging the red towards the black end.",
-      "setup_instructions": "Use one red at a time in 6 positions along a line parallel to the top cushion, starting level with the black spot. Play each attempt with the cue-ball in hand from the D.",
+      "name": "Figure of 8 Safety Practice",
+      "icon": "🌀",
+      "difficulty": "intermediate",
+      "summary": "Practise controlled figure-of-eight safety shots, using side spin to bring the cue ball back into baulk while leaving the reds difficult to pot.",
+      "description": "The figure-of-eight safety shot develops cue-ball control, touch and an understanding of how side spin affects the cue ball's path around the table.\n\nThe aim is to play each red with controlled pace and spin, sending the cue ball through a figure-of-eight-style route before bringing it safely back into baulk. The priority is to achieve a good safety position rather than simply making contact with the red.",
+      "setup_instructions": "Arrange five reds in a straight line, parallel to the black end of the table. Place the cue ball in baulk, with a suitable angle to play the first red.\n\nComplete five attempts on each red, giving you 25 attempts in total. Focus on controlling the cue ball's path, judging the amount of side spin required and returning to baulk without leaving an easy pot.\n\nPay attention to how different amounts of pace and side spin affect the cue ball's route. Prioritise a controlled, repeatable safety rather than trying to force the cue ball around the table.",
       "steps": [
-        "From each position, contact the red with controlled pace and return the cue-ball towards the baulk cushion area.",
-        "Try to finish behind a baulk colour while moving the red back towards the black end.",
-        "Score each shot out of 3: cue-ball cover, distance into baulk, and whether the red finishes safe."
+        "Assess the shot: Choose the red you are playing and visualise the cue-ball route needed to complete the figure of eight and return to baulk.",
+        "Choose your spin: Decide how much side spin and pace are needed to create the intended cue-ball movement.",
+        "Play the safety: Strike the chosen red with controlled pace, using side spin to guide the cue ball around the table.",
+        "Return to baulk: Aim to bring the cue ball back into baulk while leaving the red in a position that makes the opponent's next shot difficult.",
+        "Repeat: Play each of the five reds five times, adjusting your pace and spin to suit each shot."
       ],
-      "success_criteria": "Target 12+ points out of 18 per round. Log each round separately and watch the average.",
+      "success_criteria": "Count one successful attempt when you:\n- Play the intended figure-of-eight cue-ball route.\n- Return the cue ball to baulk.\n- Leave the red in a reasonably safe position.\n\nAn attempt that reaches baulk but leaves an easy pot does not count as a successful safety.",
       "improves": [
-        "Containment",
-        "Safety pace",
-        "Tactical pressure"
+        "Safety Play",
+        "Cue Ball Control",
+        "Side Spin Control",
+        "Pace Control",
+        "Cushion Awareness",
+        "Positional Judgement",
+        "Tactical Awareness",
+        "Shot Planning"
       ],
       "scoring_type": "count",
-      "max_score": 18,
-      "estimated_duration_minutes": 25,
-      "video": {
-        "id": "Q90ERw5UWfI",
-        "title": "Safety Play",
-        "channel": "Shaun Murphy Snooker"
-      },
-      "altVideo": {
-        "id": "190nfKvSY4M",
-        "title": "22. Safety - Practice Exercises",
-        "channel": "Barry Stark Snooker Coach"
-      }
+      "max_score": 25,
+      "estimated_duration_minutes": 20
     },
     {
       "id": "routine-escape-science",
       "inApp": true,
       "builtIn": true,
       "category_id": "cat-safety",
-      "name": "Escape Science Drill",
-      "icon": "🧭",
-      "difficulty": "advanced",
-      "summary": "Systematic escape training from common snookers.",
-      "description": "Build reliable escape percentages from the types of snookers players face most often in frames.",
-      "setup_instructions": "Create 10 snookers using the colours and baulk-line positions as the covering balls.",
+      "name": "Thin Safety – Baulk Line Challenge",
+      "icon": "🎯",
+      "difficulty": "intermediate",
+      "summary": "Develop thin-contact accuracy and pace control by playing safety shots on reds from different angles, aiming to send the cue ball beyond the baulk line.",
+      "description": "Thin safety shots require precision, touch and a good understanding of the contact point. Too much contact can leave the red exposed, while poor pace control can leave the cue ball in an unsafe position.\n\nThis routine challenges you to make a thin contact on six reds positioned at different angles, while controlling the cue ball so it travels beyond the baulk line.",
+      "setup_instructions": "Place six reds diagonally across the table, starting around the pink spot and extending towards the opposite side of the table. Position the cue ball behind either the green or yellow spot, depending on which side of the table you are practising from.\n\nAttempt each of the six reds five times, giving you 30 attempts in total.\n\nFocus on judging the contact point and controlling the pace of each shot. Avoid hitting the red too thickly, and pay attention to how the cue ball travels after contact.",
       "steps": [
-        "Name the intended contact point before the shot.",
-        "Play a legal escape while still considering where the cue-ball will finish.",
-        "Record whether you made the hit and whether the resulting safety was acceptable."
+        "Choose your target: Identify the red you are playing and assess the angle required to make a thin contact.",
+        "Plan the shot: Visualise the contact point and the intended direction of the cue ball after striking the red.",
+        "Play the safety: Deliver the shot with controlled pace, aiming to make the thinnest practical contact while sending the cue ball beyond the baulk line.",
+        "Repeat: Complete five attempts on each red before moving on to the next.",
+        "Change sides: If desired, repeat the setup from the opposite side of the table to practise the other angles."
       ],
-      "success_criteria": "2 points for legal escape + safe leave, 1 for legal hit only (max 20).",
+      "success_criteria": "Count one successful attempt when you:\n- Make a thin contact with the intended red.\n- Send the cue ball beyond the baulk line.\n\nBoth conditions must be met for the attempt to count.",
       "improves": [
         "Escape decision-making",
         "Swerve/judgement",
         "Damage limitation"
       ],
       "scoring_type": "count",
-      "max_score": 20,
-      "estimated_duration_minutes": 25,
-      "video": {
-        "id": "bC1wyWXnp0Y",
-        "title": "SNOOKER ESCAPE SCIENCE",
-        "channel": "Cuestars"
-      }
+      "max_score": 30,
+      "estimated_duration_minutes": 25
     },
     {
       "id": "routine-two-cushion-escape",
       "inApp": true,
       "builtIn": true,
       "category_id": "cat-safety",
-      "name": "Two Cushion Escape Drill",
-      "icon": "2️⃣",
+      "name": "Quarter-Ball Safety – The Shot to Nothing",
+      "icon": "🎯",
       "difficulty": "advanced",
-      "summary": "Improve reliability on two-cushion escape paths.",
-      "description": "Teaches contact references and pace for common two-cushion escapes.",
-      "setup_instructions": "Set 8 snookers where the direct path is blocked but a two-cushion escape is available.",
+      "summary": "Practise quarter-ball contact to develop precise safety play, aiming to send the cue ball beyond the baulk line and, where possible, hide it behind a baulk colour.",
+      "description": "Quarter-ball contact is useful when playing delicate safety shots, particularly when trying to send an object ball towards a pocket while keeping the cue ball safe.\n\nThis routine challenges you to play seven reds positioned in a straight line near the pink spot. The aim is to make quarter-ball contact, send the red towards the middle pocket and bring the cue ball back beyond the baulk line. If the red drops into the pocket, you may also have played a successful shot to nothing.",
+      "setup_instructions": "Arrange seven reds in a straight line, starting roughly between the black and pink spots and extending just beyond the pink spot.\n\nPosition the cue ball off to the side of either the yellow or green spot, depending on which side you are practising from.\n\nKeep the middle pocket as the target for the reds.\n\nFocus on achieving consistent quarter-ball contact and controlling the cue ball's return into baulk. When possible, try to finish behind the yellow or green ball to make the next shot more difficult for your opponent.\n\nSome attempts may result in the red being potted. Treat these as opportunities to practise the shot to nothing, where you attempt a pot while retaining a safe cue-ball position.",
       "steps": [
-        "Pick the cushion contact point.",
-        "Play with positive, controlled pace.",
-        "Repeat each setup from both sides."
+        "Assess the angle: Choose the red you are playing and identify the contact point needed for approximately quarter-ball contact.",
+        "Visualise the route: Plan the red's path towards the middle pocket and the cue ball's route back beyond the baulk line.",
+        "Play the safety: Deliver the shot with controlled pace, aiming to send the red towards the middle pocket while bringing the cue ball back into baulk.",
+        "Look for the shot to nothing: If the red is potted while the cue ball finishes safely, you have achieved an attacking result without sacrificing your defensive position.",
+        "Repeat: Play each of the seven reds five times before moving on to the opposite side, if desired."
       ],
-      "success_criteria": "Legal-hit percentage over 16 attempts (each snooker played from both sides).",
+      "success_criteria": "1 point: Make the intended quarter-ball contact and bring the cue ball beyond the baulk line.\n\n2 points: Pot the red and bring the cue ball safely beyond the baulk line.\n\n3 points: Pot the red and bring the cue ball beyond the baulk line, finishing behind the yellow or green to create a snooker.\n\nIf the red is missed and the cue ball does not return beyond the baulk line, score 0.",
       "improves": [
-        "Cushion maps",
-        "Escape confidence",
-        "Tactical resilience"
+        "Quarter-Ball Contact",
+        "Safety Play",
+        "Shot to Nothing",
+        "Cue Ball Control",
+        "Potting Accuracy",
+        "Pace Control",
+        "Snookering",
+        "Tactical Awareness",
+        "Positional Judgement"
       ],
-      "scoring_type": "percentage",
-      "estimated_duration_minutes": 20,
-      "video": {
-        "id": "V0XCCgOJPAY",
-        "title": "Snooker escapes - Mastering 1, 2, 3 cushions escapes (Know How)",
-        "channel": "Schulte Coach"
-      },
-      "altVideo": {
-        "id": "50PzObs5Aos",
-        "title": "Snooker-two cushions escape",
-        "channel": "Marek Potter"
-      }
+      "scoring_type": "points",
+      "max_score": 105,
+      "estimated_duration_minutes": 20
     },
     {
       "id": "routine-three-cushion-escape",
       "inApp": true,
       "builtIn": true,
       "category_id": "cat-safety",
-      "name": "Three Cushion Escape Drill",
-      "icon": "3️⃣",
+      "name": "Advanced Yellow Safety – The Two-Cushion Return",
+      "icon": "🟡",
       "difficulty": "advanced",
-      "summary": "Advanced escape-path work for deep snookers.",
-      "description": "Practise three-cushion escapes for positions where safer one- or two-cushion paths are not available.",
-      "setup_instructions": "Set 6 difficult snookers where one- and two-cushion escapes are either blocked or very low percentage.",
+      "summary": "Master a delicate safety shot by playing a thin contact on the yellow, sending it back up the table while bringing the cue ball behind the pink to create a snooker.",
+      "description": "Advanced safety play requires precise contact, controlled pace and a clear understanding of how both balls will travel after impact.\n\nIn this routine, the yellow is positioned against the bottom cushion. The aim is to make a thin contact that sends the yellow back up the table, ideally travelling around two cushions, while controlling the cue ball so it finishes behind the pink and leaves your opponent snookered.\n\nAlthough this version uses the yellow, the same principles can be applied to other colours and object balls in different positions.",
+      "setup_instructions": "- Place the yellow against the bottom cushion.\n- Keep the pink on its normal spot.\n- Position the cue ball at the opposite end of the table, with a suitable angle to play a thin contact on the yellow.\n- The intended result is for the yellow to travel back up the table using approximately two cushions, while the cue ball finishes behind the pink.",
       "steps": [
-        "Visualise the full three-cushion path before you play.",
-        "Control pace so you avoid leaving an easy chance.",
-        "Grade each attempt for both legality and the quality of the safety left behind."
+        "Assess the shot: Study the angle between the cue ball and yellow. Identify the thin contact needed to send the yellow back up the table.",
+        "Visualise both routes: Plan the yellow's journey around the cushions and the cue ball's path behind the pink.",
+        "Judge the pace: Consider how much force is needed to send the yellow around two cushions without allowing it to travel too far.",
+        "Play the safety: Deliver the shot with a smooth, controlled cue action, focusing on the contact point and pace.",
+        "Review the result: Check whether the cue ball finishes behind the pink and whether the yellow has travelled back up the table as intended.",
+        "Repeat: Adjust your contact point and pace based on the previous attempt."
       ],
-      "success_criteria": "Track legal-hit percentage and safe-leave percentage separately.",
+      "success_criteria": "Complete 10–15 attempts, focusing on making consistent thin contact and controlling the speed of both balls.\n\nYour main priority is to get the cue ball behind the pink, ideally leaving a full snooker. At the same time, aim to send the yellow back up the table through approximately two cushions.\n\nPay attention to how small changes in contact thickness and pace affect the final positions of both balls.\n\n1 point: Make a thin contact and send the yellow back up the table.\n2 points: Achieve the intended two-cushion route with the yellow and bring the cue ball behind the pink.\n3 points: Achieve both intended routes and leave the opponent fully snookered behind the pink.",
       "improves": [
-        "Escape route selection",
-        "Cushion speed control",
-        "Composure"
+        "Advanced Safety Play",
+        "Thin Contact",
+        "Pace Control",
+        "Cue Ball Control",
+        "Cushion Judgement",
+        "Snookering",
+        "Positional Awareness",
+        "Tactical Precision"
       ],
-      "scoring_type": "percentage",
-      "estimated_duration_minutes": 20,
-      "video": {
-        "id": "A8ymzcMRXIA",
-        "title": "Snooker escape-Three cushions and more",
-        "channel": "Marek Potter"
-      }
+      "scoring_type": "points",
+      "max_score": 45,
+      "estimated_duration_minutes": 20
     },
     {
       "id": "routine-straight-cueing-line",
