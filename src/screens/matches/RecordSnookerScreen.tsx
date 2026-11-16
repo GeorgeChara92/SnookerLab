@@ -21,7 +21,7 @@ import { useDialog } from "../../components/ui/DialogProvider";
 import { safeStorage } from "../../utils/storage";
 
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@snookeredapp.com";
-/** Set once the "still being tuned" note has been shown on this phone. */
+/** The day the "still being tuned" note was last shown on this phone; it shows once a day. */
 const TUNING_NOTE_KEY = "record-snooker-tuning-note";
 
 /** Feedback on Record a Snooker, by email, with the subject filled in. */
@@ -42,14 +42,15 @@ export const RecordSnookerScreen = () => {
   const { matchId, frameNumber } = route.params;
   const support = useMemo(() => ({ camera: arSupport().available, lap: lapAvailable() }), []);
   const dialog = useDialog();
-  // Record a Snooker is still being tuned (and will be through launch): say so the first time, so
+  // Record a Snooker is still being tuned (and will be through launch): say so once a day, so
   // nobody expects every ball to the millimetre, and ask for feedback.
   useEffect(() => {
     if (!support.lap) return;
     let live = true;
-    void safeStorage.getItem(TUNING_NOTE_KEY).then((seen) => {
-      if (!live || seen) return;
-      void safeStorage.setItem(TUNING_NOTE_KEY, "1");
+    const today = new Date().toDateString();
+    void safeStorage.getItem(TUNING_NOTE_KEY).then((shownOn) => {
+      if (!live || shownOn === today) return;
+      void safeStorage.setItem(TUNING_NOTE_KEY, today);
       dialog.confirm({
         title: "Still being tuned",
         message:

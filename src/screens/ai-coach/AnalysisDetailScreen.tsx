@@ -15,6 +15,8 @@ import { suggestRoutines } from "../../features/ai/suggestRoutines";
 import { DEFAULT_ROUTINES } from "../../constants/routines";
 
 import { useShallow } from "zustand/react/shallow";
+import { goodMomentForReview } from "../../features/feedback/askForReview";
+import { useAuthStore } from "../../store";
 type AnalysisDetailRoute = RouteProp<AICoachStackParamList, "AnalysisDetail">;
 
 const ClipPlayer = ({ url }: { url: string }) => {
@@ -40,6 +42,15 @@ export const AnalysisDetailScreen = () => {
 
   const analysis = analyses.find((item) => item.id === route.params.analysisId);
   const report = analysis?.report_json;
+  const accountCreatedAt = useAuthStore((state) => state.user?.created_at);
+  const hasReport = !!report;
+  useEffect(() => {
+    if (!hasReport) return;
+    const timer = setTimeout(() => void goodMomentForReview(accountCreatedAt), 20_000);
+    return () => clearTimeout(timer);
+    // Once the report is there, after it's had time to be read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasReport]);
 
   useEffect(() => {
     let mounted = true;

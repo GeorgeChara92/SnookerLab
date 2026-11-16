@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
 import { getAppIconName, setAlternateAppIcon, supportsAlternateIcons } from "expo-alternate-app-icons";
+import { openStoreReviewPage } from "../../features/feedback/askForReview";
 import { useNavigation, useNavigationState, type NavigationProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -542,6 +543,13 @@ export const SettingsScreen = () => {
             icon="help-circle"
             label="Contact Support"
             onPress={() => void openSupportEmail()}
+            colors={colors}
+          />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingsRow
+            icon="star-outline"
+            label={Platform.OS === "ios" ? "Rate Snookered on the App Store" : "Rate Snookered"}
+            onPress={() => void openStoreReviewPage()}
             colors={colors}
           />
         </SettingsSection>

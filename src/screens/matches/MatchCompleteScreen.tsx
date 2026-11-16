@@ -15,6 +15,7 @@ import { matchShareFor } from "../../features/community/matchShare";
 import { matchTape } from "../../features/matches/breaks";
 import { matchStory } from "../../features/matches/matchStory";
 import { matchHighlights } from "../../features/matches/highlights";
+import { goodMomentForReview } from "../../features/feedback/askForReview";
 import { DISPLAY_TEXT_SCALE, FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
 const NO_FRAMES: LiveFrameRecord[] = [];
@@ -34,6 +35,7 @@ export const MatchCompleteScreen = () => {
   const allMatches = useMatchesStore((state) => state.matches);
   const liveFramesByMatch = useMatchesStore((state) => state.liveFramesByMatch);
   const username = useAuthStore((state) => state.user?.username);
+  const accountCreatedAt = useAuthStore((state) => state.user?.created_at);
   const [shareOpen, setShareOpen] = useState(false);
   const [openFrameId, setOpenFrameId] = useState<string | null>(null);
   const rise = useRef(new Animated.Value(0)).current;
@@ -47,6 +49,15 @@ export const MatchCompleteScreen = () => {
     () => (match ? matchHighlights(match, allMatches, liveFramesByMatch, firstTo) : []),
     [match, allMatches, liveFramesByMatch, firstTo]
   );
+
+  const matchWon = !!match && match.user_score > match.opponent_score;
+  useEffect(() => {
+    if (!matchWon) return;
+    const timer = setTimeout(() => void goodMomentForReview(accountCreatedAt), 3500);
+    return () => clearTimeout(timer);
+    // Once per match screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchWon]);
 
   useEffect(() => {
     Animated.timing(rise, {
