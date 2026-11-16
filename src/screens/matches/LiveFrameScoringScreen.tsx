@@ -19,6 +19,10 @@ import { useAuthStore, useMatchesStore } from "../../store";
 import { useAppTheme } from "../../hooks/useAppTheme";
 import { AppDialog, type DialogRequest } from "../../components/ui/AppDialog";
 import { lapAvailable } from "../../../modules/snooker-ar";
+import { safeStorage } from "../../utils/storage";
+
+/** Set once the "no camera scan here" note has been shown on this phone. */
+const NO_SCAN_NOTE_KEY = "record-snooker-no-scan-note";
 import { FoulSheet } from "../../components/matches/FoulSheet";
 import { offerFouls } from "../../features/matches/foulBridge";
 import { useLiveBroadcast } from "../../features/matches/useLiveBroadcast";
@@ -735,8 +739,20 @@ export const LiveFrameScoringScreen = () => {
       open();
       return;
     }
-    // No camera scan here (all of Android for now, and the odd iPhone without ARKit): say so up
-    // front, rather than dropping the player on a diagram with no explanation.
+    // No camera scan here (all of Android for now, and the odd iPhone without ARKit): say so the
+    // first time, rather than dropping the player on a diagram with no explanation. After that it
+    // goes straight to the diagram, which keeps a line about it at the top.
+    void safeStorage.getItem(NO_SCAN_NOTE_KEY).then((seen) => {
+      if (seen) {
+        open();
+        return;
+      }
+      void safeStorage.setItem(NO_SCAN_NOTE_KEY, "1");
+      showNoScanNote(open);
+    });
+  };
+
+  const showNoScanNote = (open: () => void) => {
     setDialog({
       title: Platform.OS === "android" ? "The camera scan is coming to Android" : "The camera scan needs ARKit",
       message:
