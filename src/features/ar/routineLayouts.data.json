@@ -610,6 +610,54 @@
         { "id": "red-25", "color": "red", "x": 0.34364, "y": 0.16951 },
         { "id": "red-26", "color": "red", "x": 0.30539, "y": 0.1471 }
       ]
+    },
+    {
+      "routineId": "routine-straight-cueing-the-centre-line-test",
+      "displayName": "Straight Cueing – The Centre-Line Test",
+      "category": "cueing",
+      "spotMarkers": [],
+      "ballPlacements": [
+        { "id": "white-1", "color": "white", "x": 0.5, "y": 0.7935 }
+      ]
+    },
+    {
+      "routineId": "routine-straight-cueing-black-gate-challenge",
+      "displayName": "Straight Cueing – Black Gate Challenge",
+      "category": "cueing",
+      "spotMarkers": [],
+      "ballPlacements": [
+        { "id": "white-1", "color": "white", "x": 0.5, "y": 0.7935 },
+        { "id": "red-2", "color": "red", "x": 0.55399, "y": 0.09106 },
+        { "id": "red-3", "color": "red", "x": 0.44601, "y": 0.09106 }
+      ]
+    },
+    {
+      "routineId": "routine-straight-cueing-black-pink-gates",
+      "displayName": "Straight Cueing – Black & Pink Gates",
+      "category": "cueing",
+      "spotMarkers": [],
+      "ballPlacements": [
+        { "id": "white-1", "color": "white", "x": 0.5, "y": 0.7935 },
+        { "id": "red-2", "color": "red", "x": 0.55399, "y": 0.09106 },
+        { "id": "red-3", "color": "red", "x": 0.44601, "y": 0.09106 },
+        { "id": "red-4", "color": "red", "x": 0.55399, "y": 0.25077 },
+        { "id": "red-5", "color": "red", "x": 0.44601, "y": 0.25077 }
+      ]
+    },
+    {
+      "routineId": "routine-straight-cueing-black-pink-blue-gates",
+      "displayName": "Straight Cueing – Black, Pink & Blue Gates",
+      "category": "cueing",
+      "spotMarkers": [],
+      "ballPlacements": [
+        { "id": "white-1", "color": "white", "x": 0.5, "y": 0.7935 },
+        { "id": "red-2", "color": "red", "x": 0.55399, "y": 0.09106 },
+        { "id": "red-3", "color": "red", "x": 0.44601, "y": 0.09106 },
+        { "id": "red-4", "color": "red", "x": 0.55399, "y": 0.25077 },
+        { "id": "red-5", "color": "red", "x": 0.44601, "y": 0.25077 },
+        { "id": "red-6", "color": "red", "x": 0.55399, "y": 0.50014 },
+        { "id": "red-7", "color": "red", "x": 0.44601, "y": 0.50014 }
+      ]
     }
   ]
 }

@@ -1478,6 +1478,141 @@
       "scoring_type": "points",
       "max_score": 147,
       "estimated_duration_minutes": 15
+    },
+    {
+      "id": "routine-straight-cueing-the-centre-line-test",
+      "inApp": true,
+      "category_id": "cat-straight-cueing",
+      "name": "Straight Cueing – The Centre-Line Test",
+      "icon": "📏",
+      "difficulty": "beginner",
+      "summary": "Develop a straight, consistent cue action by striking the cue ball through the centre of the table and back towards the cue tip without introducing unwanted side spin.",
+      "description": "A straight cue action is essential for accurate potting and reliable cue-ball control. Even a small amount of unwanted side spin can affect the cue ball's path and make it harder to deliver the cue consistently.\n\nThis exercise removes object balls from the equation and focuses entirely on cue delivery. By striking the cue ball along the centre line of the table and observing its return, you can identify whether your cue action is introducing unwanted side spin.",
+      "setup_instructions": "Complete 20 attempts, focusing on striking the exact centre of the cue ball each time.\n\nKeep your cue delivery smooth and avoid steering the cue during the stroke. Watch whether the cue ball returns along the same line towards your cue tip.\n\nIf the cue ball consistently moves off line, use this as a reason to review your alignment, tip contact and cue delivery. Recording the exercise from behind can also help identify unwanted cue movement.",
+      "steps": [
+        "Align your cue: Set up so your cue points directly through the black, pink and blue spots.",
+        "Set your tip: Aim to strike the exact centre of the cue ball, avoiding any intentional side spin.",
+        "Deliver straight: Play the cue ball smoothly along the centre line, using a controlled and consistent cue action.",
+        "Stay down: Keep your head and body still after striking the cue ball. Do not lift up to watch its journey.",
+        "Observe the return: Allow the cue ball to travel towards the opposite cushion and return along the same line towards your cue tip.",
+        "Repeat: Continue practising, focusing on keeping the cue ball's path as straight as possible."
+      ],
+      "success_criteria": "Count one successful attempt when:\n- You strike the cue ball in the centre without intentionally applying side spin.\n- The cue ball travels along the intended centre line.\n- The cue ball returns towards your cue tip without noticeably deviating from its path.",
+      "improves": [
+        "Straight Cueing",
+        "Centre-Ball Accuracy",
+        "Cue Alignment",
+        "Cue Delivery",
+        "Cue Control",
+        "Strike Consistency",
+        "Side Spin Awareness",
+        "Technical Self-Assessment"
+      ],
+      "scoring_type": "count",
+      "max_score": 20,
+      "estimated_duration_minutes": 15
+    },
+    {
+      "id": "routine-straight-cueing-black-gate-challenge",
+      "inApp": true,
+      "category_id": "cat-straight-cueing",
+      "name": "Straight Cueing – Black Gate Challenge",
+      "icon": "🚪",
+      "difficulty": "beginner",
+      "summary": "Develop a straight and consistent cue action by striking the cue ball through a narrow gate formed by two reds positioned around the black spot.",
+      "description": "A straight cue action is essential for accurate potting and reliable cue-ball control. Even a small deviation in your delivery or unwanted side spin can cause the cue ball to drift away from its intended line.\n\nThis routine introduces a simple gate challenge to test your cueing accuracy. By passing the cue ball through two reds positioned either side of the black spot, you can practise delivering the cue straight along the centre line of the table.",
+      "setup_instructions": "Count one successful attempt when the cue ball passes completely through the gate without touching either red.\n\n- Place the cue ball on the brown spot.\n- Position two reds either side of the black spot, leaving a narrow gap for the cue ball to pass through.\n- Ensure the gate is aligned with the centre line running through the black, pink and blue spots.",
+      "steps": [
+        "Align your cue: Position yourself behind the cue ball and line your cue up with the centre of the table.",
+        "Check the gate: Make sure the two reds form a clear, narrow passage around the black spot.",
+        "Set your tip: Aim to strike the exact centre of the cue ball without intentionally applying side spin.",
+        "Deliver straight: Play the cue ball smoothly through the gate, keeping your cue action controlled.",
+        "Stay down: Keep your head and body still after striking the cue ball, holding your finishing position.",
+        "Review: Observe whether the cue ball passes cleanly through the gate without touching either red."
+      ],
+      "success_criteria": "Complete 10 attempts, focusing on delivering the cue ball straight through the black gate.\n\nAvoid steering the cue or making last-second adjustments. Concentrate on centre-ball contact, a smooth delivery and keeping your head still throughout the shot.\n\nIf the cue ball repeatedly clips one side of the gate, review your alignment and cue delivery rather than automatically assuming unwanted side spin is the cause.\n\nCount one successful attempt when the cue ball passes completely through the gate without touching either red.",
+      "improves": [
+        "Straight Cueing",
+        "Centre-Ball Accuracy",
+        "Cue Alignment",
+        "Cue Delivery",
+        "Cue Control",
+        "Strike Consistency",
+        "Side Spin Awareness",
+        "Precision",
+        "Technical Self-Assessment"
+      ],
+      "scoring_type": "count",
+      "max_score": 10,
+      "estimated_duration_minutes": 10
+    },
+    {
+      "id": "routine-straight-cueing-black-pink-gates",
+      "inApp": true,
+      "category_id": "cat-straight-cueing",
+      "name": "Straight Cueing – Black & Pink Gates",
+      "icon": "🚪",
+      "difficulty": "intermediate",
+      "summary": "Improve straight cueing and delivery consistency by striking the cue ball through two narrow gates positioned at the black and pink spots.",
+      "description": "Building on the Black Gate Challenge, this routine introduces a second gate to test whether you can maintain a straight cue action over a longer distance.\n\nThe cue ball must pass cleanly through both gates without touching either red. This makes small deviations in alignment, cue delivery or centre-ball contact easier to identify.",
+      "setup_instructions": "Complete 10 attempts, focusing on passing through both gates successfully.\n\nAvoid steering the cue or making last-second adjustments. Concentrate on centre-ball contact, a smooth delivery and keeping your head still throughout the shot.\n\nIf the cue ball clips a red, review your alignment and cue delivery. Pay attention to whether the deviation happens before or after passing through the first gate.\n\n- Place the cue ball on the brown spot.\n- Position two reds either side of the black spot to create the first gate.\n- Position another two reds either side of the pink spot to create the second gate.\n- Align both gates with the centre line running through the black, pink and blue spots.",
+      "steps": [
+        "Align your cue: Position yourself behind the cue ball and line your cue up with the centre of the table.",
+        "Check both gates: Ensure the two pairs of reds form a clear passage along the same straight line.",
+        "Set your tip: Aim to strike the exact centre of the cue ball without intentionally applying side spin.",
+        "Deliver straight: Play the cue ball smoothly through both gates, maintaining a consistent cue action.",
+        "Stay down: Keep your head and body still after striking the cue ball, holding your finishing position.",
+        "Review: Observe whether the cue ball passes cleanly through both gates without touching any of the reds."
+      ],
+      "success_criteria": "Count one successful attempt when the cue ball passes completely through both the black and pink gates without touching any of the four reds.",
+      "improves": [
+        "Straight Cueing",
+        "Centre-Ball Accuracy",
+        "Cue Alignment",
+        "Cue Delivery",
+        "Cue Control",
+        "Strike Consistency",
+        "Side Spin Awareness",
+        "Long-Range Precision",
+        "Technical Self-Assessment"
+      ],
+      "scoring_type": "count",
+      "max_score": 10,
+      "estimated_duration_minutes": 12
+    },
+    {
+      "id": "routine-straight-cueing-black-pink-blue-gates",
+      "inApp": true,
+      "category_id": "cat-straight-cueing",
+      "name": "Straight Cueing – Black, Pink & Blue Gates",
+      "icon": "🎱",
+      "difficulty": "advanced",
+      "summary": "Test your straight cueing accuracy by striking the cue ball through three narrow gates positioned at the black, pink and blue spots.",
+      "description": "This is the most challenging level of the Gate Challenge series. With three gates positioned along the centre line, even the smallest deviation in cue delivery or centre-ball contact can cause the cue ball to clip a red.\n\nThe aim is to maintain a straight, consistent cue action over the full length of the table, passing cleanly through all three gates.",
+      "setup_instructions": "Complete 10 attempts, focusing on passing through all three gates successfully.\n\nConcentrate on centre-ball contact, a smooth delivery and keeping your head still throughout the shot. Avoid steering the cue or making last-second adjustments.\n\nIf the cue ball clips a red, review your alignment and cue delivery. Pay attention to which gate the cue ball misses to help identify where your line begins to deviate.\n\n- Place the cue ball on the brown spot.\n- Position two reds either side of the black spot to create the first gate.\n- Position another two reds either side of the pink spot to create the second gate.\n- Position a final two reds either side of the blue spot to create the third gate.\n- Align all three gates with the centre line running through the black, pink and blue spots.",
+      "steps": [
+        "Align your cue: Position yourself behind the cue ball and line your cue up with the centre of the table.",
+        "Check the gates: Ensure all three pairs of reds form a clear passage along the same straight line.",
+        "Set your tip: Aim to strike the exact centre of the cue ball without intentionally applying side spin.",
+        "Deliver straight: Play the cue ball smoothly through all three gates, maintaining a consistent cue action.",
+        "Stay down: Keep your head and body still after striking the cue ball, holding your finishing position.",
+        "Review: Observe whether the cue ball passes cleanly through all three gates without touching any of the reds."
+      ],
+      "success_criteria": "Count one successful attempt when the cue ball passes completely through all three gates without touching any of the six reds.",
+      "improves": [
+        "Straight Cueing",
+        "Centre-Ball Accuracy",
+        "Cue Alignment",
+        "Cue Delivery",
+        "Cue Control",
+        "Strike Consistency",
+        "Side Spin Awareness",
+        "Long-Range Precision",
+        "Technical Self-Assessment"
+      ],
+      "scoring_type": "count",
+      "max_score": 10,
+      "estimated_duration_minutes": 15
     }
   ]
 }
