@@ -389,7 +389,29 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
     );
   };
   const recolour = (to: Colour) => setBalls(balls.map((b) => (selection.has(b.id) ? { ...b, color: to } : b)));
-  const mirror = () => setBalls(balls.map((b) => (selection.has(b.id) ? { ...b, x: TABLE.width - b.x } : b)));
+  /**
+   * A copy of each selected ball on the other side of the table, mirrored across the long centre
+   * line; the originals stay put. A ball already on the centre line, or one whose mirror spot is
+   * already taken by a ball of the same colour, isn't copied. Originals and copies end up selected
+   * together, so the pair can be moved as one.
+   */
+  const mirror = () => {
+    const taken = new Set(balls.map((b) => b.id));
+    const copies: Ball[] = [];
+    for (const b of balls) {
+      if (!selection.has(b.id)) continue;
+      const x = TABLE.width - b.x;
+      if (Math.abs(x - b.x) < BALL_R) continue;
+      const occupied = [...balls, ...copies].some((o) => o.color === b.color && Math.hypot(o.x - x, o.y - b.y) < 1);
+      if (occupied) continue;
+      const id = nextId([...balls, ...copies], b.color, taken);
+      taken.add(id);
+      copies.push({ ...b, id, x });
+    }
+    if (!copies.length) return;
+    setBalls([...balls, ...copies]);
+    setSelection(new Set([...selection, ...copies.map((c) => c.id)]));
+  };
   const align = (axis: "x" | "y") => {
     const avg = selected.reduce((sum, b) => sum + b[axis], 0) / (selected.length || 1);
     setBalls(balls.map((b) => (selection.has(b.id) ? { ...b, [axis]: avg } : b)));
@@ -1018,7 +1040,7 @@ export function RoutineEditor({ layout, saved, image, dirty, canUndo, canRedo, o
                     </button>
                   </>
                 ) : null}
-                <button type="button" className="btn btn-sm" onClick={mirror} title="Flip top to bottom across the middle of the table">
+                <button type="button" className="btn btn-sm" onClick={mirror} title="Add the same ball on the opposite side, mirrored across the middle of the table">
                   Mirror
                 </button>
                 <button type="button" className="btn btn-sm btn-danger-ghost" onClick={removeSelected}>
