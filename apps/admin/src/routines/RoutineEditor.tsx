@@ -58,11 +58,14 @@ const TOOLS: Array<{ value: Tool; label: string; key: string; hint: string }> = 
   { value: "arrow", label: "Arrow", key: "A", hint: "Drag from where the arrow starts to where it points. It snaps to balls" },
   { value: "measure", label: "Measure", key: "M", hint: "Click two points to measure between them" },
 ];
+// Values are centre to centre (mm); the labels say the gap left between neighbouring balls, which
+// is how it reads at the table: "1 ball gap" leaves exactly room for another ball in between.
 const SPACINGS: Array<[string, string]> = [
   ["52.5", "Touching"],
-  ["105", "2 ball-widths"],
-  ["157.5", "3 ball-widths"],
-  ["custom", "Custom"],
+  ["78.75", "Half a ball gap"],
+  ["105", "1 ball gap"],
+  ["157.5", "2 ball gap"],
+  ["custom", "Custom (centre to centre)"],
 ];
 const GRIDS: Array<[string, string]> = [
   ["0", "Off"],
