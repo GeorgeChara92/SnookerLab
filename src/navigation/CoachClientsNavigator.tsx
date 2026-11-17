@@ -8,6 +8,9 @@ import type { CoachClientsStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 import { MaterialTopHeader } from "./MaterialTopHeader";
 
+// MaterialTopHeader has its own "?" beside the title; the stack's "?" here would be a second one.
+const noSecondHelp = () => null;
+
 const Stack = createNativeStackNavigator<CoachClientsStackParamList>();
 
 export const CoachClientsNavigator = () => {
@@ -19,7 +22,7 @@ export const CoachClientsNavigator = () => {
         name="ClientsList"
         component={CoachClientsScreen}
         // The tab's first screen wears the coach header, so the switch to player view is on every tab.
-        options={{ title: "Clients", header: (props) => <MaterialTopHeader {...props} /> }}
+        options={{ title: "Clients", header: (props) => <MaterialTopHeader {...props} />, headerRight: noSecondHelp }}
       />
       <Stack.Screen
         name="ClientDetail"

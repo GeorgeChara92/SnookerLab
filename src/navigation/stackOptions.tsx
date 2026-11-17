@@ -63,9 +63,9 @@ export const useAppStackScreenOptions = (
       fontWeight: "800",
       fontSize: 17,
     },
-    headerLeft: withProfileShortcut
-      ? (props) => (props.canGoBack ? <HeaderBackArrow tintColor={props.tintColor} /> : null)
-      : undefined,
+    // The app's own back arrow everywhere, coach view included: the native one did nothing when
+    // tapped on a coach group (opened from a tab whose first screen draws its own header).
+    headerLeft: (props) => (props.canGoBack ? <HeaderBackArrow tintColor={props.tintColor} /> : null),
     // No topic, no button: iOS draws an empty glass bubble for a header button that renders nothing.
     headerRight:
       withProfileShortcut || ROUTE_TOPICS[route.name]

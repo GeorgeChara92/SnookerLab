@@ -10,6 +10,9 @@ import type { CoachChatsStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 import { MaterialTopHeader } from "./MaterialTopHeader";
 
+// MaterialTopHeader has its own "?" beside the title; the stack's "?" here would be a second one.
+const noSecondHelp = () => null;
+
 const Stack = createNativeStackNavigator<CoachChatsStackParamList>();
 
 /** A coach's own messages, on their own tab - separate from Groups, so day-to-day conversation
@@ -23,7 +26,7 @@ export const CoachChatsNavigator = () => {
         name="ChatsList"
         component={ChatsScreen}
         // The tab's first screen wears the coach header, so the switch to player view is on every tab.
-        options={{ title: "Chats", header: (props) => <MaterialTopHeader {...props} /> }}
+        options={{ title: "Chats", header: (props) => <MaterialTopHeader {...props} />, headerRight: noSecondHelp }}
       />
       <Stack.Screen name="Chat" component={ChatScreen} options={{ title: "" }} />
       <Stack.Screen name="NewChat" component={NewChatScreen} options={{ title: "New message" }} />

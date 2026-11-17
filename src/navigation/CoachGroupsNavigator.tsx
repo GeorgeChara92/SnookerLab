@@ -8,6 +8,9 @@ import type { CoachGroupsStackParamList } from "../types";
 import { useAppStackScreenOptions } from "./stackOptions";
 import { MaterialTopHeader } from "./MaterialTopHeader";
 
+// MaterialTopHeader has its own "?" beside the title; the stack's "?" here would be a second one.
+const noSecondHelp = () => null;
+
 const Stack = createNativeStackNavigator<CoachGroupsStackParamList>();
 
 /** A coach's own client groups, on their own tab: their clients, and the practice content posted
@@ -21,7 +24,7 @@ export const CoachGroupsNavigator = () => {
         name="GroupsList"
         component={CoachGroupsListScreen}
         // The tab's first screen wears the coach header, so the switch to player view is on every tab.
-        options={{ title: "Groups", header: (props) => <MaterialTopHeader {...props} /> }}
+        options={{ title: "Groups", header: (props) => <MaterialTopHeader {...props} />, headerRight: noSecondHelp }}
       />
       <Stack.Screen name="CoachGroupForm" component={CoachGroupFormScreen} options={{ title: "New group" }} />
       <Stack.Screen
