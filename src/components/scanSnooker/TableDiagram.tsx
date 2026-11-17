@@ -124,6 +124,11 @@ type Props = {
    * with any group of touching balls spread just enough that they still only touch. Read-only.
    */
   enlarge?: boolean;
+  /**
+   * With `enlarge`, the smallest a ball is drawn, in px (default 9). A small thumbnail passes less,
+   * so its balls stay in proportion to the table instead of the minimum swamping a tiny diagram.
+   */
+  minBallPx?: number;
 };
 
 const NO_ARROWS: TableArrow[] = [];
@@ -143,6 +148,7 @@ export const TableDiagram = ({
   landscape = false,
   arrows = NO_ARROWS,
   enlarge = false,
+  minBallPx = ENLARGED_MIN_PX,
 }: Props) => {
   const [box, setBox] = useState({ width: 0, height: 0 });
   const [view, setView] = useState<View2>(FULL_VIEW);
@@ -193,7 +199,7 @@ export const TableDiagram = ({
   }, [balls]);
 
   // With `enlarge`: how many times life size, and where each ball is drawn once groups are spread.
-  const enlargeBy = enlarge && base ? Math.max(ENLARGE, ENLARGED_MIN_PX / (TABLE.ball * base.scale)) : 1;
+  const enlargeBy = enlarge && base ? Math.max(ENLARGE, minBallPx / (TABLE.ball * base.scale)) : 1;
   const shownBalls = useMemo(
     () => (enlargeBy > 1 ? spreadForDisplay(balls, TABLE.ball * enlargeBy) : balls),
     [balls, enlargeBy]

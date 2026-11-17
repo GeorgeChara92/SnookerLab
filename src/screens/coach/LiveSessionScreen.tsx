@@ -317,7 +317,7 @@ const LiveSessionScreenContent = () => {
                 <View key={entry.id} style={[styles.routineRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <Pressable onPress={() => setEditing(entry)} accessibilityRole="button" style={styles.routineRowMain}>
                     {routine ? (
-                      <RoutineThumb routine={routine} custom={customById.get(entry.routineId)} style={styles.pickerThumb} />
+                      <RoutineThumb routine={routine} custom={customById.get(entry.routineId)} style={styles.pickerThumb} compact />
                     ) : (
                       <View style={[styles.pickerThumb, styles.pickerThumbFallback, { backgroundColor: colors.surfaceMuted }]}>
                         <Text style={styles.pickerIcon}>🎱</Text>
@@ -782,7 +782,7 @@ export const RoutinePickerSheet = ({
                     { borderColor: colors.border, backgroundColor: pressed ? colors.surfaceMuted : "transparent" },
                   ]}
                 >
-                  <RoutineThumb routine={item} custom={customById.get(item.id)} style={styles.pickerThumb} />
+                  <RoutineThumb routine={item} custom={customById.get(item.id)} style={styles.pickerThumb} compact />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.pickerName, { color: colors.text }]} numberOfLines={1}>
                       {item.name}

@@ -7,6 +7,10 @@ import { TableDiagram } from "../scanSnooker/TableDiagram";
 import type { CustomRoutine } from "../../features/customRoutines/customRoutine";
 import type { Routine } from "../../types";
 
+/** The smallest a ball is drawn in a list thumbnail, in px: big enough to see its colour, small
+ * enough that a pack of reds still reads as a pack on a ~100px table. */
+const THUMB_MIN_BALL_PX = 4.5;
+
 /** A library routine's photo or video thumbnail, for one with no table layout to draw. */
 export const thumbnailFor = (routine: Routine) => {
   const reference = getRoutineReferenceImageByRoutineId(routine.id);
@@ -29,23 +33,35 @@ export const RoutineThumb = ({
   style,
   onPress,
   landscape,
+  compact,
 }: {
   routine: Routine;
   custom?: CustomRoutine;
   style: any;
   onPress?: () => void;
-  /** The wide preview box, not the small square one in a list row. */
+  /** The table on its side, for a wide box. */
   landscape?: boolean;
+  /** A small list thumbnail: balls drawn smaller than in a full-size diagram, so they stay in
+   * proportion to the table. Only the coach's thumbnails use this; the Practice tab is unchanged. */
+  compact?: boolean;
 }) => {
+  const minBallPx = compact ? THUMB_MIN_BALL_PX : undefined;
   const { colors } = useAppTheme();
   const libraryBalls = custom ? null : getRoutinePlacedBalls(routine);
   if (custom || libraryBalls) {
     return (
       <Pressable onPress={onPress} disabled={!onPress} style={[style, styles.diagram, { backgroundColor: "#0F4A33" }]}>
         {custom ? (
-          <TableDiagram balls={custom.balls} readOnly landscape={landscape} />
+          <TableDiagram balls={custom.balls} readOnly landscape={landscape} enlarge minBallPx={minBallPx} />
         ) : (
-          <TableDiagram balls={libraryBalls!} arrows={getRoutineArrows(routine)} readOnly landscape={landscape} enlarge={landscape} />
+          <TableDiagram
+            balls={libraryBalls!}
+            arrows={getRoutineArrows(routine)}
+            readOnly
+            landscape={landscape}
+            enlarge
+            minBallPx={minBallPx}
+          />
         )}
       </Pressable>
     );

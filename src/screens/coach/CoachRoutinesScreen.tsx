@@ -145,7 +145,7 @@ const RoutineRow = ({ routine, custom, onPress }: { routine: Routine; custom?: C
       accessibilityRole="button"
       style={({ pressed }) => [styles.row, { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border }]}
     >
-      <RoutineThumb routine={routine} custom={custom} style={styles.thumb} landscape />
+      <RoutineThumb routine={routine} custom={custom} style={styles.thumb} landscape compact />
       <View style={styles.rowText}>
         <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>
           {routine.name}
