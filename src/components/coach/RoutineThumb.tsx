@@ -9,7 +9,7 @@ import type { Routine } from "../../types";
 
 /** The smallest a ball is drawn in a list thumbnail, in px: big enough to see its colour, small
  * enough that a pack of reds still reads as a pack on a ~100px table. */
-const THUMB_MIN_BALL_PX = 4.5;
+const THUMB_MIN_BALL_PX = 3;
 
 /** A library routine's photo or video thumbnail, for one with no table layout to draw. */
 export const thumbnailFor = (routine: Routine) => {
