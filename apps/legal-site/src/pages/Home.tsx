@@ -228,7 +228,7 @@ function Gallery() {
   );
 }
 
-/** The 25-second film: a poster and a play button until it's wanted, so it costs nothing to load. */
+/** The film (under a minute): a poster and a play button until it's wanted, so it costs nothing to load. */
 function Film() {
   const [playing, setPlaying] = useState(false);
   return (
@@ -237,9 +237,9 @@ function Film() {
         <Reveal className="section-head split">
           <div>
             <p className="eyebrow">See it in action</p>
-            <h2 className="display-l">Snookered in 25 seconds.</h2>
+            <h2 className="display-l">Snookered in under a minute.</h2>
           </div>
-          <p className="lead">Live scoring, practice, AR at the table and the coaching side, in one short film.</p>
+          <p className="lead">From your first practice routine to league night, the pro tour and the coaching side: one app for every player at the table.</p>
         </Reveal>
         <Reveal delay={0.08}>
           <div className="film">
@@ -251,7 +251,7 @@ function Film() {
             ) : (
               <>
                 <img src="/media/snookered-film-poster.webp" alt="" width={1280} height={720} loading="lazy" decoding="async" />
-                <button type="button" className="film-play" onClick={() => setPlaying(true)} aria-label="Play the Snookered film, 25 seconds, with sound">
+                <button type="button" className="film-play" onClick={() => setPlaying(true)} aria-label="Play the Snookered film, under a minute, with sound">
                   <span>
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />
