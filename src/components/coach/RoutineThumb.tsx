@@ -63,7 +63,9 @@ export const RoutineThumb = ({
 };
 
 const styles = StyleSheet.create({
-  diagram: { overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  // No centring here: the diagram fills its box (flex: 1) and centres the table itself. Centred, it
+  // would shrink to no width at all and draw nothing but this box's green.
+  diagram: { overflow: "hidden" },
   fallback: { alignItems: "center", justifyContent: "center" },
   icon: { fontSize: 22 },
 });
