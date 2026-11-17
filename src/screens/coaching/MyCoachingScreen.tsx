@@ -9,7 +9,7 @@ import { useDialog } from "../../components/ui/DialogProvider";
 import { useCoachStore } from "../../store/coachStore";
 import { useCommunityStore } from "../../store/communityStore";
 import { useAuthStore } from "../../store/authStore";
-import { useRoutineScoresStore } from "../../store";
+import { useCustomRoutinesStore, useRoutineScoresStore } from "../../store";
 import { useCoachGroupSeenStore } from "../../store/coachGroupSeenStore";
 import { RescheduleSheet } from "../../components/coach/RescheduleSheet";
 import { ReviewModal } from "../../components/coach/ReviewModal";
@@ -21,6 +21,7 @@ import { startDirect } from "../../features/community/chat";
 import { addBookingToCalendar } from "../../features/coach/calendarSync";
 import { latestGroupPosts } from "../../features/coach/groups";
 import { homeworkProgress } from "../../features/coach/homework";
+import { homeworkRoutineIds, startHomework } from "../../features/coach/homeworkRoutine";
 import {
   COACH_REVIEW_COLUMNS,
   coachReviewFromRow,
@@ -104,6 +105,7 @@ export const MyCoachingScreen = () => {
   const loadProfile = useCommunityStore((state) => state.loadProfile);
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const scoreEntries = useRoutineScoresStore((state) => state.entries);
+  const customRoutines = useCustomRoutinesStore((state) => state.routines);
   const seen = useCoachGroupSeenStore((state) => state.seen);
   const markGroupSeen = useCoachGroupSeenStore((state) => state.markSeen);
 
@@ -150,8 +152,11 @@ export const MyCoachingScreen = () => {
   );
   const homework = useMemo(() => allHomework.filter((item) => item.playerId === userId), [allHomework, userId]);
   const progress = useMemo(
-    () => Object.fromEntries(homework.map((item) => [item.id, homeworkProgress(item, scoreEntries, now)])),
-    [homework, scoreEntries, now]
+    () =>
+      Object.fromEntries(
+        homework.map((item) => [item.id, homeworkProgress(item, scoreEntries, now, homeworkRoutineIds(item, customRoutines))])
+      ),
+    [homework, scoreEntries, now, customRoutines]
   );
 
   // The coaches this player has actually had (or has booked) sessions with, most recent first.
@@ -224,7 +229,7 @@ export const MyCoachingScreen = () => {
   // ------------------------------------------------------------------ actions
   const findCoach = () => navigation.navigate("Community", { screen: "FindCoach", initial: false });
   const openCoach = (coachId: string) => navigation.navigate("Community", { screen: "CoachProfile", params: { userId: coachId }, initial: false });
-  const openRoutine = (routineId: string) => navigation.navigate("Practice", { screen: "RoutineDetail", params: { routineId }, initial: false });
+  const openRoutine = (routineId: string) => void startHomework(navigation, routineId);
 
   const message = async (coachId: string) => {
     const result = await startDirect(coachId);

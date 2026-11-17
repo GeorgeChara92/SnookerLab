@@ -369,6 +369,7 @@ export type CoachModeTabParamList = {
   CoachCalendar: undefined;
   CoachClients: undefined;
   CoachGroups: undefined;
+  CoachRoutines: undefined;
   CoachChats: undefined;
 };
 
@@ -393,6 +394,13 @@ export type CoachClientsStackParamList = {
 };
 
 /** The coach's own client groups: broadcasting practice content to several clients at once. */
+/** A coach's routines: their own (built here or in player view - one account), and the library,
+ * each one ready to set as homework or send to a client. */
+export type CoachRoutinesStackParamList = {
+  RoutinesHome: undefined;
+  CoachRoutine: { routineId: string };
+};
+
 export type CoachGroupsStackParamList = {
   GroupsList: undefined;
   /** Creating a group, picking which clients are in it. */

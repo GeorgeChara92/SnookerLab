@@ -47,6 +47,18 @@ describe("coach homework", () => {
     expect(targetMet(hw({ targetScore: 40 }), progress)).toBe(true);
   });
 
+  it("counts scores on the player's saved copy of a coach's own routine", () => {
+    const now = new Date(2026, 9, 15, 20);
+    const shared = hw({ routineId: "shared:abc", targetScore: 10 });
+    const entries = [
+      entry("8", new Date(2026, 9, 14, 19).toISOString(), "my-copy"),
+      entry("12", new Date(2026, 9, 14, 20).toISOString(), "someone-elses-routine"),
+    ];
+    // Without the copy's id, nothing on it counts; with it, the copy's scores do.
+    expect(homeworkProgress(shared, entries, now).attempts).toBe(0);
+    expect(homeworkProgress(shared, entries, now, new Set(["shared:abc", "my-copy"]))).toMatchObject({ best: 8, attempts: 1 });
+  });
+
   it("says so when it hasn't been tried", () => {
     const progress = homeworkProgress(hw({ perWeek: null, targetScore: null }), []);
     expect(progressLine(hw({ perWeek: null, targetScore: null }), progress)).toBe("Not tried yet");

@@ -23,9 +23,9 @@ import { useCustomRoutinesStore, useRoutinesStore } from "../../store";
 import { CUSTOM_CATEGORY_ID, toRoutine, type CustomRoutine } from "../../features/customRoutines/customRoutine";
 import { nameOf } from "../../features/community/types";
 import { DialogProvider, useDialog } from "../../components/ui/DialogProvider";
-import { getYoutubeThumbnailUrl } from "../../utils/youtube";
-import { getRoutineReferenceImageByRoutineId } from "../../features/ar/routineLayouts";
-import { TableDiagram } from "../../components/scanSnooker/TableDiagram";
+import { getRoutinePlacedBalls } from "../../features/ar/routineLayouts";
+import { RoutineThumb, thumbnailFor } from "../../components/coach/RoutineThumb";
+import { resolveHomeworkRoutine } from "../../features/coach/homeworkRoutine";
 import { RescheduleSheet } from "../../components/coach/RescheduleSheet";
 import { FONTS, HIT_TARGET, RADIUS, SCRIM, SPACING } from "../../constants";
 import { FOCUS_AREAS, type SessionRoutineEntry } from "../../features/coach/types";
@@ -40,53 +40,6 @@ const CUSTOM_CATEGORY: RoutineCategory = {
   name: "My routines",
   order_index: -1,
   created_at: "",
-};
-
-const thumbnailFor = (routine: Routine) => {
-  const reference = getRoutineReferenceImageByRoutineId(routine.id);
-  if (reference) return reference;
-  const videoId = routine.youtube_video_id ?? routine.youtube_alt_video_id;
-  return videoId ? { uri: getYoutubeThumbnailUrl(videoId) } : null;
-};
-
-/** A routine's preview, at whatever size it is given: a live mini table diagram for a custom
- * routine (its actual layout, not a stock icon), or its image/video thumbnail for a library one. */
-const RoutineThumb = ({
-  routine,
-  custom,
-  style,
-  onPress,
-  landscape,
-}: {
-  routine: Routine;
-  custom?: CustomRoutine;
-  style: any;
-  onPress?: () => void;
-  /** The wide preview box, not the small square one in a picker row. */
-  landscape?: boolean;
-}) => {
-  const { colors } = useAppTheme();
-  if (custom) {
-    return (
-      <Pressable
-        onPress={onPress}
-        disabled={!onPress}
-        style={[style, styles.diagramThumb, { backgroundColor: "#0F4A33" }]}
-      >
-        <TableDiagram balls={custom.balls} readOnly landscape={landscape} />
-      </Pressable>
-    );
-  }
-  const source = thumbnailFor(routine);
-  if (!source) {
-    return (
-      <View style={[style, styles.pickerThumbFallback, { backgroundColor: colors.surfaceMuted }]}>
-        <Text style={styles.pickerIcon}>{routine.icon ?? "🎱"}</Text>
-      </View>
-    );
-  }
-  const image = <Image source={source} style={style} resizeMode={onPress ? "contain" : "cover"} />;
-  return onPress ? <Pressable onPress={onPress}>{image}</Pressable> : image;
 };
 
 /** The routine library plus this account's own custom routines, merged and indexed by id - the
@@ -526,11 +479,16 @@ const LiveSessionScreenContent = () => {
           mode="homework"
           onClose={() => setSettingHomework(false)}
           onAdd={async (routine, target, note, perWeek) => {
+            const resolved = await resolveHomeworkRoutine(routine);
+            if (!resolved.ok) {
+              dialog.alert({ title: "Could not share that routine", message: resolved.message, tone: "danger" });
+              return;
+            }
             const result = await addHomework({
               playerId,
               bookingId,
-              routineId: routine.id,
-              routineName: routine.name,
+              routineId: resolved.routineId,
+              routineName: resolved.routineName,
               targetScore: target,
               perWeek: perWeek ?? null,
               note,
@@ -676,8 +634,8 @@ export const RoutinePickerSheet = ({
   onClose: () => void;
   /** For homework, `score` is the target and `perWeek` how many times a week. */
   onAdd: (routine: Routine, score: number | null, notes: string, perWeek?: number | null) => Promise<void>;
-  /** "homework": the library only (a client can't open the coach's own custom routines), with a
-   *  target and a times-a-week instead of a score. */
+  /** "homework": a target and a times-a-week instead of a score. The coach's own routines are
+   *  offered too - setting one shares it privately with the client (see resolveHomeworkRoutine). */
   mode?: "session" | "homework";
 }) => {
   const homeworkMode = mode === "homework";
@@ -697,7 +655,7 @@ export const RoutinePickerSheet = ({
   const [lightboxSource, setLightboxSource] = useState<any>(null);
   const [perWeek, setPerWeek] = useState<number | null>(3);
 
-  const mine = useMemo(() => (homeworkMode ? [] : customRoutines.map(toRoutine)), [customRoutines, homeworkMode]);
+  const mine = useMemo(() => customRoutines.map(toRoutine), [customRoutines]);
   const customById = useMemo(() => new Map(customRoutines.map((routine) => [routine.id, routine])), [customRoutines]);
   const allCategories = useMemo(() => (mine.length ? [CUSTOM_CATEGORY, ...categories] : categories), [mine.length, categories]);
   const categoryName = (categoryId: string) => allCategories.find((category) => category.id === categoryId)?.name ?? "Practice";
@@ -780,16 +738,14 @@ export const RoutinePickerSheet = ({
               placeholderTextColor={colors.textMuted}
               style={[styles.search, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceMuted }]}
             />
-            {homeworkMode ? null : (
-              <Pressable
-                onPress={buildRoutine}
-                accessibilityRole="button"
-                style={[styles.newRoutine, { borderColor: colors.primary }]}
-              >
-                <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.primary} />
-                <Text style={[styles.newRoutineText, { color: colors.primary }]}>Build a new routine</Text>
-              </Pressable>
-            )}
+            <Pressable
+              onPress={buildRoutine}
+              accessibilityRole="button"
+              style={[styles.newRoutine, { borderColor: colors.primary }]}
+            >
+              <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.primary} />
+              <Text style={[styles.newRoutineText, { color: colors.primary }]}>Build a new routine</Text>
+            </Pressable>
             <SectionList
               sections={visibleSections}
               keyExtractor={(item) => item.id}
@@ -842,7 +798,7 @@ export const RoutinePickerSheet = ({
           </>
         ) : (
           <ScrollView keyboardShouldPersistTaps="handled" style={styles.previewScroll}>
-            {selectedCustom ? (
+            {selectedCustom || getRoutinePlacedBalls(selected) ? (
               <RoutineThumb routine={selected} custom={selectedCustom} style={styles.previewImage} landscape />
             ) : selectedThumb ? (
               <RoutineThumb
@@ -1008,7 +964,6 @@ const styles = StyleSheet.create({
   pickerIcon: { fontSize: 22 },
   pickerName: { fontSize: 15, fontWeight: "700" },
   pickerSummary: { fontSize: 12, lineHeight: 16, marginTop: 2 },
-  diagramThumb: { overflow: "hidden", alignItems: "center", justifyContent: "center" },
   previewScroll: { maxHeight: 460 },
   previewImage: { width: "100%", height: 190, borderRadius: RADIUS.md, marginBottom: SPACING.sm, backgroundColor: "#00000022" },
   lightbox: { backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center" },

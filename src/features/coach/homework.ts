@@ -13,11 +13,14 @@ export const startOfWeek = (now = new Date()) => {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
 };
 
-/** A player's progress on a piece of homework, from their own routine scores since it was set. */
+/** A player's progress on a piece of homework, from their own routine scores since it was set.
+ * `routineIds` is every routine whose scores count (see homeworkRoutineIds): for a coach's own
+ * routine that includes the player's saved copy. Defaults to the homework's routine alone. */
 export const homeworkProgress = (
   homework: Homework,
   entries: Array<{ routine_id: string; score: string | number; recorded_at: string }>,
-  now = new Date()
+  now = new Date(),
+  routineIds: Set<string> = new Set([homework.routineId])
 ): HomeworkProgress => {
   const since = new Date(homework.createdAt).getTime();
   const weekStart = startOfWeek(now).getTime();
@@ -26,7 +29,7 @@ export const homeworkProgress = (
   let thisWeek = 0;
   let lastAt: string | null = null;
   for (const entry of entries) {
-    if (entry.routine_id !== homework.routineId) continue;
+    if (!routineIds.has(entry.routine_id)) continue;
     const at = new Date(entry.recorded_at).getTime();
     if (at < since) continue;
     attempts++;

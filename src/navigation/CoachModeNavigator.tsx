@@ -7,6 +7,7 @@ import { CoachAnalyticsDashboardScreen } from "../screens/coach/CoachAnalyticsDa
 import { CoachAvailabilityScreen } from "../screens/coach/CoachAvailabilityScreen";
 import { CoachClientsNavigator } from "./CoachClientsNavigator";
 import { CoachGroupsNavigator } from "./CoachGroupsNavigator";
+import { CoachRoutinesNavigator } from "./CoachRoutinesNavigator";
 import { CoachChatsNavigator } from "./CoachChatsNavigator";
 import { useCoachStore } from "../store/coachStore";
 import { splitBadges, useChatBadges } from "../store/chatStore";
@@ -51,6 +52,11 @@ const GatedClients = () => (
 const GatedGroups = () => (
   <CoachPlanGate title="your groups">
     <CoachGroupsNavigator />
+  </CoachPlanGate>
+);
+const GatedRoutines = () => (
+  <CoachPlanGate title="your routines">
+    <CoachRoutinesNavigator />
   </CoachPlanGate>
 );
 
@@ -136,6 +142,16 @@ export const CoachModeNavigator = () => {
           title: "Groups",
           tabBarLabel: "Groups",
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="account-multiple-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="CoachRoutines"
+        component={GatedRoutines}
+        options={{
+          headerShown: !coachPlanActive,
+          title: "Routines",
+          tabBarLabel: "Routines",
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="clipboard-list-outline" size={size} color={color} />,
         }}
       />
       <Tab.Screen

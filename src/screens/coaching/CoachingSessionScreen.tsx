@@ -9,7 +9,7 @@ import { useDialog } from "../../components/ui/DialogProvider";
 import { useCoachStore } from "../../store/coachStore";
 import { useCommunityStore } from "../../store/communityStore";
 import { useAuthStore } from "../../store/authStore";
-import { useRoutineScoresStore, useRoutinesStore } from "../../store";
+import { useCustomRoutinesStore, useRoutineScoresStore, useRoutinesStore } from "../../store";
 import { CommunityAvatar } from "../../components/community/CommunityAvatar";
 import { HomeworkRow } from "../../components/coach/HomeworkRow";
 import { ReviewModal } from "../../components/coach/ReviewModal";
@@ -17,6 +17,7 @@ import { nameOf } from "../../features/community/types";
 import { startDirect } from "../../features/community/chat";
 import { addBookingToCalendar } from "../../features/coach/calendarSync";
 import { homeworkProgress } from "../../features/coach/homework";
+import { homeworkRoutineIds, startHomework } from "../../features/coach/homeworkRoutine";
 import { COACH_REVIEW_COLUMNS, coachReviewFromRow, type CoachReview } from "../../features/coach/types";
 import { supabase } from "../../api/supabase";
 import type { CoachingStackParamList } from "../../types";
@@ -47,6 +48,7 @@ export const CoachingSessionScreen = () => {
   const profiles = useCommunityStore((state) => state.profiles);
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const scoreEntries = useRoutineScoresStore((state) => state.entries);
+  const customRoutines = useCustomRoutinesStore((state) => state.routines);
   const libraryRoutines = useRoutinesStore((state) => state.routines);
   // Only library routines open on this phone - a coach's own custom routine lives on their account.
   const inLibrary = useMemo(() => new Set(libraryRoutines.map((routine) => routine.id)), [libraryRoutines]);
@@ -214,9 +216,9 @@ export const CoachingSessionScreen = () => {
               <HomeworkRow
                 key={item.id}
                 homework={item}
-                progress={homeworkProgress(item, scoreEntries)}
+                progress={homeworkProgress(item, scoreEntries, undefined, homeworkRoutineIds(item, customRoutines))}
                 first={index === 0}
-                onStart={() => navigation.navigate("Practice", { screen: "RoutineDetail", params: { routineId: item.routineId }, initial: false })}
+                onStart={() => void startHomework(navigation, item.routineId)}
               />
             ))}
           </View>

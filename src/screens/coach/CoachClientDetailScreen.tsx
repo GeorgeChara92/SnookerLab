@@ -11,6 +11,7 @@ import { startDirect } from "../../features/community/chat";
 import { clientKeyOf, type CoachBooking } from "../../features/coach/types";
 import { HomeworkRow } from "../../components/coach/HomeworkRow";
 import { RoutinePickerSheet } from "./LiveSessionScreen";
+import { resolveHomeworkRoutine } from "../../features/coach/homeworkRoutine";
 import type { CoachClientsStackParamList } from "../../types";
 import { FONTS, HIT_TARGET, RADIUS, SPACING } from "../../constants";
 
@@ -153,11 +154,16 @@ export const CoachClientDetailScreen = () => {
               onClose={() => setSettingHomework(false)}
               onAdd={async (routine, target, note, perWeek) => {
                 const latest = history.find((item) => item.status === "accepted");
+                const resolved = await resolveHomeworkRoutine(routine);
+                if (!resolved.ok) {
+                  dialog.alert({ title: "Could not share that routine", message: resolved.message, tone: "danger" });
+                  return;
+                }
                 const result = await addHomework({
                   playerId: clientId,
                   bookingId: latest?.id ?? null,
-                  routineId: routine.id,
-                  routineName: routine.name,
+                  routineId: resolved.routineId,
+                  routineName: resolved.routineName,
                   targetScore: target,
                   perWeek: perWeek ?? null,
                   note,

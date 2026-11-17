@@ -391,6 +391,20 @@ export const HELP_TOPICS = {
     purpose: "Post drills, videos and PDFs to groups of your clients, so one post reaches everyone.",
     steps: ["Create a group and choose which clients are in it.", "Post a video, an image or a PDF with a caption.", "Members see it in the group on their Coaching tab."],
   },
+  coachRoutines: {
+    title: "Routines",
+    audience: "coach",
+    purpose: "Your own routines and the library, ready to set as homework or send to a client.",
+    steps: [
+      "Build a routine: place the balls, give it a name and, if you like, a score to aim for.",
+      "Open any routine and tap Set as homework to give it to one client or several at once.",
+      "Send in a chat shares it in a message instead.",
+    ],
+    tips: [
+      "Your own routine is shared privately with the clients you set it for. It isn't posted to the community.",
+      "Routines you build here are in player view too, and the other way round.",
+    ],
+  },
   coachChats: {
     title: "Chats",
     audience: "coach",
@@ -480,6 +494,9 @@ export const ROUTE_TOPICS: Partial<Record<string, HelpTopicId>> = {
   GroupsList: "coachGroups",
   CoachGroupForm: "coachGroups",
   CoachGroupPostForm: "coachGroups",
+  CoachRoutines: "coachRoutines",
+  RoutinesHome: "coachRoutines",
+  CoachRoutine: "coachRoutines",
   CoachChats: "coachChats",
   ChatsList: "coachChats",
   CoachSettings: "coachSettings",
